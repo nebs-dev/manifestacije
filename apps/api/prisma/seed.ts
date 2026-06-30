@@ -17,7 +17,7 @@ const slug = (value: string) =>
   value
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/đ/g, "d")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
@@ -150,73 +150,290 @@ async function main() {
 
   if (!seedDemoData) return;
 
-  const organizerNames = [
-    "TZ Osijek",
-    "Kulturni centar Osijek",
-    "Udruga Slama",
-    "Sportski savez Osijek",
-    "Baranjski vinari",
-    "Grad Đakovo",
-    "Vukovar events",
-    "Vinkovačke jeseni",
-    "Našička scena",
-    "Valpovačko ljeto"
+  // Realistic demo events for Slavonia and Baranja region
+  const demoOrganizers = [
+    { name: "Turistička zajednica Osijek", email: "info@tz-osijek.hr" },
+    { name: "Kulturni centar Đakovo", email: "kultura@dakovo.hr" },
+    { name: "Grad Vukovar", email: "kultura@vukovar.hr" },
+    { name: "Vinkovačke jeseni d.o.o.", email: "info@vinkovacke-jeseni.hr" },
+    { name: "Turistička zajednica Baranje", email: "info@tz-baranja.hr" },
+    { name: "Valpovačko kulturno ljeto", email: "info@valpovo.hr" },
+    { name: "Naša scena Našice", email: "kultura@nasice.hr" },
+    { name: "Sport i rekreacija Slavonija", email: "info@sport-slavonija.hr" },
   ];
-  for (const name of organizerNames) {
+  for (const org of demoOrganizers) {
     await prisma.organizer.upsert({
-      where: { slug: slug(name) },
-      update: { name },
-      create: { name, slug: slug(name), email: `${slug(name)}@example.com`, status: OrganizerStatus.VERIFIED }
+      where: { slug: slug(org.name) },
+      update: { name: org.name },
+      create: { name: org.name, slug: slug(org.name), email: org.email, status: OrganizerStatus.VERIFIED }
     });
   }
 
   const cityRows = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
   const categoryRows = await prisma.category.findMany();
   const organizerRows = await prisma.organizer.findMany();
+
+  const cityByName = (name: string) => {
+    const c = cityRows.find((r) => r.name === name);
+    if (!c) throw new Error(`City not found: ${name}`);
+    return c;
+  };
+  const catByName = (name: string) => {
+    const c = categoryRows.find((r) => r.name === name);
+    if (!c) throw new Error(`Category not found: ${name}`);
+    return c;
+  };
+  const orgByName = (name: string) => {
+    const o = organizerRows.find((r) => r.name === name);
+    if (!o) throw new Error(`Organizer not found: ${name}`);
+    return o;
+  };
+
   const baseDate = new Date();
   baseDate.setHours(18, 0, 0, 0);
+  const d = (offsetDays: number, hour = 18) => {
+    const date = new Date(baseDate);
+    date.setDate(baseDate.getDate() + offsetDays);
+    date.setHours(hour, 0, 0, 0);
+    return date;
+  };
 
-  for (let i = 0; i < 30; i++) {
-    const city = cityRows[i % cityRows.length];
-    const category = categoryRows[i % categoryRows.length];
-    const organizer = organizerRows[i % organizerRows.length];
-    const startsAt = new Date(baseDate);
-    startsAt.setDate(baseDate.getDate() + i);
-    const title = `${category.name} u ${city.name} ${i + 1}`;
+  const demoEvents = [
+    {
+      title: "Baranjski gastro festival",
+      city: "Beli Manastir",
+      category: "Hrana i vino",
+      organizer: "Turistička zajednica Baranje",
+      startsAt: d(4, 11),
+      endsAt: d(5, 22),
+      isFree: false,
+      priceText: "8 EUR",
+      description: "Domaći vinari, sirari i mesari na jednom mjestu — degustacija baranjskih specijaliteta uz tamburice i dobro raspoloženje.",
+      shortDescription: "Degustacija baranjskih specijaliteta — vino, kobasice i domaći sir u centru Belog Manastira.",
+      venue: "Trg slobode, Beli Manastir",
+    },
+    {
+      title: "Radionica tradicijskog lonačarstva",
+      city: "Đakovo",
+      category: "Radionice",
+      organizer: "Kulturni centar Đakovo",
+      startsAt: d(5, 17),
+      endsAt: d(5, 20),
+      isFree: false,
+      priceText: "15 EUR",
+      description: "Naučite osnove lončarskog zanata u kreativnoj radionici pod vodstvom majstora iz Slavonije. Glina i alat osigurani, polaznici nose kući vlastiti rad.",
+      shortDescription: "Dvosatna radionica za početnike — napravite vlastitu zdjelu uz vodstvo majstora lončara.",
+      venue: "Kulturni centar Đakovo",
+    },
+    {
+      title: "Etno večer u Kopačkom ritu",
+      city: "Bilje",
+      category: "Outdoor",
+      organizer: "Turistička zajednica Baranje",
+      startsAt: d(6, 19),
+      endsAt: d(6, 23),
+      isFree: true,
+      priceText: null,
+      description: "Glazbeni program uz prirodu Parka prirode Kopački rit — folklorne grupe i tamburaški sastavi sviraju na otvorenom uz vatru i zvijezde.",
+      shortDescription: "Folklorni nastupi i tamburaška glazba na rubu Kopačkog rita. Besplatno i za cijelu obitelj.",
+      venue: "Naturpark Kopački rit, Bilje",
+    },
+    {
+      title: "Tamburaška večer u Iloku",
+      city: "Ilok",
+      category: "Glazba",
+      organizer: "Grad Vukovar",
+      startsAt: d(8, 20),
+      endsAt: null,
+      isFree: true,
+      priceText: null,
+      description: "Večer tamburaške glazbe u gradu vinara na obali Dunava. Nastupaju poznati sastavi iz Srijema i Slavonije, uz degustaciju lokalnih vina.",
+      shortDescription: "Tamburaški koncerti na tvrđavskom platou u Iloku, uz Dunav i iločka vina.",
+      venue: "Tvrđavski plato, Ilok",
+    },
+    {
+      title: "Open air kino — Tvrđa ljeto",
+      city: "Osijek",
+      category: "Kultura",
+      organizer: "Turistička zajednica Osijek",
+      startsAt: d(10, 21),
+      endsAt: d(24, 23),
+      isFree: true,
+      priceText: null,
+      description: "Ljetne filmske projekcije na tvrđavskom trgu svake srijede do kolovoza. Program uključuje domaće, europske i animirane filmove za djecu i odrasle.",
+      shortDescription: "Besplatni open air filmovi na Tvrđi svake srijede — od animiranih za djecu do europskog art filma.",
+      venue: "Tvrđa — Trg Sv. Trojstva, Osijek",
+    },
+    {
+      title: "Sajam tradicijskog obrta — Naše, naše!",
+      city: "Našice",
+      category: "Sajmovi",
+      organizer: "Naša scena Našice",
+      startsAt: d(12, 9),
+      endsAt: d(12, 20),
+      isFree: true,
+      priceText: null,
+      description: "Izlagači iz cijele Slavonije donose ručno izrađene proizvode — od tekstila i čipke do keramike, drvenih predmeta i domaće hrane. Radionica za djecu uključena.",
+      shortDescription: "Slavonski obrtnici i proizvođači na jednom trgu — ručni rad, domaće namirnice i radionice za djecu.",
+      venue: "Trg dr. Franje Tuđmana, Našice",
+    },
+    {
+      title: "Glazbena večer u dvorcu Pejačević",
+      city: "Našice",
+      category: "Glazba",
+      organizer: "Naša scena Našice",
+      startsAt: d(13, 20),
+      endsAt: null,
+      isFree: false,
+      priceText: "10 EUR",
+      description: "Komorni koncerti u dvorištu baroknog dvorca Pejačević — klasična glazba i jazz u jedinstvenoj atmosferi slavonskog ladanjskog nasljeđa.",
+      shortDescription: "Komorni koncerti klasike i jazza u dvorištu dvorca Pejačević. Ograničen broj mjesta.",
+      venue: "Dvorac Pejačević, Našice",
+    },
+    {
+      title: "Vukovar film festival",
+      city: "Vukovar",
+      category: "Kultura",
+      organizer: "Grad Vukovar",
+      startsAt: d(15, 18),
+      endsAt: d(18, 23),
+      isFree: false,
+      priceText: "12 EUR",
+      description: "Međunarodni filmski festival s naglaskom na miru, sjećanju i multikulturalnom dijalogu uz Dunav. Prikazuju se filmovi iz više od 20 zemalja.",
+      shortDescription: "Filmski festival uz Dunav — međunarodne projekcije, diskusije i večernji program na otvorenom.",
+      venue: "Vukovar — dvorišta i kulturni centri",
+    },
+    {
+      title: "Obiteljski dan u Gradskom parku",
+      city: "Osijek",
+      category: "Djeca i obitelj",
+      organizer: "Turistička zajednica Osijek",
+      startsAt: d(16, 10),
+      endsAt: d(16, 18),
+      isFree: true,
+      priceText: null,
+      description: "Kreativne radionice, lov na blago i lutkarski nastup za djecu u Gradskom parku u Osijeku. Roditelji se odmaraju dok djeca uče i igraju.",
+      shortDescription: "Besplatan obiteljski program u Gradskom parku — radionice, lutkari i lov na blago za djecu.",
+      venue: "Gradski park, Osijek",
+    },
+    {
+      title: "Maratonska staza uz Dunav",
+      city: "Batina",
+      category: "Sport",
+      organizer: "Sport i rekreacija Slavonija",
+      startsAt: d(17, 8),
+      endsAt: d(17, 14),
+      isFree: false,
+      priceText: "15 EUR",
+      description: "Trčanje po maloj i velikoj stazi uz obalu Dunava s ciljem na rimskom lokalitetu u Batini. Kategorije za trkače svih razina, obiteljska šetnja po kratkoj stazi.",
+      shortDescription: "Polumaraton i 5 km uz Dunav — trčanje po baranjskom krajoliku s okrepom i nagradama.",
+      venue: "Batina — rimski lokalitet",
+    },
+    {
+      title: "Festival vina — Kutjevačke klisurice",
+      city: "Kutjevo",
+      category: "Hrana i vino",
+      organizer: "Valpovačko kulturno ljeto",
+      startsAt: d(18, 11),
+      endsAt: d(19, 20),
+      isFree: false,
+      priceText: "12 EUR",
+      description: "Degustacijski maraton kroz podrume kutjevačkih vinogradara uz glazbeni program, lokalne delicije i vođene ture kroz klisuru. Ulaznica uključuje čašu i vodič.",
+      shortDescription: "Dva dana degustacije kutjevačkih vina uz glazbu i ture kroz podrume i klisurice.",
+      venue: "Kutjevo — stari podrum i klisurice",
+    },
+    {
+      title: "Noć muzeja — Slavonija",
+      city: "Osijek",
+      category: "Kultura",
+      organizer: "Turistička zajednica Osijek",
+      startsAt: d(20, 19),
+      endsAt: d(20, 24),
+      isFree: true,
+      priceText: null,
+      description: "Posebni postavi, vođeni obilasci i noćni program u muzejima, galerijama i dvorcu na Tvrđi. Muzej Slavonije otvara depo i prikazuje predmete koji inače nisu na stalnom postavu.",
+      shortDescription: "Jedna noć, svi muzeji otvoreni — posebni postavi, depo Muzeja Slavonije i vođene ture po Tvrđi.",
+      venue: "Tvrđa i grad Osijek",
+    },
+    {
+      title: "Valpovačko ljeto — Program u dvoru",
+      city: "Valpovo",
+      category: "Tradicija i folklor",
+      organizer: "Valpovačko kulturno ljeto",
+      startsAt: d(22, 19),
+      endsAt: d(23, 22),
+      isFree: true,
+      priceText: null,
+      description: "Folklorni nastupi, tamburaška glazba i izložba starih fotografija u parku dvorca Normann u Valpovu. Dvoru je ovo ljetna pozornica — program teče dva dana.",
+      shortDescription: "Dva večerna programa u parku dvorca Normann — folklor, tamburica i izložba valpovačke baštine.",
+      venue: "Dvorac Normann, Valpovo",
+    },
+    {
+      title: "Đakovački vez — Ljetni program",
+      city: "Đakovo",
+      category: "Tradicija i folklor",
+      organizer: "Kulturni centar Đakovo",
+      startsAt: d(25, 18),
+      endsAt: d(26, 22),
+      isFree: true,
+      priceText: null,
+      description: "Tradicijski program u predvečerje velikog jесенskog festivala — nastup folklornih društava iz cijele regije, izložba veza i domaća kuhinja na Strossmayerovom trgu.",
+      shortDescription: "Folklorni nastupi i izložba slavonskog veza na trgu ispred katedrale u Đakovu.",
+      venue: "Trg J. J. Strossmayera, Đakovo",
+    },
+    {
+      title: "Vinkovačke jeseni — Glazbeno predvečerje",
+      city: "Vinkovci",
+      category: "Glazba",
+      organizer: "Vinkovačke jeseni d.o.o.",
+      startsAt: d(28, 19),
+      endsAt: null,
+      isFree: false,
+      priceText: "8 EUR",
+      description: "Tamburaški koncerti i folklorni program najavljuju jesenski festival — nastupaju mještani i gosti iz regije na glavnom gradskom trgu uz kasnolje tne večeri.",
+      shortDescription: "Glazbeno predvečerje Vinkovačkih jeseni — tamburica i folklor na gradskom trgu.",
+      venue: "Trg bana Šokčevića, Vinkovci",
+    },
+  ];
+
+  for (const [i, ev] of demoEvents.entries()) {
+    const city = cityByName(ev.city);
+    const category = catByName(ev.category);
+    const organizer = orgByName(ev.organizer);
+    const venueSlug = slug(ev.venue);
     const venue = await prisma.venue.upsert({
-      where: { slug_cityId: { slug: slug(`${city.name} centar`), cityId: city.id } },
+      where: { slug_cityId: { slug: venueSlug, cityId: city.id } },
       update: {},
       create: {
-        name: `${city.name} centar`,
-        slug: slug(`${city.name} centar`),
+        name: ev.venue.split(",")[0].trim(),
+        slug: venueSlug,
         cityId: city.id,
-        address: "Trg 1"
+        address: ev.venue,
       }
     });
     await prisma.event.upsert({
-      where: { slug: slug(title) },
+      where: { slug: slug(ev.title) },
       update: {},
       create: {
-        title,
-        slug: slug(title),
-        description: `Primjer manifestacije u ${city.name}. Program je seed podatak za razvoj MVP-a.`,
-        shortDescription: `Seed događaj u ${city.name}.`,
-        status: i < 24 ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW,
+        title: ev.title,
+        slug: slug(ev.title),
+        description: ev.description,
+        shortDescription: ev.shortDescription,
+        status: i < 12 ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW,
         organizerId: organizer.id,
         venueId: venue.id,
         cityId: city.id,
         countyId: city.countyId,
         regionId: city.county.regionId,
         categoryId: category.id,
-        startsAt,
-        endsAt: new Date(startsAt.getTime() + 2 * 60 * 60 * 1000),
+        startsAt: ev.startsAt,
+        endsAt: ev.endsAt,
         isAllDay: false,
-        isFree: i % 3 !== 0,
-        priceText: i % 3 === 0 ? "5 EUR" : null,
-        sourceUrl: `https://example.com/event-${i + 1}`,
+        isFree: ev.isFree,
+        priceText: ev.priceText,
         sourceType: EventSourceKind.IMPORTED,
         extractionConfidence: 0.9,
-        publishedAt: i < 24 ? new Date() : null
+        publishedAt: i < 12 ? new Date() : null,
       }
     });
   }

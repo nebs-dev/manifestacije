@@ -66,9 +66,6 @@ export function EventCard({ event, className }: EventCardProps) {
 
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
           <CategoryBadge category={event.category} />
-          <span className="ml-auto text-xs text-muted-foreground">
-            {event.source}
-          </span>
         </div>
       </div>
     </Link>

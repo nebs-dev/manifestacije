@@ -152,11 +152,16 @@ function toCroEvent(event: ApiEvent): CroEvent {
 }
 
 function imageFor(category: CategorySlug, region: RegionSlug) {
-  if (region === "slavonija") return "/images/region-slavonija.png"
   if (category === "koncerti") return "/images/event-concert.png"
   if (category === "gastro") return "/images/event-food.png"
   if (category === "obiteljski") return "/images/event-family.png"
   if (category === "na-otvorenom") return "/images/event-outdoor.png"
   if (category === "izlozbe") return "/images/event-art.png"
+  if (category === "radionice") return "/images/event-workshop.png"
+  if (category === "festivali") return "/images/hero-night.png"
+  if (region === "slavonija") return "/images/region-slavonija.png"
+  if (region === "dalmacija") return "/images/region-dalmacija.png"
+  if (region === "istra") return "/images/region-istra.png"
+  if (region === "zagreb") return "/images/region-zagreb.png"
   return "/images/hero-night.png"
 }

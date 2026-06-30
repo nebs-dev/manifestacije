@@ -6,8 +6,8 @@ import { ResultsGrid } from "@/components/public/results-grid";
 import { fetchEvents, type PublicFilters } from "@/lib/public-api";
 
 export const metadata: Metadata = {
-  title: "Sva dogadanja",
-  description: "Pretrazi i filtriraj dogadanja diljem Hrvatske."
+  title: "Sva događanja",
+  description: "Pretraži i filtriraj događanja diljem Hrvatske."
 };
 
 function str(v: string | string[] | undefined) {
@@ -33,8 +33,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
       <main className="mx-auto max-w-6xl px-4 py-10 md:py-14">
         <header className="mb-8">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Pregled</p>
-          <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Sva dogadanja</h1>
-          <p className="mt-2 text-muted-foreground">{results.length} dogadanja odgovara tvojim filtrima.</p>
+          <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Sva događanja</h1>
+          <p className="mt-2 text-muted-foreground">{results.length} događanja odgovara tvojim filtrima.</p>
         </header>
         <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr]">
           <FiltersPanel />
