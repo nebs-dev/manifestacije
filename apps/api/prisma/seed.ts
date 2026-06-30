@@ -35,6 +35,9 @@ async function main() {
   const countyRows = [
     ["Osječko-baranjska", "osjecko-baranjska", slavonija.id],
     ["Vukovarsko-srijemska", "vukovarsko-srijemska", slavonija.id],
+    ["Brodsko-posavska", "brodsko-posavska", slavonija.id],
+    ["Požeško-slavonska", "pozesko-slavonska", slavonija.id],
+    ["Virovitičko-podravska", "viroviticko-podravska", slavonija.id],
     ["Grad Zagreb", "grad-zagreb", zagrebRegion.id]
   ] as const;
   for (const [name, countySlug, regionId] of countyRows) {
@@ -47,6 +50,9 @@ async function main() {
 
   const osCounty = await prisma.county.findUniqueOrThrow({ where: { slug: "osjecko-baranjska" } });
   const vuCounty = await prisma.county.findUniqueOrThrow({ where: { slug: "vukovarsko-srijemska" } });
+  const bpCounty = await prisma.county.findUniqueOrThrow({ where: { slug: "brodsko-posavska" } });
+  const psCounty = await prisma.county.findUniqueOrThrow({ where: { slug: "pozesko-slavonska" } });
+  const vpCounty = await prisma.county.findUniqueOrThrow({ where: { slug: "viroviticko-podravska" } });
   const zgCounty = await prisma.county.findUniqueOrThrow({ where: { slug: "grad-zagreb" } });
   const cities = [
     ["Osijek", osCounty.id, 45.555, 18.695],
@@ -56,7 +62,42 @@ async function main() {
     ["Vinkovci", vuCounty.id, 45.288, 18.804],
     ["Našice", osCounty.id, 45.488, 18.087],
     ["Valpovo", osCounty.id, 45.660, 18.418],
-    ["Beli Manastir", osCounty.id, 45.771, 18.603]
+    ["Beli Manastir", osCounty.id, 45.771, 18.603],
+    ["Donji Miholjac", osCounty.id, 45.761, 18.167],
+    ["Erdut", osCounty.id, 45.526, 19.061],
+    ["Čepin", osCounty.id, 45.523, 18.563],
+    ["Belišće", osCounty.id, 45.681, 18.405],
+    ["Darda", osCounty.id, 45.628, 18.699],
+    ["Bilje", osCounty.id, 45.607, 18.744],
+    ["Bizovac", osCounty.id, 45.592, 18.458],
+    ["Kneževi Vinogradi", osCounty.id, 45.750, 18.733],
+    ["Batina", osCounty.id, 45.850, 18.850],
+    ["Aljmaš", osCounty.id, 45.530, 18.950],
+    ["Petrijevci", osCounty.id, 45.612, 18.535],
+    ["Sarvaš", osCounty.id, 45.534, 18.837],
+    ["Tenja", osCounty.id, 45.498, 18.747],
+    ["Antunovac", osCounty.id, 45.490, 18.676],
+    ["Višnjevac", osCounty.id, 45.568, 18.613],
+    ["Karanac", osCounty.id, 45.760, 18.684],
+    ["Zmajevac", osCounty.id, 45.801, 18.804],
+    ["Ilok", vuCounty.id, 45.222, 19.376],
+    ["Županja", vuCounty.id, 45.077, 18.697],
+    ["Otok", vuCounty.id, 45.146, 18.883],
+    ["Tovarnik", vuCounty.id, 45.165, 19.153],
+    ["Nuštar", vuCounty.id, 45.332, 18.842],
+    ["Borovo", vuCounty.id, 45.376, 18.966],
+    ["Slavonski Brod", bpCounty.id, 45.160, 18.015],
+    ["Nova Gradiška", bpCounty.id, 45.256, 17.383],
+    ["Slavonski Šamac", bpCounty.id, 45.066, 18.488],
+    ["Požega", psCounty.id, 45.331, 17.674],
+    ["Pakrac", psCounty.id, 45.436, 17.188],
+    ["Lipik", psCounty.id, 45.412, 17.152],
+    ["Pleternica", psCounty.id, 45.288, 17.806],
+    ["Kutjevo", psCounty.id, 45.426, 17.883],
+    ["Virovitica", vpCounty.id, 45.832, 17.383],
+    ["Slatina", vpCounty.id, 45.704, 17.703],
+    ["Orahovica", vpCounty.id, 45.541, 17.884],
+    ["Pitomača", vpCounty.id, 45.950, 17.233]
   ] as const;
   for (const [name, countyId, lat, lng] of cities) {
     await prisma.city.upsert({

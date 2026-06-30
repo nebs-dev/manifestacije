@@ -18,6 +18,7 @@ class EventUpsertDto {
     shortDescription;
     cityId;
     categoryId;
+    organizerId;
     startsAt;
     endsAt;
     isAllDay;
@@ -27,6 +28,7 @@ class EventUpsertDto {
     sourceUrl;
     venueName;
     address;
+    imageUrl;
 }
 exports.EventUpsertDto = EventUpsertDto;
 __decorate([
@@ -52,6 +54,12 @@ __decorate([
     (0, class_validator_1.IsInt)(),
     __metadata("design:type", Number)
 ], EventUpsertDto.prototype, "categoryId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Object)
+], EventUpsertDto.prototype, "organizerId", void 0);
 __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
@@ -96,3 +104,8 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], EventUpsertDto.prototype, "address", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], EventUpsertDto.prototype, "imageUrl", void 0);

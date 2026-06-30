@@ -5,7 +5,7 @@ import { slugify, uniqueSlug } from "../common/slug";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
-import { AdminEventDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto } from "./admin.dto";
+import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto } from "./admin.dto";
 
 @Injectable()
 export class AdminService {
@@ -58,7 +58,13 @@ export class AdminService {
   }
 
   deleteEvent(id: number) {
-    return this.prisma.event.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
+      await tx.eventDuplicateCandidate.deleteMany({
+        where: { OR: [{ eventAId: id }, { eventBId: id }] },
+      });
+      return tx.event.delete({ where: { id } });
+    });
   }
 
   deleteEventSource(id: number) {
@@ -143,11 +149,12 @@ export class AdminService {
     });
   }
 
-  async createEventFromSource(id: number, candidateIndex = 0) {
+  async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto) {
     const source = await this.prisma.eventSource.findUnique({ where: { id } });
     if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
 
     const parsedJson = source.parsedJson as Record<string, unknown>;
+    let originalCandidate: ParsedEventCandidate;
     let candidate: ParsedEventCandidate;
     let isBatchFormat = false;
 
@@ -161,11 +168,13 @@ export class AdminService {
       const c = candidates[candidateIndex];
       if (c._status === "created") throw new BadRequestException("Candidate already has a created event");
       if (c._status === "ignored") throw new BadRequestException("Candidate is marked as ignored");
-      candidate = c;
+      originalCandidate = c;
     } else {
       // Legacy single-event format
-      candidate = parsedJson as unknown as ParsedEventCandidate;
+      originalCandidate = parsedJson as unknown as ParsedEventCandidate;
     }
+
+    candidate = { ...originalCandidate, ...this.cleanCandidateOverride(candidateOverride) };
 
     const missing = [!candidate.title && "title", !candidate.startsAt && "startsAt", !candidate.city && "city", !candidate.category && "category"].filter(Boolean);
     if (missing.length) throw new BadRequestException(`Candidate is missing required fields: ${missing.join(", ")}`);
@@ -175,6 +184,8 @@ export class AdminService {
 
     const category = await this.prisma.category.findFirst({ where: { name: { equals: candidate.category, mode: "insensitive" } } });
     if (!category) throw new BadRequestException(`Category '${candidate.category}' not found in taxonomy`);
+
+    const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName);
 
     const event = await this.events.createFromDto(
       {
@@ -190,14 +201,24 @@ export class AdminService {
         sourceUrl: candidate.sourceUrl || source.sourceUrl || undefined,
         venueName: candidate.venueName || undefined,
         address: candidate.address || undefined,
+        imageUrl: candidate.imageUrl || undefined,
       },
-      { organizerId: source.organizerId, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
+      { organizerId, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
     );
 
     if (isBatchFormat) {
       const result = parsedJson as ParsedSourceResult;
       const updatedCandidates = result.candidates.map((c, i) =>
-        i === candidateIndex ? { ...c, _status: "created" as const, _eventId: event.id } : c
+        i === candidateIndex
+          ? {
+              ...c,
+              ...this.cleanCandidateOverride(candidateOverride),
+              missingFields: c.missingFields,
+              warnings: c.warnings,
+              _status: "created" as const,
+              _eventId: event.id,
+            }
+          : c
       );
       const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
       await this.prisma.eventSource.update({
@@ -264,5 +285,25 @@ export class AdminService {
 
   private eventInclude() {
     return { organizer: true, venue: true, city: true, county: true, region: true, category: true } as const;
+  }
+
+  private cleanCandidateOverride(candidate?: CandidateOverrideDto): Partial<ParsedEventCandidate> {
+    if (!candidate) return {};
+    return Object.fromEntries(
+      Object.entries(candidate).map(([key, value]) => [
+        key,
+        typeof value === "string" ? value.trim() : value,
+      ]).filter(([, value]) => value !== undefined)
+    ) as Partial<ParsedEventCandidate>;
+  }
+
+  private async findOrCreateOrganizerId(name?: string): Promise<number | undefined> {
+    const cleaned = name?.trim();
+    if (!cleaned) return undefined;
+    const existing = await this.prisma.organizer.findFirst({ where: { name: { equals: cleaned, mode: "insensitive" } } });
+    if (existing) return existing.id;
+    const slug = await uniqueSlug(cleaned, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
+    const organizer = await this.prisma.organizer.create({ data: { name: cleaned, slug, status: OrganizerStatus.UNCLAIMED } });
+    return organizer.id;
   }
 }

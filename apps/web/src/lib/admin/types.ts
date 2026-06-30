@@ -10,13 +10,19 @@ export type SourceStatus =
 
 export type EventStatus =
   | "pending"
-  | "approved"
   | "published"
   | "rejected"
   | "archived"
   | "draft"
 
 export type DuplicateStatus = "open" | "merged" | "dismissed"
+
+export interface AdminOrganizer {
+  id: number
+  name: string
+  slug: string
+  status: string
+}
 
 export interface EventSource {
   id: string
@@ -49,6 +55,7 @@ export interface ParsedCandidate {
   priceText: string | null
   ticketUrl: string | null
   organizerName: string | null
+  imageUrl: string | null
   confidence: number
   missingFields: string[]
   warnings: string[]

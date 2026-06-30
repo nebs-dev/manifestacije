@@ -60,6 +60,7 @@ let EventsService = class EventsService {
                 priceText: dto.priceText,
                 ticketUrl: dto.ticketUrl,
                 sourceUrl: dto.sourceUrl,
+                imageUrl: dto.imageUrl,
                 sourceType: opts.sourceType || client_1.EventSourceKind.MANUAL,
                 publishedAt: opts.status === client_1.EventStatus.PUBLISHED ? new Date() : undefined
             }
@@ -84,8 +85,20 @@ let EventsService = class EventsService {
             priceText: dto.priceText,
             ticketUrl: dto.ticketUrl,
             sourceUrl: dto.sourceUrl,
+            imageUrl: dto.imageUrl,
             status: dto.status
         };
+        if ("organizerId" in dto) {
+            if (dto.organizerId === null) {
+                data.organizerId = null;
+            }
+            else if (dto.organizerId !== undefined) {
+                const organizer = await this.prisma.organizer.findUnique({ where: { id: dto.organizerId } });
+                if (!organizer)
+                    throw new common_1.BadRequestException("Unknown organizerId");
+                data.organizerId = organizer.id;
+            }
+        }
         if (city) {
             data.cityId = city.id;
             data.countyId = city.countyId;

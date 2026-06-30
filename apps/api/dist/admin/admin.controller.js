@@ -32,16 +32,26 @@ let AdminController = class AdminController {
     reject(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.REJECTED); }
     publish(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.PUBLISHED); }
     archive(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.ARCHIVED); }
+    deleteEvent(id) { return this.admin.deleteEvent(Number(id)); }
     organizers() { return this.admin.organizers(); }
     createOrganizer(dto) { return this.admin.createOrganizer(dto); }
     updateOrganizer(id, dto) { return this.admin.updateOrganizer(Number(id), dto); }
     verify(id) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
     trust(id) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
+    deleteOrganizer(id) { return this.admin.deleteOrganizer(Number(id)); }
+    // Literal routes must be declared before parametric :id routes
     eventSources() { return this.admin.eventSources(); }
     manualEmail(dto) { return this.admin.createManualEmail(dto); }
     parseUrl(dto) { return this.admin.parseUrl(dto); }
+    getEventSource(id) { return this.admin.getSource(Number(id)); }
     reparse(id) { return this.admin.reparseSource(Number(id)); }
-    createEvent(id) { return this.admin.createEventFromSource(Number(id)); }
+    createEvent(id, dto) {
+        return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate);
+    }
+    ignoreCandidate(id, dto) {
+        return this.admin.ignoreCandidate(Number(id), dto.candidateIndex);
+    }
+    deleteEventSource(id) { return this.admin.deleteEventSource(Number(id)); }
     duplicates() { return this.admin.duplicatesList(); }
     mergeDuplicate(id) { return this.admin.mergeDuplicate(Number(id)); }
     dismissDuplicate(id) { return this.admin.dismissDuplicate(Number(id)); }
@@ -105,6 +115,13 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "archive", null);
 __decorate([
+    (0, common_1.Delete)("events/:id"),
+    __param(0, (0, common_1.Param)("id")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "deleteEvent", null);
+__decorate([
     (0, common_1.Get)("organizers"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
@@ -140,6 +157,13 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "trust", null);
 __decorate([
+    (0, common_1.Delete)("organizers/:id"),
+    __param(0, (0, common_1.Param)("id")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "deleteOrganizer", null);
+__decorate([
     (0, common_1.Get)("event-sources"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
@@ -156,9 +180,16 @@ __decorate([
     (0, common_1.Post)("event-sources/parse-url"),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [admin_dto_1.ManualEmailDto]),
+    __metadata("design:paramtypes", [admin_dto_1.ParseUrlDto]),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "parseUrl", null);
+__decorate([
+    (0, common_1.Get)("event-sources/:id"),
+    __param(0, (0, common_1.Param)("id")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "getEventSource", null);
 __decorate([
     (0, common_1.Post)("event-sources/:id/reparse"),
     __param(0, (0, common_1.Param)("id")),
@@ -169,10 +200,26 @@ __decorate([
 __decorate([
     (0, common_1.Post)("event-sources/:id/create-event"),
     __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, admin_dto_1.CreateEventFromCandidateDto]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "createEvent", null);
+__decorate([
+    (0, common_1.Post)("event-sources/:id/ignore-candidate"),
+    __param(0, (0, common_1.Param)("id")),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, admin_dto_1.IgnoreCandidateDto]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "ignoreCandidate", null);
+__decorate([
+    (0, common_1.Delete)("event-sources/:id"),
+    __param(0, (0, common_1.Param)("id")),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
-], AdminController.prototype, "createEvent", null);
+], AdminController.prototype, "deleteEventSource", null);
 __decorate([
     (0, common_1.Get)("duplicates"),
     __metadata("design:type", Function),

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { api, WEB_URL } from "../lib/api";
+import { api, WEB_URL } from "@/lib/api";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const data = await api<{ events: { slug: string; updatedAt: string }[]; regions: { slug: string }[]; cities: { slug: string }[]; categories: { slug: string }[] }>("/public/seo/sitemap-data");

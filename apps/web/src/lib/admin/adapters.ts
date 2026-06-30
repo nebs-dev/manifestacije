@@ -1,4 +1,5 @@
 import type { EventSource, ParsedCandidate, AdminEvent, DuplicateCandidate } from "./types"
+import { toUiEventStatus } from "./status"
 
 type BE = Record<string, unknown>
 
@@ -39,6 +40,7 @@ export function adaptEventSourceCandidates(src: BE): ParsedCandidate[] {
     priceText: (c.priceText as string) || null,
     ticketUrl: (c.ticketUrl as string) || null,
     organizerName: (c.organizerName as string) || null,
+    imageUrl: (c.imageUrl as string) || null,
     confidence: (c.confidence as number) ?? 0,
     missingFields: (c.missingFields as string[]) ?? [],
     warnings: (c.warnings as string[]) ?? [],
@@ -71,7 +73,7 @@ export function adaptEvent(event: BE): AdminEvent {
     ticketUrl: (event.ticketUrl as string) ?? null,
     sourceUrl: (event.sourceUrl as string) ?? null,
     imageUrl: null,
-    status: adaptEventStatus(event.status as string),
+    status: toUiEventStatus(event.status as string),
     confidence: (event.extractionConfidence as number) ?? 0.5,
     warnings: [],
     _cityId: event.cityId as number | undefined,
@@ -123,18 +125,6 @@ function adaptSourceStatus(status: string): EventSource["status"] {
     REJECTED: "error",
   }
   return map[status] ?? "queued"
-}
-
-function adaptEventStatus(status: string): AdminEvent["status"] {
-  const map: Record<string, AdminEvent["status"]> = {
-    DRAFT: "draft",
-    PENDING_REVIEW: "pending",
-    APPROVED: "approved",
-    PUBLISHED: "published",
-    REJECTED: "rejected",
-    ARCHIVED: "archived",
-  }
-  return map[status] ?? "draft"
 }
 
 function adaptDuplicateStatus(status: string): DuplicateCandidate["status"] {

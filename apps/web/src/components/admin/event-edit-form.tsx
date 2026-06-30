@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Save,
   Check,
@@ -41,16 +41,8 @@ import {
 import { StatusBadge } from "@/components/admin/status-badge"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
-import type { AdminEvent } from "@/lib/admin/types"
-
-const statusLabels: Record<AdminEvent["status"], string> = {
-  draft: "Skica",
-  pending: "Na čekanju",
-  approved: "Odobreno",
-  published: "Objavljeno",
-  rejected: "Odbijeno",
-  archived: "Arhivirano",
-}
+import { EVENT_STATUS_OPTIONS, eventStatusLabel, toApiEventStatus } from "@/lib/admin/status"
+import type { AdminEvent, AdminOrganizer } from "@/lib/admin/types"
 
 const CATEGORIES = [
   "Glazba", "Sport", "Kultura", "Hrana i vino", "Zabava",
@@ -86,12 +78,39 @@ export function EventEditForm({
     ticketUrl: event.ticketUrl ?? "",
     sourceUrl: event.sourceUrl ?? "",
     status: event.status,
+    organizerId: event._organizerId ? String(event._organizerId) : "",
   })
+  const [organizers, setOrganizers] = useState<AdminOrganizer[]>([])
+  const [organizersLoading, setOrganizersLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setOrganizersLoading(true)
+    authedFetch("/api/admin/organizers")
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text())
+        return res.json() as Promise<AdminOrganizer[]>
+      })
+      .then((data) => {
+        if (alive) setOrganizers(data)
+      })
+      .catch((err) => {
+        if (alive) toast.error("Greška pri učitavanju organizatora", { description: err instanceof Error ? err.message : String(err) })
+      })
+      .finally(() => {
+        if (alive) setOrganizersLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
+
+  const selectedOrganizer = organizers.find((organizer) => String(organizer.id) === form.organizerId)
 
   async function save() {
     setSaving(true)
@@ -111,9 +130,8 @@ export function EventEditForm({
           priceText: form.priceText || undefined,
           ticketUrl: form.ticketUrl || undefined,
           sourceUrl: form.sourceUrl || undefined,
-          status: form.status.toUpperCase() === "PENDING_REVIEW"
-            ? "PENDING_REVIEW"
-            : form.status.toUpperCase(),
+          organizerId: form.organizerId ? Number(form.organizerId) : null,
+          status: toApiEventStatus(form.status),
         }),
       })
       if (res.ok) {
@@ -359,16 +377,17 @@ export function EventEditForm({
                     }
                   >
                     <SelectTrigger id="status" className="w-full">
-                      <SelectValue placeholder="Odaberi status" />
+                      <SelectValue placeholder="Odaberi status">
+                        {eventStatusLabel(form.status)}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="draft">Skica</SelectItem>
-                        <SelectItem value="pending">Na čekanju</SelectItem>
-                        <SelectItem value="approved">Odobreno</SelectItem>
-                        <SelectItem value="published">Objavljeno</SelectItem>
-                        <SelectItem value="rejected">Odbijeno</SelectItem>
-                        <SelectItem value="archived">Arhivirano</SelectItem>
+                        {EVENT_STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectGroup>
                     </SelectContent>
                   </Select>
@@ -401,10 +420,30 @@ export function EventEditForm({
                   </p>
                 </Field>
                 <Field>
-                  <FieldLabel>Organizator</FieldLabel>
-                  <p className="text-sm text-muted-foreground pt-1">
-                    {event.organizer ?? "—"}
-                  </p>
+                  <FieldLabel htmlFor="organizerId">Organizator</FieldLabel>
+                  <Select
+                    value={form.organizerId || "none"}
+                    onValueChange={(v) => update("organizerId", v === "none" ? "" : String(v ?? ""))}
+                  >
+                    <SelectTrigger id="organizerId" className="w-full">
+                      <SelectValue placeholder="Odaberi organizatora">
+                        {selectedOrganizer?.name ?? event.organizer ?? "Bez organizatora"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="none">Bez organizatora</SelectItem>
+                        {organizers.map((organizer) => (
+                          <SelectItem key={organizer.id} value={String(organizer.id)}>
+                            {organizer.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {organizersLoading && (
+                    <FieldDescription>Učitavanje organizatora…</FieldDescription>
+                  )}
                 </Field>
               </FieldGroup>
             </CardContent>

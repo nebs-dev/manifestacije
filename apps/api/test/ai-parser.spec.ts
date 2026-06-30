@@ -228,6 +228,21 @@ describe("AiEventParserService", () => {
     expect(reunited!.city).toBe("Beli Manastir");
   });
 
+  it("prefers a known city in a comma-separated segment near the end", async () => {
+    const result = await parser.parseBatch({
+      rawText: "SRPANJ 2026.\n4.7., Ljetna večer – Dom kulture, program na otvorenom, Donji Miholjac",
+    });
+    expect(result.candidates[0].city).toBe("Donji Miholjac");
+  });
+
+  it("does not treat title fragments like 'festival pjevača amatera' as a city", async () => {
+    const result = await parser.parseBatch({
+      rawText: "SRPANJ 2026.\n4.7., Festival pjevača amatera – festival pjevača amatera",
+    });
+    expect(result.candidates[0].city).toBe("");
+    expect(result.candidates[0].missingFields).toContain("city");
+  });
+
   it("does not default city to Osijek for non-Osijek events", async () => {
     const result = await parser.parseBatch({ rawText: VISIT_SLAVONIA_INLINE_FIXTURE });
     // Reunited Festival is in Beli Manastir, not Osijek

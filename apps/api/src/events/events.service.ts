@@ -45,6 +45,7 @@ export class EventsService {
         priceText: dto.priceText,
         ticketUrl: dto.ticketUrl,
         sourceUrl: dto.sourceUrl,
+        imageUrl: dto.imageUrl,
         sourceType: opts.sourceType || EventSourceKind.MANUAL,
         publishedAt: opts.status === EventStatus.PUBLISHED ? new Date() : undefined
       }
@@ -69,8 +70,18 @@ export class EventsService {
       priceText: dto.priceText,
       ticketUrl: dto.ticketUrl,
       sourceUrl: dto.sourceUrl,
+      imageUrl: dto.imageUrl,
       status: dto.status
     };
+    if ("organizerId" in dto) {
+      if (dto.organizerId === null) {
+        data.organizerId = null;
+      } else if (dto.organizerId !== undefined) {
+        const organizer = await this.prisma.organizer.findUnique({ where: { id: dto.organizerId } });
+        if (!organizer) throw new BadRequestException("Unknown organizerId");
+        data.organizerId = organizer.id;
+      }
+    }
     if (city) {
       data.cityId = city.id;
       data.countyId = city.countyId;

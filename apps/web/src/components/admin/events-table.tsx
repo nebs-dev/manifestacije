@@ -26,16 +26,12 @@ import { StatusBadge } from "@/components/admin/status-badge"
 import { EmptyState, DeleteButton } from "@/components/admin/states"
 import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
+import { EVENT_STATUS_OPTIONS } from "@/lib/admin/status"
 import type { AdminEvent, EventStatus } from "@/lib/admin/types"
 
 const statusOptions: { value: EventStatus | "all"; label: string }[] = [
   { value: "all", label: "Svi statusi" },
-  { value: "pending", label: "Na čekanju" },
-  { value: "approved", label: "Odobreno" },
-  { value: "published", label: "Objavljeno" },
-  { value: "rejected", label: "Odbijeno" },
-  { value: "archived", label: "Arhivirano" },
-  { value: "draft", label: "Skica" },
+  ...EVENT_STATUS_OPTIONS,
 ]
 
 export function EventsTable({

@@ -1,11 +1,12 @@
-import { IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
+import { EventStatus } from "@prisma/client";
 import { EventUpsertDto } from "../events/event.dto";
 
 export class AdminEventDto extends EventUpsertDto {
   @IsOptional()
-  @IsString()
-  status?: "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "ARCHIVED";
+  @IsEnum(EventStatus)
+  status?: EventStatus;
 }
 
 export class OrganizerAdminDto {
@@ -29,12 +30,32 @@ export class ParseUrlDto {
   sourceUrl!: string;
 }
 
+export class CandidateOverrideDto {
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() startsAt?: string;
+  @IsOptional() @IsString() endsAt?: string;
+  @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() venueName?: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsBoolean() isFree?: boolean;
+  @IsOptional() @IsString() priceText?: string;
+  @IsOptional() @IsString() ticketUrl?: string;
+  @IsOptional() @IsString() organizerName?: string;
+  @IsOptional() @IsString() imageUrl?: string;
+}
+
 export class CreateEventFromCandidateDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   candidateIndex?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CandidateOverrideDto)
+  candidate?: CandidateOverrideDto;
 }
 
 export class IgnoreCandidateDto {

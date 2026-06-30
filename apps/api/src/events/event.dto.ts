@@ -20,6 +20,11 @@ export class EventUpsertDto {
   @IsInt()
   categoryId!: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  organizerId?: number | null;
+
   @IsDateString()
   startsAt!: string;
 
@@ -54,4 +59,8 @@ export class EventUpsertDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }

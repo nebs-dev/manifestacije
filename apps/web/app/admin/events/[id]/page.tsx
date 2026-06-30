@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { use } from "react"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { EventEditForm } from "@/components/admin/event-edit-form"
@@ -13,9 +12,9 @@ import type { AdminEvent } from "@/lib/admin/types"
 export default function EventDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }) {
-  const { id } = use(params)
+  const { id } = params
   const [event, setEvent] = useState<AdminEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")

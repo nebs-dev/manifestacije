@@ -3,8 +3,8 @@ import type { Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kamo? - Sto se dogada u Hrvatskoj",
-  description: "Manifestacije, koncerti, radionice, obiteljski programi i lokalni dogadaji po regijama, datumu i karti",
+  title: "Manifestacije - Što se događa u Hrvatskoj",
+  description: "Manifestacije, koncerti, radionice, obiteljski programi i lokalni događaji po regijama, datumu i karti",
   icons: {
     icon: [
       { url: "/icon-light-32x32.png", media: "(prefers-color-scheme: light)" },

@@ -27,7 +27,7 @@ export function AdminSidebar({ className }: { className?: string }) {
         </div>
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold text-sidebar-foreground">
-            Kamo? Admin
+            Manifestacije Admin
           </span>
           <span className="text-xs text-muted-foreground">Manifestacije</span>
         </div>

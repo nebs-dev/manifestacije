@@ -2,14 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   CalendarPlus,
   X,
-  MapPin,
-  Calendar,
-  Tag,
-  User,
-  Ticket,
   ExternalLink,
   TriangleAlert,
 } from "lucide-react"
@@ -24,28 +20,54 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
-import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
 import type { ParsedCandidate } from "@/lib/admin/types"
 
-function DetailItem({
-  icon: Icon,
+type CandidateForm = {
+  title: string
+  description: string
+  startsAt: string
+  endsAt: string
+  city: string
+  venueName: string
+  category: string
+  isFree: boolean
+  priceText: string
+  ticketUrl: string
+  organizerName: string
+  imageUrl: string
+}
+
+function toDateTimeLocal(value: string | null) {
+  if (!value) return ""
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ""
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+function fromDateTimeLocal(value: string) {
+  if (!value) return ""
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? value : d.toISOString()
+}
+
+function Field({
   label,
-  value,
+  children,
 }: {
-  icon: React.ElementType
   label: string
-  value: string | null
+  children: React.ReactNode
 }) {
   return (
-    <div className="flex items-start gap-2">
-      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <div className="flex min-w-0 flex-col">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <span className="text-sm break-words">{value || "—"}</span>
-      </div>
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
     </div>
   )
 }
@@ -57,35 +79,69 @@ export function ParsedCandidateCard({
   candidate: ParsedCandidate
   onUpdate?: () => void
 }) {
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
-  const location = [candidate.venueName, candidate.city, candidate.region]
-    .filter(Boolean)
-    .join(", ")
+  const [form, setForm] = useState<CandidateForm>(() => ({
+    title: candidate.title || "",
+    description: candidate.description || "",
+    startsAt: toDateTimeLocal(candidate.startsAt),
+    endsAt: toDateTimeLocal(candidate.endsAt),
+    city: candidate.city || "",
+    venueName: candidate.venueName || "",
+    category: candidate.category || "",
+    isFree: candidate.isFree,
+    priceText: candidate.priceText || "",
+    ticketUrl: candidate.ticketUrl || "",
+    organizerName: candidate.organizerName || "",
+    imageUrl: candidate.imageUrl || "",
+  }))
 
   const isCreated = candidate._status === "created"
   const isIgnored = candidate._status === "ignored"
   const isPending = !isCreated && !isIgnored
+  const hasRequired = Boolean(
+    form.title.trim() &&
+      form.startsAt.trim() &&
+      form.city.trim() &&
+      form.category.trim()
+  )
+
+  function setField<K extends keyof CandidateForm>(key: K, value: CandidateForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
 
   async function createEvent() {
+    if (!hasRequired) return
     setBusy(true)
     try {
       const res = await authedFetch(
         `/api/admin/event-sources/${candidate.sourceId}/create-event`,
         {
           method: "POST",
-          body: JSON.stringify({ candidateIndex: candidate.candidateIndex }),
+          body: JSON.stringify({
+            candidateIndex: candidate.candidateIndex,
+            candidate: {
+              title: form.title,
+              description: form.description,
+              startsAt: fromDateTimeLocal(form.startsAt),
+              endsAt: fromDateTimeLocal(form.endsAt),
+              city: form.city,
+              venueName: form.venueName,
+              category: form.category,
+              isFree: form.isFree,
+              priceText: form.priceText,
+              ticketUrl: form.ticketUrl,
+              organizerName: form.organizerName,
+              imageUrl: form.imageUrl,
+            },
+          }),
         }
       )
       if (res.ok) {
         const data = await res.json()
-        toast.success("Događaj kreiran", {
-          description: (
-            <Link href={`/admin/events/${data.event.id}`} className="underline">
-              Event #{data.event.id}
-            </Link>
-          ) as unknown as string,
-        })
+        toast.success("Događaj kreiran")
         onUpdate?.()
+        router.push(`/admin/events/${data.event.id}`)
       } else {
         toast.error("Greška pri kreiranju", { description: await res.text() })
       }
@@ -114,10 +170,6 @@ export function ParsedCandidateCard({
       setBusy(false)
     }
   }
-
-  const canCreate = !candidate.missingFields.some((f) =>
-    ["title", "startsAt", "city", "category"].includes(f)
-  )
 
   return (
     <Card className={isIgnored ? "opacity-50" : undefined}>
@@ -165,20 +217,52 @@ export function ParsedCandidateCard({
 
       <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <DetailItem
-            icon={Calendar}
-            label="Početak"
-            value={formatDateTime(candidate.startsAt)}
-          />
-          <DetailItem
-            icon={Calendar}
-            label="Završetak"
-            value={formatDateTime(candidate.endsAt)}
-          />
-          <DetailItem icon={MapPin} label="Lokacija" value={location || null} />
-          <DetailItem icon={Tag} label="Adresa" value={candidate.address} />
-          <DetailItem icon={User} label="Organizator" value={candidate.organizerName} />
-          <DetailItem icon={Ticket} label="Ulaznice" value={candidate.ticketUrl} />
+          <Field label="Naslov">
+            <Input value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
+          </Field>
+          <Field label="Kategorija">
+            <Input value={form.category} disabled={!isPending} onChange={(e) => setField("category", e.target.value)} placeholder="npr. Glazba" />
+          </Field>
+          <Field label="Početak">
+            <Input type="datetime-local" value={form.startsAt} disabled={!isPending} onChange={(e) => setField("startsAt", e.target.value)} />
+          </Field>
+          <Field label="Završetak">
+            <Input type="datetime-local" value={form.endsAt} disabled={!isPending} onChange={(e) => setField("endsAt", e.target.value)} />
+          </Field>
+          <Field label="Grad">
+            <Input value={form.city} disabled={!isPending} onChange={(e) => setField("city", e.target.value)} placeholder="npr. Osijek" />
+          </Field>
+          <Field label="Lokacija / venue">
+            <Input value={form.venueName} disabled={!isPending} onChange={(e) => setField("venueName", e.target.value)} />
+          </Field>
+          <Field label="Organizator">
+            <Input value={form.organizerName} disabled={!isPending} onChange={(e) => setField("organizerName", e.target.value)} />
+          </Field>
+          <Field label="Cijena">
+            <Input value={form.priceText} disabled={!isPending || form.isFree} onChange={(e) => setField("priceText", e.target.value)} placeholder="npr. 8 EUR" />
+          </Field>
+          <Field label="Ulaznice URL">
+            <Input value={form.ticketUrl} disabled={!isPending} onChange={(e) => setField("ticketUrl", e.target.value)} />
+          </Field>
+          <Field label="Slika URL">
+            <Input value={form.imageUrl} disabled={!isPending} onChange={(e) => setField("imageUrl", e.target.value)} />
+          </Field>
+          <div className="flex items-center gap-2 pt-5">
+            <input
+              id={`free-${candidate.id}`}
+              type="checkbox"
+              checked={form.isFree}
+              disabled={!isPending}
+              onChange={(e) => setField("isFree", e.target.checked)}
+              className="size-4 rounded border-border"
+            />
+            <Label htmlFor={`free-${candidate.id}`} className="text-sm">Besplatno</Label>
+          </div>
+          <div className="sm:col-span-2">
+            <Field label="Opis">
+              <Textarea value={form.description} disabled={!isPending} onChange={(e) => setField("description", e.target.value)} rows={4} />
+            </Field>
+          </div>
         </div>
 
         {(candidate.missingFields.length > 0 || candidate.warnings.length > 0) && (
@@ -229,10 +313,15 @@ export function ParsedCandidateCard({
 
       {isPending && (
         <CardFooter className="gap-2">
-          <Button onClick={createEvent} disabled={busy || !canCreate}>
+          <Button onClick={createEvent} disabled={busy || !hasRequired}>
             <CalendarPlus data-icon="inline-start" />
             Kreiraj događaj
           </Button>
+          {!hasRequired && (
+            <Button variant="outline" disabled>
+              Dopuni podatke
+            </Button>
+          )}
           <Button variant="outline" onClick={ignoreCandidate} disabled={busy}>
             <X data-icon="inline-start" />
             Ignoriraj

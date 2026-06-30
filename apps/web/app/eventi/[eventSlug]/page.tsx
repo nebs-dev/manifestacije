@@ -13,9 +13,9 @@ import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 
 export async function generateMetadata({ params }: { params: { eventSlug: string } }): Promise<Metadata> {
   const event = await fetchEvent(params.eventSlug);
-  if (!event) return { title: "Dogadanje nije pronadeno" };
+  if (!event) return { title: "Događanje nije pronađeno" };
   return {
-    title: `${event.title} | Kamo?`,
+    title: `${event.title} | Manifestacije`,
     description: event.description,
     openGraph: { title: event.title, description: event.description, images: event.image ? [event.image] : [] },
     alternates: { canonical: `${WEB_URL}/eventi/${event.slug}` }

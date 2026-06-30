@@ -27,14 +27,15 @@ const statusMap: Record<string, { tone: Tone; label: string }> = {
   // event statuses (lowercase)
   draft: { tone: "neutral", label: "Skica" },
   pending: { tone: "warning", label: "Na čekanju" },
-  approved: { tone: "info", label: "Odobreno" },
   published: { tone: "success", label: "Objavljeno" },
   rejected: { tone: "danger", label: "Odbijeno" },
   archived: { tone: "neutral", label: "Arhivirano" },
   // event statuses (uppercase backend fallback)
+  DRAFT: { tone: "neutral", label: "Skica" },
   PENDING_REVIEW: { tone: "warning", label: "Na čekanju" },
   PUBLISHED: { tone: "success", label: "Objavljeno" },
   REJECTED: { tone: "danger", label: "Odbijeno" },
+  ARCHIVED: { tone: "neutral", label: "Arhivirano" },
   // duplicate statuses
   open: { tone: "warning", label: "Otvoreno" },
   merged: { tone: "success", label: "Spojeno" },

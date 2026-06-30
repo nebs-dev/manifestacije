@@ -16,6 +16,7 @@ export type ParsedEventCandidate = {
   ticketUrl: string;
   sourceUrl: string;
   organizerName: string;
+  imageUrl: string;
   confidence: number;
   missingFields: string[];
   warnings: string[];
@@ -37,9 +38,20 @@ export class AiEventParserService {
   private readonly KNOWN_CITIES = [
     "Osijek", "Zagreb", "Đakovo", "Vukovar", "Vinkovci", "Našice", "Valpovo", "Beli Manastir",
     "Slavonski Brod", "Požega", "Virovitica", "Koprivnica", "Čakovec", "Kneževi Vinogradi",
-    "Batina", "Darda", "Bilje", "Čepin", "Petrijevci", "Sarvaš", "Tenja", "Aljmaš", "Erdut",
+    "Donji Miholjac", "Erdut", "Čepin", "Cepin", "Belišće", "Belisce", "Darda", "Bilje",
+    "Bizovac", "Kneževi Vinogradi", "Knezevi Vinogradi", "Batina", "Aljmaš", "Aljmas",
+    "Petrijevci", "Sarvaš", "Sarvas", "Tenja", "Antunovac", "Višnjevac", "Visnjevac",
+    "Josipovac", "Semeljci", "Satnica Đakovačka", "Satnica Dakovacka", "Đurđenovac",
+    "Durdjenovac", "Feričanci", "Fericanci", "Podgorač", "Podgorac", "Koška", "Koska",
+    "Punitovci", "Gorjani", "Levanjska Varoš", "Levanjska Varos", "Trnava", "Draž",
+    "Draz", "Jagodnjak", "Popovac", "Karanac", "Zmajevac", "Suza", "Lug", "Topolje",
+    "Sombor", "Ilok", "Županja", "Zupanja", "Otok", "Nijemci", "Tovarnik", "Lovas",
+    "Nuštar", "Nustar", "Borovo", "Jarmina", "Vođinci", "Vodinci", "Stari Mikanovci",
+    "Slavonski Šamac", "Slavonski Samac", "Vrpolje", "Garčin", "Garcin", "Oriovac",
+    "Nova Gradiška", "Nova Gradiska", "Pakrac", "Lipik", "Pleternica", "Kutjevo",
+    "Velika", "Orahovica", "Slatina", "Pitomača", "Pitomaca",
     "Split", "Rijeka", "Zadar", "Šibenik", "Dubrovnik", "Pula", "Varaždin", "Karlovac",
-    "Sisak", "Bjelovar", "Gospić", "Krapina", "Pazin", "Baranja",
+    "Sisak", "Bjelovar", "Gospić", "Krapina", "Pazin",
   ];
 
   private readonly MONTH_NUMBERS: Record<string, number> = {
@@ -281,6 +293,7 @@ export class AiEventParserService {
       ticketUrl: "",
       sourceUrl,
       organizerName: "",
+      imageUrl: "",
       confidence: this.calcConfidence(missingFields, warnings, isMonthOnly),
       missingFields,
       warnings,
@@ -294,13 +307,11 @@ export class AiEventParserService {
     if (dashIdx >= 0) {
       const title = text.slice(0, dashIdx).trim();
       const afterDash = text.slice(dashIdx).replace(/^\s*[–—]\s*/, "").trim();
-      const knownCity = this.findKnownCity(afterDash);
+      const knownCity = this.findKnownCityNearEnd(afterDash);
       if (knownCity) return { title, city: knownCity, description: afterDash };
-      // Use first comma-segment as city even if unknown
-      const firstPart = afterDash.split(/[,;]/)[0].trim();
-      return { title, city: firstPart, description: afterDash };
+      return { title, city: "", description: afterDash };
     }
-    return { title: text.trim(), city: this.findKnownCity(text), description: "" };
+    return { title: text.trim(), city: this.findKnownCityNearEnd(text), description: "" };
   }
 
   private buildDate(year: number, month: number, day: number): string {
@@ -424,6 +435,7 @@ export class AiEventParserService {
       ticketUrl,
       sourceUrl,
       organizerName: organizerName || this.matchLine(block, /(?:organizator|organizer)\s*:\s*(.+)/i) || "",
+      imageUrl: this.matchLine(block, /(?:slika|image|imageUrl)\s*:\s*(https?:\/\/\S+)/i) || "",
       // Cap at 0.88 — parsed candidates always need review
       confidence: Math.max(0.1, Math.min(0.88, 1.0 - missingFields.length * 0.15 - warnings.length * 0.04)),
       missingFields,
@@ -484,7 +496,21 @@ export class AiEventParserService {
   }
 
   private findKnownCity(text: string): string {
-    return this.KNOWN_CITIES.find((city) => text.toLowerCase().includes(city.toLowerCase())) ?? "";
+    return this.KNOWN_CITIES.find((city) => this.containsCity(text, city)) ?? "";
+  }
+
+  private findKnownCityNearEnd(text: string): string {
+    const parts = text.split(/[,;|]/).map((p) => p.trim()).filter(Boolean);
+    for (const part of parts.slice().reverse()) {
+      const city = this.findKnownCity(part);
+      if (city) return city;
+    }
+    return this.findKnownCity(text);
+  }
+
+  private containsCity(text: string, city: string): boolean {
+    const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}([^\\p{L}\\p{N}]|$)`, "iu").test(text);
   }
 
   private guessCategory(text: string): string {
@@ -501,7 +527,7 @@ export class AiEventParserService {
       title: "", description: "", startsAt: "", endsAt: "",
       venueName: "", address: "", city: "", county: "", region: "",
       category: "", isFree: null, priceText: "", ticketUrl: "",
-      sourceUrl, organizerName: "",
+      sourceUrl, organizerName: "", imageUrl: "",
       confidence: 0.1,
       missingFields: ["title", "startsAt", "city", "category"],
       warnings: ["Empty input"],

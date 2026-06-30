@@ -13,7 +13,7 @@ export function SiteFooter() {
                 <MapPin className="size-5" />
               </span>
               <span className="font-heading text-xl font-bold">
-                Kamo<span className="text-accent">?</span>
+                Manifestacije
               </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-muted">
@@ -83,7 +83,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-ink-muted sm:flex-row">
-          <p>© {new Date().getFullYear()} Kamo? · Otkrij Hrvatsku</p>
+          <p>© {new Date().getFullYear()} Manifestacije · Otkrij Hrvatsku</p>
           <p>Izrađeno s ljubavlju za lokalnu kulturu.</p>
         </div>
       </div>

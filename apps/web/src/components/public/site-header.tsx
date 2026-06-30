@@ -52,7 +52,7 @@ export function SiteHeader({ variant = "light" }: { variant?: "light" | "ink" })
             <MapPin className="size-5" />
           </span>
           <span className="font-heading text-xl font-bold tracking-tight">
-            Kamo<span className="text-accent">?</span>
+            Manifestacije
           </span>
         </Link>
 

@@ -35,7 +35,7 @@ export class AdminController {
   @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
   @Post("event-sources/:id/create-event") createEvent(@Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
-    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0);
+    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate);
   }
   @Post("event-sources/:id/ignore-candidate") ignoreCandidate(@Param("id") id: string, @Body() dto: IgnoreCandidateDto) {
     return this.admin.ignoreCandidate(Number(id), dto.candidateIndex);
