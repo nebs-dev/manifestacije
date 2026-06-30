@@ -5,6 +5,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
@@ -21,6 +24,24 @@ const admin_service_1 = require("./admin/admin.service");
 const ai_event_parser_service_1 = require("./ai-parser/ai-event-parser.service");
 const duplicates_service_1 = require("./duplicates/duplicates.service");
 const events_service_1 = require("./events/events.service");
+const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
+if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
+    throw new Error("JWT_SECRET must be set to a non-default value in production");
+}
+let HealthController = class HealthController {
+    health() {
+        return { ok: true };
+    }
+};
+__decorate([
+    (0, common_1.Get)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], HealthController.prototype, "health", null);
+HealthController = __decorate([
+    (0, common_1.Controller)("health")
+], HealthController);
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -29,11 +50,11 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             jwt_1.JwtModule.register({
                 global: true,
-                secret: process.env.JWT_SECRET || "dev-secret-change-me",
+                secret: jwtSecret,
                 signOptions: { expiresIn: "7d" }
             })
         ],
-        controllers: [auth_controller_1.AuthController, public_feed_controller_1.PublicFeedController, organizer_controller_1.OrganizerController, admin_controller_1.AdminController],
+        controllers: [HealthController, auth_controller_1.AuthController, public_feed_controller_1.PublicFeedController, organizer_controller_1.OrganizerController, admin_controller_1.AdminController],
         providers: [
             prisma_service_1.PrismaService,
             auth_service_1.AuthService,

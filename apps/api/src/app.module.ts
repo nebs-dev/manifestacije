@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Controller, Get, Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "./prisma/prisma.service";
 import { AuthController } from "./auth/auth.controller";
@@ -13,15 +13,28 @@ import { AiEventParserService } from "./ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "./duplicates/duplicates.service";
 import { EventsService } from "./events/events.service";
 
+const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
+if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
+  throw new Error("JWT_SECRET must be set to a non-default value in production");
+}
+
+@Controller("health")
+class HealthController {
+  @Get()
+  health() {
+    return { ok: true };
+  }
+}
+
 @Module({
   imports: [
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || "dev-secret-change-me",
+      secret: jwtSecret,
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [AuthController, PublicFeedController, OrganizerController, AdminController],
+  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController],
   providers: [
     PrismaService,
     AuthService,

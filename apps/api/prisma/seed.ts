@@ -2,6 +2,13 @@ import { PrismaClient, EventStatus, EventSourceKind, OrganizerStatus, UserRole }
 import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@manifestacije.test";
+const adminPassword = process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV === "production" ? "" : "admin1234");
+const seedDemoData = process.env.SEED_DEMO_DATA !== "false";
+
+if (!adminPassword) {
+  throw new Error("SEED_ADMIN_PASSWORD must be set when running seed in production");
+}
 
 const slug = (value: string) =>
   value
@@ -131,6 +138,15 @@ async function main() {
     });
   }
 
+  const adminHash = await bcrypt.hash(adminPassword, 10);
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: { passwordHash: adminHash, role: UserRole.ADMIN, name: "Admin" },
+    create: { email: adminEmail, passwordHash: adminHash, role: UserRole.ADMIN, name: "Admin" }
+  });
+
+  if (!seedDemoData) return;
+
   const organizerNames = [
     "TZ Osijek",
     "Kulturni centar Osijek",
@@ -150,13 +166,6 @@ async function main() {
       create: { name, slug: slug(name), email: `${slug(name)}@example.com`, status: OrganizerStatus.VERIFIED }
     });
   }
-
-  const adminHash = await bcrypt.hash("admin1234", 10);
-  await prisma.user.upsert({
-    where: { email: "admin@manifestacije.test" },
-    update: { passwordHash: adminHash, role: UserRole.ADMIN, name: "Admin" },
-    create: { email: "admin@manifestacije.test", passwordHash: adminHash, role: UserRole.ADMIN, name: "Admin" }
-  });
 
   const cityRows = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
   const categoryRows = await prisma.category.findMany();
