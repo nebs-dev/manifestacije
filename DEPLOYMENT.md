@@ -64,6 +64,12 @@ pnpm --filter api prisma:seed
 
 For production, set `SEED_DEMO_DATA=false` before seed if demo events should not be created.
 
+Railway pre-deploy command can run both root scripts:
+
+```bash
+pnpm prisma:migrate && pnpm prisma:seed
+```
+
 ## Vercel Web
 
 1. Import repo in Vercel.
@@ -100,6 +106,16 @@ admin1234
 ```
 
 Production must set `SEED_ADMIN_PASSWORD` to a real secret before running seed.
+
+## Seed Safety
+
+The Prisma seed is safe for Railway staging:
+
+- regions, counties, cities, categories use `upsert`
+- admin user is created or updated from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`
+- demo organizers/events run only when `SEED_DEMO_DATA=true`
+- demo records use stable slugs and `upsert`, so reruns do not duplicate them
+- seed does not delete existing data
 
 ## Smoke Test Checklist
 

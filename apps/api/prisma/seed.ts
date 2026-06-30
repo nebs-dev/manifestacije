@@ -2,12 +2,15 @@ import { PrismaClient, EventStatus, EventSourceKind, OrganizerStatus, UserRole }
 import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
-const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@manifestacije.test";
-const adminPassword = process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV === "production" ? "" : "admin1234");
-const seedDemoData = process.env.SEED_DEMO_DATA !== "false";
+const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim();
+const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+const seedDemoData = process.env.SEED_DEMO_DATA === "true";
 
+if (!adminEmail) {
+  throw new Error("SEED_ADMIN_EMAIL must be set before running seed");
+}
 if (!adminPassword) {
-  throw new Error("SEED_ADMIN_PASSWORD must be set when running seed in production");
+  throw new Error("SEED_ADMIN_PASSWORD must be set before running seed");
 }
 
 const slug = (value: string) =>
