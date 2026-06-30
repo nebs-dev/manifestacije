@@ -43,12 +43,7 @@ import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, eventStatusLabel, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, AdminOrganizer } from "@/lib/admin/types"
-
-const CATEGORIES = [
-  "Glazba", "Sport", "Kultura", "Hrana i vino", "Zabava",
-  "Djeca i obitelj", "Edukacija", "Outdoor", "Festivali",
-  "Radionice", "Sajmovi", "Tradicija i folklor", "Humanitarno", "Ostalo",
-]
+import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return ""
@@ -80,9 +75,26 @@ export function EventEditForm({
     status: event.status,
     organizerId: event._organizerId ? String(event._organizerId) : "",
   })
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
+    event._categoryIds?.length ? event._categoryIds : (event._categoryId ? [event._categoryId] : [])
+  )
+  const [location, setLocation] = useState<LocationValue | null>(
+    event.lat != null && event.lng != null
+      ? { address: event.address ?? event.venue ?? event.city ?? "", lat: event.lat, lng: event.lng }
+      : null
+  )
+  const [allCategories, setAllCategories] = useState<{ id: number; name: string; slug: string }[]>([])
   const [organizers, setOrganizers] = useState<AdminOrganizer[]>([])
   const [organizersLoading, setOrganizersLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    authedFetch("/api/admin/categories")
+      .then(async (res) => { if (res.ok && alive) setAllCategories(await res.json()) })
+      .catch(() => undefined)
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -115,6 +127,7 @@ export function EventEditForm({
   async function save() {
     setSaving(true)
     try {
+      const primaryCategoryId = selectedCategoryIds[0] ?? event._categoryId
       const res = await authedFetch(`/api/admin/events/${event.id}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -122,7 +135,8 @@ export function EventEditForm({
           description: form.description,
           shortDescription: form.shortDescription || undefined,
           cityId: event._cityId,
-          categoryId: event._categoryId,
+          categoryId: primaryCategoryId,
+          categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
           startsAt: form.startsAt || undefined,
           endsAt: form.endsAt || undefined,
           isAllDay: form.allDay,
@@ -130,6 +144,9 @@ export function EventEditForm({
           priceText: form.priceText || undefined,
           ticketUrl: form.ticketUrl || undefined,
           sourceUrl: form.sourceUrl || undefined,
+          address: location?.address || undefined,
+          lat: location?.lat,
+          lng: location?.lng,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
           status: toApiEventStatus(form.status),
         }),
@@ -276,26 +293,16 @@ export function EventEditForm({
                     onCheckedChange={(v) => update("allDay", v)}
                   />
                 </Field>
-                {(event.city || event.venue) && (
-                  <Field orientation="responsive">
-                    {event.city && (
-                      <Field>
-                        <FieldLabel>Grad</FieldLabel>
-                        <p className="text-sm text-muted-foreground pt-1">
-                          {event.city}
-                        </p>
-                      </Field>
-                    )}
-                    {event.venue && (
-                      <Field>
-                        <FieldLabel>Mjesto / dvorana</FieldLabel>
-                        <p className="text-sm text-muted-foreground pt-1">
-                          {event.venue}
-                        </p>
-                      </Field>
-                    )}
-                  </Field>
-                )}
+                <Field>
+                  <FieldLabel>Lokacija</FieldLabel>
+                  <FieldDescription>Upiši naziv mjesta, dvorane ili adresu.</FieldDescription>
+                  <LocationAutocomplete value={location} onChange={setLocation} />
+                  {(event.city || event.venue) && !location && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Trenutno: {[event.venue, event.city].filter(Boolean).join(", ")}
+                    </p>
+                  )}
+                </Field>
               </FieldGroup>
             </CardContent>
           </Card>
@@ -414,10 +421,35 @@ export function EventEditForm({
             <CardContent>
               <FieldGroup>
                 <Field>
-                  <FieldLabel>Kategorija</FieldLabel>
-                  <p className="text-sm text-muted-foreground pt-1">
-                    {event.category ?? "—"}
-                  </p>
+                  <FieldLabel>Kategorije</FieldLabel>
+                  {allCategories.length > 0 ? (
+                    <div className="mt-1 flex flex-col gap-1.5">
+                      {allCategories.map((cat) => (
+                        <label key={cat.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedCategoryIds.includes(cat.id)}
+                            onChange={() => {
+                              setSelectedCategoryIds((prev) =>
+                                prev.includes(cat.id)
+                                  ? prev.filter((id) => id !== cat.id)
+                                  : [...prev, cat.id]
+                              )
+                            }}
+                            className="size-4 rounded border-input accent-primary"
+                          />
+                          <span>{cat.name}</span>
+                          {selectedCategoryIds[0] === cat.id && (
+                            <span className="text-xs text-muted-foreground">(primarna)</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground pt-1">
+                      {event.categories.map((c) => c.name).join(", ") || event.category || "—"}
+                    </p>
+                  )}
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="organizerId">Organizator</FieldLabel>

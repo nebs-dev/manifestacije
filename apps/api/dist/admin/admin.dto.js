@@ -97,6 +97,9 @@ class CandidateOverrideDto {
     endsAt;
     city;
     venueName;
+    address;
+    lat;
+    lng;
     category;
     isFree;
     priceText;
@@ -135,6 +138,21 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CandidateOverrideDto.prototype, "venueName", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CandidateOverrideDto.prototype, "address", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CandidateOverrideDto.prototype, "lat", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CandidateOverrideDto.prototype, "lng", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

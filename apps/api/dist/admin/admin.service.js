@@ -175,7 +175,14 @@ let AdminService = class AdminService {
         const city = await this.prisma.city.findFirst({ where: { name: { equals: candidate.city, mode: "insensitive" } } });
         if (!city)
             throw new common_1.BadRequestException(`City '${candidate.city}' not found in taxonomy – add it first or correct the parsed city`);
-        const category = await this.prisma.category.findFirst({ where: { name: { equals: candidate.category, mode: "insensitive" } } });
+        const category = await this.prisma.category.findFirst({
+            where: {
+                OR: [
+                    { slug: { equals: candidate.category, mode: "insensitive" } },
+                    { name: { equals: candidate.category, mode: "insensitive" } },
+                ],
+            },
+        });
         if (!category)
             throw new common_1.BadRequestException(`Category '${candidate.category}' not found in taxonomy`);
         const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName);
@@ -192,6 +199,8 @@ let AdminService = class AdminService {
             sourceUrl: candidate.sourceUrl || source.sourceUrl || undefined,
             venueName: candidate.venueName || undefined,
             address: candidate.address || undefined,
+            lat: candidate.lat ?? undefined,
+            lng: candidate.lng ?? undefined,
             imageUrl: candidate.imageUrl || undefined,
         }, { organizerId, status: client_1.EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" });
         if (isBatchFormat) {
@@ -258,7 +267,7 @@ let AdminService = class AdminService {
         return { confidence: avgConfidence, status: needsReview ? "NEEDS_REVIEW" : "PARSED" };
     }
     eventInclude() {
-        return { organizer: true, venue: true, city: true, county: true, region: true, category: true };
+        return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } };
     }
     cleanCandidateOverride(candidate) {
         if (!candidate)

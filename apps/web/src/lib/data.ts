@@ -1,12 +1,23 @@
 export type CategorySlug =
-  | "koncerti"
+  | "glazba"
   | "festivali"
-  | "radionice"
-  | "obiteljski"
-  | "na-otvorenom"
-  | "gastro"
   | "izlozbe"
+  | "radionice"
+  | "djeca-i-obitelj"
+  | "na-otvorenom"
+  | "hrana-i-vino"
+  | "sajmovi"
+  | "sport"
+  | "tradicija-i-folklor"
   | "manifestacije"
+  | "nocni-zivot"
+  | "edukacija"
+  | "humanitarno"
+  | "udruge"
+  | "ostalo"
+  // legacy slugs kept for backward compat
+  | "outdoor"
+  | "kultura"
 
 export type RegionSlug =
   | "dalmacija"
@@ -36,6 +47,7 @@ export interface CroEvent {
   slug: string
   title: string
   category: CategorySlug
+  categories: { slug: string; name: string }[]
   region: RegionSlug
   city: string
   venue: string
@@ -43,6 +55,7 @@ export interface CroEvent {
   date: string
   endDate?: string
   time: string
+  allDay?: boolean
   free: boolean
   price?: string
   forKids: boolean
@@ -54,15 +67,42 @@ export interface CroEvent {
   ticketUrl?: string
   image?: string
   featured?: boolean
+  address?: string
+  lat?: number
+  lng?: number
   /** rough map position in % within the discovery map */
   map: { x: number; y: number }
 }
 
+// Display label overrides for backend slugs shown in public UI.
+export const CATEGORY_DISPLAY: Record<string, string> = {
+  "glazba":              "Glazba",
+  "festivali":           "Festivali",
+  "izlozbe":             "Izložbe",
+  "radionice":           "Radionice",
+  "djeca-i-obitelj":     "Za djecu",
+  "na-otvorenom":        "Na otvorenom",
+  "hrana-i-vino":        "Gastro & vino",
+  "sajmovi":             "Sajmovi",
+  "sport":               "Sport",
+  "tradicija-i-folklor": "Tradicija i folklor",
+  "manifestacije":       "Manifestacije",
+  "nocni-zivot":         "Noćni život",
+  "edukacija":           "Edukacija",
+  "humanitarno":         "Humanitarno",
+  "udruge":              "Udruge",
+  "ostalo":              "Ostalo",
+  // legacy slugs
+  "outdoor":             "Na otvorenom",
+  "kultura":             "Kultura",
+}
+
+// Category strip shown on homepage — curated subset using backend slugs.
 export const categories: Category[] = [
   {
-    slug: "koncerti",
-    name: "Koncerti",
-    tagline: "Glazba uživo, od klapa do elektronike",
+    slug: "glazba",
+    name: "Glazba",
+    tagline: "Koncerti i glazbeni programi",
     gradient: ["oklch(0.42 0.11 256)", "oklch(0.62 0.13 28)"],
   },
   {
@@ -78,8 +118,8 @@ export const categories: Category[] = [
     gradient: ["oklch(0.45 0.09 200)", "oklch(0.6 0.12 150)"],
   },
   {
-    slug: "obiteljski",
-    name: "Obiteljski",
+    slug: "djeca-i-obitelj",
+    name: "Za djecu",
     tagline: "Programi za djecu i cijelu obitelj",
     gradient: ["oklch(0.55 0.13 60)", "oklch(0.65 0.14 110)"],
   },
@@ -90,7 +130,7 @@ export const categories: Category[] = [
     gradient: ["oklch(0.45 0.1 160)", "oklch(0.6 0.11 220)"],
   },
   {
-    slug: "gastro",
+    slug: "hrana-i-vino",
     name: "Gastro & vino",
     tagline: "Okusi regije, vino i delicije",
     gradient: ["oklch(0.5 0.13 40)", "oklch(0.58 0.12 90)"],
@@ -102,8 +142,8 @@ export const categories: Category[] = [
     gradient: ["oklch(0.4 0.07 270)", "oklch(0.55 0.09 320)"],
   },
   {
-    slug: "manifestacije",
-    name: "Manifestacije",
+    slug: "tradicija-i-folklor",
+    name: "Tradicija i folklor",
     tagline: "Lokalne tradicije i gradske fešte",
     gradient: ["oklch(0.45 0.1 24)", "oklch(0.58 0.12 60)"],
   },
@@ -165,6 +205,7 @@ export const events: CroEvent[] = [
     slug: "noci-stare-jezgre",
     title: "Noći stare jezgre",
     category: "festivali",
+    categories: [{ slug: "festivali", name: "Festivali" }, { slug: "glazba", name: "Glazba" }],
     region: "dalmacija",
     city: "Split",
     venue: "Dioklecijanova palača",
@@ -188,7 +229,8 @@ export const events: CroEvent[] = [
   {
     slug: "more-i-zvuk",
     title: "More i zvuk — koncert na rivi",
-    category: "koncerti",
+    category: "glazba",
+    categories: [{ slug: "glazba", name: "Glazba" }],
     region: "dalmacija",
     city: "Zadar",
     venue: "Pozdrav suncu, Riva",
@@ -212,7 +254,8 @@ export const events: CroEvent[] = [
   {
     slug: "okusi-istre",
     title: "Okusi Istre — sajam vina i tartufa",
-    category: "gastro",
+    category: "hrana-i-vino",
+    categories: [{ slug: "hrana-i-vino", name: "Hrana i vino" }, { slug: "festivali", name: "Festivali" }],
     region: "istra",
     city: "Motovun",
     venue: "Trg Andrea Antico",
@@ -237,6 +280,7 @@ export const events: CroEvent[] = [
     slug: "glina-i-ruke",
     title: "Glina i ruke — keramička radionica",
     category: "radionice",
+    categories: [{ slug: "radionice", name: "Radionice" }],
     region: "istra",
     city: "Rovinj",
     venue: "Atelier Mali Sv. Križ",
@@ -258,7 +302,8 @@ export const events: CroEvent[] = [
   {
     slug: "mali-istrazivaci",
     title: "Mali istraživači — dan za obitelj",
-    category: "obiteljski",
+    category: "djeca-i-obitelj",
+    categories: [{ slug: "djeca-i-obitelj", name: "Djeca i obitelj" }, { slug: "na-otvorenom", name: "Na otvorenom" }],
     region: "zagreb",
     city: "Zagreb",
     venue: "Park Maksimir",
@@ -281,6 +326,7 @@ export const events: CroEvent[] = [
     slug: "velebit-izlazak-sunca",
     title: "Velebit — pohod na izlazak sunca",
     category: "na-otvorenom",
+    categories: [{ slug: "na-otvorenom", name: "Na otvorenom" }, { slug: "sport", name: "Sport" }],
     region: "lika",
     city: "Starigrad",
     venue: "Premužićeva staza",
@@ -304,6 +350,7 @@ export const events: CroEvent[] = [
     slug: "svjetlo-i-sjena",
     title: "Svjetlo i sjena — izložba fotografije",
     category: "izlozbe",
+    categories: [{ slug: "izlozbe", name: "Izložbe" }],
     region: "zagreb",
     city: "Zagreb",
     venue: "Galerija Klovićevi dvori",
@@ -327,7 +374,8 @@ export const events: CroEvent[] = [
   {
     slug: "slavonski-banket",
     title: "Slavonski banket — fešta okusa",
-    category: "manifestacije",
+    category: "tradicija-i-folklor",
+    categories: [{ slug: "tradicija-i-folklor", name: "Tradicija i folklor" }, { slug: "hrana-i-vino", name: "Hrana i vino" }],
     region: "slavonija",
     city: "Đakovo",
     venue: "Trg J. J. Strossmayera",
@@ -348,7 +396,8 @@ export const events: CroEvent[] = [
   {
     slug: "ljetna-pozornica-pula",
     title: "Ljetna pozornica — Arena uživo",
-    category: "koncerti",
+    category: "glazba",
+    categories: [{ slug: "glazba", name: "Glazba" }, { slug: "festivali", name: "Festivali" }],
     region: "istra",
     city: "Pula",
     venue: "Pulska Arena",
@@ -372,6 +421,7 @@ export const events: CroEvent[] = [
     slug: "kvarnerski-vez",
     title: "Kvarnerski vez — radionica čipke",
     category: "radionice",
+    categories: [{ slug: "radionice", name: "Radionice" }, { slug: "tradicija-i-folklor", name: "Tradicija i folklor" }],
     region: "kvarner",
     city: "Opatija",
     venue: "Villa Angiolina",
@@ -393,6 +443,7 @@ export const events: CroEvent[] = [
     slug: "filmske-veceri-na-trgu",
     title: "Filmske večeri na trgu",
     category: "festivali",
+    categories: [{ slug: "festivali", name: "Festivali" }, { slug: "izlozbe", name: "Izložbe" }],
     region: "zagreb",
     city: "Samobor",
     venue: "Glavni trg",
@@ -414,7 +465,8 @@ export const events: CroEvent[] = [
   {
     slug: "jadranski-okusi-kvarner",
     title: "Jadranski okusi — večer ribe",
-    category: "gastro",
+    category: "hrana-i-vino",
+    categories: [{ slug: "hrana-i-vino", name: "Hrana i vino" }, { slug: "na-otvorenom", name: "Na otvorenom" }],
     region: "kvarner",
     city: "Rijeka",
     venue: "Korzo",
@@ -449,16 +501,16 @@ export function getEvent(slug: string) {
   return events.find((e) => e.slug === slug)
 }
 
-export function categoryName(slug: CategorySlug) {
-  return getCategory(slug)?.name ?? slug
+export function categoryName(slug: string) {
+  return CATEGORY_DISPLAY[slug] ?? getCategory(slug as CategorySlug)?.name ?? slug
 }
 
 export function regionName(slug: RegionSlug) {
   return getRegion(slug)?.name ?? slug
 }
 
-export function gradientFor(slug: CategorySlug): string {
-  const cat = getCategory(slug)
+export function gradientFor(slug: string): string {
+  const cat = getCategory(slug as CategorySlug)
   if (!cat) return "linear-gradient(135deg, oklch(0.4 0.08 256), oklch(0.55 0.1 28))"
   return `linear-gradient(135deg, ${cat.gradient[0]}, ${cat.gradient[1]})`
 }
@@ -663,5 +715,6 @@ export const CITY_COORDS: Record<string, [number, number]> = {
 }
 
 export function coordsFor(e: CroEvent): [number, number] {
+  if (e.lat != null && e.lng != null) return [e.lat, e.lng]
   return CITY_COORDS[e.city] ?? [45.1, 15.5]
 }

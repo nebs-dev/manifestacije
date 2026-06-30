@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { FiltersPanel } from "@/components/public/filters-panel";
 import { ResultsGrid } from "@/components/public/results-grid";
-import { fetchEvents, type PublicFilters } from "@/lib/public-api";
+import { fetchEvents, fetchCategories, fetchRegions, type PublicFilters } from "@/lib/public-api";
 
 export const metadata: Metadata = {
   title: "Sva događanja",
@@ -25,7 +25,11 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
     outdoor: str(searchParams.vani) === "1",
     when: str(searchParams.kada) as PublicFilters["when"]
   };
-  const results = await fetchEvents(filters);
+  const [results, categories, regions] = await Promise.all([
+    fetchEvents(filters),
+    fetchCategories(),
+    fetchRegions(),
+  ]);
 
   return (
     <>
@@ -36,8 +40,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
           <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Sva događanja</h1>
           <p className="mt-2 text-muted-foreground">{results.length} događanja odgovara tvojim filtrima.</p>
         </header>
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr]">
-          <FiltersPanel />
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr] md:items-start">
+          <FiltersPanel categories={categories} regions={regions} />
           <ResultsGrid events={results} />
         </div>
       </main>

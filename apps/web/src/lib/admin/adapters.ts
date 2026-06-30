@@ -55,6 +55,12 @@ export function adaptEvent(event: BE): AdminEvent {
   const venue = event.venue as BE | null
   const category = event.category as BE | null
   const organizer = event.organizer as BE | null
+  const rawCats = (event.categories as Array<{ categoryId: number; category: BE }> | null) ?? []
+  const categories = rawCats.map((ec) => ({
+    id: (ec.category?.id ?? ec.categoryId) as number,
+    name: (ec.category?.name as string) || "",
+    slug: (ec.category?.slug as string) || "",
+  }))
   return {
     id: String(event.id),
     title: (event.title as string) || "",
@@ -66,7 +72,11 @@ export function adaptEvent(event: BE): AdminEvent {
     allDay: (event.isAllDay as boolean) ?? false,
     city: (city?.name as string) ?? null,
     venue: (venue?.name as string) ?? null,
+    address: (event.address as string) ?? null,
+    lat: (event.lat as number) ?? null,
+    lng: (event.lng as number) ?? null,
     category: (category?.name as string) ?? null,
+    categories,
     organizer: (organizer?.name as string) ?? null,
     isFree: (event.isFree as boolean) ?? false,
     priceText: (event.priceText as string) ?? null,
@@ -78,6 +88,7 @@ export function adaptEvent(event: BE): AdminEvent {
     warnings: [],
     _cityId: event.cityId as number | undefined,
     _categoryId: event.categoryId as number | undefined,
+    _categoryIds: categories.map((c) => c.id),
     _organizerId: event.organizerId as number | undefined,
   }
 }

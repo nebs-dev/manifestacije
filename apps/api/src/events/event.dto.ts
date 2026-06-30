@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsDateString, IsInt, IsOptional, IsString } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class EventUpsertDto {
   @IsString()
@@ -19,6 +19,12 @@ export class EventUpsertDto {
   @Type(() => Number)
   @IsInt()
   categoryId!: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Type(() => Number)
+  categoryIds?: number[];
 
   @IsOptional()
   @Type(() => Number)
@@ -59,6 +65,16 @@ export class EventUpsertDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  lat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  lng?: number;
 
   @IsOptional()
   @IsString()

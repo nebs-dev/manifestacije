@@ -7,6 +7,8 @@ export type ParsedEventCandidate = {
   endsAt: string;
   venueName: string;
   address: string;
+  lat?: number;
+  lng?: number;
   city: string;
   county: string;
   region: string;
@@ -69,19 +71,23 @@ export class AiEventParserService {
     "prosinac": 12,
   };
 
-  // Ordered: more specific categories before Ostalo; "festival/fest" belongs to Tradicija, not Glazba.
+  // Values are backend slugs. More specific categories listed before catch-alls.
   private readonly CATEGORY_KEYWORDS: Record<string, string[]> = {
-    "Tradicija i folklor": ["folklor", "tradicija", "etno", "narodni", "folklorni", "vez", "vezovi", "festival", "fest", "manifestacij"],
-    "Glazba": ["koncert", "glazba", "music", "zbor", "orkestar", "pjevanje", "nastup"],
-    "Hrana i vino": ["hrana", "vino", "wine", "kulinarstvo", "gastronomija", "pivnica", "kuhanje", "gastro", "degustacij", "specijalitet"],
-    "Kultura": ["izložba", "kultura", "muzej", "galerija", "kazalište", "predstava", "film", "kulturni", "kino"],
-    "Djeca i obitelj": ["djeca", "obitelj", "kids", "family", "dječji", "za djecu"],
-    "Sport": ["sport", "trčanje", "maraton", "natjecanje", "turnir", "liga", "utrka", "bike", "bicikl"],
-    "Outdoor": ["outdoor", "hiking", "planina", "šetnja", "rafting"],
-    "Radionice": ["radionica", "workshop", "tečaj", "seminar", "predavanje", "edukacij"],
-    "Sajmovi": ["sajam", "market", "tržnica", "vašar"],
-    "Humanitarno": ["humanitarn", "dobrotvorn", "donacij"],
-    "Ostalo": [],
+    "tradicija-i-folklor": ["folklor", "tradicija", "etno", "narodni", "folklorni", "vez", "vezovi", "advent", "dani grada", "dani op"],
+    "festivali":           ["festival", "fest"],
+    "manifestacije":       ["manifestacij", "priredba", "doček", "svečanost"],
+    "glazba":              ["koncert", "glazba", "music", "zbor", "orkestar", "pjevanje", "nastup", "tambur", "klapa", "dj set"],
+    "hrana-i-vino":        ["hrana", "vino", "wine", "kulinarstvo", "gastronomija", "pivnica", "kuhanje", "gastro", "degustacij", "specijalitet", "fišijada", "kulen", "craft beer"],
+    "izlozbe":             ["izložba", "galerija", "muzej", "kazalište", "predstava", "film", "kulturni", "kino"],
+    "djeca-i-obitelj":     ["djeca", "obitelj", "kids", "family", "dječji", "za djecu"],
+    "sport":               ["sport", "trčanje", "maraton", "natjecanje", "turnir", "liga", "utrka", "bike", "bicikl", "trail", "plivanje"],
+    "na-otvorenom":        ["outdoor", "hiking", "planina", "šetnja", "rafting", "priroda", "na otvorenom"],
+    "radionice":           ["radionica", "workshop", "tečaj"],
+    "edukacija":           ["seminar", "predavanje", "edukacij"],
+    "sajmovi":             ["sajam", "market", "tržnica", "vašar"],
+    "humanitarno":         ["humanitarn", "dobrotvorn", "donacij"],
+    "nocni-zivot":         ["party", "klub", "noćni život", "night"],
+    "ostalo":              [],
   };
 
   // ── Public API ────────────────────────────────────────────────────────────────
@@ -258,8 +264,8 @@ export class AiEventParserService {
     const { title, city, description } = this.parseTitleAndLocation(rest);
 
     const categoryGuess = this.guessCategory(`${title} ${description}`);
-    const category = categoryGuess || "Ostalo";
-    if (!categoryGuess) warnings.push("Kategorija nepoznata; pretpostavljeno Ostalo.");
+    const category = categoryGuess || "ostalo";
+    if (!categoryGuess) warnings.push("Kategorija nepoznata; pretpostavljeno ostalo.");
 
     const isFree = /besplatno|free|ulaz slobodan/i.test(rest)
       ? true
@@ -387,7 +393,7 @@ export class AiEventParserService {
       this.findKnownCity(block);
 
     const categoryGuess = this.matchLine(block, /(?:kategorija|category)\s*:\s*(.+)/i) || this.guessCategory(block);
-    const category = categoryGuess || "Ostalo";
+    const category = categoryGuess || "ostalo";
 
     const venueName = this.matchLine(block, /(?:lokacija|venue|dvorana|prostor)\s*:\s*(.+)/i) || "";
 
@@ -526,10 +532,10 @@ export class AiEventParserService {
     return {
       title: "", description: "", startsAt: "", endsAt: "",
       venueName: "", address: "", city: "", county: "", region: "",
-      category: "", isFree: null, priceText: "", ticketUrl: "",
+      category: "ostalo", isFree: null, priceText: "", ticketUrl: "",
       sourceUrl, organizerName: "", imageUrl: "",
       confidence: 0.1,
-      missingFields: ["title", "startsAt", "city", "category"],
+      missingFields: ["title", "startsAt", "city"],
       warnings: ["Empty input"],
     };
   }

@@ -1,40 +1,36 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import {
-  Search,
-  ChevronDown,
-  MapPin,
-  Plus,
-  Menu,
-  X,
-} from "lucide-react"
-import { regions } from "@/lib/data"
-import { cn } from "@/lib/utils"
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Search, ChevronDown, MapPin, Plus, Menu, X } from "lucide-react";
+import { regions } from "@/lib/data";
+import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/eventi", label: "Događaji" },
   { href: "/kalendar", label: "Kalendar" },
   { href: "/mapa", label: "Karta" },
   { href: "/regije", label: "Regije" },
-  { href: "/dodaj-event", label: "Za organizatore" },
-]
+];
 
-export function SiteHeader({ variant = "light" }: { variant?: "light" | "ink" }) {
-  const router = useRouter()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [regionOpen, setRegionOpen] = useState(false)
-  const [region, setRegion] = useState<string>("Cijela Hrvatska")
-  const [query, setQuery] = useState("")
+export function SiteHeader({
+  variant = "light",
+}: {
+  variant?: "light" | "ink";
+}) {
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [region, setRegion] = useState<string>("Cijela Hrvatska");
+  const [query, setQuery] = useState("");
 
   const onSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    router.push(`/eventi?q=${encodeURIComponent(query)}`)
-  }
+    e.preventDefault();
+    router.push(`/eventi?q=${encodeURIComponent(query)}`);
+  };
 
-  const isInk = variant === "ink"
+  const isInk = variant === "ink";
 
   return (
     <header
@@ -77,8 +73,8 @@ export function SiteHeader({ variant = "light" }: { variant?: "light" | "ink" })
               <button
                 className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-muted"
                 onClick={() => {
-                  setRegion("Cijela Hrvatska")
-                  setRegionOpen(false)
+                  setRegion("Cijela Hrvatska");
+                  setRegionOpen(false);
                 }}
               >
                 Cijela Hrvatska
@@ -88,9 +84,9 @@ export function SiteHeader({ variant = "light" }: { variant?: "light" | "ink" })
                   key={r.slug}
                   className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-muted"
                   onClick={() => {
-                    setRegion(r.name)
-                    setRegionOpen(false)
-                    router.push(`/regije/${r.slug}`)
+                    setRegion(r.name);
+                    setRegionOpen(false);
+                    router.push(`/regije/${r.slug}`);
                   }}
                 >
                   {r.name}
@@ -196,5 +192,5 @@ export function SiteHeader({ variant = "light" }: { variant?: "light" | "ink" })
         </div>
       )}
     </header>
-  )
+  );
 }

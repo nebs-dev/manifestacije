@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { EventStatus } from "@prisma/client";
 import { EventUpsertDto } from "../events/event.dto";
@@ -37,6 +37,9 @@ export class CandidateOverrideDto {
   @IsOptional() @IsString() endsAt?: string;
   @IsOptional() @IsString() city?: string;
   @IsOptional() @IsString() venueName?: string;
+  @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsNumber() lat?: number;
+  @IsOptional() @IsNumber() lng?: number;
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsBoolean() isFree?: boolean;
   @IsOptional() @IsString() priceText?: string;

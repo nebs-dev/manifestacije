@@ -5,6 +5,13 @@ export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000
 
 type ApiTaxonomy = { id: number; name: string; slug: string; lat?: number | null; lng?: number | null }
 
+type ApiEventCategory = {
+  eventId: number
+  categoryId: number
+  isPrimary: boolean
+  category: ApiTaxonomy
+}
+
 type ApiEvent = {
   id: number
   title: string
@@ -13,6 +20,7 @@ type ApiEvent = {
   shortDescription?: string | null
   startsAt: string
   endsAt?: string | null
+  isAllDay?: boolean | null
   isFree?: boolean | null
   priceText?: string | null
   ticketUrl?: string | null
@@ -22,10 +30,17 @@ type ApiEvent = {
   organizer?: { id: number; name: string } | null
   venue?: { id: number; name: string; address?: string | null; lat?: number | null; lng?: number | null } | null
   city: ApiTaxonomy
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
   county?: ApiTaxonomy
   region?: ApiTaxonomy
   category: ApiTaxonomy
+  categories?: ApiEventCategory[]
 }
+
+export type PublicCategory = { id: number; name: string; slug: string; sortOrder: number }
+export type PublicRegion = { id: number; name: string; slug: string; sortOrder: number }
 
 export type PublicFilters = {
   q?: string
@@ -35,35 +50,7 @@ export type PublicFilters = {
   free?: boolean
   kids?: boolean
   outdoor?: boolean
-  when?: "danas" | "ovaj-vikend" | "ovaj-mjesec"
-}
-
-const categoryMap: Record<string, CategorySlug> = {
-  glazba: "koncerti",
-  kultura: "izlozbe",
-  "djeca-i-obitelj": "obiteljski",
-  sport: "na-otvorenom",
-  outdoor: "na-otvorenom",
-  "hrana-i-vino": "gastro",
-  radionice: "radionice",
-  sajmovi: "manifestacije",
-  humanitarno: "manifestacije",
-  "nocni-zivot": "festivali",
-  edukacija: "radionice",
-  udruge: "manifestacije",
-  "tradicija-i-folklor": "manifestacije",
-  ostalo: "manifestacije",
-}
-
-const reverseCategoryMap: Record<string, string> = {
-  koncerti: "glazba",
-  festivali: "nocni-zivot",
-  radionice: "radionice",
-  obiteljski: "djeca-i-obitelj",
-  "na-otvorenom": "outdoor",
-  gastro: "hrana-i-vino",
-  izlozbe: "kultura",
-  manifestacije: "tradicija-i-folklor",
+  when?: "danas" | "ovaj-vikend" | "ovaj-miesec"
 }
 
 const regionMap: Record<string, RegionSlug> = {
@@ -85,10 +72,25 @@ const reverseRegionMap: Record<string, string> = {
   lika: "lika-i-gorski-kotar",
 }
 
+export async function fetchCategories(): Promise<PublicCategory[]> {
+  return fetchApi<PublicCategory[]>("/api/public/categories").catch(() => [])
+}
+
+export async function fetchRegions(): Promise<PublicRegion[]> {
+  return fetchApi<PublicRegion[]>("/api/public/regions").catch(() => [])
+}
+
 export async function fetchEvents(filters: PublicFilters = {}) {
   const params = new URLSearchParams()
   if (filters.q) params.set("search", filters.q)
-  if (filters.category) params.set("category", reverseCategoryMap[filters.category] || filters.category)
+  // Category: explicit filter takes priority; kids/outdoor map to category slugs
+  if (filters.category) {
+    params.set("category", filters.category)
+  } else if (filters.kids) {
+    params.set("category", "djeca-i-obitelj")
+  } else if (filters.outdoor) {
+    params.set("category", "na-otvorenom")
+  }
   if (filters.region) params.set("region", reverseRegionMap[filters.region] || filters.region)
   if (filters.city) params.set("city", filters.city)
   if (filters.free) params.set("free", "true")
@@ -124,41 +126,58 @@ async function fetchApi<T>(path: string): Promise<T> {
 function toCroEvent(event: ApiEvent): CroEvent {
   const starts = new Date(event.startsAt)
   const ends = event.endsAt ? new Date(event.endsAt) : null
-  const category = categoryMap[event.category.slug] || "manifestacije"
   const region = regionMap[event.region?.slug || ""] || "slavonija"
+
+  // Build categories list from EventCategory join; fall back to singular category
+  const allCats: { slug: string; name: string }[] =
+    event.categories && event.categories.length > 0
+      ? event.categories.map((ec) => ({ slug: ec.category.slug, name: ec.category.name }))
+      : [{ slug: event.category.slug, name: event.category.name }]
+
+  // Primary category: prefer isPrimary flag, fall back to first in list or singular
+  const primarySlug =
+    event.categories?.find((ec) => ec.isPrimary)?.category.slug ||
+    event.category.slug
+
   return {
     slug: event.slug,
     title: event.title,
-    category,
+    category: primarySlug as CategorySlug,
+    categories: allCats,
     region,
     city: event.city.name,
     venue: event.venue?.name || event.city.name,
     date: starts.toISOString().slice(0, 10),
     endDate: ends ? ends.toISOString().slice(0, 10) : undefined,
     time: new Intl.DateTimeFormat("hr-HR", { hour: "2-digit", minute: "2-digit" }).format(starts),
+    allDay: event.isAllDay === true,
     free: event.isFree === true,
     price: event.priceText || undefined,
-    forKids: category === "obiteljski",
-    outdoor: category === "na-otvorenom" || Boolean(event.venue?.lat || event.city.lat),
+    forKids: primarySlug === "djeca-i-obitelj" || allCats.some((c) => c.slug === "djeca-i-obitelj"),
+    outdoor: primarySlug === "na-otvorenom" || primarySlug === "outdoor" ||
+      allCats.some((c) => c.slug === "na-otvorenom" || c.slug === "outdoor"),
     description: event.shortDescription || event.description,
     longDescription: event.description,
     organizer: event.organizer?.name || "Organizator nije naveden",
     source: event.sourceUrl || "Manifestacije.hr",
-    ticketUrl: event.ticketUrl || event.sourceUrl || undefined,
-    image: event.imageUrl || imageFor(category, region),
+    ticketUrl: event.ticketUrl || undefined,
+    image: event.imageUrl || imageFor(primarySlug, region),
     featured: event.extractionConfidence ? event.extractionConfidence >= 0.85 : false,
+    address: event.address ?? event.venue?.address ?? undefined,
+    lat: (event.lat ?? event.venue?.lat ?? event.city.lat) ?? undefined,
+    lng: (event.lng ?? event.venue?.lng ?? event.city.lng) ?? undefined,
     map: { x: 50, y: 50 },
   }
 }
 
-function imageFor(category: CategorySlug, region: RegionSlug) {
-  if (category === "koncerti") return "/images/event-concert.png"
-  if (category === "gastro") return "/images/event-food.png"
-  if (category === "obiteljski") return "/images/event-family.png"
-  if (category === "na-otvorenom") return "/images/event-outdoor.png"
-  if (category === "izlozbe") return "/images/event-art.png"
-  if (category === "radionice") return "/images/event-workshop.png"
-  if (category === "festivali") return "/images/hero-night.png"
+function imageFor(categorySlug: string, region: RegionSlug) {
+  if (categorySlug === "glazba" || categorySlug === "nocni-zivot") return "/images/event-concert.png"
+  if (categorySlug === "hrana-i-vino") return "/images/event-food.png"
+  if (categorySlug === "djeca-i-obitelj") return "/images/event-family.png"
+  if (categorySlug === "na-otvorenom" || categorySlug === "outdoor" || categorySlug === "sport") return "/images/event-outdoor.png"
+  if (categorySlug === "izlozbe" || categorySlug === "kultura") return "/images/event-art.png"
+  if (categorySlug === "radionice" || categorySlug === "edukacija") return "/images/event-workshop.png"
+  if (categorySlug === "festivali") return "/images/hero-night.png"
   if (region === "slavonija") return "/images/region-slavonija.png"
   if (region === "dalmacija") return "/images/region-dalmacija.png"
   if (region === "istra") return "/images/region-istra.png"

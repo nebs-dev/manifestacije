@@ -3,8 +3,9 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useState, useEffect } from "react"
 import { Search, X } from "lucide-react"
-import { categories, regions } from "@/lib/data"
+import { categories as staticCategories, regions as staticRegions, categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import type { PublicCategory, PublicRegion } from "@/lib/public-api"
 
 const whenOptions = [
   { value: "", label: "Bilo kada" },
@@ -19,11 +20,25 @@ const toggles = [
   { key: "vani", label: "Na otvorenom" },
 ]
 
-export function EventFilters() {
+export function EventFilters({
+  categories: fetchedCategories,
+  regions: fetchedRegions,
+}: {
+  categories?: PublicCategory[]
+  regions?: PublicRegion[]
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
   const [q, setQ] = useState(params.get("q") ?? "")
+
+  // Fall back to static lists if nothing fetched yet
+  const categories = fetchedCategories?.length
+    ? fetchedCategories
+    : staticCategories.map((c) => ({ id: 0, slug: c.slug, name: categoryName(c.slug), sortOrder: 0 }))
+  const regions = fetchedRegions?.length
+    ? fetchedRegions
+    : staticRegions.map((r, i) => ({ id: 0, slug: r.slug, name: r.name, sortOrder: i }))
 
   useEffect(() => {
     setQ(params.get("q") ?? "")

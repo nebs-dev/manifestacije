@@ -182,7 +182,14 @@ export class AdminService {
     const city = await this.prisma.city.findFirst({ where: { name: { equals: candidate.city, mode: "insensitive" } } });
     if (!city) throw new BadRequestException(`City '${candidate.city}' not found in taxonomy – add it first or correct the parsed city`);
 
-    const category = await this.prisma.category.findFirst({ where: { name: { equals: candidate.category, mode: "insensitive" } } });
+    const category = await this.prisma.category.findFirst({
+      where: {
+        OR: [
+          { slug: { equals: candidate.category, mode: "insensitive" } },
+          { name: { equals: candidate.category, mode: "insensitive" } },
+        ],
+      },
+    });
     if (!category) throw new BadRequestException(`Category '${candidate.category}' not found in taxonomy`);
 
     const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName);
@@ -201,6 +208,8 @@ export class AdminService {
         sourceUrl: candidate.sourceUrl || source.sourceUrl || undefined,
         venueName: candidate.venueName || undefined,
         address: candidate.address || undefined,
+        lat: candidate.lat ?? undefined,
+        lng: candidate.lng ?? undefined,
         imageUrl: candidate.imageUrl || undefined,
       },
       { organizerId, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
@@ -284,7 +293,7 @@ export class AdminService {
   }
 
   private eventInclude() {
-    return { organizer: true, venue: true, city: true, county: true, region: true, category: true } as const;
+    return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } } as const;
   }
 
   private cleanCandidateOverride(candidate?: CandidateOverrideDto): Partial<ParsedEventCandidate> {

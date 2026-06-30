@@ -46,10 +46,26 @@ export class EventsService {
         ticketUrl: dto.ticketUrl,
         sourceUrl: dto.sourceUrl,
         imageUrl: dto.imageUrl,
+        address: dto.address,
+        lat: dto.lat,
+        lng: dto.lng,
         sourceType: opts.sourceType || EventSourceKind.MANUAL,
         publishedAt: opts.status === EventStatus.PUBLISHED ? new Date() : undefined
       }
     });
+
+    // Build EventCategory rows: primary from categoryId, extras from categoryIds
+    const allCategoryIds = dto.categoryIds?.length
+      ? dto.categoryIds
+      : [category.id];
+    for (const [idx, catId] of allCategoryIds.entries()) {
+      await this.prisma.eventCategory.upsert({
+        where: { eventId_categoryId: { eventId: event.id, categoryId: catId } },
+        update: { isPrimary: idx === 0 },
+        create: { eventId: event.id, categoryId: catId, isPrimary: idx === 0, source: "MANUAL" },
+      });
+    }
+
     await this.duplicates.detectForEvent(event.id);
     return event;
   }
@@ -71,6 +87,9 @@ export class EventsService {
       ticketUrl: dto.ticketUrl,
       sourceUrl: dto.sourceUrl,
       imageUrl: dto.imageUrl,
+      address: dto.address,
+      lat: dto.lat,
+      lng: dto.lng,
       status: dto.status
     };
     if ("organizerId" in dto) {
@@ -89,6 +108,19 @@ export class EventsService {
     }
     Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
     const event = await this.prisma.event.update({ where: { id }, data });
+
+    // If categoryIds supplied, replace EventCategory rows
+    if (dto.categoryIds?.length) {
+      await this.prisma.eventCategory.deleteMany({ where: { eventId: id } });
+      for (const [idx, catId] of dto.categoryIds.entries()) {
+        await this.prisma.eventCategory.upsert({
+          where: { eventId_categoryId: { eventId: id, categoryId: catId } },
+          update: { isPrimary: idx === 0 },
+          create: { eventId: id, categoryId: catId, isPrimary: idx === 0, source: "MANUAL" },
+        });
+      }
+    }
+
     await this.duplicates.detectForEvent(id);
     return event;
   }

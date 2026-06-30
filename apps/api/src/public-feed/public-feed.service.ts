@@ -8,7 +8,8 @@ const eventInclude = {
   city: true,
   county: true,
   region: true,
-  category: true
+  category: true,
+  categories: { include: { category: true } },
 } satisfies Prisma.EventInclude;
 
 @Injectable()
@@ -68,7 +69,6 @@ export class PublicFeedService {
     if (query.region) where.region = { slug: query.region };
     if (query.county) where.county = { slug: query.county };
     if (query.city) where.city = { slug: query.city };
-    if (query.category) where.category = { slug: query.category };
     if (query.free === "true") where.isFree = true;
     if (query.search) {
       where.OR = [
@@ -76,6 +76,20 @@ export class PublicFeedService {
         { description: { contains: query.search, mode: "insensitive" } }
       ];
     }
+
+    // Category filter: check both legacy categoryId relation and new EventCategory join.
+    // During migration transition both paths must work.
+    if (query.category) {
+      where.AND = [
+        {
+          OR: [
+            { category: { slug: query.category } },
+            { categories: { some: { category: { slug: query.category } } } }
+          ]
+        }
+      ];
+    }
+
     const now = new Date();
     if (query.today === "true") {
       const end = new Date(now);

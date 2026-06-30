@@ -8,9 +8,9 @@ import { coordsFor, priceLabel, regionName, type CroEvent } from "@/lib/data"
 
 function markerIcon(active: boolean) {
   const fill = active ? "oklch(0.79 0.135 67)" : "oklch(0.38 0.088 256)"
-  const scale = active ? 1.15 : 1
+  const scale = active ? "scale(1.15)" : "scale(1)"
   const html = `
-    <div style="transform: translate(-50%, -100%) scale(${scale}); transition: transform .15s;">
+    <div style="transform: ${scale}; transform-origin: 50% 100%; transition: transform .15s;">
       <svg width="34" height="44" viewBox="0 0 34 44" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M17 0C7.6 0 0 7.5 0 16.8 0 29.4 17 44 17 44s17-14.6 17-27.2C34 7.5 26.4 0 17 0Z" fill="${fill}"/>
         <circle cx="17" cy="16.5" r="6" fill="white"/>

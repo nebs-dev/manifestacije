@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -27,6 +27,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
 import type { ParsedCandidate } from "@/lib/admin/types"
+import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
+
+type BackendCategory = { id: number; name: string; slug: string }
 
 type CandidateForm = {
   title: string
@@ -35,7 +38,6 @@ type CandidateForm = {
   endsAt: string
   city: string
   venueName: string
-  category: string
   isFree: boolean
   priceText: string
   ticketUrl: string
@@ -72,6 +74,10 @@ function Field({
   )
 }
 
+function slugToId(slug: string, cats: BackendCategory[]): number | undefined {
+  return cats.find((c) => c.slug === slug || c.name.toLowerCase() === slug.toLowerCase())?.id
+}
+
 export function ParsedCandidateCard({
   candidate,
   onUpdate,
@@ -81,6 +87,10 @@ export function ParsedCandidateCard({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+  const [allCategories, setAllCategories] = useState<BackendCategory[]>([])
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
+  const [location, setLocation] = useState<LocationValue | null>(null)
+
   const [form, setForm] = useState<CandidateForm>(() => ({
     title: candidate.title || "",
     description: candidate.description || "",
@@ -88,13 +98,31 @@ export function ParsedCandidateCard({
     endsAt: toDateTimeLocal(candidate.endsAt),
     city: candidate.city || "",
     venueName: candidate.venueName || "",
-    category: candidate.category || "",
     isFree: candidate.isFree,
     priceText: candidate.priceText || "",
     ticketUrl: candidate.ticketUrl || "",
     organizerName: candidate.organizerName || "",
     imageUrl: candidate.imageUrl || "",
   }))
+
+  useEffect(() => {
+    let alive = true
+    authedFetch("/api/admin/categories")
+      .then(async (res) => {
+        if (!res.ok || !alive) return
+        const cats = (await res.json()) as BackendCategory[]
+        if (!alive) return
+        setAllCategories(cats)
+        const initial: number[] = []
+        if (candidate.category) {
+          const id = slugToId(candidate.category, cats)
+          if (id) initial.push(id)
+        }
+        if (initial.length > 0) setSelectedCategoryIds(initial)
+      })
+      .catch(() => undefined)
+    return () => { alive = false }
+  }, [candidate.category])
 
   const isCreated = candidate._status === "created"
   const isIgnored = candidate._status === "ignored"
@@ -103,17 +131,24 @@ export function ParsedCandidateCard({
     form.title.trim() &&
       form.startsAt.trim() &&
       form.city.trim() &&
-      form.category.trim()
+      selectedCategoryIds.length > 0
   )
 
   function setField<K extends keyof CandidateForm>(key: K, value: CandidateForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function toggleCategory(id: number) {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
   async function createEvent() {
     if (!hasRequired) return
     setBusy(true)
     try {
+      const primaryCategoryId = selectedCategoryIds[0]
       const res = await authedFetch(
         `/api/admin/event-sources/${candidate.sourceId}/create-event`,
         {
@@ -127,7 +162,11 @@ export function ParsedCandidateCard({
               endsAt: fromDateTimeLocal(form.endsAt),
               city: form.city,
               venueName: form.venueName,
-              category: form.category,
+              address: location?.address,
+              lat: location?.lat,
+              lng: location?.lng,
+              category: allCategories.find((c) => c.id === primaryCategoryId)?.slug || candidate.category,
+              categoryIds: selectedCategoryIds,
               isFree: form.isFree,
               priceText: form.priceText,
               ticketUrl: form.ticketUrl,
@@ -207,11 +246,6 @@ export function ParsedCandidateCard({
               </Badge>
             )
           )}
-          {candidate.category && (
-            <Badge variant="outline" className="rounded-md font-normal">
-              {candidate.category}
-            </Badge>
-          )}
         </div>
       </CardHeader>
 
@@ -219,9 +253,6 @@ export function ParsedCandidateCard({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Naslov">
             <Input value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
-          </Field>
-          <Field label="Kategorija">
-            <Input value={form.category} disabled={!isPending} onChange={(e) => setField("category", e.target.value)} placeholder="npr. Glazba" />
           </Field>
           <Field label="Početak">
             <Input type="datetime-local" value={form.startsAt} disabled={!isPending} onChange={(e) => setField("startsAt", e.target.value)} />
@@ -235,6 +266,16 @@ export function ParsedCandidateCard({
           <Field label="Lokacija / venue">
             <Input value={form.venueName} disabled={!isPending} onChange={(e) => setField("venueName", e.target.value)} />
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="Precizna lokacija (koordinate)">
+              <LocationAutocomplete
+                value={location}
+                onChange={setLocation}
+                disabled={!isPending}
+                placeholder="Pretraži adresu ili naziv mjesta…"
+              />
+            </Field>
+          </div>
           <Field label="Organizator">
             <Input value={form.organizerName} disabled={!isPending} onChange={(e) => setField("organizerName", e.target.value)} />
           </Field>
@@ -260,9 +301,34 @@ export function ParsedCandidateCard({
           </div>
           <div className="sm:col-span-2">
             <Field label="Opis">
-              <Textarea value={form.description} disabled={!isPending} onChange={(e) => setField("description", e.target.value)} rows={4} />
+              <Textarea value={form.description} disabled={!isPending} onChange={(e) => setField("description", e.target.value)} rows={3} />
             </Field>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground">Kategorije</Label>
+          {allCategories.length > 0 ? (
+            <div className="grid grid-cols-2 gap-1">
+              {allCategories.map((cat) => (
+                <label key={cat.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategoryIds.includes(cat.id)}
+                    disabled={!isPending}
+                    onChange={() => toggleCategory(cat.id)}
+                    className="size-4 rounded border-border accent-primary"
+                  />
+                  <span>{cat.name}</span>
+                  {selectedCategoryIds[0] === cat.id && (
+                    <span className="text-xs text-muted-foreground">(primarna)</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">{candidate.category || "—"}</p>
+          )}
         </div>
 
         {(candidate.missingFields.length > 0 || candidate.warnings.length > 0) && (
@@ -312,17 +378,15 @@ export function ParsedCandidateCard({
       </CardContent>
 
       {isPending && (
-        <CardFooter className="gap-2">
+        <CardFooter className="gap-2 flex-wrap">
           <Button onClick={createEvent} disabled={busy || !hasRequired}>
             <CalendarPlus data-icon="inline-start" />
             Kreiraj događaj
           </Button>
           {!hasRequired && (
-            <Button variant="outline" disabled>
-              Dopuni podatke
-            </Button>
+            <p className="text-xs text-muted-foreground">Dopunite: naslov, datum, grad i barem jednu kategoriju.</p>
           )}
-          <Button variant="outline" onClick={ignoreCandidate} disabled={busy}>
+          <Button variant="outline" onClick={ignoreCandidate} disabled={busy} className="ml-auto">
             <X data-icon="inline-start" />
             Ignoriraj
           </Button>

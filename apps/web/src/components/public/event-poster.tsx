@@ -1,10 +1,10 @@
-import { gradientFor, categoryName, type CategorySlug } from "@/lib/data"
+import { gradientFor, categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 interface EventPosterProps {
   image?: string
   title: string
-  category: CategorySlug
+  category: string
   className?: string
   sizes?: string
   priority?: boolean

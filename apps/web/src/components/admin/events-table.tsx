@@ -114,7 +114,12 @@ export function EventsTable({
                     {formatDateTime(e.startsAt)}
                   </TableCell>
                   <TableCell>{e.city ?? "—"}</TableCell>
-                  <TableCell>{e.category ?? "—"}</TableCell>
+                  <TableCell>
+                    {(e.categories?.length ? e.categories : e.category ? [{ slug: e.category, name: e.category }] : [])
+                      .slice(0, 2)
+                      .map((c) => c.name)
+                      .join(", ") || "—"}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={e.status} />
                   </TableCell>

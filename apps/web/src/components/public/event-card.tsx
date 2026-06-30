@@ -17,7 +17,7 @@ export function EventCard({ event, className }: EventCardProps) {
     <Link
       href={`/eventi/${event.slug}`}
       className={cn(
-        "group flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >
@@ -56,7 +56,7 @@ export function EventCard({ event, className }: EventCardProps) {
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="size-4 shrink-0 text-primary/70" />
           <span className="truncate">
-            {event.venue}, {event.city}
+            {event.address ?? (event.venue !== event.city ? `${event.venue}, ${event.city}` : event.city)}
           </span>
         </div>
 
@@ -65,7 +65,14 @@ export function EventCard({ event, className }: EventCardProps) {
         </p>
 
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
-          <CategoryBadge category={event.category} />
+          {(event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }])
+            .slice(0, 2)
+            .map((c) => (
+              <CategoryBadge key={c.slug} category={c.slug} />
+            ))}
+          {event.categories.length > 2 && (
+            <span className="text-xs text-muted-foreground">+{event.categories.length - 2}</span>
+          )}
         </div>
       </div>
     </Link>

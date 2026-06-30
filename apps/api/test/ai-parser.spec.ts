@@ -344,31 +344,31 @@ describe("AiEventParserService", () => {
 
   // ── Category inference ────────────────────────────────────────────────────
 
-  it("does not assign Glazba to events with only 'festival' in title", async () => {
+  it("does not assign glazba to events with only 'festival' in title", async () => {
     const result = await parser.parseBatch({
       rawText: "Naslov: Vinkovačke jeseni Festival\nDatum: 2026-09-01\nGrad: Vinkovci",
     });
-    expect(result.candidates[0].category).not.toBe("Glazba");
+    expect(result.candidates[0].category).not.toBe("glazba");
   });
 
-  it("assigns Tradicija i folklor to event with 'folklor' keyword", async () => {
+  it("assigns tradicija-i-folklor to event with 'folklor' keyword", async () => {
     const result = await parser.parseBatch({
       rawText: "Naslov: Smotra folklora\nDatum: 2026-07-20\nGrad: Đakovo",
     });
-    expect(result.candidates[0].category).toBe("Tradicija i folklor");
+    expect(result.candidates[0].category).toBe("tradicija-i-folklor");
   });
 
-  it("assigns Hrana i vino to gastro events", async () => {
+  it("assigns hrana-i-vino to gastro events", async () => {
     const result = await parser.parseBatch({
       rawText: "Naslov: Gastro sajam specijaliteta\nDatum: 2026-08-10\nGrad: Našice",
     });
-    expect(result.candidates[0].category).toBe("Hrana i vino");
+    expect(result.candidates[0].category).toBe("hrana-i-vino");
   });
 
-  it("assigns Sport to maraton events", async () => {
+  it("assigns sport to maraton events", async () => {
     const result = await parser.parseBatch({
       rawText: "Naslov: Slavonski maraton\nDatum: 2026-09-15\nGrad: Osijek",
     });
-    expect(result.candidates[0].category).toBe("Sport");
+    expect(result.candidates[0].category).toBe("sport");
   });
 });

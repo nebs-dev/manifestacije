@@ -1,11 +1,11 @@
-import { categoryName, type CategorySlug } from "@/lib/data"
+import { categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 export function CategoryBadge({
   category,
   className,
 }: {
-  category: CategorySlug
+  category: string
   className?: string
 }) {
   return (

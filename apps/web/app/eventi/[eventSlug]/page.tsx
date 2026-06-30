@@ -62,7 +62,9 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
             <h1 className="mt-3 max-w-3xl text-balance font-heading text-3xl font-semibold leading-tight text-shadow-lg md:text-5xl">{event.title}</h1>
             <p className="mt-2 inline-flex items-center gap-1.5 text-ink-foreground/85">
               <MapPin className="size-4" aria-hidden />
-              {event.venue}, {event.city} · {regionName(event.region)}
+              {event.address
+                ? event.address
+                : `${event.venue !== event.city ? `${event.venue}, ` : ""}${event.city} · ${regionName(event.region)}`}
             </p>
           </div>
         </section>
@@ -91,8 +93,13 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
               <div className="sticky top-24 rounded-2xl border border-border bg-card p-6 shadow-poster">
                 <dl className="space-y-5">
                   <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">{formatDateRange(event.date, event.endDate)}</InfoRow>
-                  <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>
-                  <InfoRow icon={<MapPin className="size-5" aria-hidden />} label="Lokacija">{event.venue}<span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></InfoRow>
+                  {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
+                  <InfoRow icon={<MapPin className="size-5" aria-hidden />} label="Lokacija">
+                    {event.address
+                      ? <><span className="block">{event.address}</span><span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></>
+                      : <>{event.venue !== event.city && <span className="block">{event.venue}</span>}<span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></>
+                    }
+                  </InfoRow>
                   <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">{event.organizer}</InfoRow>
                   <InfoRow icon={<Ticket className="size-5" aria-hidden />} label="Ulaznica">{priceLabel(event)}</InfoRow>
                 </dl>
@@ -112,7 +119,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
 
           {related.length > 0 && (
             <section className="mt-16 border-t border-border pt-12">
-              <h2 className="mb-6 font-heading text-2xl font-semibold">Slicna dogadanja</h2>
+              <h2 className="mb-6 font-heading text-2xl font-semibold">Slična događanja</h2>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {related.map((item) => <EventCard key={item.slug} event={item} />)}
               </div>

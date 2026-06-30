@@ -148,14 +148,31 @@ model Venue {
 }
 
 model Category {
-  id        Int       @id @default(autoincrement())
-  name      String
-  slug      String    @unique
-  parentId  Int?
-  parent    Category? @relation("CategoryTree", fields: [parentId], references: [id])
-  children  Category[] @relation("CategoryTree")
-  sortOrder Int       @default(0)
-  events    Event[]
+  id         Int             @id @default(autoincrement())
+  name       String
+  slug       String          @unique
+  parentId   Int?
+  parent     Category?       @relation("CategoryTree", fields: [parentId], references: [id])
+  children   Category[]      @relation("CategoryTree")
+  sortOrder  Int             @default(0)
+  events     Event[]
+  eventCats  EventCategory[]
+}
+
+model EventCategory {
+  eventId    Int
+  categoryId Int
+  isPrimary  Boolean  @default(false)
+  source     String?
+  confidence Float?
+  createdAt  DateTime @default(now())
+
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, categoryId])
+  @@index([categoryId])
+  @@index([eventId])
 }
 
 model Event {
@@ -177,6 +194,7 @@ model Event {
   region               Region    @relation(fields: [regionId], references: [id])
   categoryId           Int
   category             Category  @relation(fields: [categoryId], references: [id])
+  categories           EventCategory[]
   startsAt             DateTime
   endsAt               DateTime?
   isAllDay             Boolean   @default(false)
@@ -185,6 +203,9 @@ model Event {
   ticketUrl            String?
   sourceUrl            String?
   imageUrl             String?
+  address              String?
+  lat                  Float?
+  lng                  Float?
   sourceType           EventSourceKind @default(MANUAL)
   extractionConfidence Float?
   publishedAt          DateTime?

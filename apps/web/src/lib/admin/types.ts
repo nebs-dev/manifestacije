@@ -75,7 +75,11 @@ export interface AdminEvent {
   allDay: boolean
   city: string | null
   venue: string | null
+  address: string | null
+  lat: number | null
+  lng: number | null
   category: string | null
+  categories: { id: number; name: string; slug: string }[]
   organizer: string | null
   isFree: boolean
   priceText: string | null
@@ -87,6 +91,7 @@ export interface AdminEvent {
   warnings: string[]
   _cityId?: number
   _categoryId?: number
+  _categoryIds?: number[]
   _organizerId?: number
 }
 
