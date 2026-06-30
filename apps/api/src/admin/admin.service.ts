@@ -53,6 +53,18 @@ export class AdminService {
     return this.prisma.organizer.update({ where: { id }, data: { status } });
   }
 
+  deleteOrganizer(id: number) {
+    return this.prisma.organizer.delete({ where: { id } });
+  }
+
+  deleteEvent(id: number) {
+    return this.prisma.event.delete({ where: { id } });
+  }
+
+  deleteEventSource(id: number) {
+    return this.prisma.eventSource.delete({ where: { id } });
+  }
+
   eventSources() {
     return this.prisma.eventSource.findMany({ include: { event: true, organizer: true }, orderBy: { createdAt: "desc" }, take: 200 });
   }

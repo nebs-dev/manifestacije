@@ -13,9 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { StatusBadge } from "@/components/admin/status-badge"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
-import { EmptyState } from "@/components/admin/states"
+import { EmptyState, DeleteButton } from "@/components/admin/states"
 import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
 import type { AdminEvent } from "@/lib/admin/types"
@@ -28,27 +27,21 @@ export function PendingEventsTable({
   onAction?: () => void
 }) {
   async function approve(id: string, title: string) {
-    const res = await authedFetch(`/api/admin/events/${id}/approve`, {
-      method: "POST",
-    })
-    if (res.ok) {
-      toast.success(`Odobreno: ${title}`)
-      onAction?.()
-    } else {
-      toast.error("Greška pri odobravanju")
-    }
+    const res = await authedFetch(`/api/admin/events/${id}/approve`, { method: "POST" })
+    if (res.ok) { toast.success(`Odobreno: ${title}`); onAction?.() }
+    else toast.error("Greška pri odobravanju")
   }
 
   async function reject(id: string, title: string) {
-    const res = await authedFetch(`/api/admin/events/${id}/reject`, {
-      method: "POST",
-    })
-    if (res.ok) {
-      toast.success(`Odbijeno: ${title}`)
-      onAction?.()
-    } else {
-      toast.error("Greška pri odbijanju")
-    }
+    const res = await authedFetch(`/api/admin/events/${id}/reject`, { method: "POST" })
+    if (res.ok) { toast.success(`Odbijeno: ${title}`); onAction?.() }
+    else toast.error("Greška pri odbijanju")
+  }
+
+  async function deleteEvent(id: string, title: string) {
+    const res = await authedFetch(`/api/admin/events/${id}`, { method: "DELETE" })
+    if (res.ok) { toast.success(`Obrisano: ${title}`); onAction?.() }
+    else toast.error("Greška pri brisanju")
   }
 
   if (events.length === 0) {
@@ -62,18 +55,15 @@ export function PendingEventsTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40">
             <TableHead>Naziv</TableHead>
-            <TableHead>Početak</TableHead>
+            <TableHead className="whitespace-nowrap">Početak</TableHead>
             <TableHead>Grad</TableHead>
-            <TableHead>Kategorija</TableHead>
-            <TableHead>Organizator</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead className="text-right">Pouzdanost</TableHead>
-            <TableHead className="text-center">Upozorenja</TableHead>
+            <TableHead className="text-center">Upoz.</TableHead>
             <TableHead className="text-right">Akcije</TableHead>
           </TableRow>
         </TableHeader>
@@ -92,11 +82,6 @@ export function PendingEventsTable({
                 {formatDateTime(e.startsAt)}
               </TableCell>
               <TableCell>{e.city ?? "—"}</TableCell>
-              <TableCell>{e.category ?? "—"}</TableCell>
-              <TableCell>{e.organizer ?? "—"}</TableCell>
-              <TableCell>
-                <StatusBadge status={e.status} />
-              </TableCell>
               <TableCell className="text-right">
                 <ConfidenceBadge value={e.confidence} />
               </TableCell>
@@ -139,6 +124,7 @@ export function PendingEventsTable({
                   >
                     <X />
                   </Button>
+                  <DeleteButton onDelete={() => deleteEvent(e.id, e.title)} />
                 </div>
               </TableCell>
             </TableRow>

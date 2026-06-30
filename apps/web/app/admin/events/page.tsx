@@ -42,7 +42,7 @@ export default function EventsPage() {
       ) : error ? (
         <ErrorState description={error} onRetry={load} />
       ) : (
-        <EventsTable events={events} />
+        <EventsTable events={events} onDelete={load} />
       )}
     </>
   )

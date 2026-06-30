@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
-import { EmptyState } from "@/components/admin/states"
+import { EmptyState, DeleteButton } from "@/components/admin/states"
 import { formatRelative } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
 import type { EventSource } from "@/lib/admin/types"
@@ -32,20 +32,22 @@ const typeLabels: Record<string, string> = {
 export function SourceTable({
   sources,
   onReparse,
+  onDelete,
 }: {
   sources: EventSource[]
   onReparse?: () => void
+  onDelete?: () => void
 }) {
   async function reparse(id: string, subject: string) {
-    const res = await authedFetch(`/api/admin/event-sources/${id}/reparse`, {
-      method: "POST",
-    })
-    if (res.ok) {
-      toast.success("Reparsiranje završeno", { description: subject })
-      onReparse?.()
-    } else {
-      toast.error("Reparsiranje neuspješno")
-    }
+    const res = await authedFetch(`/api/admin/event-sources/${id}/reparse`, { method: "POST" })
+    if (res.ok) { toast.success("Reparsiranje završeno", { description: subject }); onReparse?.() }
+    else toast.error("Reparsiranje neuspješno")
+  }
+
+  async function deleteSource(id: string, subject: string) {
+    const res = await authedFetch(`/api/admin/event-sources/${id}`, { method: "DELETE" })
+    if (res.ok) { toast.success(`Obrisano: ${subject}`); onDelete?.() }
+    else toast.error("Greška pri brisanju")
   }
 
   if (sources.length === 0) {
@@ -58,7 +60,7 @@ export function SourceTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40">
@@ -67,7 +69,7 @@ export function SourceTable({
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Pouzdanost</TableHead>
             <TableHead className="text-right">Kandidati</TableHead>
-            <TableHead className="text-right">Dodano</TableHead>
+            <TableHead className="text-right whitespace-nowrap">Dodano</TableHead>
             <TableHead className="text-right">Akcije</TableHead>
           </TableRow>
         </TableHeader>
@@ -125,6 +127,7 @@ export function SourceTable({
                   >
                     <RefreshCw />
                   </Button>
+                  <DeleteButton onDelete={() => deleteSource(s.id, s.subject)} />
                 </div>
               </TableCell>
             </TableRow>

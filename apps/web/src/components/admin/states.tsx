@@ -1,5 +1,7 @@
-import type { ReactNode } from "react"
-import { Inbox, TriangleAlert, RefreshCw } from "lucide-react"
+"use client"
+
+import { useState, type ReactNode } from "react"
+import { Inbox, TriangleAlert, RefreshCw, Trash2, Check, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -62,6 +64,46 @@ export function ErrorState({
         </EmptyContent>
       )}
     </Empty>
+  )
+}
+
+export function DeleteButton({ onDelete, label = "Obriši" }: { onDelete: () => void; label?: string }) {
+  const [confirming, setConfirming] = useState(false)
+
+  if (confirming) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-xs text-destructive whitespace-nowrap">Sigurno?</span>
+        <Button
+          size="icon-sm"
+          variant="destructive"
+          aria-label="Potvrdi brisanje"
+          onClick={() => { setConfirming(false); onDelete() }}
+        >
+          <Check />
+        </Button>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Odustani"
+          onClick={() => setConfirming(false)}
+        >
+          <X />
+        </Button>
+      </span>
+    )
+  }
+
+  return (
+    <Button
+      size="icon-sm"
+      variant="ghost"
+      aria-label={label}
+      className="text-muted-foreground hover:text-destructive"
+      onClick={() => setConfirming(true)}
+    >
+      <Trash2 />
+    </Button>
   )
 }
 

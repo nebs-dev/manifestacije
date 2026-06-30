@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { Pencil } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,8 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { StatusBadge } from "@/components/admin/status-badge"
-import { EmptyState } from "@/components/admin/states"
+import { EmptyState, DeleteButton } from "@/components/admin/states"
 import { formatDateTime } from "@/lib/admin/format"
+import { authedFetch } from "@/lib/admin/api"
 import type { AdminEvent, EventStatus } from "@/lib/admin/types"
 
 const statusOptions: { value: EventStatus | "all"; label: string }[] = [
@@ -36,13 +38,29 @@ const statusOptions: { value: EventStatus | "all"; label: string }[] = [
   { value: "draft", label: "Skica" },
 ]
 
-export function EventsTable({ events }: { events: AdminEvent[] }) {
+export function EventsTable({
+  events,
+  onDelete,
+}: {
+  events: AdminEvent[]
+  onDelete?: () => void
+}) {
   const [status, setStatus] = useState<string>("all")
 
   const filtered = useMemo(
     () => (status === "all" ? events : events.filter((e) => e.status === status)),
     [events, status]
   )
+
+  async function deleteEvent(id: string, title: string) {
+    const res = await authedFetch(`/api/admin/events/${id}`, { method: "DELETE" })
+    if (res.ok) {
+      toast.success(`Obrisano: ${title}`)
+      onDelete?.()
+    } else {
+      toast.error("Greška pri brisanju")
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -73,15 +91,14 @@ export function EventsTable({ events }: { events: AdminEvent[] }) {
           description="Nijedan događaj ne odgovara odabranom filtru."
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead>Naziv</TableHead>
-                <TableHead>Početak</TableHead>
+                <TableHead className="whitespace-nowrap">Početak</TableHead>
                 <TableHead>Grad</TableHead>
                 <TableHead>Kategorija</TableHead>
-                <TableHead>Organizator</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Akcije</TableHead>
               </TableRow>
@@ -102,20 +119,22 @@ export function EventsTable({ events }: { events: AdminEvent[] }) {
                   </TableCell>
                   <TableCell>{e.city ?? "—"}</TableCell>
                   <TableCell>{e.category ?? "—"}</TableCell>
-                  <TableCell>{e.organizer ?? "—"}</TableCell>
                   <TableCell>
                     <StatusBadge status={e.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      nativeButton={false}
-                      render={<Link href={`/admin/events/${e.id}`} />}
-                    >
-                      <Pencil data-icon="inline-start" />
-                      Uredi
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        nativeButton={false}
+                        render={<Link href={`/admin/events/${e.id}`} />}
+                      >
+                        <Pencil data-icon="inline-start" />
+                        Uredi
+                      </Button>
+                      <DeleteButton onDelete={() => deleteEvent(e.id, e.title)} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
