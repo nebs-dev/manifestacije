@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { use } from "react"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { SourceReview } from "@/components/admin/source-review"
@@ -13,9 +12,9 @@ import type { EventSource, ParsedCandidate } from "@/lib/admin/types"
 export default function SourceDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }) {
-  const { id } = use(params)
+  const { id } = params
   const [source, setSource] = useState<EventSource | null>(null)
   const [candidates, setCandidates] = useState<ParsedCandidate[]>([])
   const [loading, setLoading] = useState(true)
