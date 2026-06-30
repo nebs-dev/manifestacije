@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  ORGANIZER
+}
+
+enum OrganizerStatus {
+  UNCLAIMED
+  CLAIMED
+  VERIFIED
+  TRUSTED
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum EventSourceType {
+  EMAIL
+  URL
+  MANUAL
+  SCRAPE_DISCOVERY
+}
+
+enum EventSourceStatus {
+  NEW
+  PARSED
+  NEEDS_REVIEW
+  LINKED
+  REJECTED
+}
+
+enum EventSourceKind {
+  MANUAL
+  ORGANIZER_FORM
+  EMAIL
+  URL_SUBMISSION
+  IMPORTED
+}
+
+enum DuplicateStatus {
+  OPEN
+  MERGED
+  DISMISSED
+}
+
+enum IngestionJobType {
+  EMAIL_PARSE
+  URL_PARSE
+  DUPLICATE_CHECK
+  GEOCODE
+}
+
+enum IngestionJobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole
+  organizerId  Int?
+  organizer    Organizer? @relation(fields: [organizerId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Organizer {
+  id           Int       @id @default(autoincrement())
+  name         String
+  slug         String    @unique
+  description  String?
+  websiteUrl   String?
+  facebookUrl  String?
+  instagramUrl String?
+  email        String?
+  phone        String?
+  status       OrganizerStatus @default(UNCLAIMED)
+  users        User[]
+  events       Event[]
+  sources      EventSource[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Region {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  sortOrder Int      @default(0)
+  counties  County[]
+  events    Event[]
+}
+
+model County {
+  id       Int      @id @default(autoincrement())
+  name     String
+  slug     String   @unique
+  regionId Int
+  region   Region   @relation(fields: [regionId], references: [id])
+  cities   City[]
+  events   Event[]
+}
+
+model City {
+  id       Int      @id @default(autoincrement())
+  name     String
+  slug     String   @unique
+  countyId Int
+  county   County   @relation(fields: [countyId], references: [id])
+  lat      Float?
+  lng      Float?
+  venues   Venue[]
+  events   Event[]
+}
+
+model Venue {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String
+  address   String?
+  cityId    Int
+  city      City     @relation(fields: [cityId], references: [id])
+  lat       Float?
+  lng       Float?
+  source    String?
+  events    Event[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([slug, cityId])
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String
+  slug      String    @unique
+  parentId  Int?
+  parent    Category? @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  sortOrder Int       @default(0)
+  events    Event[]
+}
+
+model Event {
+  id                   Int       @id @default(autoincrement())
+  title                String
+  slug                 String    @unique
+  description          String
+  shortDescription     String?
+  status               EventStatus @default(PENDING_REVIEW)
+  organizerId          Int?
+  organizer            Organizer? @relation(fields: [organizerId], references: [id])
+  venueId              Int?
+  venue                Venue?    @relation(fields: [venueId], references: [id])
+  cityId               Int
+  city                 City      @relation(fields: [cityId], references: [id])
+  countyId             Int
+  county               County    @relation(fields: [countyId], references: [id])
+  regionId             Int
+  region               Region    @relation(fields: [regionId], references: [id])
+  categoryId           Int
+  category             Category  @relation(fields: [categoryId], references: [id])
+  startsAt             DateTime
+  endsAt               DateTime?
+  isAllDay             Boolean   @default(false)
+  isFree               Boolean?
+  priceText            String?
+  ticketUrl            String?
+  sourceUrl            String?
+  imageUrl             String?
+  sourceType           EventSourceKind @default(MANUAL)
+  extractionConfidence Float?
+  publishedAt          DateTime?
+  sources              EventSource[]
+  duplicatesA          EventDuplicateCandidate[] @relation("DuplicateA")
+  duplicatesB          EventDuplicateCandidate[] @relation("DuplicateB")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model EventSource {
+  id              Int       @id @default(autoincrement())
+  eventId         Int?
+  event           Event?    @relation(fields: [eventId], references: [id])
+  organizerId     Int?
+  organizer       Organizer? @relation(fields: [organizerId], references: [id])
+  type            EventSourceType
+  sourceUrl       String?
+  rawText         String?
+  rawHtml         String?
+  rawEmailSubject String?
+  rawEmailFrom    String?
+  rawEmailDate    DateTime?
+  parsedJson      Json?
+  confidence      Float?
+  status          EventSourceStatus @default(NEW)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model EventDuplicateCandidate {
+  id        Int      @id @default(autoincrement())
+  eventAId  Int
+  eventA    Event    @relation("DuplicateA", fields: [eventAId], references: [id])
+  eventBId  Int
+  eventB    Event    @relation("DuplicateB", fields: [eventBId], references: [id])
+  score     Float
+  reason    String
+  status    DuplicateStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([eventAId, eventBId])
+}
+
+model IngestionJob {
+  id        Int      @id @default(autoincrement())
+  type      IngestionJobType
+  status    IngestionJobStatus @default(QUEUED)
+  payload   Json
+  result    Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

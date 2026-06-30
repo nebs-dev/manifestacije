@@ -1,0 +1,619 @@
+export type CategorySlug =
+  | "koncerti"
+  | "festivali"
+  | "radionice"
+  | "obiteljski"
+  | "na-otvorenom"
+  | "gastro"
+  | "izlozbe"
+  | "manifestacije"
+
+export type RegionSlug =
+  | "dalmacija"
+  | "istra"
+  | "zagreb"
+  | "slavonija"
+  | "kvarner"
+  | "lika"
+
+export interface Category {
+  slug: CategorySlug
+  name: string
+  tagline: string
+  /** two oklch stops for the gradient placeholder */
+  gradient: [string, string]
+}
+
+export interface Region {
+  slug: RegionSlug
+  name: string
+  county: string
+  blurb: string
+  image: string
+}
+
+export interface CroEvent {
+  slug: string
+  title: string
+  category: CategorySlug
+  region: RegionSlug
+  city: string
+  venue: string
+  /** ISO date */
+  date: string
+  endDate?: string
+  time: string
+  free: boolean
+  price?: string
+  forKids: boolean
+  outdoor: boolean
+  description: string
+  longDescription: string
+  organizer: string
+  source: string
+  ticketUrl?: string
+  image?: string
+  featured?: boolean
+  /** rough map position in % within the discovery map */
+  map: { x: number; y: number }
+}
+
+export const categories: Category[] = [
+  {
+    slug: "koncerti",
+    name: "Koncerti",
+    tagline: "Glazba uživo, od klapa do elektronike",
+    gradient: ["oklch(0.42 0.11 256)", "oklch(0.62 0.13 28)"],
+  },
+  {
+    slug: "festivali",
+    name: "Festivali",
+    tagline: "Višednevni programi i ljetne scene",
+    gradient: ["oklch(0.4 0.1 300)", "oklch(0.55 0.14 20)"],
+  },
+  {
+    slug: "radionice",
+    name: "Radionice",
+    tagline: "Učenje, zanati i kreativni susreti",
+    gradient: ["oklch(0.45 0.09 200)", "oklch(0.6 0.12 150)"],
+  },
+  {
+    slug: "obiteljski",
+    name: "Obiteljski",
+    tagline: "Programi za djecu i cijelu obitelj",
+    gradient: ["oklch(0.55 0.13 60)", "oklch(0.65 0.14 110)"],
+  },
+  {
+    slug: "na-otvorenom",
+    name: "Na otvorenom",
+    tagline: "Priroda, planinarenje i avantura",
+    gradient: ["oklch(0.45 0.1 160)", "oklch(0.6 0.11 220)"],
+  },
+  {
+    slug: "gastro",
+    name: "Gastro & vino",
+    tagline: "Okusi regije, vino i delicije",
+    gradient: ["oklch(0.5 0.13 40)", "oklch(0.58 0.12 90)"],
+  },
+  {
+    slug: "izlozbe",
+    name: "Izložbe",
+    tagline: "Umjetnost, fotografija i baština",
+    gradient: ["oklch(0.4 0.07 270)", "oklch(0.55 0.09 320)"],
+  },
+  {
+    slug: "manifestacije",
+    name: "Manifestacije",
+    tagline: "Lokalne tradicije i gradske fešte",
+    gradient: ["oklch(0.45 0.1 24)", "oklch(0.58 0.12 60)"],
+  },
+]
+
+export const regions: Region[] = [
+  {
+    slug: "dalmacija",
+    name: "Dalmacija",
+    county: "Split · Zadar · Šibenik · Dubrovnik",
+    blurb:
+      "Kamene rive, klape pod zvijezdama i ljetne scene uz Jadran — od starogradskih trgova do otočnih uvala.",
+    image: "/images/region-dalmacija.png",
+  },
+  {
+    slug: "istra",
+    name: "Istra",
+    county: "Pula · Rovinj · Motovun",
+    blurb:
+      "Brežuljci, maslinici i festivali okusa. Zelena Istra spaja vrhunsku gastronomiju s filmom i glazbom.",
+    image: "/images/region-istra.png",
+  },
+  {
+    slug: "zagreb",
+    name: "Zagreb i okolica",
+    county: "Zagreb · Samobor · Zagorje",
+    blurb:
+      "Gradska kultura tijekom cijele godine — koncerti, kazališta, izložbe i živahne kvartovske fešte.",
+    image: "/images/region-zagreb.png",
+  },
+  {
+    slug: "slavonija",
+    name: "Slavonija",
+    county: "Osijek · Đakovo · Vukovar",
+    blurb:
+      "Zlatne ravnice, tamburica i bogata tradicija. Manifestacije koje slave baštinu i domaće okuse.",
+    image: "/images/region-slavonija.png",
+  },
+  {
+    slug: "kvarner",
+    name: "Kvarner",
+    county: "Rijeka · Opatija · Krk",
+    blurb:
+      "Rivijera s dugom karnevalskom tradicijom, glazbenim večerima i šetnicama uz more.",
+    image: "/images/region-dalmacija.png",
+  },
+  {
+    slug: "lika",
+    name: "Lika i gorje",
+    county: "Gospić · Plitvice · Velebit",
+    blurb:
+      "Planine, jezera i čist zrak. Avanturistički i outdoor programi u srcu hrvatske divljine.",
+    image: "/images/event-outdoor.png",
+  },
+]
+
+export const events: CroEvent[] = [
+  {
+    slug: "noci-stare-jezgre",
+    title: "Noći stare jezgre",
+    category: "festivali",
+    region: "dalmacija",
+    city: "Split",
+    venue: "Dioklecijanova palača",
+    date: "2026-07-11",
+    endDate: "2026-07-13",
+    time: "20:00",
+    free: true,
+    forKids: true,
+    outdoor: true,
+    description:
+      "Tri večeri glazbe, svjetla i uličnih izvedbi među zidinama drevne palače.",
+    longDescription:
+      "Najljepši dijelovi Dioklecijanove palače pretvaraju se u pozornicu pod otvorenim nebom. Klapske večeri, jazz kvarteti i svjetlosne instalacije vode posjetitelje kroz uske kamene uličice. Program je besplatan i prilagođen svim uzrastima, uz posebnu dječju zonu na Peristilu.",
+    organizer: "Turistička zajednica grada Splita",
+    source: "Visit Split",
+    ticketUrl: "https://example.com",
+    image: "/images/hero-night.png",
+    featured: true,
+    map: { x: 46, y: 72 },
+  },
+  {
+    slug: "more-i-zvuk",
+    title: "More i zvuk — koncert na rivi",
+    category: "koncerti",
+    region: "dalmacija",
+    city: "Zadar",
+    venue: "Pozdrav suncu, Riva",
+    date: "2026-07-04",
+    time: "21:00",
+    free: false,
+    price: "od 18 €",
+    forKids: false,
+    outdoor: true,
+    description:
+      "Akustični koncert uz zalazak sunca i morske orgulje kao prirodnu kulisu.",
+    longDescription:
+      "Dok sunce tone u Jadran, domaći i regionalni izvođači sviraju uz pratnju morskih orgulja. Intiman ambijent, ograničen broj mjesta i nezaboravan pogled na zadarski zaljev.",
+    organizer: "Zadar Concerts",
+    source: "Zadar Concerts",
+    ticketUrl: "https://example.com",
+    image: "/images/event-concert.png",
+    featured: true,
+    map: { x: 40, y: 60 },
+  },
+  {
+    slug: "okusi-istre",
+    title: "Okusi Istre — sajam vina i tartufa",
+    category: "gastro",
+    region: "istra",
+    city: "Motovun",
+    venue: "Trg Andrea Antico",
+    date: "2026-07-05",
+    time: "11:00",
+    free: false,
+    price: "12 €",
+    forKids: true,
+    outdoor: true,
+    description:
+      "Degustacije lokalnih vina, maslinovih ulja i jela s tartufima na brežuljku.",
+    longDescription:
+      "Mali srednjovjekovni Motovun domaćin je najukusnijem danu u godini. Vinari iz cijele Istre predstavljaju etikete uz živu glazbu, dok kuhari pripremaju fuže s tartufima na licu mjesta. Ulaznica uključuje degustacijsku čašu.",
+    organizer: "Vinari Istre",
+    source: "Istra Inspirit",
+    ticketUrl: "https://example.com",
+    image: "/images/event-food.png",
+    featured: true,
+    map: { x: 16, y: 30 },
+  },
+  {
+    slug: "glina-i-ruke",
+    title: "Glina i ruke — keramička radionica",
+    category: "radionice",
+    region: "istra",
+    city: "Rovinj",
+    venue: "Atelier Mali Sv. Križ",
+    date: "2026-07-08",
+    time: "17:30",
+    free: false,
+    price: "35 €",
+    forKids: false,
+    outdoor: false,
+    description:
+      "Naučite osnove lončarstva uz lokalnu majstoricu u sunčanom ateljeu.",
+    longDescription:
+      "Dvosatna radionica za početnike u kojoj svaki polaznik izrađuje vlastitu zdjelu. Materijali i pečenje uključeni su u cijenu, a gotovi radovi šalju se poštom nakon sušenja.",
+    organizer: "Atelier Mali Sv. Križ",
+    source: "Rovinj Culture",
+    image: "/images/event-workshop.png",
+    map: { x: 14, y: 34 },
+  },
+  {
+    slug: "mali-istrazivaci",
+    title: "Mali istraživači — dan za obitelj",
+    category: "obiteljski",
+    region: "zagreb",
+    city: "Zagreb",
+    venue: "Park Maksimir",
+    date: "2026-06-28",
+    time: "10:00",
+    free: true,
+    forKids: true,
+    outdoor: true,
+    description:
+      "Igre, lov na blago i kreativne radionice za djecu u najljepšem parku grada.",
+    longDescription:
+      "Cijeli dan zabave za najmlađe: potraga za blagom kroz park, radionice slikanja, lutkarske predstave i prirodoslovne igre. Ulaz je slobodan, a roditeljima su na raspolaganju kutci za odmor uz kavu.",
+    organizer: "Javna ustanova Maksimir",
+    source: "Zagreb.hr",
+    image: "/images/event-family.png",
+    featured: true,
+    map: { x: 30, y: 16 },
+  },
+  {
+    slug: "velebit-izlazak-sunca",
+    title: "Velebit — pohod na izlazak sunca",
+    category: "na-otvorenom",
+    region: "lika",
+    city: "Starigrad",
+    venue: "Premužićeva staza",
+    date: "2026-07-12",
+    time: "04:30",
+    free: false,
+    price: "25 €",
+    forKids: false,
+    outdoor: true,
+    description:
+      "Vođeni noćni uspon do vrha s pogledom na Jadran u prvim zrakama sunca.",
+    longDescription:
+      "Iskusni planinarski vodič vodi grupu na ranojutarnji uspon kako biste izlazak sunca dočekali iznad oblaka. Uključeni su vodič, čaj i lagani doručak na vrhu. Potrebna je osnovna fizička spremnost i planinarska obuća.",
+    organizer: "HPD Paklenica",
+    source: "Outdoor Croatia",
+    ticketUrl: "https://example.com",
+    image: "/images/event-outdoor.png",
+    map: { x: 34, y: 48 },
+  },
+  {
+    slug: "svjetlo-i-sjena",
+    title: "Svjetlo i sjena — izložba fotografije",
+    category: "izlozbe",
+    region: "zagreb",
+    city: "Zagreb",
+    venue: "Galerija Klovićevi dvori",
+    date: "2026-06-30",
+    endDate: "2026-08-15",
+    time: "10:00 – 20:00",
+    free: false,
+    price: "8 €",
+    forKids: false,
+    outdoor: false,
+    description:
+      "Retrospektiva hrvatske dokumentarne fotografije kroz pet desetljeća.",
+    longDescription:
+      "Više od 200 fotografija prati promjene hrvatskog društva i krajolika od 1970-ih do danas. Postav je popraćen vođenim obilascima vikendom i razgovorima s autorima.",
+    organizer: "Klovićevi dvori",
+    source: "Galerija Klovićevi dvori",
+    ticketUrl: "https://example.com",
+    image: "/images/event-art.png",
+    map: { x: 29, y: 15 },
+  },
+  {
+    slug: "slavonski-banket",
+    title: "Slavonski banket — fešta okusa",
+    category: "manifestacije",
+    region: "slavonija",
+    city: "Đakovo",
+    venue: "Trg J. J. Strossmayera",
+    date: "2026-07-19",
+    time: "18:00",
+    free: true,
+    forKids: true,
+    outdoor: true,
+    description:
+      "Tamburice, kulen i domaće delicije u srcu slavonske ravnice.",
+    longDescription:
+      "Tradicionalna gradska fešta okuplja obiteljska gospodarstva, vinare i tamburaške sastave. Posjetitelji kušaju domaće specijalitete dok se na glavnoj pozornici izmjenjuju folklorni i glazbeni programi.",
+    organizer: "Grad Đakovo",
+    source: "Visit Slavonija",
+    image: "/images/region-slavonija.png",
+    map: { x: 76, y: 38 },
+  },
+  {
+    slug: "ljetna-pozornica-pula",
+    title: "Ljetna pozornica — Arena uživo",
+    category: "koncerti",
+    region: "istra",
+    city: "Pula",
+    venue: "Pulska Arena",
+    date: "2026-07-25",
+    time: "21:30",
+    free: false,
+    price: "od 32 €",
+    forKids: false,
+    outdoor: true,
+    description:
+      "Koncert u dvije tisuće godina staroj rimskoj areni pod zvjezdanim nebom.",
+    longDescription:
+      "Jedinstven doživljaj glazbe uživo u jednom od najbolje očuvanih rimskih amfiteatara na svijetu. Akustika, povijest i atmosfera spajaju se u nezaboravnu večer.",
+    organizer: "Arena Festival",
+    source: "Arena Pula",
+    ticketUrl: "https://example.com",
+    image: "/images/event-concert.png",
+    map: { x: 12, y: 40 },
+  },
+  {
+    slug: "kvarnerski-vez",
+    title: "Kvarnerski vez — radionica čipke",
+    category: "radionice",
+    region: "kvarner",
+    city: "Opatija",
+    venue: "Villa Angiolina",
+    date: "2026-07-02",
+    time: "16:00",
+    free: false,
+    price: "20 €",
+    forKids: true,
+    outdoor: false,
+    description:
+      "Tradicionalni vez i čipka uz priču o kvarnerskoj baštini.",
+    longDescription:
+      "Polaznici uče osnovne tehnike veza pod vodstvom članica lokalne udruge. Radionica je prikladna za sve uzraste, a djeca uz pratnju sudjeluju besplatno.",
+    organizer: "Udruga Kvarnerski vez",
+    source: "Visit Opatija",
+    map: { x: 22, y: 38 },
+  },
+  {
+    slug: "filmske-veceri-na-trgu",
+    title: "Filmske večeri na trgu",
+    category: "festivali",
+    region: "zagreb",
+    city: "Samobor",
+    venue: "Glavni trg",
+    date: "2026-07-15",
+    endDate: "2026-07-18",
+    time: "21:00",
+    free: true,
+    forKids: true,
+    outdoor: true,
+    description:
+      "Ljetni open-air kino program s najboljim domaćim i europskim filmovima.",
+    longDescription:
+      "Četiri večeri filma pod vedrim nebom na živopisnom samoborskom trgu. Ulaz je besplatan, a uz projekcije organiziran je i program za djecu u ranim večernjim satima.",
+    organizer: "Pučko otvoreno učilište Samobor",
+    source: "Samobor Kultura",
+    image: "/images/hero-night.png",
+    map: { x: 26, y: 18 },
+  },
+  {
+    slug: "jadranski-okusi-kvarner",
+    title: "Jadranski okusi — večer ribe",
+    category: "gastro",
+    region: "kvarner",
+    city: "Rijeka",
+    venue: "Korzo",
+    date: "2026-07-09",
+    time: "19:00",
+    free: false,
+    price: "15 €",
+    forKids: false,
+    outdoor: true,
+    description:
+      "Ulična gastro tura s degustacijom svježe ribe i kvarnerskih vina.",
+    longDescription:
+      "Šetnja riječkim Korzom uz štandove lokalnih restorana koji predstavljaju svoje najbolje riblje specijalitete. Cijena uključuje pet degustacijskih porcija i čašu vina.",
+    organizer: "Rijeka Gastro",
+    source: "Visit Rijeka",
+    image: "/images/event-food.png",
+    map: { x: 21, y: 36 },
+  },
+]
+
+/* ---------- helpers ---------- */
+
+export function getCategory(slug: string) {
+  return categories.find((c) => c.slug === slug)
+}
+
+export function getRegion(slug: string) {
+  return regions.find((r) => r.slug === slug)
+}
+
+export function getEvent(slug: string) {
+  return events.find((e) => e.slug === slug)
+}
+
+export function categoryName(slug: CategorySlug) {
+  return getCategory(slug)?.name ?? slug
+}
+
+export function regionName(slug: RegionSlug) {
+  return getRegion(slug)?.name ?? slug
+}
+
+export function gradientFor(slug: CategorySlug): string {
+  const cat = getCategory(slug)
+  if (!cat) return "linear-gradient(135deg, oklch(0.4 0.08 256), oklch(0.55 0.1 28))"
+  return `linear-gradient(135deg, ${cat.gradient[0]}, ${cat.gradient[1]})`
+}
+
+/* ---------- queries ---------- */
+
+function byDate(a: CroEvent, b: CroEvent) {
+  return a.date.localeCompare(b.date)
+}
+
+export function eventsByRegion(slug: string) {
+  return events.filter((e) => e.region === slug).sort(byDate)
+}
+
+export function eventsByCategory(slug: string) {
+  return events.filter((e) => e.category === slug).sort(byDate)
+}
+
+export function featuredEvents(limit?: number) {
+  const list = events.filter((e) => e.featured).sort(byDate)
+  return typeof limit === "number" ? list.slice(0, limit) : list
+}
+
+export function upcomingEvents(limit?: number) {
+  const list = [...events].sort(byDate)
+  return typeof limit === "number" ? list.slice(0, limit) : list
+}
+
+export function freeEvents(limit?: number) {
+  const list = events.filter((e) => e.free).sort(byDate)
+  return typeof limit === "number" ? list.slice(0, limit) : list
+}
+
+export interface EventFilters {
+  q?: string
+  category?: string
+  region?: string
+  city?: string
+  free?: boolean
+  kids?: boolean
+  outdoor?: boolean
+  when?: "danas" | "ovaj-vikend" | "ovaj-mjesec"
+}
+
+function inWeekend(iso: string) {
+  const d = new Date(iso + "T00:00:00")
+  const day = d.getDay()
+  return day === 5 || day === 6 || day === 0
+}
+
+export function filterEvents(f: EventFilters) {
+  const q = f.q?.trim().toLowerCase()
+  return events
+    .filter((e) => {
+      if (f.category && e.category !== f.category) return false
+      if (f.region && e.region !== f.region) return false
+      if (f.city && e.city.toLowerCase() !== f.city.toLowerCase()) return false
+      if (f.free && !e.free) return false
+      if (f.kids && !e.forKids) return false
+      if (f.outdoor && !e.outdoor) return false
+      if (f.when === "ovaj-vikend" && !inWeekend(e.date)) return false
+      if (q) {
+        const hay = `${e.title} ${e.description} ${e.city} ${e.venue} ${e.organizer}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    .sort(byDate)
+}
+
+export function relatedEvents(e: CroEvent, limit = 3) {
+  return events
+    .filter((x) => x.slug !== e.slug && (x.region === e.region || x.category === e.category))
+    .sort(byDate)
+    .slice(0, limit)
+}
+
+const MONTHS_HR = [
+  "sij",
+  "velj",
+  "ožu",
+  "tra",
+  "svi",
+  "lip",
+  "srp",
+  "kol",
+  "ruj",
+  "lis",
+  "stu",
+  "pro",
+]
+
+const MONTHS_HR_LONG = [
+  "siječnja",
+  "veljače",
+  "ožujka",
+  "travnja",
+  "svibnja",
+  "lipnja",
+  "srpnja",
+  "kolovoza",
+  "rujna",
+  "listopada",
+  "studenoga",
+  "prosinca",
+]
+
+const WEEKDAYS_HR = [
+  "Nedjelja",
+  "Ponedjeljak",
+  "Utorak",
+  "Srijeda",
+  "Četvrtak",
+  "Petak",
+  "Subota",
+]
+
+export function dateParts(iso: string) {
+  const d = new Date(iso + "T00:00:00")
+  return {
+    day: d.getDate(),
+    month: MONTHS_HR[d.getMonth()],
+    monthLong: MONTHS_HR_LONG[d.getMonth()],
+    weekday: WEEKDAYS_HR[d.getDay()],
+    year: d.getFullYear(),
+  }
+}
+
+export function formatDateRange(start: string, end?: string) {
+  const s = dateParts(start)
+  if (!end) return `${s.weekday}, ${s.day}. ${s.monthLong} ${s.year}.`
+  const e = dateParts(end)
+  return `${s.day}. ${s.monthLong} – ${e.day}. ${e.monthLong} ${e.year}.`
+}
+
+export function priceLabel(e: CroEvent) {
+  return e.free ? "Besplatno" : e.price ?? "Naplata"
+}
+
+/* ---------- geo coordinates (lat, lng) by city ---------- */
+
+export const CITY_COORDS: Record<string, [number, number]> = {
+  Split: [43.5081, 16.4402],
+  Zadar: [44.1194, 15.2314],
+  Motovun: [45.3367, 13.8278],
+  Rovinj: [45.0811, 13.6387],
+  Zagreb: [45.815, 15.9819],
+  Starigrad: [44.2978, 15.4583],
+  Đakovo: [45.3089, 18.4108],
+  Pula: [44.8666, 13.8496],
+  Opatija: [45.3377, 14.3053],
+  Samobor: [45.8033, 15.7114],
+  Rijeka: [45.3271, 14.4422],
+}
+
+export function coordsFor(e: CroEvent): [number, number] {
+  return CITY_COORDS[e.city] ?? [45.1, 15.5]
+}

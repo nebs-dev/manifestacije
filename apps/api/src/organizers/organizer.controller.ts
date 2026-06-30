@@ -1,0 +1,45 @@
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
+import { UserRole } from "@prisma/client";
+import { CurrentUser, Roles } from "../auth/auth.decorators";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { AuthUser } from "../auth/auth.types";
+import { EventUpsertDto } from "../events/event.dto";
+import { OrganizerProfileDto, SubmitSourceDto } from "./organizer.dto";
+import { OrganizerService } from "./organizer.service";
+
+@Controller("organizer")
+@UseGuards(JwtAuthGuard)
+@Roles(UserRole.ORGANIZER)
+export class OrganizerController {
+  constructor(private readonly organizer: OrganizerService) {}
+
+  @Get("profile")
+  profile(@CurrentUser() user: AuthUser) {
+    return this.organizer.profile(user.organizerId!);
+  }
+
+  @Put("profile")
+  updateProfile(@CurrentUser() user: AuthUser, @Body() dto: OrganizerProfileDto) {
+    return this.organizer.updateProfile(user.organizerId!, dto);
+  }
+
+  @Get("events")
+  events(@CurrentUser() user: AuthUser) {
+    return this.organizer.listEvents(user.organizerId!);
+  }
+
+  @Post("events")
+  createEvent(@CurrentUser() user: AuthUser, @Body() dto: EventUpsertDto) {
+    return this.organizer.createEvent(user.organizerId!, dto);
+  }
+
+  @Put("events/:id")
+  updateEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: EventUpsertDto) {
+    return this.organizer.updateEvent(user.organizerId!, Number(id), dto);
+  }
+
+  @Post("events/submit-url")
+  submitSource(@CurrentUser() user: AuthUser, @Body() dto: SubmitSourceDto) {
+    return this.organizer.submitSource(user.organizerId!, dto);
+  }
+}
