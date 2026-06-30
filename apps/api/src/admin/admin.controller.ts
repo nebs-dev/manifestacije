@@ -3,7 +3,7 @@ import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, ManualEmailDto, OrganizerAdminDto } from "./admin.dto";
+import { AdminEventDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto } from "./admin.dto";
 
 @Controller("admin")
 @UseGuards(JwtAuthGuard)
@@ -26,11 +26,18 @@ export class AdminController {
   @Post("organizers/:id/verify") verify(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
   @Post("organizers/:id/trust") trust(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
 
+  // Literal routes must be declared before parametric :id routes
   @Get("event-sources") eventSources() { return this.admin.eventSources(); }
   @Post("event-sources/manual-email") manualEmail(@Body() dto: ManualEmailDto) { return this.admin.createManualEmail(dto); }
-  @Post("event-sources/parse-url") parseUrl(@Body() dto: ManualEmailDto) { return this.admin.parseUrl(dto); }
+  @Post("event-sources/parse-url") parseUrl(@Body() dto: ParseUrlDto) { return this.admin.parseUrl(dto); }
+  @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
-  @Post("event-sources/:id/create-event") createEvent(@Param("id") id: string) { return this.admin.createEventFromSource(Number(id)); }
+  @Post("event-sources/:id/create-event") createEvent(@Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
+    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0);
+  }
+  @Post("event-sources/:id/ignore-candidate") ignoreCandidate(@Param("id") id: string, @Body() dto: IgnoreCandidateDto) {
+    return this.admin.ignoreCandidate(Number(id), dto.candidateIndex);
+  }
 
   @Get("duplicates") duplicates() { return this.admin.duplicatesList(); }
   @Post("duplicates/:id/merge") mergeDuplicate(@Param("id") id: string) { return this.admin.mergeDuplicate(Number(id)); }

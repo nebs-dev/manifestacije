@@ -3,13 +3,13 @@
 import { useEffect, useState, useCallback } from "react"
 
 import { PageHeader } from "@/components/admin/page-header"
-import { PendingEventsTable } from "@/components/admin/pending-events-table"
+import { EventsTable } from "@/components/admin/events-table"
 import { TableLoadingState, ErrorState } from "@/components/admin/states"
 import { authedFetch } from "@/lib/admin/api"
 import { adaptEvent } from "@/lib/admin/adapters"
 import type { AdminEvent } from "@/lib/admin/types"
 
-export default function PendingEventsPage() {
+export default function EventsPage() {
   const [events, setEvents] = useState<AdminEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -17,8 +17,8 @@ export default function PendingEventsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await authedFetch("/api/admin/events/pending")
-      if (!res.ok) { setError("Greška pri učitavanju."); return }
+      const res = await authedFetch("/api/admin/events")
+      if (!res.ok) { setError("Greška pri učitavanju događaja."); return }
       const data = await res.json()
       setEvents((data as Record<string, unknown>[]).map(adaptEvent))
     } catch {
@@ -33,19 +33,16 @@ export default function PendingEventsPage() {
   return (
     <>
       <PageHeader
-        title="Događaji na čekanju"
-        description="Pregledajte i obradite događaje prije objave."
-        breadcrumbs={[
-          { label: "Admin", href: "/admin" },
-          { label: "Događaji na čekanju" },
-        ]}
+        title="Događaji"
+        description="Svi događaji u sustavu, neovisno o statusu."
+        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Događaji" }]}
       />
       {loading ? (
         <TableLoadingState />
       ) : error ? (
         <ErrorState description={error} onRetry={load} />
       ) : (
-        <PendingEventsTable events={events} onAction={load} />
+        <EventsTable events={events} />
       )}
     </>
   )

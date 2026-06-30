@@ -4,3 +4,11 @@ node_modules
 dist
 .env
 .env.local
+
+# AI/IDE tooling
+.agents/
+.claude/
+.codex-plugins/
+.kiro/
+.kiroq/
+skills-lock.json

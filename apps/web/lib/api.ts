@@ -1,6 +1,52 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000";
 
+export type ParsedEventCandidate = {
+  title: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+  venueName: string;
+  address: string;
+  city: string;
+  county: string;
+  region: string;
+  category: string;
+  isFree: boolean | null;
+  priceText: string;
+  ticketUrl: string;
+  sourceUrl: string;
+  organizerName: string;
+  confidence: number;
+  missingFields: string[];
+  warnings: string[];
+  _status?: "pending" | "created" | "ignored";
+  _eventId?: number;
+};
+
+export type ParsedSourceResult = {
+  sourceUrl: string;
+  sourceType: "batch" | "single";
+  candidates: ParsedEventCandidate[];
+};
+
+export type EventSource = {
+  id: number;
+  type: string;
+  status: string;
+  sourceUrl: string | null;
+  confidence: number | null;
+  parsedJson: ParsedSourceResult | null;
+  rawText: string | null;
+  rawEmailSubject: string | null;
+  rawEmailFrom: string | null;
+  eventId: number | null;
+  event: { id: number; title: string; slug: string } | null;
+  organizer: { id: number; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type EventItem = {
   id: number;
   title: string;

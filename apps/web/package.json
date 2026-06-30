@@ -10,6 +10,7 @@
     "lint": "next lint || tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@manifestacije/shared": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -19,6 +20,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "4.2.1",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

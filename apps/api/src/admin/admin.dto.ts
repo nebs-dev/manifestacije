@@ -1,4 +1,5 @@
-import { IsOptional, IsString } from "class-validator";
+import { IsInt, IsOptional, IsString, Min } from "class-validator";
+import { Type } from "class-transformer";
 import { EventUpsertDto } from "../events/event.dto";
 
 export class AdminEventDto extends EventUpsertDto {
@@ -19,6 +20,26 @@ export class OrganizerAdminDto {
 export class ManualEmailDto {
   @IsOptional() @IsString() rawEmailSubject?: string;
   @IsOptional() @IsString() rawEmailFrom?: string;
-  @IsString() rawText!: string;
+  @IsOptional() @IsString() rawText?: string;
   @IsOptional() @IsString() sourceUrl?: string;
+}
+
+export class ParseUrlDto {
+  @IsString()
+  sourceUrl!: string;
+}
+
+export class CreateEventFromCandidateDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  candidateIndex?: number;
+}
+
+export class IgnoreCandidateDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  candidateIndex!: number;
 }

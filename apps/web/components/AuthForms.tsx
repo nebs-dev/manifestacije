@@ -141,6 +141,40 @@ export function AdminActionPanel({ eventId }: { eventId?: string }) {
   );
 }
 
+export function UrlParsePanel({ onParsed }: { onParsed?: (sourceId: number) => void }) {
+  const [msg, setMsg] = useState<Msg>({});
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const sourceUrl = (form.get("sourceUrl") as string || "").trim();
+    if (!sourceUrl) return setMsg({ error: "Please enter a URL" });
+    setLoading(true);
+    setMsg({});
+    const res = await authedFetch("/api/admin/event-sources/parse-url", {
+      method: "POST",
+      body: JSON.stringify({ sourceUrl }),
+    });
+    setLoading(false);
+    if (!res.ok) return setMsg({ error: await res.text() });
+    const data = await res.json();
+    const count = (data.parsedJson?.candidates?.length ?? 0);
+    setMsg({ ok: `Stored source #${data.id} — ${count} candidate${count !== 1 ? "s" : ""} parsed. Open source to review.` });
+    onParsed?.(data.id);
+  }
+  return (
+    <form onSubmit={submit} className="grid gap-3 rounded border bg-white p-4">
+      <h2 className="text-xl font-semibold">Parse URL</h2>
+      <p className="text-sm text-gray-500">Paste a URL to an event page or multi-event listing. The page will be fetched and parsed server-side.</p>
+      <input name="sourceUrl" type="url" placeholder="https://..." required className="rounded border px-3 py-2" />
+      <button disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">
+        {loading ? "Fetching & parsing…" : "Parse URL"}
+      </button>
+      <Message msg={msg} />
+    </form>
+  );
+}
+
 export function SourceCreatePanel() {
   const [msg, setMsg] = useState<Msg>({});
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -158,14 +192,14 @@ export function SourceCreatePanel() {
       <input name="subject" placeholder="Subject" />
       <input name="from" placeholder="From" />
       <input name="sourceUrl" placeholder="Source URL" />
-      <textarea name="rawText" rows={8} placeholder="Raw source evidence" required />
+      <textarea name="rawText" rows={8} placeholder="Raw source evidence" />
       <button>Create source</button>
       <Message msg={msg} />
     </form>
   );
 }
 
-async function authedFetch(path: string, init?: RequestInit) {
+export async function authedFetch(path: string, init?: RequestInit) {
   return fetch(`${API_URL}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}`, ...(init?.headers || {}) }
