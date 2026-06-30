@@ -2,7 +2,7 @@
 
 Project: manifestacije
 Range: last 7 days
-Generated: 2026-06-30T12:09:16.629Z
+Generated: 2026-06-30T17:53:35.048Z
 Evidence: Kiroq events + git history + changed files + feature status + verification results
 
 ## Summary
@@ -11,7 +11,7 @@ This period appears focused on creating baseline project memory for manifestacij
 
 ## What changed recently
 
-- Env / Config
+- Baseline project memory was created from repository evidence.
 
 ## What is now stronger
 
@@ -19,17 +19,16 @@ This period appears focused on creating baseline project memory for manifestacij
 
 ## Still partial / needs verification
 
-- AI/Crawler Discovery Surface: verification evidence not found or incomplete.
-- Data Imports: verification evidence not found or incomplete.
 - Locations: verification evidence not found or incomplete.
-- Attribution / Lead Tracking: verification evidence not found or incomplete.
+- AI/Crawler Discovery Surface: verification evidence not found or incomplete.
 - Business Profiles: verification evidence not found or incomplete.
+- Trust Signals: verification evidence not found or incomplete.
 
 ## Review areas
 
-- Env / Config: Configuration and secrets need production coverage and committed-secret review.
 - Auth / JWT: Auth/JWT code exists; verify guards, session handling, secrets, and tenant boundaries.
 - Public routes: Public pages need crawler/human parity, unpublished-data, and 404 behavior review.
+- Env / Config: Configuration and secrets need production coverage and committed-secret review.
 - Database / Prisma: Schema/migration changes need data-shape and tenant-ownership review.
 - Token / Report / Redirect: Tokenized report/redirect flows need expiry, signature or server validation, and guessability checks.
 

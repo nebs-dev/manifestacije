@@ -4,6 +4,99 @@ Local git commit/merge timeline inferred from repository history.
 
 Kiroq can infer commits and merge commits from local git. Remote push/release boundaries are Unknown unless a future integration records them.
 
+## 2026-06-30 16:42 - commit ca8dccd7
+
+feat: event location autocomplete, coordinates, and display fixes
+
+- Changed files: 40
+- Changed areas: Database / Schema, Verification / Tests
+- Affected features: Locations, AI/Crawler Discovery Surface
+- Review focus: Public routes, Database / Prisma
+
+Evidence files:
+
+- `apps/api/dist/admin/admin.dto.js`
+- `apps/api/dist/admin/admin.service.js`
+- `apps/api/dist/ai-parser/ai-event-parser.service.js`
+- `apps/api/dist/events/event.dto.js`
+- `apps/api/dist/events/events.service.js`
+- `apps/api/dist/public-feed/public-feed.service.js`
+- `apps/api/prisma/migrations/20260630100000_add_event_categories/migration.sql`
+- `apps/api/prisma/migrations/20260630200000_event_location_fields/migration.sql`
+
+## 2026-06-30 14:36 - commit 9cc4d5b0
+
+polish public UI: diacritics, card layout, seed data, fallback images
+
+- Changed files: 7
+- Changed areas: Database / Schema
+- Affected features: Unknown
+- Review focus: Public routes, Database / Prisma
+
+Evidence files:
+
+- `apps/api/prisma/seed.ts`
+- `apps/web/app/eventi/page.tsx`
+- `apps/web/app/page.tsx`
+- `apps/web/src/components/public/event-card.tsx`
+- `apps/web/src/components/public/results-grid.tsx`
+- `apps/web/src/components/public/section-heading.tsx`
+- `apps/web/src/lib/public-api.ts`
+
+## 2026-06-30 13:37 - commit a7a02e18
+
+fix prisma seed
+
+- Changed files: 2
+- Changed areas: Database / Schema
+- Affected features: Unknown
+- Review focus: Database / Prisma
+
+Evidence files:
+
+- `DEPLOYMENT.md`
+- `apps/api/prisma/seed.ts`
+
+## 2026-06-30 13:18 - commit 556537ef
+
+prepare manifestacije for staging deploy
+
+- Changed files: 8
+- Changed areas: Database / Schema, Env / Config
+- Affected features: Unknown
+- Review focus: Env / Config, Database / Prisma
+
+Evidence files:
+
+- `.env.example`
+- `.gitignore`
+- `DEPLOYMENT.md`
+- `apps/api/dist/app.module.js`
+- `apps/api/dist/main.js`
+- `apps/api/prisma/seed.ts`
+- `apps/api/src/app.module.ts`
+- `apps/api/src/main.ts`
+
+## 2026-06-30 13:10 - commit 8b183fe9
+
+feat: integrate public UI and improve admin event workflow
+
+- Changed files: 117
+- Changed areas: Public Discovery Pages, Auth / Access Control, Database / Schema, Env / Config, Verification / Tests, Dependencies
+- Affected features: AI/Crawler Discovery Surface, Trust Signals
+- Review focus: Auth / JWT, Public routes, Env / Config, Database / Prisma
+
+Evidence files:
+
+- `apps/api/dist/admin/admin.controller.js`
+- `apps/api/dist/admin/admin.dto.js`
+- `apps/api/dist/admin/admin.service.js`
+- `apps/api/dist/ai-parser/ai-event-parser.service.js`
+- `apps/api/dist/events/event.dto.js`
+- `apps/api/dist/events/events.service.js`
+- `apps/api/dist/main.js`
+- `apps/api/prisma/seed.ts`
+
 ## 2026-06-30 12:08 - commit e614dccc
 
 fix admin UI: table overflow, delete buttons, taxonomy pages
@@ -80,7 +173,7 @@ initial manifestacije app and landing page
 
 - Changed files: 241
 - Changed areas: Public Discovery Pages, Auth / Access Control, Database / Schema, Env / Config, Verification / Tests, Dependencies
-- Affected features: AI/Crawler Discovery Surface, Data Imports, Locations, Business Profiles, Trust Signals
+- Affected features: Locations, AI/Crawler Discovery Surface, Business Profiles, Trust Signals
 - Review focus: Auth / JWT, Public routes, Env / Config, Database / Prisma
 
 Evidence files:
@@ -96,4 +189,4 @@ Evidence files:
 
 ## Kiroq Scan Audit Trail
 
-- 2026-06-30T12:09:16.602Z: baseline; git e614dccc; docs 16; test passed via pnpm test
+- 2026-06-30T17:53:35.026Z: baseline; git ca8dccd7; docs 16; test passed via pnpm test

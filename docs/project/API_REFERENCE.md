@@ -41,21 +41,12 @@ Request and response shapes are marked Unknown unless Kiroq can detect them dire
 | PAGE | `/admin/events/:id` | `apps/web/app/admin/events/[id]/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/events` | `apps/web/app/admin/events/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/events/pending` | `apps/web/app/admin/events/pending/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
+| PAGE | `/admin/login` | `apps/web/app/admin/login/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/organizers` | `apps/web/app/admin/organizers/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Organizer` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin` | `apps/web/app/admin/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/regions` | `apps/web/app/admin/regions/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Region` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/sources/:id` | `apps/web/app/admin/sources/[id]/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/sources` | `apps/web/app/admin/sources/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/categories` | `apps/web/v0-import/admin-ui-import/app/admin/categories/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/duplicates` | `apps/web/v0-import/admin-ui-import/app/admin/duplicates/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/events/:id` | `apps/web/v0-import/admin-ui-import/app/admin/events/[id]/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/events` | `apps/web/v0-import/admin-ui-import/app/admin/events/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/events/pending` | `apps/web/v0-import/admin-ui-import/app/admin/events/pending/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/organizers` | `apps/web/v0-import/admin-ui-import/app/admin/organizers/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Organizer` | None detected | High | Unknown | Unknown |
-| PAGE | `/admin` | `apps/web/v0-import/admin-ui-import/app/admin/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/regions` | `apps/web/v0-import/admin-ui-import/app/admin/regions/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Region` | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/sources/:id` | `apps/web/v0-import/admin-ui-import/app/admin/sources/[id]/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
-| PAGE | `/admin/sources` | `apps/web/v0-import/admin-ui-import/app/admin/sources/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 
 ## Auth
 
@@ -156,28 +147,3 @@ Request and response shapes are marked Unknown unless Kiroq can detect them dire
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | PAGE | `/regije/:regionSlug` | `apps/web/app/regije/[regionSlug]/page.tsx` | Unknown | Unknown from static route evidence. | None | `Region` | None detected | High | Unknown | Unknown |
 | PAGE | `/regije` | `apps/web/app/regije/page.tsx` | Unknown | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
-
-## Dogadanja
-
-| Method | Path | Source | Access | Purpose | DTO evidence | Related DB models | Review notes | Confidence | Request | Response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PAGE | `/dogadanja/:slug` | `apps/web/v0-import/event-discovery-platform/app/dogadanja/[slug]/page.tsx` | Unknown | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-| PAGE | `/dogadanja` | `apps/web/v0-import/event-discovery-platform/app/dogadanja/page.tsx` | Unknown | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-
-## Karta
-
-| Method | Path | Source | Access | Purpose | DTO evidence | Related DB models | Review notes | Confidence | Request | Response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PAGE | `/karta` | `apps/web/v0-import/event-discovery-platform/app/karta/page.tsx` | Unknown | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-
-## Kategorija
-
-| Method | Path | Source | Access | Purpose | DTO evidence | Related DB models | Review notes | Confidence | Request | Response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PAGE | `/kategorija/:slug` | `apps/web/v0-import/event-discovery-platform/app/kategorija/[slug]/page.tsx` | Unknown | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
-
-## Regija
-
-| Method | Path | Source | Access | Purpose | DTO evidence | Related DB models | Review notes | Confidence | Request | Response |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PAGE | `/regija/:slug` | `apps/web/v0-import/event-discovery-platform/app/regija/[slug]/page.tsx` | Unknown | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |

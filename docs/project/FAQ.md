@@ -9,14 +9,10 @@ Evidence:
   - `package.json`
   - `apps/api/package.json`
   - `apps/web/package.json`
-  - `apps/web/v0-import/admin-ui-import/package.json`
-  - `apps/web/v0-import/event-discovery-platform/package.json`
 
 ## What are the main detected product areas?
-- AI/Crawler Discovery Surface (Partial, High)
-- Data Imports (Partial, High)
 - Locations (Partial, High)
-- Attribution / Lead Tracking (Partial, Low)
+- AI/Crawler Discovery Surface (Partial, Medium)
 - Business Profiles (Partial, Low)
 - Trust Signals (Partial, Low)
 
@@ -32,10 +28,10 @@ Evidence:
 - GET `/public/seo/sitemap-data` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 
 ## What API surface exists?
-Kiroq detected 88 route candidates. See `API_ROUTES.md` for inventory and `API_REFERENCE.md` for grouped endpoint notes.
+Kiroq detected 74 route candidates. See `API_ROUTES.md` for inventory and `API_REFERENCE.md` for grouped endpoint notes.
 
 ## What data model exists?
-Kiroq detected 11 Prisma models. Top detected models: `User`, `Organizer`, `Region`, `County`, `City`, `Venue`, `Category`, `Event`, `EventSource`, `EventDuplicateCandidate`.
+Kiroq detected 12 Prisma models. Top detected models: `User`, `Organizer`, `Region`, `County`, `City`, `Venue`, `Category`, `EventCategory`, `Event`, `EventSource`.
 
 ## What commands are likely useful?
 - `pnpm --dir apps/api dev`
@@ -48,8 +44,8 @@ Kiroq detected 11 Prisma models. Top detected models: `User`, `Organizer`, `Regi
 - `pnpm --dir apps/web start`
 - `pnpm --dir apps/web test`
 - `pnpm --dir apps/web lint`
-- `pnpm --dir apps/web/v0-import/admin-ui-import dev`
-- `pnpm --dir apps/web/v0-import/admin-ui-import build`
+- `pnpm dev`
+- `pnpm build`
 
 ## Is runtime behavior verified?
 Partially. Kiroq ran `pnpm test` and it passed, but this does not prove smoke/sample/client QA coverage.
@@ -59,8 +55,8 @@ Partially. Kiroq ran `pnpm test` and it passed, but this does not prove smoke/sa
 - High: jwt related files detected. File paths include risk-sensitive keyword "jwt" (1 evidence paths).
 - Medium: public related files detected. File paths include review keyword "public" (33 evidence paths).
 - Medium: env related files detected. File paths include review keyword "env" (3 evidence paths).
-- Medium: config related files detected. File paths include review keyword "config" (16 evidence paths).
-- Medium: prisma/schema.prisma related files detected. File paths include review keyword "prisma/schema.prisma" (11 evidence paths).
+- Medium: config related files detected. File paths include review keyword "config" (8 evidence paths).
+- Medium: prisma/schema.prisma related files detected. File paths include review keyword "prisma/schema.prisma" (12 evidence paths).
 - Medium: Public or tokenized routes detected. Route path/source suggests public exposure or token-based access. Affected routes: GET /public/events, GET /public/events/:slug, GET /public/regions, GET /public/regions/:slug/events, GET /public/cities/:slug/events, GET /public/categories, GET /public/categories/:slug/events, GET /public/map/events, GET /public/seo/sitemap-data.
 
 ## What is still unknown?

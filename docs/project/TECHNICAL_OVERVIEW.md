@@ -3,8 +3,6 @@
 ## Packages
 - app: api at `apps/api` (High) evidence: `apps/api/package.json`
 - app: web at `apps/web` (High) evidence: `apps/web/package.json`
-- app: my-project at `apps/web/v0-import/admin-ui-import` (High) evidence: `apps/web/v0-import/admin-ui-import/package.json`
-- app: my-project at `apps/web/v0-import/event-discovery-platform` (High) evidence: `apps/web/v0-import/event-discovery-platform/package.json`
 - root: manifestacije at `.` (High) evidence: `package.json`
 - package: @manifestacije/shared at `packages/shared` (High) evidence: `packages/shared/package.json`
 
@@ -17,12 +15,6 @@
 | apps/web/next.config.js | Fact | High | `apps/web/next.config.js` |
 | apps/web/package.json | Fact | High | `apps/web/package.json` |
 | apps/web/tsconfig.json | Fact | High | `apps/web/tsconfig.json` |
-| apps/web/v0-import/admin-ui-import/next.config.mjs | Fact | High | `apps/web/v0-import/admin-ui-import/next.config.mjs` |
-| apps/web/v0-import/admin-ui-import/package.json | Fact | High | `apps/web/v0-import/admin-ui-import/package.json` |
-| apps/web/v0-import/admin-ui-import/tsconfig.json | Fact | High | `apps/web/v0-import/admin-ui-import/tsconfig.json` |
-| apps/web/v0-import/event-discovery-platform/next.config.mjs | Fact | High | `apps/web/v0-import/event-discovery-platform/next.config.mjs` |
-| apps/web/v0-import/event-discovery-platform/package.json | Fact | High | `apps/web/v0-import/event-discovery-platform/package.json` |
-| apps/web/v0-import/event-discovery-platform/tsconfig.json | Fact | High | `apps/web/v0-import/event-discovery-platform/tsconfig.json` |
 | package.json | Fact | High | `package.json` |
 | packages/shared/package.json | Fact | High | `packages/shared/package.json` |
 | packages/shared/tsconfig.json | Fact | High | `packages/shared/tsconfig.json` |
@@ -80,7 +72,7 @@
 | apps/web/app/admin/events/page.tsx | Fact | High | `apps/web/app/admin/events/page.tsx` |
 | apps/web/app/admin/events/pending/page.tsx | Fact | High | `apps/web/app/admin/events/pending/page.tsx` |
 | apps/web/app/admin/layout.tsx | Fact | High | `apps/web/app/admin/layout.tsx` |
-| apps/web/app/admin/organizers/page.tsx | Fact | High | `apps/web/app/admin/organizers/page.tsx` |
+| apps/web/app/admin/login/page.tsx | Fact | High | `apps/web/app/admin/login/page.tsx` |
 
 ## Tests
 | Item | Status | Confidence | Evidence |
@@ -95,13 +87,13 @@
 - Attempted: yes
 - Command: pnpm test
 - Confidence: High
-- Duration: 2009ms
+- Duration: 2582ms
 - Output summary:
   - apps/api test: PASS test/duplicates.spec.ts
   - apps/api test: Test Suites: 2 passed, 2 total
-  - apps/api test: Tests:       34 passed, 34 total
+  - apps/api test: Tests:       36 passed, 36 total
   - apps/api test: Snapshots:   0 total
-  - apps/api test: Time:        1.054 s, estimated 2 s
+  - apps/api test: Time:        1.541 s, estimated 2 s
   - apps/api test: Ran all test suites.
   - apps/api test: Done
   - apps/web test$ echo web ok

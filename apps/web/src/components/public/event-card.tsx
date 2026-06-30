@@ -17,7 +17,7 @@ export function EventCard({ event, className }: EventCardProps) {
     <Link
       href={`/eventi/${event.slug}`}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >

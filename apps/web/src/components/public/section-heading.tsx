@@ -17,7 +17,7 @@ export function SectionHeading({
   hrefLabel = "Pogledaj sve",
 }: SectionHeadingProps) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-8 flex flex-wrap items-start justify-between gap-4 sm:items-end">
       <div className="max-w-2xl">
         {eyebrow && (
           <span className="text-sm font-semibold uppercase tracking-wider text-accent-foreground/80">

@@ -53,6 +53,7 @@
 | next-app | PAGE | `/admin/events/:id` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/[id]/page.tsx` |
 | next-app | PAGE | `/admin/events` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/page.tsx` |
 | next-app | PAGE | `/admin/events/pending` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/pending/page.tsx` |
+| next-app | PAGE | `/admin/login` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/login/page.tsx` |
 | next-app | PAGE | `/admin/organizers` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/organizers/page.tsx` |
 | next-app | PAGE | `/admin` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/page.tsx` |
 | next-app | PAGE | `/admin/regions` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/regions/page.tsx` |
@@ -75,18 +76,3 @@
 | next-app | PAGE | `/ovaj-vikend` | Unknown | High | `apps/web/app/ovaj-vikend/page.tsx` |
 | next-app | PAGE | `/regije/:regionSlug` | Unknown | High | `apps/web/app/regije/[regionSlug]/page.tsx` |
 | next-app | PAGE | `/regije` | Unknown | High | `apps/web/app/regije/page.tsx` |
-| next-app | PAGE | `/admin/categories` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/categories/page.tsx` |
-| next-app | PAGE | `/admin/duplicates` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/duplicates/page.tsx` |
-| next-app | PAGE | `/admin/events/:id` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/events/[id]/page.tsx` |
-| next-app | PAGE | `/admin/events` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/events/page.tsx` |
-| next-app | PAGE | `/admin/events/pending` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/events/pending/page.tsx` |
-| next-app | PAGE | `/admin/organizers` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/organizers/page.tsx` |
-| next-app | PAGE | `/admin` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/page.tsx` |
-| next-app | PAGE | `/admin/regions` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/regions/page.tsx` |
-| next-app | PAGE | `/admin/sources/:id` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/sources/[id]/page.tsx` |
-| next-app | PAGE | `/admin/sources` | Auth-sensitive (Inferred) | High | `apps/web/v0-import/admin-ui-import/app/admin/sources/page.tsx` |
-| next-app | PAGE | `/dogadanja/:slug` | Unknown | High | `apps/web/v0-import/event-discovery-platform/app/dogadanja/[slug]/page.tsx` |
-| next-app | PAGE | `/dogadanja` | Unknown | High | `apps/web/v0-import/event-discovery-platform/app/dogadanja/page.tsx` |
-| next-app | PAGE | `/karta` | Unknown | High | `apps/web/v0-import/event-discovery-platform/app/karta/page.tsx` |
-| next-app | PAGE | `/kategorija/:slug` | Unknown | High | `apps/web/v0-import/event-discovery-platform/app/kategorija/[slug]/page.tsx` |
-| next-app | PAGE | `/regija/:slug` | Unknown | High | `apps/web/v0-import/event-discovery-platform/app/regija/[slug]/page.tsx` |

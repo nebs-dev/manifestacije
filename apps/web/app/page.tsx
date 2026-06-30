@@ -35,7 +35,7 @@ export default async function Home() {
 
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Uskoro" title="Nadolazeća događanja" href="/eventi" hrefLabel="Pogledaj sve" />
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-start">
+            <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {upcoming.map((event) => <EventCard key={event.slug} event={event} />)}
             </div>
           </section>
