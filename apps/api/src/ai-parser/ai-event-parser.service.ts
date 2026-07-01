@@ -130,6 +130,7 @@ export class AiEventParserService {
     sourceUrl?: string;
     screenshotBase64?: string;
     screenshotMediaType?: string;
+    contextHint?: string;
   }): Promise<ParsedSourceResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY nije postavljen u .env");
@@ -190,7 +191,12 @@ Mapiranje Facebook kategorija u naše:
 - "Community", "Causes", "Fundraiser" → humanitarno
 - "Outdoor" → na-otvorenom
 
-Datumi u ISO 8601 formatu (vremenska zona Europe/Zagreb, UTC+2).
+Datumi i vremena u ISO 8601 formatu, vremenska zona Europe/Zagreb (UTC+2).
+Hrvatsko pisanje vremena: "21.00", "20.00", "19.00", "18.00" su sati i minute (ne decimalni brojevi) — mapirati u T21:00:00+02:00, T20:00:00+02:00 itd.
+Ako datum nema godinu, pretpostavi tekuću godinu (2026).
+
+Ako grad nije eksplicitno napisan uz svaki događaj, zaključi iz konteksta: naziva festivala, organizatora ili poznatih lokacija (npr. "Dvorana Franjo Krežma", "Trg Vatroslava Lisinskog", "Galerija KCO", "Dvorište PTFOS" → Osijek). Ako je na screenshotu naveden grad ili festival koji se održava u jednom gradu, primijeni taj grad na sve događaje.
+
 Ako nešto ne možeš pronaći, koristi prazan string ili null.
 OBAVEZNA polja (jedino ova idu u missingFields): title, startsAt, city, category.
 OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, organizerName.
@@ -206,7 +212,7 @@ AKO SADRŽAJ SADRŽI LISTING VIŠE DOGAĐAJA — vrati JSON s poljem "candidates
     ${eventSchema}
   ]
 }
-Iz listinga izvuci SVE događaje koje možeš identificirati (do 20). Ne preskači događaje zbog nedostatka opisa — kratki unosi su OK.`;
+Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preskači događaje zbog nedostatka opisa — kratki unosi su OK.`;
 
     const userContent: (ImageBlockParam | TextBlockParam)[] = [];
     if (input.screenshotBase64) {
@@ -220,14 +226,14 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 20). Ne preska�
       });
     }
     const textPrompt = input.screenshotBase64
-      ? `Izvuci podatke o događanju s ovog screenshota.${sourceUrl ? ` URL: ${sourceUrl}` : ""}${truncated ? `\n\nDodatni tekst:\n${truncated}` : ""}`
-      : `URL stranice: ${sourceUrl}\n\nSadržaj stranice:\n${truncated}`;
+      ? `Izvuci sve događaje s ovog screenshota. Može biti jedan događaj ili lista više događaja — vrati sve što vidiš (do 50).${sourceUrl ? ` URL: ${sourceUrl}` : ""}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}${truncated ? `\n\nDodatni tekst:\n${truncated}` : ""}`
+      : `URL stranice: ${sourceUrl}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}\n\nSadržaj stranice:\n${truncated}`;
     userContent.push({ type: "text", text: textPrompt });
 
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: isScreenshot ? 1024 : 4096,
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [{
         role: "user",

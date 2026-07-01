@@ -26,6 +26,7 @@ export class ManualEmailDto {
   @IsOptional() @IsBoolean() useLlm?: boolean;
   @IsOptional() @IsString() screenshotBase64?: string;
   @IsOptional() @IsString() screenshotMediaType?: string;
+  @IsOptional() @IsString() contextHint?: string;
 }
 
 export class ParseUrlDto {

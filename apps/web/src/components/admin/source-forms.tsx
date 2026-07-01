@@ -131,7 +131,7 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
   )
 }
 
-async function resizeToBase64(file: File, maxWidth = 800): Promise<{ data: string; mediaType: string }> {
+async function resizeToBase64(file: File, maxWidth = 1600): Promise<{ data: string; mediaType: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -151,7 +151,7 @@ async function resizeToBase64(file: File, maxWidth = 800): Promise<{ data: strin
 }
 
 export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
-  const [form, setForm] = useState({ subject: "", from: "", sourceUrl: "", rawText: "" })
+  const [form, setForm] = useState({ subject: "", from: "", sourceUrl: "", rawText: "", contextHint: "" })
   const [useLlm, setUseLlm] = useState(false)
   const [screenshot, setScreenshot] = useState<{ data: string; mediaType: string; name: string } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -193,6 +193,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
           rawText: form.rawText || undefined,
           screenshotBase64: screenshot?.data,
           screenshotMediaType: screenshot?.mediaType,
+          contextHint: form.contextHint || undefined,
           useLlm,
         }),
       })
@@ -201,7 +202,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
         return
       }
       toast.success("Izvor kreiran", { description: form.subject || "Ručni unos" })
-      setForm({ subject: "", from: "", sourceUrl: "", rawText: "" })
+      setForm({ subject: "", from: "", sourceUrl: "", rawText: "", contextHint: "" })
       setUseLlm(false)
       setScreenshot(null)
       onCreated?.()
@@ -254,6 +255,20 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
                 disabled={loading}
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="ms-hint">Kontekst (opcionalno)</FieldLabel>
+              <Input
+                id="ms-hint"
+                placeholder="npr. Osijek, OLJK 2026 — sve lokacije su u Osijeku"
+                value={form.contextHint}
+                onChange={(e) => update("contextHint", e.target.value)}
+                disabled={loading}
+              />
+              <FieldDescription>
+                Pomozi AI parseru: grad, festival, organizator, godina. Korisno za screenshotove programa bez eksplicitnog grada.
+              </FieldDescription>
+            </Field>
+
             <Field>
               <FieldLabel htmlFor="ms-raw">Tekst događanja</FieldLabel>
               <Textarea
