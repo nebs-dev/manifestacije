@@ -1,9 +1,12 @@
 "use client"
 
-import { ChevronDown, RefreshCw, ExternalLink } from "lucide-react"
+import { useMemo, useState } from "react"
+import { ChevronDown, RefreshCw, ExternalLink, Search, RotateCcw } from "lucide-react"
 import { toast } from "sonner"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Card,
   CardContent,
@@ -17,6 +20,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { ParsedCandidateCard } from "@/components/admin/parsed-candidate-card"
@@ -33,12 +44,84 @@ const typeLabels: Record<string, string> = {
   "tourist-board": "Turistička zajednica",
 }
 
+type Tab = "pending" | "created" | "ignored" | "all"
+
 function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="text-sm">{value}</span>
     </div>
+  )
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "bg-foreground text-background"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  )
+}
+
+function CreatedRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void }) {
+  return (
+    <TableRow className="opacity-60">
+      <TableCell className="font-medium text-sm">
+        {c._eventId ? (
+          <Link href={`/admin/events/${c._eventId}`} className="hover:underline text-success">
+            {c.title || "—"}
+          </Link>
+        ) : c.title || "—"}
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+        {c.startsAt ? new Date(c.startsAt).toLocaleDateString("hr") : "—"}
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{c.city || "—"}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">{c.category || "—"}</TableCell>
+      <TableCell className="text-right">
+        {c._eventId && (
+          <Link href={`/admin/events/${c._eventId}`} className="text-xs text-success hover:underline">
+            Event #{c._eventId} →
+          </Link>
+        )}
+      </TableCell>
+    </TableRow>
+  )
+}
+
+function IgnoredRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void }) {
+  async function unignore() {
+    const res = await authedFetch(`/api/admin/event-sources/${c.sourceId}/ignore-candidate`, {
+      method: "POST",
+      body: JSON.stringify({ candidateIndex: c.candidateIndex, undo: true }),
+    })
+    if (res.ok) { toast.success("Vraćeno na čekanje"); onUpdate?.() }
+    else {
+      // Fallback — reparse refreshes status
+      toast.info("Koristite 'Ponovno parsiraj' za vraćanje kandidata")
+    }
+  }
+
+  return (
+    <TableRow className="opacity-50">
+      <TableCell className="text-sm line-through text-muted-foreground">{c.title || "—"}</TableCell>
+      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+        {c.startsAt ? new Date(c.startsAt).toLocaleDateString("hr") : "—"}
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{c.city || "—"}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">{c.category || "—"}</TableCell>
+      <TableCell className="text-right">
+        <ConfidenceBadge value={c.confidence} />
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -51,21 +134,33 @@ export function SourceReview({
   candidates: ParsedCandidate[]
   onReparse?: () => void
 }) {
-  async function handleReparse() {
-    const res = await authedFetch(
-      `/api/admin/event-sources/${source.id}/reparse`,
-      { method: "POST" }
+  const [tab, setTab] = useState<Tab>("pending")
+  const [search, setSearch] = useState("")
+
+  const pending = useMemo(() => candidates.filter((c) => c._status === "pending" || (!c._status)), [candidates])
+  const created = useMemo(() => candidates.filter((c) => c._status === "created"), [candidates])
+  const ignored = useMemo(() => candidates.filter((c) => c._status === "ignored"), [candidates])
+
+  const visible = useMemo(() => {
+    const base = tab === "pending" ? pending : tab === "created" ? created : tab === "ignored" ? ignored : candidates
+    if (!search.trim()) return base
+    const q = search.toLowerCase()
+    return base.filter((c) =>
+      c.title?.toLowerCase().includes(q) ||
+      c.city?.toLowerCase().includes(q) ||
+      c.category?.toLowerCase().includes(q)
     )
-    if (res.ok) {
-      toast.success("Reparsiranje završeno")
-      onReparse?.()
-    } else {
-      toast.error("Reparsiranje neuspješno")
-    }
+  }, [tab, search, pending, created, ignored, candidates])
+
+  async function handleReparse() {
+    const res = await authedFetch(`/api/admin/event-sources/${source.id}/reparse`, { method: "POST" })
+    if (res.ok) { toast.success("Reparsiranje završeno"); onReparse?.() }
+    else toast.error("Reparsiranje neuspješno")
   }
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Source summary */}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
@@ -80,54 +175,36 @@ export function SourceReview({
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <SummaryRow
-            label="URL izvora"
-            value={
-              source.sourceUrl ? (
-                <a
-                  href={source.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 text-primary hover:underline"
-                >
-                  <span className="truncate">{source.sourceUrl}</span>
-                  <ExternalLink className="size-3 shrink-0" />
-                </a>
-              ) : (
-                "—"
-              )
-            }
-          />
+          <SummaryRow label="URL izvora" value={
+            source.sourceUrl ? (
+              <a href={source.sourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                <span className="truncate">{source.sourceUrl}</span>
+                <ExternalLink className="size-3 shrink-0" />
+              </a>
+            ) : "—"
+          } />
           <SummaryRow label="Tip" value={typeLabels[source.type] ?? source.type} />
           <SummaryRow label="Status" value={<StatusBadge status={source.status} />} />
-          <SummaryRow
-            label="Pouzdanost"
-            value={
-              source.confidence > 0 ? (
-                <ConfidenceBadge value={source.confidence} />
-              ) : (
-                "—"
-              )
-            }
-          />
+          <SummaryRow label="Pouzdanost" value={source.confidence > 0 ? <ConfidenceBadge value={source.confidence} /> : "—"} />
           <SummaryRow label="Pošiljatelj" value={source.from || "—"} />
-          <SummaryRow label="Kandidati" value={source.candidateCount} />
+          <SummaryRow label="Kandidati" value={
+            <span className="flex gap-3">
+              <span>{candidates.length} ukupno</span>
+              {created.length > 0 && <span className="text-success">{created.length} kreirana</span>}
+              {pending.length > 0 && <span className="text-warning">{pending.length} čeka</span>}
+              {ignored.length > 0 && <span className="text-muted-foreground">{ignored.length} ignorirano</span>}
+            </span>
+          } />
           <SummaryRow label="Kreirano" value={formatDateTime(source.createdAt)} />
         </CardContent>
       </Card>
 
+      {/* Raw text */}
       {source.rawText && (
         <Card>
           <Collapsible defaultOpen={false}>
             <CardHeader>
-              <CollapsibleTrigger
-                render={
-                  <button
-                    type="button"
-                    className="group/raw flex w-full items-center justify-between gap-2 text-left"
-                  />
-                }
-              >
+              <CollapsibleTrigger render={<button type="button" className="group/raw flex w-full items-center justify-between gap-2 text-left" />}>
                 <div className="flex flex-col gap-0.5">
                   <CardTitle className="text-base">Neobrađeni tekst izvora</CardTitle>
                   <CardDescription>Originalni tekst korišten za parsiranje.</CardDescription>
@@ -147,28 +224,85 @@ export function SourceReview({
         </Card>
       )}
 
+      {/* Candidates */}
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-heading text-lg font-semibold">Parsirani kandidati</h2>
-          <span className="text-sm text-muted-foreground">
-            {candidates.length} ukupno
-          </span>
+
+          <div className="flex items-center gap-2">
+            {/* Tabs */}
+            <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+              <TabButton active={tab === "pending"} onClick={() => setTab("pending")}>
+                Na čekanju{pending.length > 0 && <span className="ml-1.5 rounded-full bg-warning/20 px-1.5 py-0.5 text-xs text-warning">{pending.length}</span>}
+              </TabButton>
+              <TabButton active={tab === "created"} onClick={() => setTab("created")}>
+                Kreirani{created.length > 0 && <span className="ml-1.5 rounded-full bg-success/20 px-1.5 py-0.5 text-xs text-success">{created.length}</span>}
+              </TabButton>
+              <TabButton active={tab === "ignored"} onClick={() => setTab("ignored")}>
+                Ignorirani{ignored.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground">{ignored.length}</span>}
+              </TabButton>
+              <TabButton active={tab === "all"} onClick={() => setTab("all")}>
+                Sve
+              </TabButton>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Pretraži…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-44 pl-8 h-8"
+              />
+            </div>
+
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {visible.length} / {candidates.length}
+            </span>
+          </div>
         </div>
 
-        {candidates.length === 0 ? (
-          <EmptyState
-            title="Nema kandidata"
-            description="Ovaj izvor još nije dao nijednog kandidata za događaj."
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {candidates.map((c) => (
-              <ParsedCandidateCard
-                key={c.id}
-                candidate={c}
-                onUpdate={onReparse}
-              />
+        {visible.length === 0 ? (
+          <EmptyState title="Nema kandidata" description="Nema kandidata koji odgovaraju odabranom filtru." />
+        ) : tab === "pending" || tab === "all" ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+            {visible.map((c) => (
+              c._status === "created" ? (
+                <div key={c.id} className="overflow-x-auto rounded-xl border border-border bg-card">
+                  <Table><TableBody><CreatedRow c={c} onUpdate={onReparse} /></TableBody></Table>
+                </div>
+              ) : c._status === "ignored" ? (
+                <div key={c.id} className="overflow-x-auto rounded-xl border border-border bg-card">
+                  <Table><TableBody><IgnoredRow c={c} onUpdate={onReparse} /></TableBody></Table>
+                </div>
+              ) : (
+                <ParsedCandidateCard key={c.id} candidate={c} onUpdate={onReparse} />
+              )
             ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead>Naslov</TableHead>
+                  <TableHead className="whitespace-nowrap">Datum</TableHead>
+                  <TableHead>Grad</TableHead>
+                  <TableHead>Kategorija</TableHead>
+                  <TableHead className="text-right">
+                    {tab === "created" ? "Event" : "Pouzdanost"}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((c) =>
+                  tab === "created"
+                    ? <CreatedRow key={c.id} c={c} onUpdate={onReparse} />
+                    : <IgnoredRow key={c.id} c={c} onUpdate={onReparse} />
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>

@@ -8,6 +8,7 @@ import {
   X,
   ExternalLink,
   TriangleAlert,
+  ChevronDown,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -132,6 +133,7 @@ export function ParsedCandidateCard({
   const isCreated = candidate._status === "created"
   const isIgnored = candidate._status === "ignored"
   const isPending = !isCreated && !isIgnored
+  const [open, setOpen] = useState(false)
 
   const liveMissingFields = [
     !form.title.trim() && "title",
@@ -227,46 +229,45 @@ export function ParsedCandidateCard({
     }
   }
 
+  const summaryParts = [
+    form.startsAt ? new Date(form.startsAt).toLocaleDateString("hr") : null,
+    form.city || null,
+    candidate.category || null,
+  ].filter(Boolean).join(" · ")
+
   return (
     <Card className={isIgnored ? "opacity-50" : undefined}>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <CardTitle className="text-base">{candidate.title || "—"}</CardTitle>
+      {/* Collapsed header — always visible */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-start gap-3 px-5 py-4 text-left hover:bg-muted/30 transition-colors rounded-t-xl"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-sm leading-snug">{candidate.title || "—"}</span>
             {isCreated && candidate._eventId && (
-              <Link
-                href={`/admin/events/${candidate._eventId}`}
-                className="text-xs text-success hover:underline"
-              >
-                Kreiran → Event #{candidate._eventId}
-              </Link>
+              <span className="text-xs text-success">✓ Event #{candidate._eventId}</span>
             )}
-            {isIgnored && (
-              <span className="text-xs text-muted-foreground">Ignorirano</span>
+            {isIgnored && <span className="text-xs text-muted-foreground">Ignorirano</span>}
+            {liveMissingFields.length > 0 && (
+              <span className="text-xs text-warning">nedostaje: {liveMissingFields.join(", ")}</span>
             )}
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {candidate.description}
-            </p>
           </div>
-          <ConfidenceBadge value={candidate.confidence} />
-        </div>
-
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {candidate.isFree ? (
-            <Badge variant="secondary" className="rounded-md bg-success/10 text-success">
-              Besplatno
-            </Badge>
-          ) : (
-            candidate.priceText && (
-              <Badge variant="outline" className="rounded-md font-normal">
-                {candidate.priceText}
-              </Badge>
-            )
+          {summaryParts && (
+            <p className="text-xs text-muted-foreground mt-0.5">{summaryParts}</p>
           )}
         </div>
-      </CardHeader>
+        <div className="flex shrink-0 items-center gap-2">
+          <ConfidenceBadge value={candidate.confidence} />
+          <ChevronDown className={["size-4 text-muted-foreground transition-transform", open ? "rotate-180" : ""].join(" ")} />
+        </div>
+      </button>
 
-      <CardContent className="flex flex-col gap-4">
+      {/* Expanded body */}
+      {open && <>
+      <Separator />
+      <CardContent className="flex flex-col gap-4 pt-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Naslov">
             <Input value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
@@ -416,6 +417,7 @@ export function ParsedCandidateCard({
           </Button>
         </CardFooter>
       )}
+      </>}
     </Card>
   )
 }
