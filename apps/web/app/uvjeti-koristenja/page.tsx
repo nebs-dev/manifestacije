@@ -82,7 +82,7 @@ export default function UvjetiKoristenjaPage() {
 
           <h2>8. Ograničenje odgovornosti</h2>
           <p>
-            Platforma se pruža „kakva jest" bez jamstava dostupnosti ili točnosti. Ne
+            Platforma se pruža „kakva jest” bez jamstava dostupnosti ili točnosti. Ne
             odgovaramo za izravne ni neizravne štete nastale korištenjem ili nemogućnošću
             korištenja platforme, uz iznimku šteta prouzročenih našom namjernom krivnjom ili
             grubim nemarom.

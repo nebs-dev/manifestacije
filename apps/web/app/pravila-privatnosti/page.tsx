@@ -20,7 +20,7 @@ export default function PravilaPrivatnostiPage() {
           <h2>1. Voditelj obrade</h2>
           <p>
             Voditelj obrade osobnih podataka je Nebojša Stojanović, vlasnik platforme
-            Manifestacije.hr (dalje: „mi", „nas" ili „Platforma"). Za sva pitanja vezana uz
+            Manifestacije.hr (dalje: „mi”, „nas” ili „Platforma”). Za sva pitanja vezana uz
             privatnost obratite nam se na:{" "}
             <a href="mailto:info@manifestacije.hr">info@manifestacije.hr</a>.
           </p>
@@ -110,7 +110,7 @@ export default function PravilaPrivatnostiPage() {
           <ul>
             <li>pristupa vašim osobnim podacima;</li>
             <li>ispravka netočnih podataka;</li>
-            <li>brisanja podataka („pravo na zaborav");</li>
+            <li>brisanja podataka („pravo na zaborav”);</li>
             <li>ograničenja obrade;</li>
             <li>prigovora na obradu;</li>
             <li>prenosivosti podataka.</li>
