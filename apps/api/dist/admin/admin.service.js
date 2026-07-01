@@ -81,7 +81,9 @@ let AdminService = class AdminService {
         return this.prisma.eventSource.findUnique({ where: { id }, include: { event: true, organizer: true } });
     }
     async createManualEmail(dto) {
-        const result = await this.parser.parseBatch({ rawText: dto.rawText, sourceUrl: dto.sourceUrl });
+        const result = dto.useLlm
+            ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl })
+            : await this.parser.parseBatch({ rawText: dto.rawText, sourceUrl: dto.sourceUrl });
         const { confidence, status } = this.sourceMetaFromResult(result);
         return this.prisma.eventSource.create({
             data: {
@@ -99,22 +101,28 @@ let AdminService = class AdminService {
     async parseUrl(dto) {
         let rawHtml = "";
         const fetchWarnings = [];
-        try {
-            const response = await fetch(dto.sourceUrl, {
-                headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
-                signal: AbortSignal.timeout(12000),
-            });
-            if (response.ok) {
-                rawHtml = await response.text();
+        // Facebook: skip fetch, LLM will return a helpful warning
+        const skipFetch = dto.useLlm && this.isFacebookUrl(dto.sourceUrl);
+        if (!skipFetch) {
+            try {
+                const response = await fetch(dto.sourceUrl, {
+                    headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
+                    signal: AbortSignal.timeout(12000),
+                });
+                if (response.ok) {
+                    rawHtml = await response.text();
+                }
+                else {
+                    fetchWarnings.push(`HTTP ${response.status} when fetching URL`);
+                }
             }
-            else {
-                fetchWarnings.push(`HTTP ${response.status} when fetching URL`);
+            catch (err) {
+                fetchWarnings.push(`Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`);
             }
         }
-        catch (err) {
-            fetchWarnings.push(`Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        const result = await this.parser.parseBatch({ rawHtml: rawHtml || undefined, sourceUrl: dto.sourceUrl });
+        const result = dto.useLlm
+            ? await this.parser.parseBatchWithLlm({ rawHtml: rawHtml || undefined, sourceUrl: dto.sourceUrl })
+            : await this.parser.parseBatch({ rawHtml: rawHtml || undefined, sourceUrl: dto.sourceUrl });
         if (fetchWarnings.length) {
             result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
         }
@@ -274,6 +282,14 @@ let AdminService = class AdminService {
     }
     eventInclude() {
         return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } };
+    }
+    isFacebookUrl(url) {
+        try {
+            return new URL(url).hostname.replace("www.", "").startsWith("facebook.com");
+        }
+        catch {
+            return false;
+        }
     }
     cleanCandidateOverride(candidate) {
         if (!candidate)

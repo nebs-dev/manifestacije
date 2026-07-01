@@ -5,9 +5,13 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiEventParserService = void 0;
 const common_1 = require("@nestjs/common");
+const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 let AiEventParserService = class AiEventParserService {
     KNOWN_CITIES = [
         "Osijek", "Zagreb", "Đakovo", "Vukovar", "Vinkovci", "Našice", "Valpovo", "Beli Manastir",
@@ -77,6 +81,107 @@ let AiEventParserService = class AiEventParserService {
     async parse(input) {
         const result = await this.parseBatch(input);
         return result.candidates[0] ?? this.emptyCandidate(input.sourceUrl ?? "");
+    }
+    async parseBatchWithLlm(input) {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey)
+            throw new Error("ANTHROPIC_API_KEY nije postavljen u .env");
+        const sourceUrl = input.sourceUrl ?? "";
+        if (this.isFacebookUrl(sourceUrl)) {
+            const candidate = this.emptyCandidate(sourceUrl);
+            candidate.warnings.push("Facebook blokira automatsko dohvaćanje. Kopiraj tekst događanja s Facebook stranice i zalijepi ga u 'Ručni unos' s uključenim AI parserom.");
+            candidate.confidence = 0;
+            return { sourceUrl, sourceType: "single", candidates: [{ ...candidate, _status: "pending" }] };
+        }
+        const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
+        const raw = input.rawHtml ? this.htmlToText(input.rawHtml) : (input.rawText ?? "");
+        const text = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
+        // Truncate to ~12k chars to stay well within token limits
+        const truncated = text.length > 12000 ? text.slice(0, 12000) + "\n[sadržaj skraćen]" : text;
+        const client = new sdk_1.default({ apiKey });
+        const response = await client.messages.create({
+            model: "claude-haiku-4-5",
+            max_tokens: 1024,
+            system: `Ti si ekstraktor podataka o događanjima za hrvatsku platformu Manifestacije.hr.
+Iz teksta stranice izvuci podatke o događanju i vrati ISKLJUČIVO validan JSON objekt bez markdown formatiranja.
+
+Kategorija mora biti TOČNO jedna od: glazba, festivali, izlozbe, radionice, djeca-i-obitelj, hrana-i-vino, sajmovi, sport, tradicija-i-folklor, manifestacije, nocni-zivot, edukacija, humanitarno, udruge, na-otvorenom, ostalo
+
+Datumi u ISO 8601 formatu (pretpostavi vremensku zonu Europe/Zagreb, UTC+2).
+Ako nešto ne možeš pronaći, koristi prazan string ili null.
+
+Format odgovora:
+{
+  "title": "string",
+  "description": "string",
+  "startsAt": "2026-07-15T20:00:00+02:00",
+  "endsAt": "2026-07-15T23:00:00+02:00 ili null",
+  "isAllDay": false,
+  "venueName": "string",
+  "city": "string (ime grada na hrvatskom)",
+  "category": "jedna-od-16-kategorija",
+  "isFree": true/false/null,
+  "priceText": "string ili ''",
+  "ticketUrl": "string ili ''",
+  "organizerName": "string ili ''",
+  "imageUrl": "string ili ''",
+  "confidence": 0.85,
+  "missingFields": ["polje1", "polje2"],
+  "warnings": ["upozorenje1"]
+}`,
+            messages: [{
+                    role: "user",
+                    content: `URL stranice: ${sourceUrl}\n\nSadržaj stranice:\n${truncated}`,
+                }],
+        });
+        const content = response.content[0];
+        if (content.type !== "text")
+            throw new Error("Neočekivani odgovor od Claude API-ja");
+        let parsed;
+        try {
+            const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+            parsed = JSON.parse(jsonText);
+        }
+        catch {
+            throw new Error(`Claude nije vratio validan JSON: ${content.text.slice(0, 200)}`);
+        }
+        const candidate = {
+            title: parsed.title ?? "",
+            description: parsed.description ?? "",
+            startsAt: parsed.startsAt ?? "",
+            endsAt: parsed.endsAt ?? "",
+            venueName: parsed.venueName ?? "",
+            address: parsed.address ?? "",
+            city: parsed.city ?? "",
+            county: parsed.county ?? "",
+            region: parsed.region ?? "",
+            category: parsed.category ?? "ostalo",
+            isFree: parsed.isFree ?? null,
+            priceText: parsed.priceText ?? "",
+            ticketUrl: parsed.ticketUrl ?? "",
+            sourceUrl,
+            organizerName: parsed.organizerName ?? "",
+            imageUrl: parsed.imageUrl ?? htmlImageUrl,
+            imageAlt: parsed.imageAlt,
+            imageCredit: parsed.imageCredit,
+            imageSourceUrl: parsed.imageSourceUrl,
+            confidence: parsed.confidence ?? 0.7,
+            missingFields: parsed.missingFields ?? [],
+            warnings: parsed.warnings ?? [],
+        };
+        return {
+            sourceUrl,
+            sourceType: "single",
+            candidates: [{ ...candidate, _status: "pending" }],
+        };
+    }
+    isFacebookUrl(url) {
+        try {
+            return new URL(url).hostname.replace("www.", "").startsWith("facebook.com");
+        }
+        catch {
+            return false;
+        }
     }
     // ── HTML normalisation ────────────────────────────────────────────────────────
     htmlToText(html) {

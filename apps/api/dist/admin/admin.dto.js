@@ -60,6 +60,7 @@ class ManualEmailDto {
     rawEmailFrom;
     rawText;
     sourceUrl;
+    useLlm;
 }
 exports.ManualEmailDto = ManualEmailDto;
 __decorate([
@@ -82,14 +83,25 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ManualEmailDto.prototype, "sourceUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ManualEmailDto.prototype, "useLlm", void 0);
 class ParseUrlDto {
     sourceUrl;
+    useLlm;
 }
 exports.ParseUrlDto = ParseUrlDto;
 __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ParseUrlDto.prototype, "sourceUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ParseUrlDto.prototype, "useLlm", void 0);
 class CandidateOverrideDto {
     title;
     description;

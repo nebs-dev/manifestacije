@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { Link2, Plus } from "lucide-react"
+import { Link2, Plus, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -23,10 +23,21 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { authedFetch } from "@/lib/admin/api"
 
+function isFacebookUrl(url: string) {
+  try { return new URL(url).hostname.replace("www.", "").startsWith("facebook.com") }
+  catch { return false }
+}
+
 export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) {
   const router = useRouter()
   const [sourceUrl, setSourceUrl] = useState("")
+  const [useLlm, setUseLlm] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  function handleUrlChange(val: string) {
+    setSourceUrl(val)
+    if (isFacebookUrl(val)) setUseLlm(true)
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -38,7 +49,7 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
     try {
       const res = await authedFetch("/api/admin/event-sources/parse-url", {
         method: "POST",
-        body: JSON.stringify({ sourceUrl }),
+        body: JSON.stringify({ sourceUrl, useLlm }),
       })
       if (!res.ok) {
         toast.error("Parsiranje neuspješno", { description: await res.text() })
@@ -47,6 +58,7 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
       const data = await res.json()
       toast.success("Parsiranje završeno", { description: sourceUrl })
       setSourceUrl("")
+      setUseLlm(false)
       if (onParsed) {
         onParsed(data.id)
       } else {
@@ -56,6 +68,8 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
       setLoading(false)
     }
   }
+
+  const facebook = isFacebookUrl(sourceUrl)
 
   return (
     <Card>
@@ -76,7 +90,7 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
                 inputMode="url"
                 placeholder="https://primjer.hr/dogadanja"
                 value={sourceUrl}
-                onChange={(e) => setSourceUrl(e.target.value)}
+                onChange={(e) => handleUrlChange(e.target.value)}
                 disabled={loading}
               />
               <FieldDescription>
@@ -84,8 +98,28 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
                 stranice događaja.
               </FieldDescription>
             </Field>
+
+            <Field orientation="horizontal" className="items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
+                <input
+                  type="checkbox"
+                  checked={useLlm}
+                  onChange={(e) => setUseLlm(e.target.checked)}
+                  disabled={loading || facebook}
+                  className="accent-primary size-4 rounded"
+                />
+                <Sparkles className="size-3.5 text-primary/70" />
+                AI parser (Claude)
+              </label>
+              {facebook && (
+                <p className="text-xs text-amber-600">
+                  Facebook blokira automatsko dohvaćanje — kopiraj tekst događanja i zalijepi ga u Ručni unos ispod.
+                </p>
+              )}
+            </Field>
+
             <Field orientation="horizontal" className="justify-end">
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading || facebook}>
                 <Link2 data-icon="inline-start" />
                 {loading ? "Parsiranje…" : "Parsiraj URL"}
               </Button>
@@ -104,6 +138,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
     sourceUrl: "",
     rawText: "",
   })
+  const [useLlm, setUseLlm] = useState(false)
   const [loading, setLoading] = useState(false)
 
   function update(key: keyof typeof form, value: string) {
@@ -125,6 +160,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
           rawEmailFrom: form.from || undefined,
           sourceUrl: form.sourceUrl || undefined,
           rawText: form.rawText,
+          useLlm,
         }),
       })
       if (!res.ok) {
@@ -133,6 +169,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
       }
       toast.success("Izvor kreiran", { description: form.subject || "Ručni unos" })
       setForm({ subject: "", from: "", sourceUrl: "", rawText: "" })
+      setUseLlm(false)
       onCreated?.()
     } finally {
       setLoading(false)
@@ -142,9 +179,9 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ručni izvor</CardTitle>
+        <CardTitle>Ručni unos</CardTitle>
         <CardDescription>
-          Zalijepite e-mail ili tekst za ručno parsiranje.
+          Zalijepite tekst događanja za parsiranje. Koristite AI parser za Facebook eventi i ostale kompleksne formate.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -184,20 +221,29 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="ms-raw">Tekst izvora</FieldLabel>
+              <FieldLabel htmlFor="ms-raw">Tekst događanja</FieldLabel>
               <Textarea
                 id="ms-raw"
                 rows={6}
-                placeholder="Zalijepite cijeli tekst e-maila ili opisa događaja…"
+                placeholder="Zalijepite tekst Facebook eventi, e-maila, opisa događaja…"
                 value={form.rawText}
                 onChange={(e) => update("rawText", e.target.value)}
                 disabled={loading}
               />
-              <FieldDescription>
-                Cijeli neobrađeni tekst koji će se parsirati u kandidate.
-              </FieldDescription>
             </Field>
-            <Field orientation="horizontal" className="justify-end">
+
+            <Field orientation="horizontal" className="items-center justify-between">
+              <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
+                <input
+                  type="checkbox"
+                  checked={useLlm}
+                  onChange={(e) => setUseLlm(e.target.checked)}
+                  disabled={loading}
+                  className="accent-primary size-4 rounded"
+                />
+                <Sparkles className="size-3.5 text-primary/70" />
+                AI parser (Claude) — preporučeno za Facebook i nestrukturirani tekst
+              </label>
               <Button type="submit" disabled={loading}>
                 <Plus data-icon="inline-start" />
                 {loading ? "Kreiranje…" : "Kreiraj izvor"}

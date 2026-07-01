@@ -23,11 +23,16 @@ export class ManualEmailDto {
   @IsOptional() @IsString() rawEmailFrom?: string;
   @IsOptional() @IsString() rawText?: string;
   @IsOptional() @IsString() sourceUrl?: string;
+  @IsOptional() @IsBoolean() useLlm?: boolean;
 }
 
 export class ParseUrlDto {
   @IsString()
   sourceUrl!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  useLlm?: boolean;
 }
 
 export class CandidateOverrideDto {
