@@ -17,6 +17,10 @@ SEED_ADMIN_EMAIL=admin@manifestacije.test
 SEED_ADMIN_PASSWORD=<staging admin password>
 SEED_DEMO_DATA=true
 OPENAI_API_KEY=
+CLOUDINARY_CLOUD_NAME=<cloudinary cloud name>
+CLOUDINARY_API_KEY=<cloudinary api key>
+CLOUDINARY_API_SECRET=<cloudinary api secret>
+CLOUDINARY_UPLOAD_FOLDER=manifestacije/events
 ```
 
 Web service:

@@ -26,6 +26,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
   const event = await fetchEvent(params.eventSlug);
   if (!event) notFound();
   const related = await fetchRelatedEvents(event);
+  const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -35,7 +36,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
     endDate: event.endDate,
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     eventStatus: "https://schema.org/EventScheduled",
-    image: event.image ? [`${WEB_URL}${event.image}`] : undefined,
+    image: imageUrl ? [imageUrl] : undefined,
     location: { "@type": "Place", name: event.venue, address: `${event.venue}, ${event.city}` },
     organizer: { "@type": "Organization", name: event.organizer },
     offers: event.free ? { "@type": "Offer", price: "0", priceCurrency: "EUR" } : { "@type": "Offer", price: event.price || "", priceCurrency: "EUR", url: event.ticketUrl }
@@ -48,7 +49,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <section className="relative isolate h-[44vh] min-h-[320px] w-full overflow-hidden bg-ink text-ink-foreground md:h-[56vh]">
           <div className="absolute inset-0">
-            <EventPoster image={event.image} title={event.title} category={event.category} sizes="100vw" />
+            <EventPoster image={event.image} title={event.title} alt={event.imageAlt || event.title} category={event.category} sizes="100vw" />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-ink/20" aria-hidden />
           <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-8">
@@ -70,6 +71,11 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
         </section>
 
         <div className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+          {event.imageCredit && (
+            <p className="-mt-6 mb-8 text-xs text-muted-foreground">
+              Foto: {event.imageCredit}
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
               <p className="text-pretty text-lg leading-relaxed text-foreground/90">{event.description}</p>

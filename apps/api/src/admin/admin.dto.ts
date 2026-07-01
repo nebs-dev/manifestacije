@@ -46,6 +46,9 @@ export class CandidateOverrideDto {
   @IsOptional() @IsString() ticketUrl?: string;
   @IsOptional() @IsString() organizerName?: string;
   @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsString() imageAlt?: string;
+  @IsOptional() @IsString() imageCredit?: string;
+  @IsOptional() @IsString() imageSourceUrl?: string;
 }
 
 export class CreateEventFromCandidateDto {

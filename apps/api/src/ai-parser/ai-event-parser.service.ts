@@ -19,6 +19,9 @@ export type ParsedEventCandidate = {
   sourceUrl: string;
   organizerName: string;
   imageUrl: string;
+  imageAlt?: string;
+  imageCredit?: string;
+  imageSourceUrl?: string;
   confidence: number;
   missingFields: string[];
   warnings: string[];
@@ -98,17 +101,19 @@ export class AiEventParserService {
     sourceUrl?: string;
     organizerName?: string;
   }): Promise<ParsedSourceResult> {
+    const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, input.sourceUrl) : "";
     const raw = input.rawHtml ? this.htmlToText(input.rawHtml) : (input.rawText ?? "");
     // Normalize: trim each line so leading whitespace from HTML conversion doesn't break detection
     const text = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
     const sourceUrl = input.sourceUrl ?? "";
 
     if (this.isVisitSlavoniaStyle(text)) {
-      return this.parseVisitSlavoniaLines(text, sourceUrl);
+      const result = this.parseVisitSlavoniaLines(text, sourceUrl);
+      return { ...result, candidates: result.candidates.map((c) => this.withFallbackImage(c, htmlImageUrl, sourceUrl)) };
     }
 
     const blocks = this.splitIntoEventBlocks(text);
-    const candidates = blocks.map((b) => this.parseBlock(b, sourceUrl, input.organizerName));
+    const candidates = blocks.map((b) => this.withFallbackImage(this.parseBlock(b, sourceUrl, input.organizerName), htmlImageUrl, sourceUrl));
     return { sourceUrl, sourceType: candidates.length > 1 ? "batch" : "single", candidates };
   }
 
@@ -144,6 +149,23 @@ export class AiEventParserService {
       .replace(/[^\S\n]{2,}/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
+  }
+
+  private extractHtmlImage(html: string, sourceUrl?: string): string {
+    const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/i);
+    const image = match?.[1]?.trim();
+    if (!image) return "";
+    try {
+      return sourceUrl ? new URL(image, sourceUrl).toString() : image;
+    } catch {
+      return image;
+    }
+  }
+
+  private withFallbackImage(candidate: ParsedEventCandidate & { _status?: "pending" | "created" | "ignored"; _eventId?: number }, imageUrl: string, sourceUrl: string) {
+    if (!imageUrl || candidate.imageUrl) return candidate;
+    return { ...candidate, imageUrl, imageSourceUrl: sourceUrl };
   }
 
   // ── Visit Slavonija inline-list parser ────────────────────────────────────────

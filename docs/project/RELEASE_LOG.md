@@ -4,6 +4,26 @@ Local git commit/merge timeline inferred from repository history.
 
 Kiroq can infer commits and merge commits from local git. Remote push/release boundaries are Unknown unless a future integration records them.
 
+## 2026-06-30 17:56 - commit 793f8a6a
+
+docs and card UI fix
+
+- Changed files: 19
+- Changed areas: Unclassified
+- Affected features: Unknown
+- Review focus: Public routes
+
+Evidence files:
+
+- `apps/web/app/page.tsx`
+- `apps/web/src/components/public/event-card.tsx`
+- `apps/web/src/components/public/event-rail.tsx`
+- `apps/web/src/components/public/section-heading.tsx`
+- `docs/project/API_REFERENCE.md`
+- `docs/project/API_ROUTES.md`
+- `docs/project/ASSUMPTIONS.md`
+- `docs/project/CHANGELOG_INTERNAL.md`
+
 ## 2026-06-30 16:42 - commit ca8dccd7
 
 feat: event location autocomplete, coordinates, and display fixes
@@ -83,7 +103,7 @@ feat: integrate public UI and improve admin event workflow
 
 - Changed files: 117
 - Changed areas: Public Discovery Pages, Auth / Access Control, Database / Schema, Env / Config, Verification / Tests, Dependencies
-- Affected features: AI/Crawler Discovery Surface, Trust Signals
+- Affected features: Data Imports, AI/Crawler Discovery Surface, Trust Signals
 - Review focus: Auth / JWT, Public routes, Env / Config, Database / Prisma
 
 Evidence files:
@@ -103,7 +123,7 @@ fix admin UI: table overflow, delete buttons, taxonomy pages
 
 - Changed files: 10
 - Changed areas: Unclassified
-- Affected features: Trust Signals
+- Affected features: Data Imports, Trust Signals
 - Review focus: None detected
 
 Evidence files:
@@ -153,7 +173,7 @@ add admin event-source ingestion, AI parser, and admin UI
 
 - Changed files: 59
 - Changed areas: Auth / Access Control, Verification / Tests, Dependencies
-- Affected features: Trust Signals
+- Affected features: Data Imports, Trust Signals
 - Review focus: Auth / JWT
 
 Evidence files:
@@ -173,7 +193,7 @@ initial manifestacije app and landing page
 
 - Changed files: 241
 - Changed areas: Public Discovery Pages, Auth / Access Control, Database / Schema, Env / Config, Verification / Tests, Dependencies
-- Affected features: Locations, AI/Crawler Discovery Surface, Business Profiles, Trust Signals
+- Affected features: Data Imports, Locations, AI/Crawler Discovery Surface, Business Profiles, Trust Signals
 - Review focus: Auth / JWT, Public routes, Env / Config, Database / Prisma
 
 Evidence files:
@@ -189,4 +209,4 @@ Evidence files:
 
 ## Kiroq Scan Audit Trail
 
-- 2026-06-30T17:53:35.026Z: baseline; git ca8dccd7; docs 16; test passed via pnpm test
+- 2026-07-01T07:56:11.310Z: baseline; git 793f8a6a; docs 16; test passed via pnpm test

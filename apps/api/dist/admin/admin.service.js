@@ -40,6 +40,9 @@ let AdminService = class AdminService {
     updateEvent(id, dto) {
         return this.events.updateEvent(id, dto);
     }
+    createEvent(dto) {
+        return this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? client_1.EventStatus.DRAFT });
+    }
     setEventStatus(id, status) {
         return this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === client_1.EventStatus.PUBLISHED ? new Date() : undefined } });
     }
@@ -202,6 +205,9 @@ let AdminService = class AdminService {
             lat: candidate.lat ?? undefined,
             lng: candidate.lng ?? undefined,
             imageUrl: candidate.imageUrl || undefined,
+            imageAlt: candidate.imageAlt || undefined,
+            imageCredit: candidate.imageCredit || undefined,
+            imageSourceUrl: candidate.imageSourceUrl || undefined,
         }, { organizerId, status: client_1.EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" });
         if (isBatchFormat) {
             const result = parsedJson;

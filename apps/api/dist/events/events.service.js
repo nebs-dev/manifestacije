@@ -61,6 +61,9 @@ let EventsService = class EventsService {
                 ticketUrl: dto.ticketUrl,
                 sourceUrl: dto.sourceUrl,
                 imageUrl: dto.imageUrl,
+                imageAlt: dto.imageAlt,
+                imageCredit: dto.imageCredit,
+                imageSourceUrl: dto.imageSourceUrl,
                 address: dto.address,
                 lat: dto.lat,
                 lng: dto.lng,
@@ -100,10 +103,14 @@ let EventsService = class EventsService {
             ticketUrl: dto.ticketUrl,
             sourceUrl: dto.sourceUrl,
             imageUrl: dto.imageUrl,
+            imageAlt: dto.imageAlt,
+            imageCredit: dto.imageCredit,
+            imageSourceUrl: dto.imageSourceUrl,
             address: dto.address,
             lat: dto.lat,
             lng: dto.lng,
-            status: dto.status
+            status: dto.status,
+            publishedAt: dto.status === client_1.EventStatus.PUBLISHED ? new Date() : undefined,
         };
         if ("organizerId" in dto) {
             if (dto.organizerId === null) {

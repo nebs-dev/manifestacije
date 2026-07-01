@@ -44,6 +44,7 @@ import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, eventStatusLabel, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, AdminOrganizer } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
+import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return ""
@@ -74,6 +75,12 @@ export function EventEditForm({
     sourceUrl: event.sourceUrl ?? "",
     status: event.status,
     organizerId: event._organizerId ? String(event._organizerId) : "",
+  })
+  const [image, setImage] = useState<EventImageValue>({
+    imageUrl: event.imageUrl ?? "",
+    imageAlt: event.imageAlt ?? event.title,
+    imageCredit: event.imageCredit ?? "",
+    imageSourceUrl: event.imageSourceUrl ?? "",
   })
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
     event._categoryIds?.length ? event._categoryIds : (event._categoryId ? [event._categoryId] : [])
@@ -147,6 +154,10 @@ export function EventEditForm({
           address: location?.address || undefined,
           lat: location?.lat,
           lng: location?.lng,
+          imageUrl: image.imageUrl || null,
+          imageAlt: image.imageAlt || null,
+          imageCredit: image.imageCredit || null,
+          imageSourceUrl: image.imageSourceUrl || null,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
           status: toApiEventStatus(form.status),
         }),
@@ -163,6 +174,9 @@ export function EventEditForm({
   }
 
   async function statusAction(action: "approve" | "reject" | "publish" | "archive") {
+    if (action === "publish" && !image.imageUrl) {
+      toast.warning("Događaj nema sliku", { description: "Objava nije blokirana, ali javne kartice će koristiti fallback sliku." })
+    }
     const res = await authedFetch(`/api/admin/events/${event.id}/${action}`, {
       method: "POST",
     })
@@ -251,6 +265,16 @@ export function EventEditForm({
                   />
                 </Field>
               </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Slika</CardTitle>
+              <CardDescription>Slika se prikazuje na karticama i stranici događaja.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EventImagePicker value={image} onChange={setImage} />
             </CardContent>
           </Card>
 

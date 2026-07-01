@@ -32,6 +32,9 @@ class EventUpsertDto {
     lat;
     lng;
     imageUrl;
+    imageAlt;
+    imageCredit;
+    imageSourceUrl;
 }
 exports.EventUpsertDto = EventUpsertDto;
 __decorate([
@@ -129,5 +132,20 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], EventUpsertDto.prototype, "imageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], EventUpsertDto.prototype, "imageAlt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], EventUpsertDto.prototype, "imageCredit", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], EventUpsertDto.prototype, "imageSourceUrl", void 0);

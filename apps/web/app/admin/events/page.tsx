@@ -1,10 +1,13 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import Link from "next/link"
+import { Plus } from "lucide-react"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { EventsTable } from "@/components/admin/events-table"
 import { TableLoadingState, ErrorState } from "@/components/admin/states"
+import { Button } from "@/components/ui/button"
 import { authedFetch } from "@/lib/admin/api"
 import { adaptEvent } from "@/lib/admin/adapters"
 import type { AdminEvent } from "@/lib/admin/types"
@@ -36,6 +39,7 @@ export default function EventsPage() {
         title="Događaji"
         description="Svi događaji u sustavu, neovisno o statusu."
         breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Događaji" }]}
+        actions={<Button nativeButton={false} render={<Link href="/admin/events/new" />}><Plus data-icon="inline-start" />Novi događaj</Button>}
       />
       {loading ? (
         <TableLoadingState />

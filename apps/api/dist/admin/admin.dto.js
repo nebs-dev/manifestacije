@@ -106,6 +106,9 @@ class CandidateOverrideDto {
     ticketUrl;
     organizerName;
     imageUrl;
+    imageAlt;
+    imageCredit;
+    imageSourceUrl;
 }
 exports.CandidateOverrideDto = CandidateOverrideDto;
 __decorate([
@@ -183,6 +186,21 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CandidateOverrideDto.prototype, "imageUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CandidateOverrideDto.prototype, "imageAlt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CandidateOverrideDto.prototype, "imageCredit", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CandidateOverrideDto.prototype, "imageSourceUrl", void 0);
 class CreateEventFromCandidateDto {
     candidateIndex;
     candidate;

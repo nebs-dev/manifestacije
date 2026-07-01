@@ -28,6 +28,7 @@ import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
 import type { ParsedCandidate } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
+import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
 
 type BackendCategory = { id: number; name: string; slug: string }
 
@@ -42,7 +43,6 @@ type CandidateForm = {
   priceText: string
   ticketUrl: string
   organizerName: string
-  imageUrl: string
 }
 
 function toDateTimeLocal(value: string | null) {
@@ -102,8 +102,13 @@ export function ParsedCandidateCard({
     priceText: candidate.priceText || "",
     ticketUrl: candidate.ticketUrl || "",
     organizerName: candidate.organizerName || "",
-    imageUrl: candidate.imageUrl || "",
   }))
+  const [image, setImage] = useState<EventImageValue>({
+    imageUrl: candidate.imageUrl || "",
+    imageAlt: candidate.imageAlt || candidate.title || "",
+    imageCredit: candidate.imageCredit || "",
+    imageSourceUrl: candidate.imageSourceUrl || (candidate.imageUrl ? candidate.sourceUrl : ""),
+  })
 
   useEffect(() => {
     let alive = true
@@ -171,7 +176,10 @@ export function ParsedCandidateCard({
               priceText: form.priceText,
               ticketUrl: form.ticketUrl,
               organizerName: form.organizerName,
-              imageUrl: form.imageUrl,
+              imageUrl: image.imageUrl,
+              imageAlt: image.imageAlt,
+              imageCredit: image.imageCredit,
+              imageSourceUrl: image.imageSourceUrl,
             },
           }),
         }
@@ -285,9 +293,6 @@ export function ParsedCandidateCard({
           <Field label="Ulaznice URL">
             <Input value={form.ticketUrl} disabled={!isPending} onChange={(e) => setField("ticketUrl", e.target.value)} />
           </Field>
-          <Field label="Slika URL">
-            <Input value={form.imageUrl} disabled={!isPending} onChange={(e) => setField("imageUrl", e.target.value)} />
-          </Field>
           <div className="flex items-center gap-2 pt-5">
             <input
               id={`free-${candidate.id}`}
@@ -304,6 +309,16 @@ export function ParsedCandidateCard({
               <Textarea value={form.description} disabled={!isPending} onChange={(e) => setField("description", e.target.value)} rows={3} />
             </Field>
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-border p-3">
+          <EventImagePicker
+            value={image}
+            onChange={setImage}
+            disabled={!isPending}
+            suggestedImageUrl={candidate.imageUrl}
+            suggestedImageSourceUrl={candidate.sourceUrl}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">

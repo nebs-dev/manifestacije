@@ -371,4 +371,54 @@ describe("AiEventParserService", () => {
     });
     expect(result.candidates[0].category).toBe("sport");
   });
+
+  // ── Slavonija/Baranja city coverage and image extraction ─────────────────
+
+  it.each([
+    "Donji Miholjac",
+    "Erdut",
+    "Čepin",
+    "Belišće",
+    "Darda",
+    "Bilje",
+    "Bizovac",
+    "Kneževi Vinogradi",
+    "Batina",
+    "Aljmaš",
+  ])("recognises common Slavonija/Baranja city: %s", async (city) => {
+    const result = await parser.parseBatch({
+      rawText: `SRPANJ 2026.\n4.7., Ljetna manifestacija – ${city}`,
+    });
+    expect(result.candidates[0].city).toBe(city);
+    expect(result.candidates[0].missingFields).not.toContain("city");
+  });
+
+  it("normalises og:image to absolute URL and preserves source image URL", async () => {
+    const result = await parser.parseBatch({
+      sourceUrl: "https://example.hr/events/page",
+      rawHtml: `
+        <html>
+          <head><meta property="og:image" content="/images/poster.jpg"></head>
+          <body><p>SRPANJ 2026.</p><p>4.7., Ljetni koncert – Osijek</p></body>
+        </html>
+      `,
+    });
+
+    expect(result.candidates[0].imageUrl).toBe("https://example.hr/images/poster.jpg");
+    expect(result.candidates[0].imageSourceUrl).toBe("https://example.hr/events/page");
+  });
+
+  it("normalises twitter:image to absolute URL", async () => {
+    const result = await parser.parseBatch({
+      sourceUrl: "https://example.hr/events/page",
+      rawHtml: `
+        <html>
+          <head><meta name="twitter:image" content="poster.jpg"></head>
+          <body><p>SRPANJ 2026.</p><p>4.7., Ljetni koncert – Osijek</p></body>
+        </html>
+      `,
+    });
+
+    expect(result.candidates[0].imageUrl).toBe("https://example.hr/events/poster.jpg");
+  });
 });

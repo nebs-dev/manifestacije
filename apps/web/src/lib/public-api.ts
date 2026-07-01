@@ -26,6 +26,9 @@ type ApiEvent = {
   ticketUrl?: string | null
   sourceUrl?: string | null
   imageUrl?: string | null
+  imageAlt?: string | null
+  imageCredit?: string | null
+  imageSourceUrl?: string | null
   extractionConfidence?: number | null
   organizer?: { id: number; name: string } | null
   venue?: { id: number; name: string; address?: string | null; lat?: number | null; lng?: number | null } | null
@@ -162,6 +165,9 @@ function toCroEvent(event: ApiEvent): CroEvent {
     source: event.sourceUrl || "Manifestacije.hr",
     ticketUrl: event.ticketUrl || undefined,
     image: event.imageUrl || imageFor(primarySlug, region),
+    imageAlt: event.imageAlt || event.title,
+    imageCredit: event.imageCredit || undefined,
+    imageSourceUrl: event.imageSourceUrl || undefined,
     featured: event.extractionConfidence ? event.extractionConfidence >= 0.85 : false,
     address: event.address ?? event.venue?.address ?? undefined,
     lat: (event.lat ?? event.venue?.lat ?? event.city.lat) ?? undefined,

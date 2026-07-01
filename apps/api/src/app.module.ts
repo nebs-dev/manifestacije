@@ -12,6 +12,7 @@ import { AdminService } from "./admin/admin.service";
 import { AiEventParserService } from "./ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "./duplicates/duplicates.service";
 import { EventsService } from "./events/events.service";
+import { UploadsService } from "./admin/uploads.service";
 
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
@@ -41,6 +42,7 @@ class HealthController {
     PublicFeedService,
     OrganizerService,
     AdminService,
+    UploadsService,
     AiEventParserService,
     DuplicatesService,
     EventsService

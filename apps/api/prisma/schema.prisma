@@ -203,6 +203,9 @@ model Event {
   ticketUrl            String?
   sourceUrl            String?
   imageUrl             String?
+  imageAlt             String?
+  imageCredit          String?
+  imageSourceUrl       String?
   address              String?
   lat                  Float?
   lng                  Float?

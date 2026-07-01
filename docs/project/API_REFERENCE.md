@@ -10,6 +10,7 @@ Request and response shapes are marked Unknown unless Kiroq can detect them dire
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/admin/events/pending` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | GET | `/admin/events` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
+| POST | `/admin/events` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | GET | `/admin/events/:id` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | PUT | `/admin/events/:id` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | POST | `/admin/events/:id/approve` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
@@ -23,6 +24,7 @@ Request and response shapes are marked Unknown unless Kiroq can detect them dire
 | POST | `/admin/organizers/:id/verify` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Organizer` | None detected | High | Unknown | Unknown |
 | POST | `/admin/organizers/:id/trust` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Organizer` | None detected | High | Unknown | Unknown |
 | DELETE | `/admin/organizers/:id` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Organizer` | None detected | High | Unknown | Unknown |
+| POST | `/admin/uploads/event-image` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | GET | `/admin/event-sources` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event`<br>`EventSource` | None detected | High | Unknown | Unknown |
 | POST | `/admin/event-sources/manual-email` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event`<br>`EventSource` | None detected | High | Unknown | Unknown |
 | POST | `/admin/event-sources/parse-url` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event`<br>`EventSource` | None detected | High | Unknown | Unknown |
@@ -39,6 +41,7 @@ Request and response shapes are marked Unknown unless Kiroq can detect them dire
 | PAGE | `/admin/categories` | `apps/web/app/admin/categories/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/duplicates` | `apps/web/app/admin/duplicates/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/events/:id` | `apps/web/app/admin/events/[id]/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
+| PAGE | `/admin/events/new` | `apps/web/app/admin/events/new/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/events` | `apps/web/app/admin/events/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/events/pending` | `apps/web/app/admin/events/pending/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | PAGE | `/admin/login` | `apps/web/app/admin/login/page.tsx` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |

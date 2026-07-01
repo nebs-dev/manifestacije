@@ -1,9 +1,13 @@
+"use client"
+
+import { useState } from "react"
 import { gradientFor, categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 interface EventPosterProps {
   image?: string
   title: string
+  alt?: string
   category: string
   className?: string
   sizes?: string
@@ -17,20 +21,23 @@ interface EventPosterProps {
 export function EventPoster({
   image,
   title,
+  alt,
   category,
   className,
   sizes = "(max-width: 768px) 100vw, 33vw",
 }: EventPosterProps) {
-  if (image) {
+  const [failed, setFailed] = useState(false)
+  if (image && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={image || "/placeholder.svg"}
-        alt={title}
+        alt={alt || title}
         sizes={sizes}
         className={cn("h-full w-full object-cover", className)}
         crossOrigin="anonymous"
         loading="lazy"
+        onError={() => setFailed(true)}
       />
     )
   }

@@ -24,6 +24,7 @@ const admin_service_1 = require("./admin/admin.service");
 const ai_event_parser_service_1 = require("./ai-parser/ai-event-parser.service");
 const duplicates_service_1 = require("./duplicates/duplicates.service");
 const events_service_1 = require("./events/events.service");
+const uploads_service_1 = require("./admin/uploads.service");
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
     throw new Error("JWT_SECRET must be set to a non-default value in production");
@@ -61,6 +62,7 @@ exports.AppModule = AppModule = __decorate([
             public_feed_service_1.PublicFeedService,
             organizer_service_1.OrganizerService,
             admin_service_1.AdminService,
+            uploads_service_1.UploadsService,
             ai_event_parser_service_1.AiEventParserService,
             duplicates_service_1.DuplicatesService,
             events_service_1.EventsService

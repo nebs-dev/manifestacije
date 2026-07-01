@@ -2,7 +2,7 @@
 
 Project: manifestacije
 Range: last 7 days
-Generated: 2026-06-30T17:53:35.048Z
+Generated: 2026-07-01T07:56:11.332Z
 Evidence: Kiroq events + git history + changed files + feature status + verification results
 
 ## Summary
@@ -11,11 +11,16 @@ This period appears focused on creating baseline project memory for manifestacij
 
 ## What changed recently
 
-- Baseline project memory was created from repository evidence.
+- Auth / Access Control
+- Database / Schema
+- Env / Config
+- Verification / Tests
+- Dependencies
 
 ## What is now stronger
 
 - Tests passed via pnpm test.
+- Data Imports has strong static implementation evidence.
 
 ## Still partial / needs verification
 
@@ -27,9 +32,9 @@ This period appears focused on creating baseline project memory for manifestacij
 ## Review areas
 
 - Auth / JWT: Auth/JWT code exists; verify guards, session handling, secrets, and tenant boundaries.
-- Public routes: Public pages need crawler/human parity, unpublished-data, and 404 behavior review.
-- Env / Config: Configuration and secrets need production coverage and committed-secret review.
 - Database / Prisma: Schema/migration changes need data-shape and tenant-ownership review.
+- Env / Config: Configuration and secrets need production coverage and committed-secret review.
+- Public routes: Public pages need crawler/human parity, unpublished-data, and 404 behavior review.
 - Token / Report / Redirect: Tokenized report/redirect flows need expiry, signature or server validation, and guessability checks.
 
 ## Blocked or risky

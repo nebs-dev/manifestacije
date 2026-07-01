@@ -78,5 +78,17 @@ export class EventUpsertDto {
 
   @IsOptional()
   @IsString()
-  imageUrl?: string;
+  imageUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  imageAlt?: string | null;
+
+  @IsOptional()
+  @IsString()
+  imageCredit?: string | null;
+
+  @IsOptional()
+  @IsString()
+  imageSourceUrl?: string | null;
 }

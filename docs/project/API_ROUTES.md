@@ -4,6 +4,7 @@
 | --- | --- | --- | --- | --- | --- |
 | nestjs | GET | `/admin/events/pending` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | GET | `/admin/events` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
+| nestjs | POST | `/admin/events` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | GET | `/admin/events/:id` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | PUT | `/admin/events/:id` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | POST | `/admin/events/:id/approve` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
@@ -17,6 +18,7 @@
 | nestjs | POST | `/admin/organizers/:id/verify` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | POST | `/admin/organizers/:id/trust` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | DELETE | `/admin/organizers/:id` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
+| nestjs | POST | `/admin/uploads/event-image` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | GET | `/admin/event-sources` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | POST | `/admin/event-sources/manual-email` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | POST | `/admin/event-sources/parse-url` | Auth-sensitive (Inferred) | High | `apps/api/src/admin/admin.controller.ts` |
@@ -51,6 +53,7 @@
 | next-app | PAGE | `/admin/categories` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/categories/page.tsx` |
 | next-app | PAGE | `/admin/duplicates` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/duplicates/page.tsx` |
 | next-app | PAGE | `/admin/events/:id` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/[id]/page.tsx` |
+| next-app | PAGE | `/admin/events/new` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/new/page.tsx` |
 | next-app | PAGE | `/admin/events` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/page.tsx` |
 | next-app | PAGE | `/admin/events/pending` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/events/pending/page.tsx` |
 | next-app | PAGE | `/admin/login` | Auth-sensitive (Inferred) | High | `apps/web/app/admin/login/page.tsx` |

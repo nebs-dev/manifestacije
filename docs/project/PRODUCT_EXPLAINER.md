@@ -5,7 +5,7 @@ Kiroq inferred this from deterministic repository evidence only.
 ## Inferred Product Category
 This appears to be an full-stack web application.
 
-It appears to include locations, ai/crawler discovery surface, business profiles, trust signals.
+It appears to include data imports, locations, ai/crawler discovery surface, business profiles, trust signals.
 
 ## Main Actors / Users
 - Authenticated users/admins (inferred from User model and auth routes).
@@ -18,8 +18,8 @@ It appears to include locations, ai/crawler discovery surface, business profiles
 
 ## Layers
 - Public layer: `/public/events`, `/public/events/:slug`, `/public/regions`, `/public/regions/:slug/events`, `/public/cities/:slug/events`, `/public/categories`, `/public/categories/:slug/events`, `/public/map/events`
-- Admin/UI layer: `/admin/events/pending`, `/admin/events`, `/admin/events/:id`, `/admin/events/:id`, `/admin/events/:id/approve`, `/admin/events/:id/reject`, `/admin/events/:id/publish`, `/admin/events/:id/archive`
-- API layer: `/admin/events/pending`, `/admin/events`, `/admin/events/:id`, `/admin/events/:id`, `/admin/events/:id/approve`, `/admin/events/:id/reject`, `/admin/events/:id/publish`, `/admin/events/:id/archive`
+- Admin/UI layer: `/admin/events/pending`, `/admin/events`, `/admin/events`, `/admin/events/:id`, `/admin/events/:id`, `/admin/events/:id/approve`, `/admin/events/:id/reject`, `/admin/events/:id/publish`
+- API layer: `/admin/events/pending`, `/admin/events`, `/admin/events`, `/admin/events/:id`, `/admin/events/:id`, `/admin/events/:id/approve`, `/admin/events/:id/reject`, `/admin/events/:id/publish`
 - Data layer: `User`, `Organizer`, `Region`, `County`, `City`, `Venue`, `Category`, `EventCategory`, `Event`, `EventSource`, `EventDuplicateCandidate`, `IngestionJob`
 
 ## Important Unknowns
@@ -33,6 +33,9 @@ It appears to include locations, ai/crawler discovery surface, business profiles
   - `package.json`
   - `apps/api/package.json`
   - `apps/web/package.json`
+  - `apps/api/src/admin/admin.controller.ts`
+  - `apps/api/test/uploads.spec.ts`
+  - `apps/api/src/admin/uploads.service.ts`
   - `apps/web/app/gradovi/[citySlug]/page.tsx`
   - `apps/api/prisma/schema.prisma`
   - `apps/web/src/components/ui/location-autocomplete.tsx`
@@ -42,4 +45,3 @@ It appears to include locations, ai/crawler discovery surface, business profiles
   - `apps/web/src/components/public/discovery-explorer.tsx`
   - `apps/web/src/components/public/discovery-map.tsx`
   - `apps/api/src/organizers/organizer.controller.ts`
-  - `apps/api/src/admin/admin.controller.ts`

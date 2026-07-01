@@ -1,18 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
 import { AdminEventDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto } from "./admin.dto";
+import { UploadsService } from "./uploads.service";
 
 @Controller("admin")
 @UseGuards(JwtAuthGuard)
 @Roles(UserRole.ADMIN)
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(private readonly admin: AdminService, private readonly uploads: UploadsService) {}
 
   @Get("events/pending") pendingEvents() { return this.admin.pendingEvents(); }
   @Get("events") events() { return this.admin.allEvents(); }
+  @Post("events") createAdminEvent(@Body() dto: AdminEventDto) { return this.admin.createEvent(dto); }
   @Get("events/:id") event(@Param("id") id: string) { return this.admin.event(Number(id)); }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }
   @Post("events/:id/approve") approve(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PENDING_REVIEW); }
@@ -27,6 +30,12 @@ export class AdminController {
   @Post("organizers/:id/verify") verify(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
   @Post("organizers/:id/trust") trust(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
   @Delete("organizers/:id") deleteOrganizer(@Param("id") id: string) { return this.admin.deleteOrganizer(Number(id)); }
+
+  @Post("uploads/event-image")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadEventImage(@UploadedFile() file: unknown) {
+    return this.uploads.uploadEventImage(file as never);
+  }
 
   // Literal routes must be declared before parametric :id routes
   @Get("event-sources") eventSources() { return this.admin.eventSources(); }

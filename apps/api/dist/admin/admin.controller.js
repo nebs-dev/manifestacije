@@ -14,18 +14,23 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const client_1 = require("@prisma/client");
 const auth_decorators_1 = require("../auth/auth.decorators");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const admin_service_1 = require("./admin.service");
 const admin_dto_1 = require("./admin.dto");
+const uploads_service_1 = require("./uploads.service");
 let AdminController = class AdminController {
     admin;
-    constructor(admin) {
+    uploads;
+    constructor(admin, uploads) {
         this.admin = admin;
+        this.uploads = uploads;
     }
     pendingEvents() { return this.admin.pendingEvents(); }
     events() { return this.admin.allEvents(); }
+    createAdminEvent(dto) { return this.admin.createEvent(dto); }
     event(id) { return this.admin.event(Number(id)); }
     updateEvent(id, dto) { return this.admin.updateEvent(Number(id), dto); }
     approve(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.PENDING_REVIEW); }
@@ -39,6 +44,9 @@ let AdminController = class AdminController {
     verify(id) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
     trust(id) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
     deleteOrganizer(id) { return this.admin.deleteOrganizer(Number(id)); }
+    uploadEventImage(file) {
+        return this.uploads.uploadEventImage(file);
+    }
     // Literal routes must be declared before parametric :id routes
     eventSources() { return this.admin.eventSources(); }
     manualEmail(dto) { return this.admin.createManualEmail(dto); }
@@ -71,6 +79,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "events", null);
+__decorate([
+    (0, common_1.Post)("events"),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [admin_dto_1.AdminEventDto]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "createAdminEvent", null);
 __decorate([
     (0, common_1.Get)("events/:id"),
     __param(0, (0, common_1.Param)("id")),
@@ -164,6 +179,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AdminController.prototype, "deleteOrganizer", null);
 __decorate([
+    (0, common_1.Post)("uploads/event-image"),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)("file", { limits: { fileSize: 5 * 1024 * 1024 } })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AdminController.prototype, "uploadEventImage", null);
+__decorate([
     (0, common_1.Get)("event-sources"),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
@@ -256,5 +279,5 @@ exports.AdminController = AdminController = __decorate([
     (0, common_1.Controller)("admin"),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, auth_decorators_1.Roles)(client_1.UserRole.ADMIN),
-    __metadata("design:paramtypes", [admin_service_1.AdminService])
+    __metadata("design:paramtypes", [admin_service_1.AdminService, uploads_service_1.UploadsService])
 ], AdminController);

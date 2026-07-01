@@ -32,6 +32,10 @@ export class AdminService {
     return this.events.updateEvent(id, dto);
   }
 
+  createEvent(dto: AdminEventDto) {
+    return this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
+  }
+
   setEventStatus(id: number, status: EventStatus) {
     return this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
   }
@@ -211,6 +215,9 @@ export class AdminService {
         lat: candidate.lat ?? undefined,
         lng: candidate.lng ?? undefined,
         imageUrl: candidate.imageUrl || undefined,
+        imageAlt: candidate.imageAlt || undefined,
+        imageCredit: candidate.imageCredit || undefined,
+        imageSourceUrl: candidate.imageSourceUrl || undefined,
       },
       { organizerId, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
     );

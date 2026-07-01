@@ -11,6 +11,7 @@ Evidence:
   - `apps/web/package.json`
 
 ## What are the main detected product areas?
+- Data Imports (Done, High)
 - Locations (Partial, High)
 - AI/Crawler Discovery Surface (Partial, Medium)
 - Business Profiles (Partial, Low)
@@ -28,7 +29,7 @@ Evidence:
 - GET `/public/seo/sitemap-data` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 
 ## What API surface exists?
-Kiroq detected 74 route candidates. See `API_ROUTES.md` for inventory and `API_REFERENCE.md` for grouped endpoint notes.
+Kiroq detected 77 route candidates. See `API_ROUTES.md` for inventory and `API_REFERENCE.md` for grouped endpoint notes.
 
 ## What data model exists?
 Kiroq detected 12 Prisma models. Top detected models: `User`, `Organizer`, `Region`, `County`, `City`, `Venue`, `Category`, `EventCategory`, `Event`, `EventSource`.
@@ -51,9 +52,9 @@ Kiroq detected 12 Prisma models. Top detected models: `User`, `Organizer`, `Regi
 Partially. Kiroq ran `pnpm test` and it passed, but this does not prove smoke/sample/client QA coverage.
 
 ## What are the main review areas?
-- High: auth related files detected. File paths include risk-sensitive keyword "auth" (11 evidence paths).
+- High: auth related files detected. File paths include risk-sensitive keyword "auth" (12 evidence paths).
 - High: jwt related files detected. File paths include risk-sensitive keyword "jwt" (1 evidence paths).
-- Medium: public related files detected. File paths include review keyword "public" (33 evidence paths).
+- Medium: public related files detected. File paths include review keyword "public" (35 evidence paths).
 - Medium: env related files detected. File paths include review keyword "env" (3 evidence paths).
 - Medium: config related files detected. File paths include review keyword "config" (8 evidence paths).
 - Medium: prisma/schema.prisma related files detected. File paths include review keyword "prisma/schema.prisma" (12 evidence paths).

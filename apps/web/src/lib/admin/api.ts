@@ -25,10 +25,11 @@ export function clearToken() {
 
 export async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = getToken()
+  const isFormData = init?.body instanceof FormData
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers as Record<string, string> | undefined),
     },

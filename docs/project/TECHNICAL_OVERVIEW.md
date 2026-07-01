@@ -29,6 +29,7 @@
 | apps/api/src/admin/admin.dto.ts | Fact | High | `apps/api/src/admin/admin.dto.ts` |
 | apps/api/src/admin/admin.module.ts | Fact | High | `apps/api/src/admin/admin.module.ts` |
 | apps/api/src/admin/admin.service.ts | Fact | High | `apps/api/src/admin/admin.service.ts` |
+| apps/api/src/admin/uploads.service.ts | Fact | High | `apps/api/src/admin/uploads.service.ts` |
 | apps/api/src/ai-parser/ai-event-parser.service.ts | Fact | High | `apps/api/src/ai-parser/ai-event-parser.service.ts` |
 | apps/api/src/ai-parser/ai-parser.module.ts | Fact | High | `apps/api/src/ai-parser/ai-parser.module.ts` |
 | apps/api/src/app.module.ts | Fact | High | `apps/api/src/app.module.ts` |
@@ -62,41 +63,48 @@
 | apps/api/src/regions/regions.module.ts | Fact | High | `apps/api/src/regions/regions.module.ts` |
 | apps/api/src/users/users.module.ts | Fact | High | `apps/api/src/users/users.module.ts` |
 | apps/api/src/venues/venues.module.ts | Fact | High | `apps/api/src/venues/venues.module.ts` |
+| apps/api/test/admin.service.spec.ts | Fact | High | `apps/api/test/admin.service.spec.ts` |
 | apps/api/test/ai-parser.spec.js | Fact | High | `apps/api/test/ai-parser.spec.js` |
 | apps/api/test/ai-parser.spec.ts | Fact | High | `apps/api/test/ai-parser.spec.ts` |
+| apps/api/test/auth.spec.ts | Fact | High | `apps/api/test/auth.spec.ts` |
 | apps/api/test/duplicates.spec.js | Fact | High | `apps/api/test/duplicates.spec.js` |
 | apps/api/test/duplicates.spec.ts | Fact | High | `apps/api/test/duplicates.spec.ts` |
+| apps/api/test/events-images.spec.ts | Fact | High | `apps/api/test/events-images.spec.ts` |
+| apps/api/test/public-feed.service.spec.ts | Fact | High | `apps/api/test/public-feed.service.spec.ts` |
+| apps/api/test/uploads.spec.ts | Fact | High | `apps/api/test/uploads.spec.ts` |
 | apps/web/app/admin/categories/page.tsx | Fact | High | `apps/web/app/admin/categories/page.tsx` |
-| apps/web/app/admin/duplicates/page.tsx | Fact | High | `apps/web/app/admin/duplicates/page.tsx` |
-| apps/web/app/admin/events/[id]/page.tsx | Fact | High | `apps/web/app/admin/events/[id]/page.tsx` |
-| apps/web/app/admin/events/page.tsx | Fact | High | `apps/web/app/admin/events/page.tsx` |
-| apps/web/app/admin/events/pending/page.tsx | Fact | High | `apps/web/app/admin/events/pending/page.tsx` |
-| apps/web/app/admin/layout.tsx | Fact | High | `apps/web/app/admin/layout.tsx` |
-| apps/web/app/admin/login/page.tsx | Fact | High | `apps/web/app/admin/login/page.tsx` |
 
 ## Tests
 | Item | Status | Confidence | Evidence |
 | --- | --- | --- | --- |
+| apps/api/test/admin.service.spec.ts | Fact | High | `apps/api/test/admin.service.spec.ts` |
 | apps/api/test/ai-parser.spec.js | Fact | High | `apps/api/test/ai-parser.spec.js` |
 | apps/api/test/ai-parser.spec.ts | Fact | High | `apps/api/test/ai-parser.spec.ts` |
+| apps/api/test/auth.spec.ts | Fact | High | `apps/api/test/auth.spec.ts` |
 | apps/api/test/duplicates.spec.js | Fact | High | `apps/api/test/duplicates.spec.js` |
 | apps/api/test/duplicates.spec.ts | Fact | High | `apps/api/test/duplicates.spec.ts` |
+| apps/api/test/events-images.spec.ts | Fact | High | `apps/api/test/events-images.spec.ts` |
+| apps/api/test/public-feed.service.spec.ts | Fact | High | `apps/api/test/public-feed.service.spec.ts` |
+| apps/api/test/uploads.spec.ts | Fact | High | `apps/api/test/uploads.spec.ts` |
+| apps/web/src/lib/admin/adapters.test.ts | Fact | High | `apps/web/src/lib/admin/adapters.test.ts` |
+| apps/web/src/lib/admin/api.test.ts | Fact | High | `apps/web/src/lib/admin/api.test.ts` |
+| apps/web/src/lib/public-api.test.ts | Fact | High | `apps/web/src/lib/public-api.test.ts` |
 
 ## Test Run
 - Status: passed
 - Attempted: yes
 - Command: pnpm test
 - Confidence: High
-- Duration: 2582ms
+- Duration: 3726ms
 - Output summary:
-  - apps/api test: PASS test/duplicates.spec.ts
-  - apps/api test: Test Suites: 2 passed, 2 total
-  - apps/api test: Tests:       36 passed, 36 total
-  - apps/api test: Snapshots:   0 total
-  - apps/api test: Time:        1.541 s, estimated 2 s
-  - apps/api test: Ran all test suites.
-  - apps/api test: Done
-  - apps/web test$ echo web ok
+  - apps/web test$ vitest run
+  - apps/web test: [1m[30m[46m RUN [49m[39m[22m [36mv4.1.9 [39m[90m/Users/nebs/Documents/Code/manifestacije/apps/web[39m
+  - apps/web test:  [32m✓[39m src/lib/admin/adapters.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+  - apps/web test:  [32m✓[39m src/lib/admin/api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+  - apps/web test:  [32m✓[39m src/lib/public-api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+  - apps/web test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+  - apps/web test: [2m      Tests [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+  - apps/web test: [2m   Start at [22m 09:56:10
 
 ## Env
 | Item | Status | Confidence | Evidence |
