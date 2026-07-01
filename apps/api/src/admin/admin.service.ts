@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { EventStatus, EventSourceType, OrganizerStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
@@ -57,7 +57,9 @@ export class AdminService {
     return this.prisma.organizer.update({ where: { id }, data: { status } });
   }
 
-  deleteOrganizer(id: number) {
+  async deleteOrganizer(id: number) {
+    const count = await this.prisma.event.count({ where: { organizerId: id } });
+    if (count > 0) throw new ConflictException(`Organizator ima ${count} događaja — nije moguće obrisati.`);
     return this.prisma.organizer.delete({ where: { id } });
   }
 
@@ -299,7 +301,9 @@ export class AdminService {
     return this.prisma.region.create({ data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder ?? 0 } });
   }
 
-  deleteRegion(id: number) {
+  async deleteRegion(id: number) {
+    const count = await this.prisma.county.count({ where: { regionId: id } });
+    if (count > 0) throw new ConflictException(`Regija ima ${count} županija — prvo obrišite sadržaj.`);
     return this.prisma.region.delete({ where: { id } });
   }
 
@@ -307,7 +311,9 @@ export class AdminService {
     return this.prisma.county.create({ data: { name: dto.name, slug: dto.slug, regionId: dto.regionId } });
   }
 
-  deleteCounty(id: number) {
+  async deleteCounty(id: number) {
+    const count = await this.prisma.city.count({ where: { countyId: id } });
+    if (count > 0) throw new ConflictException(`Županija ima ${count} gradova — prvo obrišite gradove.`);
     return this.prisma.county.delete({ where: { id } });
   }
 
@@ -319,7 +325,9 @@ export class AdminService {
     return this.prisma.city.update({ where: { id }, data: { name: dto.name, slug: dto.slug, lat: dto.lat, lng: dto.lng } });
   }
 
-  deleteCity(id: number) {
+  async deleteCity(id: number) {
+    const count = await this.prisma.event.count({ where: { cityId: id } });
+    if (count > 0) throw new ConflictException(`Grad ima ${count} događaja — nije moguće obrisati.`);
     return this.prisma.city.delete({ where: { id } });
   }
 
@@ -335,7 +343,9 @@ export class AdminService {
     return this.prisma.category.update({ where: { id }, data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder } });
   }
 
-  deleteCategory(id: number) {
+  async deleteCategory(id: number) {
+    const count = await this.prisma.eventCategory.count({ where: { categoryId: id } });
+    if (count > 0) throw new ConflictException(`Kategorija se koristi na ${count} događaja — nije moguće obrisati.`);
     return this.prisma.category.delete({ where: { id } });
   }
 

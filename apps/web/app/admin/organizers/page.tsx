@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ShieldCheck, Star, Pencil, Plus, Check, X } from "lucide-react"
+import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
@@ -32,7 +32,7 @@ interface Organizer {
 type OrgForm = { name: string; email: string; websiteUrl: string; phone: string }
 const emptyForm = (): OrgForm => ({ name: "", email: "", websiteUrl: "", phone: "" })
 
-function OrgRow({ org, onChanged }: { org: Organizer; onChanged: () => void }) {
+function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChanged: () => void; selected: boolean; onToggle: () => void }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<OrgForm>({ name: org.name, email: org.email ?? "", websiteUrl: org.websiteUrl ?? "", phone: org.phone ?? "" })
   const [busy, setBusy] = useState(false)
@@ -51,6 +51,9 @@ function OrgRow({ org, onChanged }: { org: Organizer; onChanged: () => void }) {
   if (editing) {
     return (
       <TableRow className="bg-muted/20">
+        <TableCell>
+          <input type="checkbox" checked={selected} onChange={onToggle} className="size-4 cursor-pointer rounded border-border accent-primary" />
+        </TableCell>
         <TableCell><Input value={form.name} onChange={(e) => set("name", e.target.value)} className="h-8" autoFocus /></TableCell>
         <TableCell><Input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email" className="h-8" /></TableCell>
         <TableCell><Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://..." className="h-8" /></TableCell>
@@ -67,7 +70,10 @@ function OrgRow({ org, onChanged }: { org: Organizer; onChanged: () => void }) {
   }
 
   return (
-    <TableRow>
+    <TableRow className={selected ? "bg-muted/30" : undefined}>
+      <TableCell>
+        <input type="checkbox" checked={selected} onChange={onToggle} className="size-4 cursor-pointer rounded border-border accent-primary" />
+      </TableCell>
       <TableCell className="font-medium">{org.name}</TableCell>
       <TableCell className="text-muted-foreground">{org.email ?? "—"}</TableCell>
       <TableCell className="max-w-40 truncate text-muted-foreground">{org.websiteUrl ?? "—"}</TableCell>
@@ -108,8 +114,8 @@ function AddRow({ onCreated }: { onCreated: () => void }) {
   if (!open) {
     return (
       <TableRow>
-        <TableCell colSpan={6}>
-          <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <TableCell colSpan={7}>
+          <button onClick={() => setOpen(true)} className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <Plus className="size-3.5" /> Dodaj organizatora
           </button>
         </TableCell>
@@ -119,6 +125,7 @@ function AddRow({ onCreated }: { onCreated: () => void }) {
 
   return (
     <TableRow className="bg-primary/5">
+      <TableCell />
       <TableCell><Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Naziv *" className="h-8" autoFocus /></TableCell>
       <TableCell><Input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email" className="h-8" /></TableCell>
       <TableCell><Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://..." className="h-8" /></TableCell>
@@ -138,6 +145,9 @@ export default function OrganizersPage() {
   const [organizers, setOrganizers] = useState<Organizer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [confirming, setConfirming] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -151,6 +161,36 @@ export default function OrganizersPage() {
 
   useEffect(() => { load() }, [load])
 
+  const allSelected = organizers.length > 0 && organizers.every((o) => selected.has(o.id))
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+    setConfirming(false)
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(organizers.map((o) => o.id)))
+    setConfirming(false)
+  }
+
+  async function bulkDelete() {
+    setBulkBusy(true)
+    const results = await Promise.all(
+      [...selected].map((id) => authedFetch(`/api/admin/organizers/${id}`, { method: "DELETE" }))
+    )
+    setBulkBusy(false)
+    const failed = results.filter((r) => !r.ok).length
+    if (failed === 0) toast.success(`Obrisano ${results.length} organizatora`)
+    else toast.warning(`${results.length - failed} obrisano, ${failed} nije uspjelo`)
+    setSelected(new Set())
+    setConfirming(false)
+    load()
+  }
+
   return (
     <>
       <PageHeader
@@ -159,23 +199,50 @@ export default function OrganizersPage() {
         breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Organizatori" }]}
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead>Naziv</TableHead>
-                <TableHead>E-mail</TableHead>
-                <TableHead>Web</TableHead>
-                <TableHead>Telefon</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Akcije</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {organizers.map((o) => <OrgRow key={o.id} org={o} onChanged={load} />)}
-              <AddRow onCreated={load} />
-            </TableBody>
-          </Table>
+        <div className="flex flex-col gap-2">
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm">
+              <span className="font-medium">{selected.size} odabrano</span>
+              {confirming ? (
+                <>
+                  <span className="text-destructive">Sigurno obrisati {selected.size} organizatora?</span>
+                  <Button variant="destructive" size="sm" onClick={bulkDelete} disabled={bulkBusy}>Da, obriši</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>Ne</Button>
+                </>
+              ) : (
+                <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
+                  <Trash2 data-icon="inline-start" />
+                  Obriši odabrano
+                </Button>
+              )}
+              <button onClick={() => { setSelected(new Set()); setConfirming(false) }} className="ml-auto cursor-pointer text-muted-foreground hover:text-foreground">
+                Odustani
+              </button>
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="w-10">
+                    <input type="checkbox" checked={allSelected} onChange={toggleAll} className="size-4 cursor-pointer rounded border-border accent-primary" />
+                  </TableHead>
+                  <TableHead>Naziv</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Web</TableHead>
+                  <TableHead>Telefon</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Akcije</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {organizers.map((o) => (
+                  <OrgRow key={o.id} org={o} onChanged={load} selected={selected.has(o.id)} onToggle={() => toggle(o.id)} />
+                ))}
+                <AddRow onCreated={load} />
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </>

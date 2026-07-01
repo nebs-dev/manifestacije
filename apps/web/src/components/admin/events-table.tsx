@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Pencil, Search } from "lucide-react"
+import { Pencil, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -44,6 +44,9 @@ export function EventsTable({
 }) {
   const [status, setStatus] = useState<string>("all")
   const [search, setSearch] = useState("")
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirming, setConfirming] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const filtered = useMemo(() => {
     let result = status === "all" ? events : events.filter((e) => e.status === status)
@@ -58,10 +61,41 @@ export function EventsTable({
     return result
   }, [events, status, search])
 
+  const allSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id))
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+    setConfirming(false)
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(filtered.map((e) => e.id)))
+    setConfirming(false)
+  }
+
+  async function bulkDelete() {
+    setBulkBusy(true)
+    const results = await Promise.all(
+      [...selected].map((id) => authedFetch(`/api/admin/events/${id}`, { method: "DELETE" }))
+    )
+    setBulkBusy(false)
+    const failed = results.filter((r) => !r.ok).length
+    if (failed === 0) toast.success(`Obrisano ${results.length} događaja`)
+    else toast.warning(`${results.length - failed} obrisano, ${failed} nije uspjelo`)
+    setSelected(new Set())
+    setConfirming(false)
+    onDelete?.()
+  }
+
   async function deleteEvent(id: string, title: string) {
     const res = await authedFetch(`/api/admin/events/${id}`, { method: "DELETE" })
     if (res.ok) {
       toast.success(`Obrisano: ${title}`)
+      setSelected((p) => { const n = new Set(p); n.delete(id); return n })
       onDelete?.()
     } else {
       toast.error("Greška pri brisanju")
@@ -99,6 +133,31 @@ export function EventsTable({
         </span>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm">
+          <span className="font-medium">{selected.size} odabrano</span>
+          {confirming ? (
+            <>
+              <span className="text-destructive">Sigurno obrisati {selected.size} događaja?</span>
+              <Button variant="destructive" size="sm" onClick={bulkDelete} disabled={bulkBusy}>
+                Da, obriši
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+                Ne
+              </Button>
+            </>
+          ) : (
+            <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
+              <Trash2 data-icon="inline-start" />
+              Obriši odabrano
+            </Button>
+          )}
+          <button onClick={() => { setSelected(new Set()); setConfirming(false) }} className="ml-auto cursor-pointer text-muted-foreground hover:text-foreground">
+            Odustani
+          </button>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <EmptyState
           title="Nema događaja"
@@ -109,6 +168,14 @@ export function EventsTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="size-4 cursor-pointer rounded border-border accent-primary"
+                  />
+                </TableHead>
                 <TableHead>Naziv</TableHead>
                 <TableHead className="whitespace-nowrap">Početak</TableHead>
                 <TableHead>Grad</TableHead>
@@ -119,12 +186,17 @@ export function EventsTable({
             </TableHeader>
             <TableBody>
               {filtered.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="max-w-[260px]">
-                    <Link
-                      href={`/admin/events/${e.id}`}
-                      className="font-medium text-foreground hover:underline"
-                    >
+                <TableRow key={e.id} className={selected.has(e.id) ? "bg-muted/30" : undefined}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(e.id)}
+                      onChange={() => toggle(e.id)}
+                      className="size-4 cursor-pointer rounded border-border accent-primary"
+                    />
+                  </TableCell>
+                  <TableCell className="max-w-65">
+                    <Link href={`/admin/events/${e.id}`} className="font-medium text-foreground hover:underline">
                       {e.title}
                     </Link>
                   </TableCell>
@@ -138,17 +210,10 @@ export function EventsTable({
                       .map((c) => c.name)
                       .join(", ") || "—"}
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge status={e.status} />
-                  </TableCell>
+                  <TableCell><StatusBadge status={e.status} /></TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        nativeButton={false}
-                        render={<Link href={`/admin/events/${e.id}`} />}
-                      >
+                      <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/admin/events/${e.id}`} />}>
                         <Pencil data-icon="inline-start" />
                         Uredi
                       </Button>
