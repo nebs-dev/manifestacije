@@ -29,6 +29,10 @@ export class PublicFeedService {
     return this.prisma.region.findMany({ orderBy: { sortOrder: "asc" } });
   }
 
+  cities() {
+    return this.prisma.city.findMany({ include: { county: { include: { region: true } } }, orderBy: { name: "asc" } });
+  }
+
   categories() {
     return this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
   }

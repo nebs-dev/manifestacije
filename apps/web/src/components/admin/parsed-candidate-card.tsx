@@ -160,7 +160,7 @@ export function ParsedCandidateCard({
     )
   }
 
-  async function createEvent() {
+  async function createEvent(publish = false) {
     if (!hasRequired) return
     setBusy(true)
     try {
@@ -171,6 +171,7 @@ export function ParsedCandidateCard({
           method: "POST",
           body: JSON.stringify({
             candidateIndex: candidate.candidateIndex,
+            publish,
             candidate: {
               title: form.title,
               description: form.description,
@@ -197,7 +198,7 @@ export function ParsedCandidateCard({
       )
       if (res.ok) {
         const data = await res.json()
-        toast.success("Događaj kreiran")
+        toast.success(publish ? "Događaj kreiran i objavljen" : "Događaj kreiran")
         onUpdate?.()
         router.push(`/admin/events/${data.event.id}`)
       } else {
@@ -291,6 +292,10 @@ export function ParsedCandidateCard({
                 onChange={setLocation}
                 disabled={!isPending}
                 placeholder="Pretraži adresu ili naziv mjesta…"
+                localSuggest={async (q) => {
+                  const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}`)
+                  return res.ok ? res.json() : []
+                }}
               />
             </Field>
           </div>
@@ -404,9 +409,13 @@ export function ParsedCandidateCard({
 
       {isPending && (
         <CardFooter className="gap-2 flex-wrap">
-          <Button onClick={createEvent} disabled={busy || !hasRequired}>
+          <Button onClick={() => createEvent(false)} disabled={busy || !hasRequired}>
             <CalendarPlus data-icon="inline-start" />
             Kreiraj događaj
+          </Button>
+          <Button variant="outline" onClick={() => createEvent(true)} disabled={busy || !hasRequired}>
+            <CalendarPlus data-icon="inline-start" />
+            Kreiraj i objavi
           </Button>
           {!hasRequired && (
             <p className="text-xs text-muted-foreground">Dopunite: naslov, datum, grad i barem jednu kategoriju.</p>

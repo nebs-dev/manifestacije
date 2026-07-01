@@ -47,17 +47,17 @@ export function OrganizerCta() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a
-                href="#"
+                href="/organizer/register"
                 className="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-sm font-semibold text-accent-foreground transition-transform hover:-translate-y-0.5"
               >
                 Dodaj event
                 <ArrowRight className="size-4" />
               </a>
               <a
-                href="#"
+                href="/organizer/login"
                 className="inline-flex items-center gap-2 rounded-full border border-white/20 px-6 py-3.5 text-sm font-semibold text-ink-foreground transition-colors hover:bg-white/10"
               >
-                Saznaj više
+                Već imam račun
               </a>
             </div>
           </div>

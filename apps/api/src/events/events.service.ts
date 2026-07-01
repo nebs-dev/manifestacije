@@ -19,8 +19,8 @@ export class EventsService {
       const venueSlug = slugify(dto.venueName);
       const venue = await this.prisma.venue.upsert({
         where: { slug_cityId: { slug: venueSlug, cityId: city.id } },
-        update: { address: dto.address },
-        create: { name: dto.venueName, slug: venueSlug, cityId: city.id, address: dto.address }
+        update: { address: dto.address, lat: dto.lat, lng: dto.lng },
+        create: { name: dto.venueName, slug: venueSlug, cityId: city.id, address: dto.address, lat: dto.lat, lng: dto.lng }
       });
       venueId = venue.id;
     }
@@ -112,6 +112,23 @@ export class EventsService {
       data.cityId = city.id;
       data.countyId = city.countyId;
       data.regionId = city.county.regionId;
+    }
+    if ("venueName" in dto) {
+      if (dto.venueName) {
+        const effectiveCityId = (city?.id ?? current.cityId)!;
+        const venueCity = city ?? await this.prisma.city.findUnique({ where: { id: effectiveCityId } });
+        if (venueCity) {
+          const venueSlug = slugify(dto.venueName);
+          const venue = await this.prisma.venue.upsert({
+            where: { slug_cityId: { slug: venueSlug, cityId: venueCity.id } },
+            update: { address: dto.address, lat: dto.lat, lng: dto.lng },
+            create: { name: dto.venueName, slug: venueSlug, cityId: venueCity.id, address: dto.address, lat: dto.lat, lng: dto.lng },
+          });
+          data.venueId = venue.id;
+        }
+      } else {
+        data.venueId = null;
+      }
     }
     Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
     const event = await this.prisma.event.update({ where: { id }, data });

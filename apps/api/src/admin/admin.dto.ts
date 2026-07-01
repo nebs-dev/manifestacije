@@ -70,6 +70,10 @@ export class CreateEventFromCandidateDto {
   @ValidateNested()
   @Type(() => CandidateOverrideDto)
   candidate?: CandidateOverrideDto;
+
+  @IsOptional()
+  @IsBoolean()
+  publish?: boolean;
 }
 
 export class IgnoreCandidateDto {

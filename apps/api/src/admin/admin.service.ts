@@ -163,7 +163,7 @@ export class AdminService {
     });
   }
 
-  async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto) {
+  async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto, publish = false) {
     const source = await this.prisma.eventSource.findUnique({ where: { id } });
     if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
 
@@ -229,7 +229,7 @@ export class AdminService {
         imageCredit: candidate.imageCredit || undefined,
         imageSourceUrl: candidate.imageSourceUrl || undefined,
       },
-      { organizerId, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
+      { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
     );
 
     if (isBatchFormat) {
@@ -347,6 +347,27 @@ export class AdminService {
     const count = await this.prisma.eventCategory.count({ where: { categoryId: id } });
     if (count > 0) throw new ConflictException(`Kategorija se koristi na ${count} događaja — nije moguće obrisati.`);
     return this.prisma.category.delete({ where: { id } });
+  }
+
+  async searchVenues(q: string) {
+    const venues = await this.prisma.venue.findMany({
+      where: {
+        OR: [
+          { name: { contains: q } },
+          { address: { contains: q } },
+        ],
+        lat: { not: null },
+        lng: { not: null },
+      },
+      include: { city: true },
+      take: 5,
+      orderBy: { name: "asc" },
+    });
+    return venues.map((v) => ({
+      label: [v.name, v.address, v.city.name].filter(Boolean).join(", "),
+      lat: v.lat!,
+      lng: v.lng!,
+    }));
   }
 
   private sourceMetaFromResult(result: ParsedSourceResult): { confidence: number; status: "PARSED" | "NEEDS_REVIEW" } {

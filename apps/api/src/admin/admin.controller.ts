@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
@@ -44,7 +44,7 @@ export class AdminController {
   @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
   @Post("event-sources/:id/create-event") createEvent(@Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
-    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate);
+    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false);
   }
   @Post("event-sources/:id/ignore-candidate") ignoreCandidate(@Param("id") id: string, @Body() dto: IgnoreCandidateDto) {
     return this.admin.ignoreCandidate(Number(id), dto.candidateIndex);
@@ -65,6 +65,8 @@ export class AdminController {
   @Post("cities") createCity(@Body() dto: CityDto) { return this.admin.createCity(dto); }
   @Put("cities/:id") updateCity(@Param("id") id: string, @Body() dto: CityDto) { return this.admin.updateCity(Number(id), dto); }
   @Delete("cities/:id") deleteCity(@Param("id") id: string) { return this.admin.deleteCity(Number(id)); }
+
+  @Get("venues/search") searchVenues(@Query("q") q: string) { return this.admin.searchVenues(q ?? ""); }
 
   @Get("categories") categories() { return this.admin.categories(); }
   @Post("categories") createCategory(@Body() dto: CategoryDto) { return this.admin.createCategory(dto); }

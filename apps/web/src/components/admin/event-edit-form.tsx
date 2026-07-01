@@ -75,6 +75,7 @@ export function EventEditForm({
     sourceUrl: event.sourceUrl ?? "",
     status: event.status,
     organizerId: event._organizerId ? String(event._organizerId) : "",
+    venueName: event.venue ?? "",
   })
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: event.imageUrl ?? "",
@@ -151,6 +152,7 @@ export function EventEditForm({
           priceText: form.priceText || undefined,
           ticketUrl: form.ticketUrl || undefined,
           sourceUrl: form.sourceUrl || undefined,
+          venueName: form.venueName || undefined,
           address: location?.address || undefined,
           lat: location?.lat,
           lng: location?.lng,
@@ -318,9 +320,25 @@ export function EventEditForm({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel>Lokacija</FieldLabel>
-                  <FieldDescription>Upiši naziv mjesta, dvorane ili adresu.</FieldDescription>
-                  <LocationAutocomplete value={location} onChange={setLocation} />
+                  <FieldLabel>Naziv mjesta / dvorane</FieldLabel>
+                  <FieldDescription>Kratki naziv lokacije (npr. "Galerija Waldinger", "HNK Osijek").</FieldDescription>
+                  <Input
+                    value={form.venueName}
+                    onChange={(e) => update("venueName", e.target.value)}
+                    placeholder="npr. Galerija Waldinger"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Precizna lokacija (koordinate)</FieldLabel>
+                  <FieldDescription>Ulica i broj za Google Maps.</FieldDescription>
+                  <LocationAutocomplete
+                    value={location}
+                    onChange={setLocation}
+                    localSuggest={async (q) => {
+                      const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}`)
+                      return res.ok ? res.json() : []
+                    }}
+                  />
                   {(event.city || event.venue) && !location && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       Trenutno: {[event.venue, event.city].filter(Boolean).join(", ")}

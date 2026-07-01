@@ -20,6 +20,11 @@ export class PublicFeedController {
     return this.feed.regions();
   }
 
+  @Get("cities")
+  cities() {
+    return this.feed.cities();
+  }
+
   @Get("regions/:slug/events")
   regionEvents(@Param("slug") slug: string) {
     return this.feed.byRegion(slug);

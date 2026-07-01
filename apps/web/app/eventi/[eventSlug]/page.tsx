@@ -62,10 +62,10 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
             </div>
             <h1 className="mt-3 max-w-3xl text-balance font-heading text-3xl font-semibold leading-tight text-shadow-lg md:text-5xl">{event.title}</h1>
             <p className="mt-2 inline-flex items-center gap-1.5 text-ink-foreground/85">
-              <MapPin className="size-4" aria-hidden />
-              {event.address
-                ? event.address
-                : `${event.venue !== event.city ? `${event.venue}, ` : ""}${event.city} · ${regionName(event.region)}`}
+              <MapPin className="size-4 shrink-0" aria-hidden />
+              {event.venue && event.venue !== event.city
+                ? event.venue
+                : event.address ?? `${event.city} · ${regionName(event.region)}`}
             </p>
           </div>
         </section>
@@ -107,10 +107,13 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                   <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">{formatDateRange(event.date, event.endDate)}</InfoRow>
                   {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
                   <InfoRow icon={<MapPin className="size-5" aria-hidden />} label="Lokacija">
-                    {event.address
-                      ? <><span className="block">{event.address}</span><span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></>
-                      : <>{event.venue !== event.city && <span className="block">{event.venue}</span>}<span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></>
-                    }
+                    {event.venue && event.venue !== event.city && (
+                      <span className="block font-medium">{event.venue}</span>
+                    )}
+                    {event.address && (
+                      <span className="block text-sm text-muted-foreground">{event.address}</span>
+                    )}
+                    <span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span>
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address ?? `${event.venue}, ${event.city}`)}`}
                       target="_blank"
