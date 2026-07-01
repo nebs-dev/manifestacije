@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Pencil } from "lucide-react"
+import { Pencil, Search } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -42,11 +43,20 @@ export function EventsTable({
   onDelete?: () => void
 }) {
   const [status, setStatus] = useState<string>("all")
+  const [search, setSearch] = useState("")
 
-  const filtered = useMemo(
-    () => (status === "all" ? events : events.filter((e) => e.status === status)),
-    [events, status]
-  )
+  const filtered = useMemo(() => {
+    let result = status === "all" ? events : events.filter((e) => e.status === status)
+    const q = search.trim().toLowerCase()
+    if (q) {
+      result = result.filter((e) =>
+        e.title.toLowerCase().includes(q) ||
+        (e.city ?? "").toLowerCase().includes(q) ||
+        (e.categories?.some((c) => c.name.toLowerCase().includes(q)) ?? false)
+      )
+    }
+    return result
+  }, [events, status, search])
 
   async function deleteEvent(id: string, title: string) {
     const res = await authedFetch(`/api/admin/events/${id}`, { method: "DELETE" })
@@ -60,8 +70,16 @@ export function EventsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Filtriraj:</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Pretraži naziv, grad, kategoriju…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-72 pl-8"
+          />
+        </div>
         <Select value={status} onValueChange={(v) => setStatus(v as string)}>
           <SelectTrigger className="w-44">
             <SelectValue />
