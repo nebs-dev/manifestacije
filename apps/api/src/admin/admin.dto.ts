@@ -24,6 +24,8 @@ export class ManualEmailDto {
   @IsOptional() @IsString() rawText?: string;
   @IsOptional() @IsString() sourceUrl?: string;
   @IsOptional() @IsBoolean() useLlm?: boolean;
+  @IsOptional() @IsString() screenshotBase64?: string;
+  @IsOptional() @IsString() screenshotMediaType?: string;
 }
 
 export class ParseUrlDto {

@@ -78,13 +78,32 @@ export function SiteFooter() {
                   Dodaj event
                 </Link>
               </li>
+              <li>
+                <Link href="/pravila-privatnosti" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Privatnost
+                </Link>
+              </li>
+              <li>
+                <Link href="/uvjeti-koristenja" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Uvjeti korištenja
+                </Link>
+              </li>
+              <li>
+                <Link href="/kolacici" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Kolačići
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-ink-muted sm:flex-row">
           <p>© {new Date().getFullYear()} Manifestacije · Otkrij Hrvatsku</p>
-          <p>Izrađeno s ljubavlju za lokalnu kulturu.</p>
+          <div className="flex gap-4">
+            <Link href="/pravila-privatnosti" className="hover:text-ink-foreground/80 transition-colors">Privatnost</Link>
+            <Link href="/uvjeti-koristenja" className="hover:text-ink-foreground/80 transition-colors">Uvjeti</Link>
+            <Link href="/kolacici" className="hover:text-ink-foreground/80 transition-colors">Kolačići</Link>
+          </div>
         </div>
       </div>
     </footer>

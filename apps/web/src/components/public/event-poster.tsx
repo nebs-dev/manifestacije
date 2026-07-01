@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { gradientFor, categoryName } from "@/lib/data"
+import { gradientFor, categoryName, categoryFallbackImage } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 interface EventPosterProps {
@@ -14,10 +14,6 @@ interface EventPosterProps {
   priority?: boolean
 }
 
-/**
- * Renders an event image, or a tasteful category gradient placeholder
- * (with the event title) when no image is available.
- */
 export function EventPoster({
   image,
   title,
@@ -26,28 +22,43 @@ export function EventPoster({
   className,
   sizes = "(max-width: 768px) 100vw, 33vw",
 }: EventPosterProps) {
-  const [failed, setFailed] = useState(false)
-  if (image && !failed) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const [fallbackFailed, setFallbackFailed] = useState(false)
+
+  const fallbackUrl = categoryFallbackImage(category, title)
+
+  if (image && !imageFailed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={image || "/placeholder.svg"}
+        src={image}
         alt={alt || title}
         sizes={sizes}
         className={cn("h-full w-full object-cover", className)}
         crossOrigin="anonymous"
         loading="lazy"
-        onError={() => setFailed(true)}
+        onError={() => setImageFailed(true)}
+      />
+    )
+  }
+
+  if (!fallbackFailed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={fallbackUrl}
+        alt={categoryName(category)}
+        sizes={sizes}
+        className={cn("h-full w-full object-cover", className)}
+        loading="lazy"
+        onError={() => setFallbackFailed(true)}
       />
     )
   }
 
   return (
     <div
-      className={cn(
-        "flex h-full w-full flex-col justify-end p-5",
-        className,
-      )}
+      className={cn("flex h-full w-full flex-col justify-end p-5", className)}
       style={{ backgroundImage: gradientFor(category) }}
       role="img"
       aria-label={title}

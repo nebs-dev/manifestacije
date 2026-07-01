@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const throttler_1 = require("@nestjs/throttler");
 const jwt_1 = require("@nestjs/jwt");
 const prisma_service_1 = require("./prisma/prisma.service");
 const auth_controller_1 = require("./auth/auth.controller");
@@ -49,6 +50,7 @@ exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            throttler_1.ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
             jwt_1.JwtModule.register({
                 global: true,
                 secret: jwtSecret,

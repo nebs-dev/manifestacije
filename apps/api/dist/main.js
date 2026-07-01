@@ -23,6 +23,7 @@ function corsOrigin(origin, callback) {
 }
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    app.use(require("express").json({ limit: "10mb" }));
     app.setGlobalPrefix("api");
     app.enableCors({ origin: corsOrigin, credentials: true });
     app.useGlobalPipes(new common_1.ValidationPipe({ whitelist: true, transform: true }));

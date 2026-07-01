@@ -33,7 +33,7 @@ let AdminController = class AdminController {
     createAdminEvent(dto) { return this.admin.createEvent(dto); }
     event(id) { return this.admin.event(Number(id)); }
     updateEvent(id, dto) { return this.admin.updateEvent(Number(id), dto); }
-    approve(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.PENDING_REVIEW); }
+    approve(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.PUBLISHED); }
     reject(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.REJECTED); }
     publish(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.PUBLISHED); }
     archive(id) { return this.admin.setEventStatus(Number(id), client_1.EventStatus.ARCHIVED); }

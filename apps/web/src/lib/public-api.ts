@@ -1,4 +1,4 @@
-import { events as fallbackEvents, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { cloudinaryImage, events as fallbackEvents, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000"
@@ -164,7 +164,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
     organizer: event.organizer?.name || "Organizator nije naveden",
     source: event.sourceUrl || "Manifestacije.hr",
     ticketUrl: event.ticketUrl || undefined,
-    image: event.imageUrl || imageFor(primarySlug, region),
+    image: cloudinaryImage(event.imageUrl, { w: 1200, h: 900 }) || undefined,
     imageAlt: event.imageAlt || event.title,
     imageCredit: event.imageCredit || undefined,
     imageSourceUrl: event.imageSourceUrl || undefined,
@@ -176,17 +176,3 @@ function toCroEvent(event: ApiEvent): CroEvent {
   }
 }
 
-function imageFor(categorySlug: string, region: RegionSlug) {
-  if (categorySlug === "glazba" || categorySlug === "nocni-zivot") return "/images/event-concert.png"
-  if (categorySlug === "hrana-i-vino") return "/images/event-food.png"
-  if (categorySlug === "djeca-i-obitelj") return "/images/event-family.png"
-  if (categorySlug === "na-otvorenom" || categorySlug === "outdoor" || categorySlug === "sport") return "/images/event-outdoor.png"
-  if (categorySlug === "izlozbe" || categorySlug === "kultura") return "/images/event-art.png"
-  if (categorySlug === "radionice" || categorySlug === "edukacija") return "/images/event-workshop.png"
-  if (categorySlug === "festivali") return "/images/hero-night.png"
-  if (region === "slavonija") return "/images/region-slavonija.png"
-  if (region === "dalmacija") return "/images/region-dalmacija.png"
-  if (region === "istra") return "/images/region-istra.png"
-  if (region === "zagreb") return "/images/region-zagreb.png"
-  return "/images/hero-night.png"
-}

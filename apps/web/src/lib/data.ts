@@ -191,7 +191,7 @@ export const regions: Region[] = [
     county: "Rijeka · Opatija · Krk",
     blurb:
       "Rivijera s dugom karnevalskom tradicijom, glazbenim večerima i šetnicama uz more.",
-    image: "/images/region-dalmacija.png",
+    image: "/images/region-kvarner.jpg",
   },
   {
     slug: "lika",
@@ -199,7 +199,7 @@ export const regions: Region[] = [
     county: "Gospić · Plitvice · Velebit",
     blurb:
       "Planine, jezera i čist zrak. Avanturistički i outdoor programi u srcu hrvatske divljine.",
-    image: "/images/event-outdoor.png",
+    image: "/images/region-lika.jpg",
   },
 ]
 
@@ -500,6 +500,21 @@ export function getRegion(slug: string) {
   return regions.find((r) => r.slug === slug)
 }
 
+/** Transform a Cloudinary URL to deliver an optimised, auto-cropped variant.
+ *  Non-Cloudinary URLs are returned unchanged. */
+export function cloudinaryImage(
+  url: string | undefined | null,
+  opts: { w: number; h: number } = { w: 800, h: 600 },
+): string | undefined {
+  if (!url) return undefined
+  if (!url.includes("res.cloudinary.com")) return url
+  // Insert transformation before the version segment (/v123456789/...)
+  return url.replace(
+    /\/upload\//,
+    `/upload/c_fill,g_auto,f_auto,q_auto,w_${opts.w},h_${opts.h}/`,
+  )
+}
+
 export function getEvent(slug: string) {
   return events.find((e) => e.slug === slug)
 }
@@ -516,6 +531,39 @@ export function gradientFor(slug: string): string {
   const cat = getCategory(slug as CategorySlug)
   if (!cat) return "linear-gradient(135deg, oklch(0.4 0.08 256), oklch(0.55 0.1 28))"
   return `linear-gradient(135deg, ${cat.gradient[0]}, ${cat.gradient[1]})`
+}
+
+const I = (name: string) => `/images/categories/${name}.jpg`
+
+const CATEGORY_FALLBACK_IMAGES: Record<string, string[]> = {
+  "glazba":              [I("glazba-1"), I("glazba-2"), I("glazba-3")],
+  "festivali":           [I("festivali-1"), I("festivali-2"), I("festivali-3")],
+  "izlozbe":             [I("izlozbe-1"), I("izlozbe-2")],
+  "radionice":           [I("radionice-1")],
+  "djeca-i-obitelj":    [I("djeca-i-obitelj-1"), I("djeca-i-obitelj-2")],
+  "hrana-i-vino":        [I("hrana-i-vino-1"), I("hrana-i-vino-2")],
+  "sajmovi":             [I("sajmovi-1"), I("sajmovi-2"), I("sajmovi-3")],
+  "sport":               [I("sport-1"), I("sport-2"), I("sport-3")],
+  "tradicija-i-folklor": [I("tradicija-i-folklor-1"), I("tradicija-i-folklor-2"), I("tradicija-i-folklor-3")],
+  "nocni-zivot":         [I("nocni-zivot-1")],
+  "edukacija":           [I("edukacija-1"), I("edukacija-2"), I("edukacija-3")],
+  "humanitarno":         [I("humanitarno-1"), I("humanitarno-2")],
+  "udruge":              [I("udruge-1"), I("udruge-2")],
+  "manifestacije":       [I("manifestacije-1"), I("manifestacije-2")],
+  "na-otvorenom":        [I("na-otvorenom-1"), I("na-otvorenom-2")],
+  "ostalo":              [I("ostalo-1"), I("ostalo-2")],
+}
+
+function stringHash(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i)
+  return Math.abs(h)
+}
+
+export function categoryFallbackImage(categorySlug: string, seed: string): string {
+  const images = CATEGORY_FALLBACK_IMAGES[categorySlug] ?? CATEGORY_FALLBACK_IMAGES["ostalo"] ?? []
+  if (!images.length) return ""
+  return images[stringHash(seed) % images.length]
 }
 
 /* ---------- queries ---------- */
@@ -686,7 +734,7 @@ export function buildMonthGrid(year: number, month: number) {
 
 export function formatDateRange(start: string, end?: string) {
   const s = dateParts(start)
-  if (!end) return `${s.weekday}, ${s.day}. ${s.monthLong} ${s.year}.`
+  if (!end || end === start) return `${s.weekday}, ${s.day}. ${s.monthLong} ${s.year}.`
   const e = dateParts(end)
   return `${s.day}. ${s.monthLong} – ${e.day}. ${e.monthLong} ${e.year}.`
 }

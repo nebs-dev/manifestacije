@@ -9,6 +9,18 @@ import { AdminTopbar } from "@/components/admin/admin-topbar"
 
 export type AdminUser = { id: number; email: string; name: string; role: string }
 
+const USER_CACHE_KEY = "adminUser"
+
+function getCachedUser(): AdminUser | null {
+  try { return JSON.parse(sessionStorage.getItem(USER_CACHE_KEY) || "null") }
+  catch { return null }
+}
+
+function setCachedUser(user: AdminUser | null) {
+  if (user) sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(user))
+  else sessionStorage.removeItem(USER_CACHE_KEY)
+}
+
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -23,31 +35,52 @@ export function AdminShell({ children }: { children: ReactNode }) {
       return
     }
 
+    // Show cached user immediately to avoid flash on hot reload / server restart
+    const cached = getCachedUser()
+    if (cached) {
+      setUser(cached)
+      setChecking(false)
+    }
+
     let alive = true
 
     async function checkAuth() {
       const token = getToken()
       if (!token) {
+        setCachedUser(null)
         router.replace("/admin/login")
         return
       }
       try {
         const res = await authedFetch("/api/auth/me")
-        if (!res.ok || !alive) {
+        if (!alive) return
+        if (res.status === 401 || res.status === 403) {
           clearToken()
+          setCachedUser(null)
           router.replace("/admin/login")
+          return
+        }
+        if (!res.ok) {
+          // Server error or restarting — keep cached user, don't logout
+          if (alive) setChecking(false)
           return
         }
         const data = (await res.json()) as AdminUser
         if (data.role !== "ADMIN") {
           clearToken()
+          setCachedUser(null)
           router.replace("/admin/login")
           return
         }
-        if (alive) setUser(data)
-      } catch {
         if (alive) {
+          setUser(data)
+          setCachedUser(data)
+        }
+      } catch {
+        // Network error (API server restarting) — keep cached user if we have one
+        if (alive && !cached) {
           clearToken()
+          setCachedUser(null)
           router.replace("/admin/login")
         }
       } finally {

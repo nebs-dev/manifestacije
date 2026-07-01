@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Baby, Building2, CalendarDays, Clock, ExternalLink, MapPin, Ticket, Trees } from "lucide-react";
+import { ArrowLeft, Baby, Building2, CalendarDays, Clock, ExternalLink, Map, MapPin, Ticket, Trees } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { EventPoster } from "@/components/public/event-poster";
@@ -79,9 +79,11 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
               <p className="text-pretty text-lg leading-relaxed text-foreground/90">{event.description}</p>
-              <div className="mt-6 space-y-4 text-pretty leading-relaxed text-muted-foreground">
-                {event.longDescription.split("\n\n").map((para, index) => <p key={index}>{para}</p>)}
-              </div>
+              {event.longDescription !== event.description && (
+                <div className="mt-6 space-y-4 text-pretty leading-relaxed text-muted-foreground">
+                  {event.longDescription.split("\n\n").map((para, index) => <p key={index}>{para}</p>)}
+                </div>
+              )}
 
               {(event.forKids || event.outdoor) && (
                 <div className="mt-8 flex flex-wrap gap-3">
@@ -90,9 +92,11 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                 </div>
               )}
 
-              <div className="mt-10 rounded-2xl border border-border bg-muted/50 p-5 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Izvor podataka:</span> {event.source}
-              </div>
+              {event.source && event.source !== "Manifestacije.hr" && (
+                <p className="mt-12 text-xs text-muted-foreground/60">
+                  Izvor: <a href={event.source} target="_blank" rel="noopener noreferrer" className="hover:underline">{event.source}</a>
+                </p>
+              )}
             </article>
 
             <aside>
@@ -105,18 +109,26 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                       ? <><span className="block">{event.address}</span><span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></>
                       : <>{event.venue !== event.city && <span className="block">{event.venue}</span>}<span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span></>
                     }
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address ?? `${event.venue}, ${event.city}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Map className="size-3" /> Otvori kartu
+                    </a>
                   </InfoRow>
                   <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">{event.organizer}</InfoRow>
-                  <InfoRow icon={<Ticket className="size-5" aria-hidden />} label="Ulaznica">{priceLabel(event)}</InfoRow>
+                  {!event.free && <InfoRow icon={<Ticket className="size-5" aria-hidden />} label="Ulaznica">{priceLabel(event)}</InfoRow>}
                 </dl>
                 <div className="mt-6 flex flex-col gap-3">
                   {event.ticketUrl ? (
                     <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
                       <Ticket className="size-4" aria-hidden /> {event.free ? "Rezerviraj mjesto" : "Kupi ulaznicu"} <ExternalLink className="size-3.5" aria-hidden />
                     </a>
-                  ) : (
+                  ) : event.free ? (
                     <span className="rounded-full bg-muted px-5 py-3 text-center text-sm font-medium text-muted-foreground">Ulaz slobodan</span>
-                  )}
+                  ) : null}
                   <ShareButton title={event.title} />
                 </div>
               </div>

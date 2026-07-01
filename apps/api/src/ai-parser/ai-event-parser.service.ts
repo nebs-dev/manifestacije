@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import Anthropic from "@anthropic-ai/sdk";
+import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
 export type ParsedEventCandidate = {
   title: string;
@@ -127,16 +128,19 @@ export class AiEventParserService {
     rawText?: string;
     rawHtml?: string;
     sourceUrl?: string;
+    screenshotBase64?: string;
+    screenshotMediaType?: string;
   }): Promise<ParsedSourceResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY nije postavljen u .env");
 
     const sourceUrl = input.sourceUrl ?? "";
 
-    if (this.isFacebookUrl(sourceUrl)) {
+    // Facebook URL without screenshot — return helpful warning
+    if (this.isFacebookUrl(sourceUrl) && !input.screenshotBase64) {
       const candidate = this.emptyCandidate(sourceUrl);
       candidate.warnings.push(
-        "Facebook blokira automatsko dohvaćanje. Kopiraj tekst događanja s Facebook stranice i zalijepi ga u 'Ručni unos' s uključenim AI parserom."
+        "Facebook blokira automatsko dohvaćanje. Kopiraj tekst događanja s Facebook stranice i zalijepi ga u 'Ručni unos' s uključenim AI parserom, ili uploadaj screenshot."
       );
       candidate.confidence = 0;
       return { sourceUrl, sourceType: "single", candidates: [{ ...candidate, _status: "pending" }] };
@@ -145,21 +149,33 @@ export class AiEventParserService {
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
     const raw = input.rawHtml ? this.htmlToText(input.rawHtml) : (input.rawText ?? "");
     const text = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
-
-    // Truncate to ~12k chars to stay well within token limits
     const truncated = text.length > 12000 ? text.slice(0, 12000) + "\n[sadržaj skraćen]" : text;
 
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1024,
-      system: `Ti si ekstraktor podataka o događanjima za hrvatsku platformu Manifestacije.hr.
-Iz teksta stranice izvuci podatke o događanju i vrati ISKLJUČIVO validan JSON objekt bez markdown formatiranja.
+    const systemPrompt = `Ti si ekstraktor podataka o događanjima za hrvatsku platformu Manifestacije.hr.
+Izvuci podatke o događanju i vrati ISKLJUČIVO validan JSON objekt bez markdown formatiranja.
 
 Kategorija mora biti TOČNO jedna od: glazba, festivali, izlozbe, radionice, djeca-i-obitelj, hrana-i-vino, sajmovi, sport, tradicija-i-folklor, manifestacije, nocni-zivot, edukacija, humanitarno, udruge, na-otvorenom, ostalo
 
+Mapiranje Facebook kategorija u naše:
+- "Music & audio", "Concerts & Live Music", "Music event" → glazba
+- "Nightlife" → nocni-zivot
+- "Festivals" → festivali
+- "Arts", "Visual Arts", "Film", "Exhibition" → izlozbe
+- "Workshops", "Classes" → radionice
+- "Food & Drink", "Food" → hrana-i-vino
+- "Sports & Fitness", "Sport" → sport
+- "Family", "Children" → djeca-i-obitelj
+- "Education", "Science" → edukacija
+- "Community", "Causes", "Fundraiser" → humanitarno
+- "Outdoor" → na-otvorenom
+
 Datumi u ISO 8601 formatu (pretpostavi vremensku zonu Europe/Zagreb, UTC+2).
 Ako nešto ne možeš pronaći, koristi prazan string ili null.
+
+OBAVEZNA polja (jedino ova idu u missingFields ako nedostaju): title, startsAt, city, category.
+OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, organizerName, imageAlt, imageCredit.
+Warnings koristi samo za stvarne probleme (npr. datum je u prošlosti).
+Ako vidiš sliku događaja na screenshotu ili poznaješ imageUrl — stavi ga, bez upozorenja o dostupnosti.
 
 Format odgovora:
 {
@@ -179,10 +195,32 @@ Format odgovora:
   "confidence": 0.85,
   "missingFields": ["polje1", "polje2"],
   "warnings": ["upozorenje1"]
-}`,
+}`;
+
+    const userContent: (ImageBlockParam | TextBlockParam)[] = [];
+    if (input.screenshotBase64) {
+      userContent.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: (input.screenshotMediaType ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: input.screenshotBase64,
+        },
+      });
+    }
+    const textPrompt = input.screenshotBase64
+      ? `Izvuci podatke o događanju s ovog screenshota.${sourceUrl ? ` URL: ${sourceUrl}` : ""}${truncated ? `\n\nDodatni tekst:\n${truncated}` : ""}`
+      : `URL stranice: ${sourceUrl}\n\nSadržaj stranice:\n${truncated}`;
+    userContent.push({ type: "text", text: textPrompt });
+
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      system: systemPrompt,
       messages: [{
         role: "user",
-        content: `URL stranice: ${sourceUrl}\n\nSadržaj stranice:\n${truncated}`,
+        content: userContent,
       }],
     });
 

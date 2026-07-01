@@ -82,7 +82,7 @@ let AdminService = class AdminService {
     }
     async createManualEmail(dto) {
         const result = dto.useLlm
-            ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl })
+            ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl, screenshotBase64: dto.screenshotBase64, screenshotMediaType: dto.screenshotMediaType })
             : await this.parser.parseBatch({ rawText: dto.rawText, sourceUrl: dto.sourceUrl });
         const { confidence, status } = this.sourceMetaFromResult(result);
         return this.prisma.eventSource.create({

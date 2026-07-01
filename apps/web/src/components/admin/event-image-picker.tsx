@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ImagePlus, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -31,6 +31,20 @@ export function EventImagePicker({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const imageItem = Array.from(e.clipboardData?.items ?? []).find((item) => item.type.startsWith("image/"))
+      if (!imageItem) return
+      const file = imageItem.getAsFile()
+      if (!file) return
+      e.preventDefault()
+      void upload(file)
+    }
+    document.addEventListener("paste", onPaste)
+    return () => document.removeEventListener("paste", onPaste)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploading])
 
   function patch(next: Partial<EventImageValue>) {
     onChange({ ...value, ...next })
@@ -111,7 +125,7 @@ export function EventImagePicker({
             </Button>
           )}
         </div>
-        <FieldDescription>JPEG, PNG ili WebP do 5MB.</FieldDescription>
+        <FieldDescription>JPEG, PNG ili WebP do 5MB. Preporučeno: horizontalno, min. 1200×900px (4:3). Možeš i zalijepiti sliku (⌘V).</FieldDescription>
       </Field>
 
       <Field>

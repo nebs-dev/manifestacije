@@ -1,4 +1,5 @@
 import { Controller, Get, Module } from "@nestjs/common";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "./prisma/prisma.service";
 import { AuthController } from "./auth/auth.controller";
@@ -29,6 +30,7 @@ class HealthController {
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
     JwtModule.register({
       global: true,
       secret: jwtSecret,
