@@ -132,12 +132,21 @@ export function ParsedCandidateCard({
   const isCreated = candidate._status === "created"
   const isIgnored = candidate._status === "ignored"
   const isPending = !isCreated && !isIgnored
-  const hasRequired = Boolean(
-    form.title.trim() &&
-      form.startsAt.trim() &&
-      form.city.trim() &&
-      selectedCategoryIds.length > 0
-  )
+
+  const liveMissingFields = [
+    !form.title.trim() && "title",
+    !form.startsAt.trim() && "startsAt",
+    !form.city.trim() && "city",
+    selectedCategoryIds.length === 0 && "category",
+  ].filter(Boolean) as string[]
+
+  const liveWarnings = candidate.warnings.filter((w) => {
+    if (selectedCategoryIds.length > 0 && /kategorij/i.test(w)) return false
+    if (form.city.trim() && /grad/i.test(w)) return false
+    return true
+  })
+
+  const hasRequired = liveMissingFields.length === 0
 
   function setField<K extends keyof CandidateForm>(key: K, value: CandidateForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -346,16 +355,16 @@ export function ParsedCandidateCard({
           )}
         </div>
 
-        {(candidate.missingFields.length > 0 || candidate.warnings.length > 0) && (
+        {(liveMissingFields.length > 0 || liveWarnings.length > 0) && (
           <>
             <Separator />
             <div className="flex flex-col gap-2">
-              {candidate.missingFields.length > 0 && (
+              {liveMissingFields.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-medium text-muted-foreground">
                     Nedostaje:
                   </span>
-                  {candidate.missingFields.map((f) => (
+                  {liveMissingFields.map((f) => (
                     <Badge
                       key={f}
                       variant="secondary"
@@ -366,7 +375,7 @@ export function ParsedCandidateCard({
                   ))}
                 </div>
               )}
-              {candidate.warnings.map((w) => (
+              {liveWarnings.map((w) => (
                 <div
                   key={w}
                   className="flex items-center gap-1.5 text-xs text-destructive"

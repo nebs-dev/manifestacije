@@ -93,8 +93,7 @@ export class AdminService {
         type: EventSourceType.EMAIL,
         sourceUrl: dto.sourceUrl,
         rawText: dto.rawText,
-        rawEmailSubject: dto.rawEmailSubject,
-        rawEmailFrom: dto.rawEmailFrom,
+        rawEmailSubject: dto.rawEmailSubject || dto.contextHint || undefined,
         parsedJson: result as object,
         confidence,
         status,
@@ -296,8 +295,48 @@ export class AdminService {
     return this.prisma.region.findMany({ include: { counties: { include: { cities: true } } }, orderBy: { sortOrder: "asc" } });
   }
 
+  createRegion(dto: import("./admin.dto").RegionDto) {
+    return this.prisma.region.create({ data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder ?? 0 } });
+  }
+
+  deleteRegion(id: number) {
+    return this.prisma.region.delete({ where: { id } });
+  }
+
+  createCounty(dto: import("./admin.dto").CountyDto) {
+    return this.prisma.county.create({ data: { name: dto.name, slug: dto.slug, regionId: dto.regionId } });
+  }
+
+  deleteCounty(id: number) {
+    return this.prisma.county.delete({ where: { id } });
+  }
+
+  createCity(dto: import("./admin.dto").CityDto) {
+    return this.prisma.city.create({ data: { name: dto.name, slug: dto.slug, countyId: dto.countyId, lat: dto.lat, lng: dto.lng } });
+  }
+
+  updateCity(id: number, dto: import("./admin.dto").CityDto) {
+    return this.prisma.city.update({ where: { id }, data: { name: dto.name, slug: dto.slug, lat: dto.lat, lng: dto.lng } });
+  }
+
+  deleteCity(id: number) {
+    return this.prisma.city.delete({ where: { id } });
+  }
+
   categories() {
     return this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+  }
+
+  createCategory(dto: import("./admin.dto").CategoryDto) {
+    return this.prisma.category.create({ data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder ?? 0 } });
+  }
+
+  updateCategory(id: number, dto: import("./admin.dto").CategoryDto) {
+    return this.prisma.category.update({ where: { id }, data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder } });
+  }
+
+  deleteCategory(id: number) {
+    return this.prisma.category.delete({ where: { id } });
   }
 
   private sourceMetaFromResult(result: ParsedSourceResult): { confidence: number; status: "PARSED" | "NEEDS_REVIEW" } {

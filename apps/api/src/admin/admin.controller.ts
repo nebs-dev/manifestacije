@@ -4,7 +4,7 @@ import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto } from "./admin.dto";
+import { AdminEventDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 
 @Controller("admin")
@@ -56,5 +56,18 @@ export class AdminController {
   @Post("duplicates/:id/dismiss") dismissDuplicate(@Param("id") id: string) { return this.admin.dismissDuplicate(Number(id)); }
 
   @Get("regions") regions() { return this.admin.regions(); }
+  @Post("regions") createRegion(@Body() dto: RegionDto) { return this.admin.createRegion(dto); }
+  @Delete("regions/:id") deleteRegion(@Param("id") id: string) { return this.admin.deleteRegion(Number(id)); }
+
+  @Post("counties") createCounty(@Body() dto: CountyDto) { return this.admin.createCounty(dto); }
+  @Delete("counties/:id") deleteCounty(@Param("id") id: string) { return this.admin.deleteCounty(Number(id)); }
+
+  @Post("cities") createCity(@Body() dto: CityDto) { return this.admin.createCity(dto); }
+  @Put("cities/:id") updateCity(@Param("id") id: string, @Body() dto: CityDto) { return this.admin.updateCity(Number(id), dto); }
+  @Delete("cities/:id") deleteCity(@Param("id") id: string) { return this.admin.deleteCity(Number(id)); }
+
   @Get("categories") categories() { return this.admin.categories(); }
+  @Post("categories") createCategory(@Body() dto: CategoryDto) { return this.admin.createCategory(dto); }
+  @Put("categories/:id") updateCategory(@Param("id") id: string, @Body() dto: CategoryDto) { return this.admin.updateCategory(Number(id), dto); }
+  @Delete("categories/:id") deleteCategory(@Param("id") id: string) { return this.admin.deleteCategory(Number(id)); }
 }

@@ -1,8 +1,8 @@
 "use client"
 
-import { useRef, useState, type FormEvent } from "react"
+import { useRef, useState, type DragEvent, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { ImagePlus, Link2, Plus, Sparkles, X } from "lucide-react"
+import { ImagePlus, Link2, Plus, Sparkles, X, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -28,109 +28,6 @@ function isFacebookUrl(url: string) {
   catch { return false }
 }
 
-export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) {
-  const router = useRouter()
-  const [sourceUrl, setSourceUrl] = useState("")
-  const [useLlm, setUseLlm] = useState(false)
-  const [loading, setLoading] = useState(false)
-
-  function handleUrlChange(val: string) {
-    setSourceUrl(val)
-    if (isFacebookUrl(val)) setUseLlm(true)
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!sourceUrl.trim()) {
-      toast.error("Unesite URL izvora.")
-      return
-    }
-    setLoading(true)
-    try {
-      const res = await authedFetch("/api/admin/event-sources/parse-url", {
-        method: "POST",
-        body: JSON.stringify({ sourceUrl, useLlm }),
-      })
-      if (!res.ok) {
-        toast.error("Parsiranje neuspješno", { description: await res.text() })
-        return
-      }
-      const data = await res.json()
-      toast.success("Parsiranje završeno", { description: sourceUrl })
-      setSourceUrl("")
-      setUseLlm(false)
-      if (onParsed) {
-        onParsed(data.id)
-      } else {
-        router.push(`/admin/sources/${data.id}`)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const facebook = isFacebookUrl(sourceUrl)
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Parsiraj URL</CardTitle>
-        <CardDescription>
-          Automatski izvuci događaje s web stranice.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit}>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="parse-url">URL izvora</FieldLabel>
-              <Input
-                id="parse-url"
-                type="url"
-                inputMode="url"
-                placeholder="https://primjer.hr/dogadanja"
-                value={sourceUrl}
-                onChange={(e) => handleUrlChange(e.target.value)}
-                disabled={loading}
-              />
-              <FieldDescription>
-                Zalijepite URL turističke zajednice, organizatora, portala ili
-                stranice događaja.
-              </FieldDescription>
-            </Field>
-
-            <Field orientation="horizontal" className="items-center gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
-                <input
-                  type="checkbox"
-                  checked={useLlm}
-                  onChange={(e) => setUseLlm(e.target.checked)}
-                  disabled={loading || facebook}
-                  className="accent-primary size-4 rounded"
-                />
-                <Sparkles className="size-3.5 text-primary/70" />
-                AI parser (Claude)
-              </label>
-              {facebook && (
-                <p className="text-xs text-amber-600">
-                  Facebook blokira automatsko dohvaćanje — kopiraj tekst događanja i zalijepi ga u Ručni unos ispod.
-                </p>
-              )}
-            </Field>
-
-            <Field orientation="horizontal" className="justify-end">
-              <Button type="submit" disabled={loading || facebook}>
-                <Link2 data-icon="inline-start" />
-                {loading ? "Parsiranje…" : "Parsiraj URL"}
-              </Button>
-            </Field>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
-  )
-}
-
 async function resizeToBase64(file: File, maxWidth = 1600): Promise<{ data: string; mediaType: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -150,16 +47,107 @@ async function resizeToBase64(file: File, maxWidth = 1600): Promise<{ data: stri
   })
 }
 
+export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) {
+  const router = useRouter()
+  const [sourceUrl, setSourceUrl] = useState("")
+  const [useLlm, setUseLlm] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  function handleUrlChange(val: string) {
+    setSourceUrl(val)
+    if (isFacebookUrl(val)) setUseLlm(true)
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!sourceUrl.trim()) { toast.error("Unesite URL izvora."); return }
+    setLoading(true)
+    try {
+      const res = await authedFetch("/api/admin/event-sources/parse-url", {
+        method: "POST",
+        body: JSON.stringify({ sourceUrl, useLlm }),
+      })
+      if (!res.ok) { toast.error("Parsiranje neuspješno", { description: await res.text() }); return }
+      const data = await res.json()
+      toast.success("Parsiranje završeno", { description: sourceUrl })
+      setSourceUrl("")
+      setUseLlm(false)
+      if (onParsed) onParsed(data.id)
+      else router.push(`/admin/sources/${data.id}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const facebook = isFacebookUrl(sourceUrl)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Parsiraj URL</CardTitle>
+        <CardDescription>Automatski izvuci događaje s web stranice.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="parse-url">URL izvora</FieldLabel>
+              <Input
+                id="parse-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://primjer.hr/dogadanja"
+                value={sourceUrl}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                disabled={loading}
+              />
+              <FieldDescription>
+                Zalijepite URL turističke zajednice, organizatora, portala ili stranice događaja.
+              </FieldDescription>
+            </Field>
+
+            <Field orientation="horizontal" className="items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
+                <input
+                  type="checkbox"
+                  checked={useLlm}
+                  onChange={(e) => setUseLlm(e.target.checked)}
+                  disabled={loading || facebook}
+                  className="accent-primary size-4 rounded"
+                />
+                <Sparkles className="size-3.5 text-primary/70" />
+                AI parser (Claude)
+              </label>
+              {facebook && (
+                <p className="text-xs text-amber-600">
+                  Facebook blokira automatsko dohvaćanje — kopiraj tekst i zalijepi ga desno.
+                </p>
+              )}
+            </Field>
+
+            <Field orientation="horizontal" className="justify-end">
+              <Button type="submit" disabled={loading || facebook}>
+                <Link2 data-icon="inline-start" />
+                {loading ? "Parsiranje…" : "Parsiraj URL"}
+              </Button>
+            </Field>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
-  const [form, setForm] = useState({ subject: "", from: "", sourceUrl: "", rawText: "", contextHint: "" })
+  const [label, setLabel] = useState("")
+  const [from, setFrom] = useState("")
+  const [sourceUrl, setSourceUrl] = useState("")
+  const [rawText, setRawText] = useState("")
   const [useLlm, setUseLlm] = useState(false)
   const [screenshot, setScreenshot] = useState<{ data: string; mediaType: string; name: string } | null>(null)
+  const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  function update(key: keyof typeof form, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
 
   async function handleScreenshot(file: File) {
     const resized = await resizeToBase64(file)
@@ -176,10 +164,22 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
     void handleScreenshot(file)
   }
 
+  function handleDrop(e: DragEvent) {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file?.type.startsWith("image/")) void handleScreenshot(file)
+  }
+
+  function removeScreenshot() {
+    setScreenshot(null)
+    if (fileRef.current) fileRef.current.value = ""
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!form.rawText.trim() && !screenshot) {
-      toast.error("Potreban je tekst ili screenshot događanja.")
+    if (!rawText.trim() && !screenshot) {
+      toast.error("Potreban je screenshot ili tekst događanja.")
       return
     }
     setLoading(true)
@@ -187,22 +187,22 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
       const res = await authedFetch("/api/admin/event-sources/manual-email", {
         method: "POST",
         body: JSON.stringify({
-          rawEmailSubject: form.subject || undefined,
-          rawEmailFrom: form.from || undefined,
-          sourceUrl: form.sourceUrl || undefined,
-          rawText: form.rawText || undefined,
+          rawEmailSubject: label || undefined,
+          rawEmailFrom: from || undefined,
+          sourceUrl: sourceUrl || undefined,
+          rawText: rawText || undefined,
           screenshotBase64: screenshot?.data,
           screenshotMediaType: screenshot?.mediaType,
-          contextHint: form.contextHint || undefined,
+          contextHint: label || undefined,
           useLlm,
         }),
       })
-      if (!res.ok) {
-        toast.error("Kreiranje neuspješno", { description: await res.text() })
-        return
-      }
-      toast.success("Izvor kreiran", { description: form.subject || "Ručni unos" })
-      setForm({ subject: "", from: "", sourceUrl: "", rawText: "", contextHint: "" })
+      if (!res.ok) { toast.error("Kreiranje neuspješno", { description: await res.text() }); return }
+      toast.success("Izvor kreiran")
+      setLabel("")
+      setFrom("")
+      setSourceUrl("")
+      setRawText("")
       setUseLlm(false)
       setScreenshot(null)
       onCreated?.()
@@ -214,75 +214,16 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ručni unos</CardTitle>
+        <CardTitle>Screenshot ili tekst</CardTitle>
         <CardDescription>
-          Zalijepite tekst događanja za parsiranje. Koristite AI parser za Facebook eventi i ostale kompleksne formate.
+          Uploadaj program, flyer ili poster — AI će izvući sve događaje. Radi i za Facebook, e-mail i nestrukturirani tekst.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} onPaste={handlePaste}>
           <FieldGroup>
-            <Field orientation="responsive">
-              <Field>
-                <FieldLabel htmlFor="ms-subject">Predmet</FieldLabel>
-                <Input
-                  id="ms-subject"
-                  placeholder="npr. Ljetni program – TZ Rovinj"
-                  value={form.subject}
-                  onChange={(e) => update("subject", e.target.value)}
-                  disabled={loading}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="ms-from">Pošiljatelj</FieldLabel>
-                <Input
-                  id="ms-from"
-                  placeholder="ime@organizator.hr"
-                  value={form.from}
-                  onChange={(e) => update("from", e.target.value)}
-                  disabled={loading}
-                />
-              </Field>
-            </Field>
+            {/* Screenshot — primary */}
             <Field>
-              <FieldLabel htmlFor="ms-url">URL izvora</FieldLabel>
-              <Input
-                id="ms-url"
-                type="url"
-                placeholder="https://primjer.hr/dogadanja (opcionalno)"
-                value={form.sourceUrl}
-                onChange={(e) => update("sourceUrl", e.target.value)}
-                disabled={loading}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="ms-hint">Kontekst (opcionalno)</FieldLabel>
-              <Input
-                id="ms-hint"
-                placeholder="npr. Osijek, OLJK 2026 — sve lokacije su u Osijeku"
-                value={form.contextHint}
-                onChange={(e) => update("contextHint", e.target.value)}
-                disabled={loading}
-              />
-              <FieldDescription>
-                Pomozi AI parseru: grad, festival, organizator, godina. Korisno za screenshotove programa bez eksplicitnog grada.
-              </FieldDescription>
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="ms-raw">Tekst događanja</FieldLabel>
-              <Textarea
-                id="ms-raw"
-                rows={6}
-                placeholder="Zalijepite tekst Facebook eventi, e-maila, opisa događaja…"
-                value={form.rawText}
-                onChange={(e) => update("rawText", e.target.value)}
-                disabled={loading}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Screenshot (umjesto teksta)</FieldLabel>
               <input
                 ref={fileRef}
                 type="file"
@@ -291,10 +232,15 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleScreenshot(f) }}
               />
               {screenshot ? (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
-                  <ImagePlus className="size-4 shrink-0 text-primary" />
-                  <span className="flex-1 truncate">{screenshot.name}</span>
-                  <button type="button" onClick={() => setScreenshot(null)} className="text-muted-foreground hover:text-foreground">
+                <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
+                  <ImagePlus className="size-5 shrink-0 text-primary" />
+                  <span className="flex-1 truncate text-sm font-medium">{screenshot.name}</span>
+                  <button
+                    type="button"
+                    onClick={removeScreenshot}
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label="Ukloni screenshot"
+                  >
                     <X className="size-4" />
                   </button>
                 </div>
@@ -302,14 +248,80 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
                   disabled={loading}
-                  className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground hover:bg-muted/60 disabled:opacity-50"
+                  className={[
+                    "flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-sm transition-colors disabled:opacity-50",
+                    dragging
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border bg-muted/20 text-muted-foreground hover:border-primary/40 hover:bg-muted/40",
+                  ].join(" ")}
                 >
-                  <ImagePlus className="size-4" />
-                  Učitaj screenshot ili zalijepi (⌘V)
+                  <Upload className="size-6 opacity-60" />
+                  <span className="font-medium">Povuci screenshot ovdje ili klikni za odabir</span>
+                  <span className="text-xs opacity-70">Ili zalijepi iz međuspremnika (⌘V)</span>
                 </button>
               )}
             </Field>
+
+            {/* URL — optional */}
+            <Field>
+              <FieldLabel htmlFor="ms-url">URL izvora <span className="font-normal text-muted-foreground">(opcionalno)</span></FieldLabel>
+              <Input
+                id="ms-url"
+                type="url"
+                placeholder="https://primjer.hr/dogadanja"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                disabled={loading}
+              />
+            </Field>
+
+            {/* Text — secondary */}
+            <Field>
+              <FieldLabel htmlFor="ms-raw">
+                Tekst <span className="font-normal text-muted-foreground">(opcionalno, umjesto ili uz screenshot)</span>
+              </FieldLabel>
+              <Textarea
+                id="ms-raw"
+                rows={4}
+                placeholder="Zalijepite tekst Facebook eventi, e-maila, programa…"
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                disabled={loading}
+              />
+            </Field>
+
+            {/* Email metadata — secondary */}
+            <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs font-medium text-muted-foreground">Email metadata (opcionalno)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel htmlFor="ms-subject" className="text-xs">Predmet</FieldLabel>
+                  <Input
+                    id="ms-subject"
+                    placeholder="npr. Ljetni program – TZ Rovinj"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    disabled={loading}
+                    className="h-8 text-sm"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="ms-from" className="text-xs">Pošiljatelj</FieldLabel>
+                  <Input
+                    id="ms-from"
+                    placeholder="ime@organizator.hr"
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    disabled={loading}
+                    className="h-8 text-sm"
+                  />
+                </Field>
+              </div>
+            </div>
 
             <Field orientation="horizontal" className="items-center justify-between">
               <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
@@ -321,7 +333,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
                   className="accent-primary size-4 rounded"
                 />
                 <Sparkles className="size-3.5 text-primary/70" />
-                AI parser (Claude) — preporučeno za Facebook i nestrukturirani tekst
+                AI parser (Claude)
               </label>
               <Button type="submit" disabled={loading}>
                 <Plus data-icon="inline-start" />

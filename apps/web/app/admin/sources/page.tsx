@@ -51,7 +51,7 @@ export default function SourcesPage() {
         ) : error ? (
           <ErrorState description={error} onRetry={load} />
         ) : (
-          <SourceTable sources={sources} onReparse={load} />
+          <SourceTable sources={sources} onReparse={load} onDelete={load} />
         )}
       </section>
     </>

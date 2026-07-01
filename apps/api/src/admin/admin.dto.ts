@@ -78,3 +78,29 @@ export class IgnoreCandidateDto {
   @Min(0)
   candidateIndex!: number;
 }
+
+export class CategoryDto {
+  @IsString() name!: string;
+  @IsString() slug!: string;
+  @IsOptional() @IsInt() @Min(0) sortOrder?: number;
+}
+
+export class CityDto {
+  @IsString() name!: string;
+  @IsString() slug!: string;
+  @IsInt() countyId!: number;
+  @IsOptional() @IsNumber() lat?: number;
+  @IsOptional() @IsNumber() lng?: number;
+}
+
+export class CountyDto {
+  @IsString() name!: string;
+  @IsString() slug!: string;
+  @IsInt() regionId!: number;
+}
+
+export class RegionDto {
+  @IsString() name!: string;
+  @IsString() slug!: string;
+  @IsOptional() @IsInt() @Min(0) sortOrder?: number;
+}
