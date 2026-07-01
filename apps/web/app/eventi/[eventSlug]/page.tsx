@@ -78,7 +78,9 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
           )}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
-              <p className="text-pretty text-lg leading-relaxed text-foreground/90">{event.description}</p>
+              <div className="space-y-4 text-pretty text-lg leading-relaxed text-foreground/90">
+                {event.description.split("\n\n").map((para, index) => <p key={index}>{para}</p>)}
+              </div>
               {event.longDescription !== event.description && (
                 <div className="mt-6 space-y-4 text-pretty leading-relaxed text-muted-foreground">
                   {event.longDescription.split("\n\n").map((para, index) => <p key={index}>{para}</p>)}

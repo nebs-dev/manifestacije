@@ -149,36 +149,11 @@ export class AiEventParserService {
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
     const raw = input.rawHtml ? this.htmlToText(input.rawHtml) : (input.rawText ?? "");
     const text = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
-    const truncated = text.length > 12000 ? text.slice(0, 12000) + "\n[sadržaj skraćen]" : text;
+    const isScreenshot = Boolean(input.screenshotBase64);
+    const charLimit = isScreenshot ? 12000 : 24000;
+    const truncated = text.length > charLimit ? text.slice(0, charLimit) + "\n[sadržaj skraćen]" : text;
 
-    const systemPrompt = `Ti si ekstraktor podataka o događanjima za hrvatsku platformu Manifestacije.hr.
-Izvuci podatke o događanju i vrati ISKLJUČIVO validan JSON objekt bez markdown formatiranja.
-
-Kategorija mora biti TOČNO jedna od: glazba, festivali, izlozbe, radionice, djeca-i-obitelj, hrana-i-vino, sajmovi, sport, tradicija-i-folklor, manifestacije, nocni-zivot, edukacija, humanitarno, udruge, na-otvorenom, ostalo
-
-Mapiranje Facebook kategorija u naše:
-- "Music & audio", "Concerts & Live Music", "Music event" → glazba
-- "Nightlife" → nocni-zivot
-- "Festivals" → festivali
-- "Arts", "Visual Arts", "Film", "Exhibition" → izlozbe
-- "Workshops", "Classes" → radionice
-- "Food & Drink", "Food" → hrana-i-vino
-- "Sports & Fitness", "Sport" → sport
-- "Family", "Children" → djeca-i-obitelj
-- "Education", "Science" → edukacija
-- "Community", "Causes", "Fundraiser" → humanitarno
-- "Outdoor" → na-otvorenom
-
-Datumi u ISO 8601 formatu (pretpostavi vremensku zonu Europe/Zagreb, UTC+2).
-Ako nešto ne možeš pronaći, koristi prazan string ili null.
-
-OBAVEZNA polja (jedino ova idu u missingFields ako nedostaju): title, startsAt, city, category.
-OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, organizerName, imageAlt, imageCredit.
-Warnings koristi samo za stvarne probleme (npr. datum je u prošlosti).
-Ako vidiš sliku događaja na screenshotu ili poznaješ imageUrl — stavi ga, bez upozorenja o dostupnosti.
-
-Format odgovora:
-{
+    const eventSchema = `{
   "title": "string",
   "description": "string",
   "startsAt": "2026-07-15T20:00:00+02:00",
@@ -193,9 +168,45 @@ Format odgovora:
   "organizerName": "string ili ''",
   "imageUrl": "string ili ''",
   "confidence": 0.85,
-  "missingFields": ["polje1", "polje2"],
-  "warnings": ["upozorenje1"]
+  "missingFields": ["title","startsAt","city","category — samo ova 4 ako nedostaju"],
+  "warnings": ["samo stvarni problemi"]
 }`;
+
+    const systemPrompt = `Ti si ekstraktor podataka o događanjima za hrvatsku platformu Manifestacije.hr.
+Vrati ISKLJUČIVO validan JSON bez markdown formatiranja.
+
+Kategorija mora biti TOČNO jedna od: glazba, festivali, izlozbe, radionice, djeca-i-obitelj, hrana-i-vino, sajmovi, sport, tradicija-i-folklor, manifestacije, nocni-zivot, edukacija, humanitarno, udruge, na-otvorenom, ostalo
+
+Mapiranje Facebook kategorija u naše:
+- "Music & audio", "Concerts & Live Music" → glazba
+- "Nightlife" → nocni-zivot
+- "Festivals" → festivali
+- "Arts", "Visual Arts", "Film", "Exhibition" → izlozbe
+- "Workshops", "Classes" → radionice
+- "Food & Drink", "Food" → hrana-i-vino
+- "Sports & Fitness" → sport
+- "Family", "Children" → djeca-i-obitelj
+- "Education", "Science" → edukacija
+- "Community", "Causes", "Fundraiser" → humanitarno
+- "Outdoor" → na-otvorenom
+
+Datumi u ISO 8601 formatu (vremenska zona Europe/Zagreb, UTC+2).
+Ako nešto ne možeš pronaći, koristi prazan string ili null.
+OBAVEZNA polja (jedino ova idu u missingFields): title, startsAt, city, category.
+OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, organizerName.
+Warnings koristi samo za stvarne probleme (datum u prošlosti, nevažeći URL i sl.).
+
+AKO SADRŽAJ SADRŽI JEDAN DOGAĐAJ — vrati jedan JSON objekt:
+${eventSchema}
+
+AKO SADRŽAJ SADRŽI LISTING VIŠE DOGAĐAJA — vrati JSON s poljem "candidates":
+{
+  "candidates": [
+    ${eventSchema},
+    ${eventSchema}
+  ]
+}
+Iz listinga izvuci SVE događaje koje možeš identificirati (do 20). Ne preskači događaje zbog nedostatka opisa — kratki unosi su OK.`;
 
     const userContent: (ImageBlockParam | TextBlockParam)[] = [];
     if (input.screenshotBase64) {
@@ -216,7 +227,7 @@ Format odgovora:
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 1024,
+      max_tokens: isScreenshot ? 1024 : 4096,
       system: systemPrompt,
       messages: [{
         role: "user",
@@ -227,43 +238,52 @@ Format odgovora:
     const content = response.content[0];
     if (content.type !== "text") throw new Error("Neočekivani odgovor od Claude API-ja");
 
-    let parsed: Partial<ParsedEventCandidate>;
+    let rawParsed: unknown;
     try {
       const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-      parsed = JSON.parse(jsonText);
+      rawParsed = JSON.parse(jsonText);
     } catch {
       throw new Error(`Claude nije vratio validan JSON: ${content.text.slice(0, 200)}`);
     }
 
-    const candidate: ParsedEventCandidate = {
-      title: parsed.title ?? "",
-      description: parsed.description ?? "",
-      startsAt: parsed.startsAt ?? "",
-      endsAt: parsed.endsAt ?? "",
-      venueName: parsed.venueName ?? "",
-      address: parsed.address ?? "",
-      city: parsed.city ?? "",
-      county: parsed.county ?? "",
-      region: parsed.region ?? "",
-      category: parsed.category ?? "ostalo",
-      isFree: parsed.isFree ?? null,
-      priceText: parsed.priceText ?? "",
-      ticketUrl: parsed.ticketUrl ?? "",
+    const normalize = (p: Partial<ParsedEventCandidate>): ParsedEventCandidate => ({
+      title: p.title ?? "",
+      description: p.description ?? "",
+      startsAt: p.startsAt ?? "",
+      endsAt: p.endsAt ?? "",
+      venueName: p.venueName ?? "",
+      address: p.address ?? "",
+      city: p.city ?? "",
+      county: p.county ?? "",
+      region: p.region ?? "",
+      category: p.category ?? "ostalo",
+      isFree: p.isFree ?? null,
+      priceText: p.priceText ?? "",
+      ticketUrl: p.ticketUrl ?? "",
       sourceUrl,
-      organizerName: parsed.organizerName ?? "",
-      imageUrl: parsed.imageUrl ?? htmlImageUrl,
-      imageAlt: parsed.imageAlt,
-      imageCredit: parsed.imageCredit,
-      imageSourceUrl: parsed.imageSourceUrl,
-      confidence: parsed.confidence ?? 0.7,
-      missingFields: parsed.missingFields ?? [],
-      warnings: parsed.warnings ?? [],
-    };
+      organizerName: p.organizerName ?? "",
+      imageUrl: p.imageUrl || htmlImageUrl,
+      imageAlt: p.imageAlt,
+      imageCredit: p.imageCredit,
+      imageSourceUrl: p.imageSourceUrl,
+      confidence: p.confidence ?? 0.7,
+      missingFields: p.missingFields ?? [],
+      warnings: p.warnings ?? [],
+    });
+
+    const asBatch = rawParsed && typeof rawParsed === "object" && "candidates" in (rawParsed as object)
+      && Array.isArray((rawParsed as { candidates: unknown }).candidates);
+
+    if (asBatch) {
+      const { candidates: raw } = rawParsed as { candidates: Partial<ParsedEventCandidate>[] };
+      const candidates = raw.map((c) => ({ ...normalize(c), _status: "pending" as const }));
+      return { sourceUrl, sourceType: "batch", candidates };
+    }
 
     return {
       sourceUrl,
       sourceType: "single",
-      candidates: [{ ...candidate, _status: "pending" }],
+      candidates: [{ ...normalize(rawParsed as Partial<ParsedEventCandidate>), _status: "pending" }],
     };
   }
 
