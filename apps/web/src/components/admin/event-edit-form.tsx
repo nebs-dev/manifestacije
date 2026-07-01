@@ -321,7 +321,7 @@ export function EventEditForm({
                 </Field>
                 <Field>
                   <FieldLabel>Naziv mjesta / dvorane</FieldLabel>
-                  <FieldDescription>Kratki naziv lokacije (npr. "Galerija Waldinger", "HNK Osijek").</FieldDescription>
+                  <FieldDescription>Kratki naziv lokacije (npr. &ldquo;Galerija Waldinger&rdquo;, &ldquo;HNK Osijek&rdquo;).</FieldDescription>
                   <Input
                     value={form.venueName}
                     onChange={(e) => update("venueName", e.target.value)}

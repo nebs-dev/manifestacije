@@ -39,6 +39,7 @@ export function useOrganizerAuth(options?: { require?: boolean }) {
         if (require) router.replace("/organizer/login")
       })
       .finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function logout() {
