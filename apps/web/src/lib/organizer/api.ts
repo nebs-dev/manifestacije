@@ -1,7 +1,8 @@
 import { API_URL } from "@/lib/api"
+import { ORG_TOKEN_KEY } from "@/lib/organizer/auth"
 
 export function orgFetch(path: string, init?: RequestInit): Promise<Response> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("orgToken") : null
+  const token = typeof window !== "undefined" ? localStorage.getItem(ORG_TOKEN_KEY) : null
   return fetch(`${API_URL}${path}`, {
     ...init,
     headers: {

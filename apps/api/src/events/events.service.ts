@@ -10,10 +10,10 @@ export class EventsService {
   constructor(private readonly prisma: PrismaService, private readonly duplicates: DuplicatesService) {}
 
   async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind }) {
-    const city = await this.prisma.city.findUnique({ where: { id: dto.cityId }, include: { county: true } });
-    if (!city) throw new BadRequestException("Unknown cityId");
-    const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
-    if (!category) throw new BadRequestException("Unknown categoryId");
+    const title = dto.title?.trim() || "Novi događaj";
+    const description = dto.description?.trim() || title;
+    const city = await this.resolveCity(dto);
+    const category = await this.resolveCategory(dto.categoryId ?? undefined);
     let venueId: number | undefined;
     if (dto.venueName) {
       const venueSlug = slugify(dto.venueName);
@@ -24,12 +24,12 @@ export class EventsService {
       });
       venueId = venue.id;
     }
-    const slug = await uniqueSlug(dto.title, async (s) => !!(await this.prisma.event.findUnique({ where: { slug: s } })));
+    const slug = await uniqueSlug(title, async (s) => !!(await this.prisma.event.findUnique({ where: { slug: s } })));
     const event = await this.prisma.event.create({
       data: {
-        title: dto.title,
+        title,
         slug,
-        description: dto.description,
+        description,
         shortDescription: dto.shortDescription,
         status: opts.status || EventStatus.PENDING_REVIEW,
         organizerId: opts.organizerId || undefined,
@@ -38,7 +38,7 @@ export class EventsService {
         countyId: city.countyId,
         regionId: city.county.regionId,
         categoryId: category.id,
-        startsAt: new Date(dto.startsAt),
+        startsAt: dto.startsAt ? new Date(dto.startsAt) : new Date(),
         endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
         isAllDay: dto.isAllDay || false,
         isFree: dto.isFree,
@@ -76,7 +76,7 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id } });
     if (!current) throw new NotFoundException("Event not found");
-    const city = dto.cityId ? await this.prisma.city.findUnique({ where: { id: dto.cityId }, include: { county: true } }) : null;
+    const city = dto.cityId || dto.cityName ? await this.resolveCity(dto) : null;
     const data: Record<string, unknown> = {
       title: dto.title,
       description: dto.description,
@@ -147,5 +147,45 @@ export class EventsService {
 
     await this.duplicates.detectForEvent(id);
     return event;
+  }
+
+  private async resolveCity(dto: Pick<EventUpsertDto, "cityId" | "cityName">) {
+    if (dto.cityId) {
+      const city = await this.prisma.city.findUnique({ where: { id: dto.cityId }, include: { county: true } });
+      if (!city) throw new BadRequestException("Unknown cityId");
+      return city;
+    }
+    const name = dto.cityName?.trim() || "Nepoznato";
+    const existing = await this.prisma.city.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, include: { county: true } });
+    if (existing) return existing;
+    const county = await this.ensureFallbackCounty();
+    const slug = await uniqueSlug(name, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
+    return this.prisma.city.create({ data: { name, slug, countyId: county.id }, include: { county: true } });
+  }
+
+  private async resolveCategory(categoryId?: number) {
+    if (categoryId) {
+      const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+      if (!category) throw new BadRequestException("Unknown categoryId");
+      return category;
+    }
+    return this.prisma.category.upsert({
+      where: { slug: "ostalo" },
+      update: {},
+      create: { name: "Ostalo", slug: "ostalo", sortOrder: 999 },
+    });
+  }
+
+  private async ensureFallbackCounty() {
+    const region = await this.prisma.region.upsert({
+      where: { slug: "hrvatska" },
+      update: {},
+      create: { name: "Hrvatska", slug: "hrvatska", sortOrder: 999 },
+    });
+    return this.prisma.county.upsert({
+      where: { slug: "nepoznata-zupanija" },
+      update: {},
+      create: { name: "Nepoznata županija", slug: "nepoznata-zupanija", regionId: region.id },
+    });
   }
 }

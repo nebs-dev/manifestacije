@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { EventStatus } from "@prisma/client";
 import { EventUpsertDto } from "../events/event.dto";
@@ -49,6 +49,7 @@ export class CandidateOverrideDto {
   @IsOptional() @IsNumber() lat?: number;
   @IsOptional() @IsNumber() lng?: number;
   @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsArray() @IsInt({ each: true }) @Type(() => Number) categoryIds?: number[];
   @IsOptional() @IsBoolean() isFree?: boolean;
   @IsOptional() @IsString() priceText?: string;
   @IsOptional() @IsString() ticketUrl?: string;
@@ -81,6 +82,10 @@ export class IgnoreCandidateDto {
   @IsInt()
   @Min(0)
   candidateIndex!: number;
+}
+
+export class UpdateEventSourceDto {
+  @IsOptional() @IsString() sourceUrl?: string | null;
 }
 
 export class CategoryDto {

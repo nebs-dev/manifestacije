@@ -53,7 +53,7 @@ export type PublicFilters = {
   free?: boolean
   kids?: boolean
   outdoor?: boolean
-  when?: "danas" | "ovaj-vikend" | "ovaj-miesec"
+  when?: "danas" | "ovaj-vikend" | "ovaj-mjesec"
 }
 
 const regionMap: Record<string, RegionSlug> = {
@@ -99,6 +99,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   if (filters.free) params.set("free", "true")
   if (filters.when === "danas") params.set("today", "true")
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
+  if (filters.when === "ovaj-mjesec") params.set("month", "true")
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
   return fetchApi<ApiEvent[]>(path).then((rows) => rows.map(toCroEvent)).catch(() => fallbackEvents)
 }
@@ -175,4 +176,3 @@ function toCroEvent(event: ApiEvent): CroEvent {
     map: { x: 50, y: 50 },
   }
 }
-

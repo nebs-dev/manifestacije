@@ -4,7 +4,7 @@ import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto } from "./admin.dto";
+import { AdminEventDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 
 @Controller("admin")
@@ -22,6 +22,7 @@ export class AdminController {
   @Post("events/:id/reject") reject(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.REJECTED); }
   @Post("events/:id/publish") publish(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
   @Post("events/:id/archive") archive(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.ARCHIVED); }
+  @Post("events/:id/duplicate") duplicateEvent(@Param("id") id: string) { return this.admin.duplicateEvent(Number(id)); }
   @Delete("events/:id") deleteEvent(@Param("id") id: string) { return this.admin.deleteEvent(Number(id)); }
 
   @Get("organizers") organizers() { return this.admin.organizers(); }
@@ -42,6 +43,7 @@ export class AdminController {
   @Post("event-sources/manual-email") manualEmail(@Body() dto: ManualEmailDto) { return this.admin.createManualEmail(dto); }
   @Post("event-sources/parse-url") parseUrl(@Body() dto: ParseUrlDto) { return this.admin.parseUrl(dto); }
   @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }
+  @Put("event-sources/:id") updateEventSource(@Param("id") id: string, @Body() dto: UpdateEventSourceDto) { return this.admin.updateEventSource(Number(id), dto); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
   @Post("event-sources/:id/create-event") createEvent(@Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
     return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false);

@@ -1,4 +1,4 @@
-import { UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { UserRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -23,10 +23,11 @@ describe("AuthService", () => {
     const jwt = { sign: jest.fn().mockReturnValue("signed-token") };
     const service = new AuthService(prisma as never, jwt as never);
 
-    const session = await service.login({ email: "admin@example.hr", password: "secret123" });
+    const session = await service.login({ email: " Admin@Example.hr ", password: "secret123" });
 
     expect(session.token).toBe("signed-token");
     expect(session.user).toEqual(expect.objectContaining({ id: 1, role: UserRole.ADMIN }));
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: "admin@example.hr" } });
     expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ id: 1, email: "admin@example.hr", role: UserRole.ADMIN }));
   });
 
@@ -38,6 +39,26 @@ describe("AuthService", () => {
     const service = new AuthService(prisma as never, { sign: jest.fn() } as never);
 
     await expect(service.login({ email: "admin@example.hr", password: "wrong" })).rejects.toThrow(UnauthorizedException);
+  });
+
+  it("rejects organizer registration with an admin email", async () => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 1,
+          email: "info@manifestacije.hr",
+          role: UserRole.ADMIN,
+        }),
+      },
+    };
+    const service = new AuthService(prisma as never, { sign: jest.fn() } as never);
+
+    await expect(service.register({
+      name: "Test User",
+      organizerName: "Test Organizer",
+      email: " info@manifestacije.hr ",
+      password: "secret123",
+    })).rejects.toThrow(BadRequestException);
   });
 });
 

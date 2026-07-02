@@ -8,9 +8,10 @@ export function ShareButton({ title }: { title: string }) {
 
   const onShare = async () => {
     const url = typeof window !== "undefined" ? window.location.href : ""
+    const text = [title, url].filter(Boolean).join("\n")
     if (navigator.share) {
       try {
-        await navigator.share({ title, url })
+        await navigator.share({ title, text, url })
         return
       } catch {
         /* user cancelled */

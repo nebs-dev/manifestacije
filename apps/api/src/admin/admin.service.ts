@@ -5,7 +5,7 @@ import { slugify, uniqueSlug } from "../common/slug";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
-import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto } from "./admin.dto";
+import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, UpdateEventSourceDto } from "./admin.dto";
 
 @Injectable()
 export class AdminService {
@@ -38,6 +38,62 @@ export class AdminService {
 
   setEventStatus(id: number, status: EventStatus) {
     return this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
+  }
+
+  async duplicateEvent(id: number) {
+    const current = await this.prisma.event.findUnique({
+      where: { id },
+      include: { categories: true },
+    });
+    if (!current) throw new NotFoundException("Event not found");
+
+    const title = `${current.title} (kopija)`;
+    const slug = await uniqueSlug(title, async (s) => !!(await this.prisma.event.findUnique({ where: { slug: s } })));
+    const duplicated = await this.prisma.event.create({
+      data: {
+        title,
+        slug,
+        description: current.description,
+        shortDescription: current.shortDescription,
+        status: EventStatus.DRAFT,
+        organizerId: current.organizerId,
+        venueId: current.venueId,
+        cityId: current.cityId,
+        countyId: current.countyId,
+        regionId: current.regionId,
+        categoryId: current.categoryId,
+        startsAt: current.startsAt,
+        endsAt: current.endsAt,
+        isAllDay: current.isAllDay,
+        isFree: current.isFree,
+        priceText: current.priceText,
+        ticketUrl: current.ticketUrl,
+        sourceUrl: current.sourceUrl,
+        imageUrl: current.imageUrl,
+        imageAlt: current.imageAlt,
+        imageCredit: current.imageCredit,
+        imageSourceUrl: current.imageSourceUrl,
+        address: current.address,
+        lat: current.lat,
+        lng: current.lng,
+        sourceType: current.sourceType,
+        extractionConfidence: current.extractionConfidence,
+      },
+    });
+
+    for (const category of current.categories) {
+      await this.prisma.eventCategory.create({
+        data: {
+          eventId: duplicated.id,
+          categoryId: category.categoryId,
+          isPrimary: category.isPrimary,
+          source: category.source,
+          confidence: category.confidence,
+        },
+      });
+    }
+
+    return duplicated;
   }
 
   organizers() {
@@ -83,6 +139,13 @@ export class AdminService {
 
   getSource(id: number) {
     return this.prisma.eventSource.findUnique({ where: { id }, include: { event: true, organizer: true } });
+  }
+
+  updateEventSource(id: number, dto: UpdateEventSourceDto) {
+    return this.prisma.eventSource.update({
+      where: { id },
+      data: { sourceUrl: dto.sourceUrl?.trim() || null },
+    });
   }
 
   async createManualEmail(dto: ManualEmailDto) {
@@ -190,21 +253,12 @@ export class AdminService {
 
     candidate = { ...originalCandidate, ...this.cleanCandidateOverride(candidateOverride) };
 
-    const missing = [!candidate.title && "title", !candidate.startsAt && "startsAt", !candidate.city && "city", !candidate.category && "category"].filter(Boolean);
-    if (missing.length) throw new BadRequestException(`Candidate is missing required fields: ${missing.join(", ")}`);
-
-    const city = await this.prisma.city.findFirst({ where: { name: { equals: candidate.city, mode: "insensitive" } } });
-    if (!city) throw new BadRequestException(`City '${candidate.city}' not found in taxonomy – add it first or correct the parsed city`);
-
-    const category = await this.prisma.category.findFirst({
-      where: {
-        OR: [
-          { slug: { equals: candidate.category, mode: "insensitive" } },
-          { name: { equals: candidate.category, mode: "insensitive" } },
-        ],
-      },
-    });
-    if (!category) throw new BadRequestException(`Category '${candidate.category}' not found in taxonomy`);
+    const city = candidate.city ? await this.findOrCreateCity(candidate.city, candidate.county, candidate.region) : null;
+    const categoryIds = candidateOverride?.categoryIds?.length ? candidateOverride.categoryIds : undefined;
+    const category = categoryIds?.[0]
+      ? await this.prisma.category.findUnique({ where: { id: categoryIds[0] } })
+      : await this.findOrCreateCategory(candidate.category);
+    if (categoryIds?.[0] && !category) throw new BadRequestException(`Category '${categoryIds[0]}' not found in taxonomy`);
 
     const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName);
 
@@ -212,9 +266,11 @@ export class AdminService {
       {
         title: candidate.title,
         description: candidate.description || candidate.title,
-        cityId: city.id,
-        categoryId: category.id,
-        startsAt: candidate.startsAt,
+        cityId: city?.id,
+        cityName: candidate.city || undefined,
+        categoryId: category?.id,
+        categoryIds,
+        startsAt: candidate.startsAt || undefined,
         endsAt: candidate.endsAt || undefined,
         isFree: candidate.isFree ?? undefined,
         priceText: candidate.priceText || undefined,
@@ -234,11 +290,13 @@ export class AdminService {
 
     if (isBatchFormat) {
       const result = parsedJson as ParsedSourceResult;
+      const primaryCategory = categoryIds?.length ? category?.slug ?? candidate.category : candidate.category;
       const updatedCandidates = result.candidates.map((c, i) =>
         i === candidateIndex
           ? {
               ...c,
               ...this.cleanCandidateOverride(candidateOverride),
+              category: primaryCategory,
               missingFields: c.missingFields,
               warnings: c.warnings,
               _status: "created" as const,
@@ -393,7 +451,7 @@ export class AdminService {
       Object.entries(candidate).map(([key, value]) => [
         key,
         typeof value === "string" ? value.trim() : value,
-      ]).filter(([, value]) => value !== undefined)
+      ]).filter(([key, value]) => key !== "categoryIds" && value !== undefined)
     ) as Partial<ParsedEventCandidate>;
   }
 
@@ -405,5 +463,50 @@ export class AdminService {
     const slug = await uniqueSlug(cleaned, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
     const organizer = await this.prisma.organizer.create({ data: { name: cleaned, slug, status: OrganizerStatus.UNCLAIMED } });
     return organizer.id;
+  }
+
+  private async findOrCreateCity(name: string, countyName?: string, regionName?: string) {
+    const cleaned = name.trim();
+    const existing = await this.prisma.city.findFirst({ where: { name: { equals: cleaned, mode: "insensitive" } } });
+    if (existing) return existing;
+
+    const regionClean = regionName?.trim() || "Hrvatska";
+    const regionSlug = slugify(regionClean) || "hrvatska";
+    const region = await this.prisma.region.upsert({
+      where: { slug: regionSlug },
+      update: {},
+      create: { name: regionClean, slug: regionSlug, sortOrder: 999 },
+    });
+
+    const countyClean = countyName?.trim() || "Nepoznata županija";
+    const countySlug = slugify(countyClean) || "nepoznata-zupanija";
+    const county = await this.prisma.county.upsert({
+      where: { slug: countySlug },
+      update: {},
+      create: { name: countyClean, slug: countySlug, regionId: region.id },
+    });
+
+    const citySlug = await uniqueSlug(cleaned, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
+    return this.prisma.city.create({ data: { name: cleaned, slug: citySlug, countyId: county.id } });
+  }
+
+  private async findOrCreateCategory(category?: string | null) {
+    const cleaned = category?.trim();
+    if (cleaned) {
+      const existing = await this.prisma.category.findFirst({
+        where: {
+          OR: [
+            { slug: { equals: cleaned, mode: "insensitive" } },
+            { name: { equals: cleaned, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (existing) return existing;
+    }
+    return this.prisma.category.upsert({
+      where: { slug: "ostalo" },
+      update: {},
+      create: { name: "Ostalo", slug: "ostalo", sortOrder: 999 },
+    });
   }
 }

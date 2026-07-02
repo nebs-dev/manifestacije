@@ -3,10 +3,12 @@ import { IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString
 
 export class EventUpsertDto {
   @IsString()
-  title!: string;
+  @IsOptional()
+  title?: string;
 
   @IsString()
-  description!: string;
+  @IsOptional()
+  description?: string;
 
   @IsOptional()
   @IsString()
@@ -14,11 +16,17 @@ export class EventUpsertDto {
 
   @Type(() => Number)
   @IsInt()
-  cityId!: number;
+  @IsOptional()
+  cityId?: number | null;
+
+  @IsOptional()
+  @IsString()
+  cityName?: string;
 
   @Type(() => Number)
   @IsInt()
-  categoryId!: number;
+  @IsOptional()
+  categoryId?: number | null;
 
   @IsOptional()
   @IsArray()
@@ -32,7 +40,8 @@ export class EventUpsertDto {
   organizerId?: number | null;
 
   @IsDateString()
-  startsAt!: string;
+  @IsOptional()
+  startsAt?: string;
 
   @IsOptional()
   @IsDateString()
@@ -56,7 +65,7 @@ export class EventUpsertDto {
 
   @IsOptional()
   @IsString()
-  sourceUrl?: string;
+  sourceUrl?: string | null;
 
   @IsOptional()
   @IsString()

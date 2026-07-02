@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { ChevronDown, RefreshCw, ExternalLink, Search, RotateCcw } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ChevronDown, RefreshCw, ExternalLink, Search, Save } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -136,6 +136,12 @@ export function SourceReview({
 }) {
   const [tab, setTab] = useState<Tab>("pending")
   const [search, setSearch] = useState("")
+  const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
+  const [savingUrl, setSavingUrl] = useState(false)
+
+  useEffect(() => {
+    setSourceUrl(source.sourceUrl || "")
+  }, [source.sourceUrl])
 
   const pending = useMemo(() => candidates.filter((c) => c._status === "pending" || (!c._status)), [candidates])
   const created = useMemo(() => candidates.filter((c) => c._status === "created"), [candidates])
@@ -158,6 +164,20 @@ export function SourceReview({
     else toast.error("Reparsiranje neuspješno")
   }
 
+  async function saveSourceUrl() {
+    setSavingUrl(true)
+    try {
+      const res = await authedFetch(`/api/admin/event-sources/${source.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ sourceUrl: sourceUrl.trim() || null }),
+      })
+      if (res.ok) { toast.success("URL izvora spremljen"); onReparse?.() }
+      else toast.error("Spremanje URL-a neuspješno", { description: await res.text() })
+    } finally {
+      setSavingUrl(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Source summary */}
@@ -175,14 +195,21 @@ export function SourceReview({
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <SummaryRow label="URL izvora" value={
-            source.sourceUrl ? (
-              <a href={source.sourceUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                <span className="truncate">{source.sourceUrl}</span>
-                <ExternalLink className="size-3 shrink-0" />
-              </a>
-            ) : "—"
-          } />
+          <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
+            <span className="text-xs text-muted-foreground">URL izvora</span>
+            <div className="flex gap-2">
+              <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." />
+              {sourceUrl && (
+                <Button variant="outline" size="icon" nativeButton={false} render={<a href={sourceUrl} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
+                  <ExternalLink className="size-4" />
+                </Button>
+              )}
+              <Button variant="outline" onClick={saveSourceUrl} disabled={savingUrl || sourceUrl === (source.sourceUrl || "")}>
+                <Save data-icon="inline-start" />
+                Spremi
+              </Button>
+            </div>
+          </div>
           <SummaryRow label="Tip" value={typeLabels[source.type] ?? source.type} />
           <SummaryRow label="Status" value={<StatusBadge status={source.status} />} />
           <SummaryRow label="Pouzdanost" value={source.confidence > 0 ? <ConfidenceBadge value={source.confidence} /> : "—"} />

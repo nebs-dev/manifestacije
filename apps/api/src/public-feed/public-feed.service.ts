@@ -18,7 +18,7 @@ export class PublicFeedService {
 
   async events(query: Record<string, string | undefined>) {
     const where = await this.publicWhere(query);
-    return this.prisma.event.findMany({ where, include: eventInclude, orderBy: { startsAt: "asc" }, take: 100 });
+    return this.prisma.event.findMany({ where, include: eventInclude, orderBy: { startsAt: "asc" }, take: 500 });
   }
 
   async event(slug: string) {
@@ -77,7 +77,15 @@ export class PublicFeedService {
     if (query.search) {
       where.OR = [
         { title: { contains: query.search, mode: "insensitive" } },
-        { description: { contains: query.search, mode: "insensitive" } }
+        { description: { contains: query.search, mode: "insensitive" } },
+        { shortDescription: { contains: query.search, mode: "insensitive" } },
+        { city: { name: { contains: query.search, mode: "insensitive" } } },
+        { city: { slug: { contains: query.search, mode: "insensitive" } } },
+        { venue: { name: { contains: query.search, mode: "insensitive" } } },
+        { category: { name: { contains: query.search, mode: "insensitive" } } },
+        { category: { slug: { contains: query.search, mode: "insensitive" } } },
+        { categories: { some: { category: { name: { contains: query.search, mode: "insensitive" } } } } },
+        { categories: { some: { category: { slug: { contains: query.search, mode: "insensitive" } } } } },
       ];
     }
 
@@ -109,6 +117,10 @@ export class PublicFeedService {
       const end = new Date(start);
       end.setDate(start.getDate() + 1);
       end.setHours(23, 59, 59, 999);
+      where.startsAt = { gte: start, lte: end };
+    } else if (query.month === "true") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       where.startsAt = { gte: start, lte: end };
     } else if (query.dateFrom || query.dateTo) {
       where.startsAt = {

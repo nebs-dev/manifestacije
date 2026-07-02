@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { API_URL } from "@/lib/api"
+import { clearOrganizerSession, ORG_TOKEN_KEY, ORG_USER_KEY } from "@/lib/organizer/auth"
 
 export type OrganizerUser = {
   id: number
@@ -18,7 +19,7 @@ export function useOrganizerAuth(options?: { require?: boolean }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem("orgToken")
+    const token = localStorage.getItem(ORG_TOKEN_KEY)
     if (!token) {
       setLoading(false)
       if (require) router.replace("/organizer/login")
@@ -29,11 +30,18 @@ export function useOrganizerAuth(options?: { require?: boolean }) {
     })
       .then(async (r) => {
         if (!r.ok) {
-          localStorage.removeItem("orgToken")
+          clearOrganizerSession()
           if (require) router.replace("/organizer/login")
           return
         }
-        setUser(await r.json())
+        const data = await r.json()
+        if (data?.role !== "ORGANIZER" || !data?.organizerId) {
+          clearOrganizerSession()
+          if (require) router.replace("/organizer/login")
+          return
+        }
+        localStorage.setItem(ORG_USER_KEY, JSON.stringify(data))
+        setUser(data)
       })
       .catch(() => {
         if (require) router.replace("/organizer/login")
@@ -43,7 +51,7 @@ export function useOrganizerAuth(options?: { require?: boolean }) {
   }, [])
 
   function logout() {
-    localStorage.removeItem("orgToken")
+    clearOrganizerSession()
     router.push("/organizer/login")
   }
 

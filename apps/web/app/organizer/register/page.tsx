@@ -7,6 +7,7 @@ import { API_URL } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { storeOrganizerSession } from "@/lib/organizer/auth"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -19,6 +20,7 @@ export default function RegisterPage() {
     setLoading(true)
     const form = new FormData(e.currentTarget)
     const password = form.get("password") as string
+    const email = String(form.get("email") || "").trim().toLowerCase()
     if (password.length < 8) { setError("Lozinka mora imati najmanje 8 znakova"); setLoading(false); return }
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
@@ -27,13 +29,17 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: form.get("name"),
           organizerName: form.get("organizerName"),
-          email: form.get("email"),
+          email,
           password,
         }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.message || "Registracija nije uspjela"); return }
-      localStorage.setItem("orgToken", data.token)
+      if (data.user?.role !== "ORGANIZER" || data.user?.email?.toLowerCase() !== email) {
+        setError("Registracija je uspjela, ali sesija nije organizatorska")
+        return
+      }
+      storeOrganizerSession(data.token, data.user)
       router.push("/organizer/events")
     } catch {
       setError("Greška pri spajanju na server")

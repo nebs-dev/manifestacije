@@ -33,11 +33,12 @@ describe("UploadsService", () => {
   });
 
   it("rejects upload when Cloudinary config is missing", async () => {
+    delete process.env.CLOUDINARY_URL;
     delete process.env.CLOUDINARY_CLOUD_NAME;
     delete process.env.CLOUDINARY_API_KEY;
     delete process.env.CLOUDINARY_API_SECRET;
 
-    await expect(service.uploadEventImage({ buffer: Buffer.from("x"), mimetype: "image/jpeg", size: 1024 })).rejects.toThrow("Cloudinary upload is not configured");
+    await expect(service.uploadEventImage({ buffer: Buffer.from("x"), mimetype: "image/jpeg", size: 1024 })).rejects.toThrow("Cloudinary nije konfiguriran");
   });
 
   it("surfaces Cloudinary upload failures without exposing secrets", async () => {

@@ -148,20 +148,17 @@ export function ParsedCandidateCard({
     return true
   })
 
-  const hasRequired = liveMissingFields.length === 0
-
   function setField<K extends keyof CandidateForm>(key: K, value: CandidateForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
   function toggleCategory(id: number) {
     setSelectedCategoryIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]
     )
   }
 
   async function createEvent(publish = false) {
-    if (!hasRequired) return
     setBusy(true)
     try {
       const primaryCategoryId = selectedCategoryIds[0]
@@ -409,17 +406,14 @@ export function ParsedCandidateCard({
 
       {isPending && (
         <CardFooter className="gap-2 flex-wrap">
-          <Button onClick={() => createEvent(false)} disabled={busy || !hasRequired}>
+          <Button onClick={() => createEvent(false)} disabled={busy}>
             <CalendarPlus data-icon="inline-start" />
             Kreiraj događaj
           </Button>
-          <Button variant="outline" onClick={() => createEvent(true)} disabled={busy || !hasRequired}>
+          <Button variant="outline" onClick={() => createEvent(true)} disabled={busy}>
             <CalendarPlus data-icon="inline-start" />
             Kreiraj i objavi
           </Button>
-          {!hasRequired && (
-            <p className="text-xs text-muted-foreground">Dopunite: naslov, datum, grad i barem jednu kategoriju.</p>
-          )}
           <Button variant="outline" onClick={ignoreCandidate} disabled={busy} className="ml-auto">
             <X data-icon="inline-start" />
             Ignoriraj

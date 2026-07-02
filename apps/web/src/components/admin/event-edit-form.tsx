@@ -7,6 +7,7 @@ import {
   Send,
   X,
   Archive,
+  Copy,
   TriangleAlert,
   ExternalLink,
 } from "lucide-react"
@@ -132,7 +133,7 @@ export function EventEditForm({
 
   const selectedOrganizer = organizers.find((organizer) => String(organizer.id) === form.organizerId)
 
-  async function save() {
+  async function save(options?: { silent?: boolean; status?: typeof form.status }) {
     setSaving(true)
     try {
       const primaryCategoryId = selectedCategoryIds[0] ?? event._categoryId
@@ -151,7 +152,7 @@ export function EventEditForm({
           isFree: form.isFree,
           priceText: form.priceText || undefined,
           ticketUrl: form.ticketUrl || undefined,
-          sourceUrl: form.sourceUrl || undefined,
+          sourceUrl: form.sourceUrl || null,
           venueName: form.venueName || undefined,
           address: location?.address || undefined,
           lat: location?.lat,
@@ -161,14 +162,16 @@ export function EventEditForm({
           imageCredit: image.imageCredit || null,
           imageSourceUrl: image.imageSourceUrl || null,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
-          status: toApiEventStatus(form.status),
+          status: toApiEventStatus(options?.status ?? form.status),
         }),
       })
       if (res.ok) {
-        toast.success("Promjene spremljene", { description: form.title })
+        if (!options?.silent) toast.success("Promjene spremljene", { description: form.title })
         onUpdate?.()
+        return true
       } else {
         toast.error("Greška pri spremanju", { description: await res.text() })
+        return false
       }
     } finally {
       setSaving(false)
@@ -179,10 +182,15 @@ export function EventEditForm({
     if (action === "publish" && !image.imageUrl) {
       toast.warning("Događaj nema sliku", { description: "Objava nije blokirana, ali javne kartice će koristiti fallback sliku." })
     }
-    const res = await authedFetch(`/api/admin/events/${event.id}/${action}`, {
-      method: "POST",
-    })
-    if (res.ok) {
+    const targetStatus = {
+      approve: "published",
+      publish: "published",
+      reject: "rejected",
+      archive: "archived",
+    } satisfies Record<typeof action, typeof form.status>
+    const ok = await save({ silent: true, status: targetStatus[action] })
+    if (ok) {
+      update("status", targetStatus[action])
       const labels: Record<string, string> = {
         approve: "Odobreno",
         reject: "Odbijeno",
@@ -190,9 +198,24 @@ export function EventEditForm({
         archive: "Arhivirano",
       }
       toast.success(labels[action], { description: form.title })
-      onUpdate?.()
-    } else {
-      toast.error("Greška", { description: await res.text() })
+    }
+  }
+
+  async function duplicateEvent() {
+    setSaving(true)
+    try {
+      const res = await authedFetch(`/api/admin/events/${event.id}/duplicate`, {
+        method: "POST",
+      })
+      if (res.ok) {
+        const duplicated = await res.json() as { id: number }
+        toast.success("Događaj dupliciran", { description: form.title })
+        window.location.href = `/admin/events/${duplicated.id}`
+      } else {
+        toast.error("Greška pri dupliciranju", { description: await res.text() })
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -475,7 +498,7 @@ export function EventEditForm({
                               setSelectedCategoryIds((prev) =>
                                 prev.includes(cat.id)
                                   ? prev.filter((id) => id !== cat.id)
-                                  : [...prev, cat.id]
+                                  : [cat.id, ...prev]
                               )
                             }}
                             className="size-4 rounded border-input accent-primary"
@@ -530,6 +553,15 @@ export function EventEditForm({
           <Button type="submit" disabled={saving}>
             <Save data-icon="inline-start" />
             {saving ? "Spremanje…" : "Spremi"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={duplicateEvent}
+            disabled={saving}
+          >
+            <Copy data-icon="inline-start" />
+            Dupliciraj
           </Button>
           <Button
             type="button"

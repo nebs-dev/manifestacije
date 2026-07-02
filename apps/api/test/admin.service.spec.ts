@@ -1,4 +1,3 @@
-import { BadRequestException } from "@nestjs/common";
 import { EventStatus } from "@prisma/client";
 import { AdminService } from "../src/admin/admin.service";
 import { ParsedEventCandidate, ParsedSourceResult } from "../src/ai-parser/ai-event-parser.service";
@@ -71,13 +70,25 @@ describe("AdminService ingestion workflow", () => {
     expect(parsedJson.candidates[0].warnings[0]).toContain("Failed to fetch URL");
   });
 
-  it("rejects create-event when required candidate fields are missing", async () => {
+  it("creates event with fallbacks when candidate fields are missing", async () => {
+    const sourceParsed = parsedResult([candidate({ startsAt: "", city: "", organizerName: "" })]);
     const prisma = {
-      eventSource: { findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: parsedResult([candidate({ startsAt: "", city: "" })]) }) },
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never);
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never);
 
-    await expect(service.createEventFromSource(1, 0)).rejects.toThrow(BadRequestException);
+    await service.createEventFromSource(1, 0);
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({
+      cityId: undefined,
+      categoryId: 22,
+      startsAt: undefined,
+    }), expect.any(Object));
   });
 
   it("creates event from candidate with taxonomy, organizer and image fields, then marks candidate created", async () => {
@@ -111,8 +122,33 @@ describe("AdminService ingestion workflow", () => {
     const updatedParsed = prisma.eventSource.update.mock.calls[0][0].data.parsedJson as ParsedSourceResult;
     expect(updatedParsed.candidates[0]._status).toBe("created");
     expect(updatedParsed.candidates[0]._eventId).toBe(44);
+    expect(updatedParsed.candidates[0].category).toBe("glazba");
     expect(updatedParsed.candidates[0].missingFields).toEqual(["startsAt"]);
     expect(updatedParsed.candidates[0].warnings).toEqual(["Original warning"]);
+  });
+
+  it("passes edited categoryIds from candidate overrides into event creation", async () => {
+    const sourceParsed = parsedResult([candidate({ category: "glazba" })]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      category: { findUnique: jest.fn().mockResolvedValue({ id: 44 }) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 55 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never);
+
+    await service.createEventFromSource(1, 0, { categoryIds: [44, 45] });
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({
+      categoryId: 44,
+      categoryIds: [44, 45],
+    }), expect.any(Object));
+    const updatedParsed = prisma.eventSource.update.mock.calls[0][0].data.parsedJson as ParsedSourceResult;
+    expect(updatedParsed.candidates[0].category).toBe("glazba");
   });
 
   it("ignores a candidate while preserving missingFields and warnings", async () => {
@@ -149,5 +185,60 @@ describe("AdminService ingestion workflow", () => {
     expect(tx.eventSource.updateMany).toHaveBeenCalledWith({ where: { eventId: 9 }, data: { eventId: null } });
     expect(tx.eventDuplicateCandidate.deleteMany).toHaveBeenCalledWith({ where: { OR: [{ eventAId: 9 }, { eventBId: 9 }] } });
     expect(tx.event.delete).toHaveBeenCalledWith({ where: { id: 9 } });
+  });
+
+  it("duplicates an event as draft and copies category joins", async () => {
+    const current = {
+      id: 9,
+      title: "Original",
+      description: "Opis",
+      shortDescription: "Kratko",
+      organizerId: 1,
+      venueId: 2,
+      cityId: 3,
+      countyId: 4,
+      regionId: 5,
+      categoryId: 6,
+      startsAt: new Date("2026-07-04T18:00:00.000Z"),
+      endsAt: null,
+      isAllDay: false,
+      isFree: true,
+      priceText: null,
+      ticketUrl: null,
+      sourceUrl: "https://source.example",
+      imageUrl: null,
+      imageAlt: null,
+      imageCredit: null,
+      imageSourceUrl: null,
+      address: null,
+      lat: null,
+      lng: null,
+      sourceType: "MANUAL",
+      extractionConfidence: null,
+      categories: [{ categoryId: 6, isPrimary: true, source: "MANUAL", confidence: null }],
+    };
+    const prisma = {
+      event: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce(current)
+          .mockResolvedValueOnce(null),
+        create: jest.fn().mockResolvedValue({ id: 10, title: "Original (kopija)" }),
+      },
+      eventCategory: { create: jest.fn() },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never);
+
+    await service.duplicateEvent(9);
+
+    expect(prisma.event.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        title: "Original (kopija)",
+        status: "DRAFT",
+        sourceUrl: "https://source.example",
+      }),
+    }));
+    expect(prisma.eventCategory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ eventId: 10, categoryId: 6, isPrimary: true }),
+    });
   });
 });

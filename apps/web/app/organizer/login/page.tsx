@@ -7,6 +7,7 @@ import { API_URL } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { storeOrganizerSession } from "@/lib/organizer/auth"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,15 +19,20 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
     const form = new FormData(e.currentTarget)
+    const email = String(form.get("email") || "").trim().toLowerCase()
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+        body: JSON.stringify({ email, password: form.get("password") }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.message || "Pogrešan email ili lozinka"); return }
-      localStorage.setItem("orgToken", data.token)
+      if (data.user?.role !== "ORGANIZER" || data.user?.email?.toLowerCase() !== email) {
+        setError("Ovaj email je admin račun. Za organizatora koristite drugi email.")
+        return
+      }
+      storeOrganizerSession(data.token, data.user)
       router.push("/organizer/events")
     } catch {
       setError("Greška pri spajanju na server")

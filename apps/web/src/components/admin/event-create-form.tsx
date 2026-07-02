@@ -35,6 +35,7 @@ export function EventCreateForm() {
     startsAt: "",
     endsAt: "",
     cityId: "",
+    cityName: "",
     organizerId: "",
     venueName: "",
     address: "",
@@ -67,10 +68,6 @@ export function EventCreateForm() {
 
   async function save() {
     const primaryCategoryId = categoryIds[0]
-    if (!form.title || !form.description || !form.startsAt || !form.cityId || !primaryCategoryId) {
-      toast.error("Popuni naziv, opis, početak, grad i kategoriju")
-      return
-    }
     setSaving(true)
     try {
       const res = await authedFetch("/api/admin/events", {
@@ -79,9 +76,10 @@ export function EventCreateForm() {
           title: form.title,
           description: form.description,
           shortDescription: form.shortDescription || undefined,
-          cityId: Number(form.cityId),
+          cityId: form.cityId ? Number(form.cityId) : undefined,
+          cityName: form.cityName || undefined,
           categoryId: primaryCategoryId,
-          categoryIds,
+          categoryIds: categoryIds.length ? categoryIds : undefined,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
           startsAt: form.startsAt,
           endsAt: form.endsAt || undefined,
@@ -133,6 +131,7 @@ export function EventCreateForm() {
                   <SelectContent><SelectGroup><SelectItem value="none">Odaberi grad</SelectItem>{cities.map((city) => <SelectItem key={city.id} value={String(city.id)}>{city.name}</SelectItem>)}</SelectGroup></SelectContent>
                 </Select>
               </Field>
+              <Field><FieldLabel>Novi grad ako nije na listi</FieldLabel><Input value={form.cityName} onChange={(e) => update("cityName", e.target.value)} placeholder="npr. Đurđevac" /></Field>
               <Field><FieldLabel>Lokacija / venue</FieldLabel><Input value={form.venueName} onChange={(e) => update("venueName", e.target.value)} /></Field>
               <Field><FieldLabel>Adresa</FieldLabel><Input value={form.address} onChange={(e) => update("address", e.target.value)} /></Field>
             </FieldGroup>

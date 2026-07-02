@@ -11,22 +11,24 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = this.normalizeEmail(dto.email);
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing?.role === UserRole.ADMIN) throw new BadRequestException("Email is already used by an admin account");
     if (existing) throw new BadRequestException("Email already registered");
     const organizerName = dto.organizerName || dto.name;
     const organizerSlug = await uniqueSlug(organizerName, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const organizer = await this.prisma.organizer.create({
-      data: { name: organizerName, slug: organizerSlug, status: "CLAIMED", email: dto.email }
+      data: { name: organizerName, slug: organizerSlug, status: "CLAIMED", email }
     });
     const user = await this.prisma.user.create({
-      data: { email: dto.email, passwordHash, name: dto.name, role: UserRole.ORGANIZER, organizerId: organizer.id }
+      data: { email, passwordHash, name: dto.name, role: UserRole.ORGANIZER, organizerId: organizer.id }
     });
     return this.session(user);
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({ where: { email: this.normalizeEmail(dto.email) } });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException("Invalid credentials");
     return this.session(user);
   }
@@ -41,5 +43,9 @@ export class AuthService {
   private session(user: { id: number; email: string; name: string; role: UserRole; organizerId: number | null }) {
     const token = this.jwt.sign({ id: user.id, email: user.email, role: user.role, organizerId: user.organizerId });
     return { token, user: { id: user.id, email: user.email, name: user.name, role: user.role, organizerId: user.organizerId } };
+  }
+
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
   }
 }

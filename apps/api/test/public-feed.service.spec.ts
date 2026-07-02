@@ -29,10 +29,12 @@ describe("PublicFeedService", () => {
         region: { slug: "slavonija-i-baranja" },
         city: { slug: "osijek" },
         isFree: true,
-        OR: [
+        OR: expect.arrayContaining([
           { title: { contains: "koncert", mode: "insensitive" } },
           { description: { contains: "koncert", mode: "insensitive" } },
-        ],
+          { city: { name: { contains: "koncert", mode: "insensitive" } } },
+          { venue: { name: { contains: "koncert", mode: "insensitive" } } },
+        ]),
       }),
     }));
   });
@@ -72,8 +74,14 @@ describe("PublicFeedService", () => {
       lte: new Date(2026, 6, 5, 23, 59, 59, 999),
     });
 
-    await service.events({ dateFrom: "2026-08-01", dateTo: "2026-08-31" });
+    await service.events({ month: "true" });
     expect(prisma.event.findMany.mock.calls[2][0].where.startsAt).toEqual({
+      gte: new Date(2026, 6, 1, 0, 0, 0, 0),
+      lte: new Date(2026, 6, 31, 23, 59, 59, 999),
+    });
+
+    await service.events({ dateFrom: "2026-08-01", dateTo: "2026-08-31" });
+    expect(prisma.event.findMany.mock.calls[3][0].where.startsAt).toEqual({
       gte: new Date("2026-08-01"),
       lte: new Date("2026-08-31"),
     });
