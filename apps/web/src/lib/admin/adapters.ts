@@ -4,7 +4,7 @@ import { toUiEventStatus } from "./status"
 type BE = Record<string, unknown>
 
 export function adaptEventSource(src: BE): EventSource {
-  const parsedJson = src.parsedJson as { candidates?: unknown[] } | null
+  const parsedJson = src.parsedJson as { candidates?: unknown[]; sourceImageUrl?: string } | null
   return {
     id: String(src.id),
     sourceUrl: (src.sourceUrl as string) ?? "",
@@ -16,6 +16,7 @@ export function adaptEventSource(src: BE): EventSource {
     candidateCount: parsedJson?.candidates?.length ?? 0,
     createdAt: src.createdAt as string,
     rawText: (src.rawText as string) ?? undefined,
+    sourceImageUrl: parsedJson?.sourceImageUrl,
   }
 }
 

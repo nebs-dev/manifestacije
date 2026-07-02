@@ -37,15 +37,26 @@ export default function EditEventPage() {
         initial={{
           title: event.title as string,
           description: event.description as string,
+          shortDescription: event.shortDescription as string | undefined,
           startsAt: event.startsAt as string,
           endsAt: event.endsAt as string | undefined,
           cityId: (event.city as { id: number })?.id,
           categoryId: (event.category as { id: number })?.id,
-          venueName: event.venueName as string | undefined,
+          categoryIds: ((event.categories as Array<{ categoryId?: number; category?: { id: number } }> | undefined) ?? [])
+            .map((c) => c.category?.id ?? c.categoryId)
+            .filter((id): id is number => typeof id === "number"),
+          venueName: (event.venue as { name?: string } | null)?.name,
+          address: event.address as string | null,
+          lat: event.lat as number | null,
+          lng: event.lng as number | null,
           isFree: event.isFree as boolean,
           priceText: event.priceText as string | undefined,
           ticketUrl: event.ticketUrl as string | undefined,
+          sourceUrl: event.sourceUrl as string | undefined,
           imageUrl: event.imageUrl as string | undefined,
+          imageAlt: event.imageAlt as string | undefined,
+          imageCredit: event.imageCredit as string | undefined,
+          imageSourceUrl: event.imageSourceUrl as string | undefined,
         }}
       />
     </div>

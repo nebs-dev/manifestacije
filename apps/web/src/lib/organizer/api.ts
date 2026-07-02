@@ -3,10 +3,11 @@ import { ORG_TOKEN_KEY } from "@/lib/organizer/auth"
 
 export function orgFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = typeof window !== "undefined" ? localStorage.getItem(ORG_TOKEN_KEY) : null
+  const isFormData = init?.body instanceof FormData
   return fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers as Record<string, string> | undefined),
     },

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl } from "class-validator";
+import { IsBoolean, IsOptional, IsString, IsUrl } from "class-validator";
 
 export class OrganizerProfileDto {
   @IsOptional() @IsString() name?: string;
@@ -13,4 +13,9 @@ export class OrganizerProfileDto {
 export class SubmitSourceDto {
   @IsOptional() @IsString() sourceUrl?: string;
   @IsOptional() @IsString() rawText?: string;
+  @IsOptional() @IsString() screenshotBase64?: string;
+  @IsOptional() @IsString() screenshotMediaType?: string;
+  @IsOptional() @IsString() sourceImageUrl?: string;
+  @IsOptional() @IsString() contextHint?: string;
+  @IsOptional() @IsBoolean() useLlm?: boolean;
 }

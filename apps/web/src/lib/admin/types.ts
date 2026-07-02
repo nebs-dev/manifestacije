@@ -35,6 +35,7 @@ export interface EventSource {
   candidateCount: number
   createdAt: string
   rawText?: string
+  sourceImageUrl?: string
 }
 
 export interface ParsedCandidate {

@@ -138,7 +138,7 @@ export class AiEventParserService {
     const sourceUrl = input.sourceUrl ?? "";
 
     // Facebook URL without screenshot — return helpful warning
-    if (this.isFacebookUrl(sourceUrl) && !input.screenshotBase64) {
+    if (this.isFacebookUrl(sourceUrl) && !input.screenshotBase64 && !input.rawText?.trim() && !input.rawHtml?.trim()) {
       const candidate = this.emptyCandidate(sourceUrl);
       candidate.warnings.push(
         "Facebook blokira automatsko dohvaćanje. Kopiraj tekst događanja s Facebook stranice i zalijepi ga u 'Ručni unos' s uključenim AI parserom, ili uploadaj screenshot."
@@ -294,7 +294,10 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   }
 
   private isFacebookUrl(url: string): boolean {
-    try { return new URL(url).hostname.replace("www.", "").startsWith("facebook.com"); }
+    try {
+      const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+      return hostname === "fb.me" || hostname === "facebook.com" || hostname.endsWith(".facebook.com");
+    }
     catch { return false; }
   }
 

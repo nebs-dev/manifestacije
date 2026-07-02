@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, RefreshCw, ExternalLink, Search, Save } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
+import Image from "next/image"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -225,6 +226,29 @@ export function SourceReview({
           <SummaryRow label="Kreirano" value={formatDateTime(source.createdAt)} />
         </CardContent>
       </Card>
+
+      {/* Source image evidence */}
+      {source.sourceImageUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Screenshot / plakat izvora</CardTitle>
+            <CardDescription>Slika korištena kao dokaz za parsiranje. Ne koristi se automatski kao javna slika eventa.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Image
+              src={source.sourceImageUrl}
+              alt="Screenshot ili plakat izvora"
+              width={1200}
+              height={900}
+              unoptimized
+              className="max-h-[520px] w-full rounded-lg border object-contain"
+            />
+            <a href={source.sourceImageUrl} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+              Otvori sliku izvora
+            </a>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Raw text */}
       {source.rawText && (

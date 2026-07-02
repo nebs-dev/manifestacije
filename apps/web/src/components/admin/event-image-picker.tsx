@@ -22,12 +22,16 @@ export function EventImagePicker({
   disabled,
   suggestedImageUrl,
   suggestedImageSourceUrl,
+  uploadPath = "/api/admin/uploads/event-image",
+  uploadFetch = authedFetch,
 }: {
   value: EventImageValue
   onChange: (value: EventImageValue) => void
   disabled?: boolean
   suggestedImageUrl?: string | null
   suggestedImageSourceUrl?: string | null
+  uploadPath?: string
+  uploadFetch?: typeof authedFetch
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -55,7 +59,7 @@ export function EventImagePicker({
     form.append("file", file)
     setUploading(true)
     try {
-      const res = await authedFetch("/api/admin/uploads/event-image", {
+      const res = await uploadFetch(uploadPath, {
         method: "POST",
         body: form,
       })

@@ -441,7 +441,10 @@ export class AdminService {
   }
 
   private isFacebookUrl(url: string): boolean {
-    try { return new URL(url).hostname.replace("www.", "").startsWith("facebook.com"); }
+    try {
+      const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+      return hostname === "fb.me" || hostname === "facebook.com" || hostname.endsWith(".facebook.com");
+    }
     catch { return false; }
   }
 
