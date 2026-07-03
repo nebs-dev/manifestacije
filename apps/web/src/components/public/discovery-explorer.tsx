@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { MapPin, CalendarDays } from "lucide-react"
-import { categories, dateParts, priceLabel, regionName, type CroEvent } from "@/lib/data"
+import { categories, dateParts, eventHasCategory, priceLabel, regionName, type CroEvent } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 const DiscoveryMap = dynamic(() => import("@/components/public/discovery-map"), {
@@ -17,7 +17,7 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
   const [selected, setSelected] = useState<string | undefined>(undefined)
 
   const filtered = useMemo(
-    () => (category ? events.filter((e) => e.category === category) : events),
+    () => (category ? events.filter((e) => eventHasCategory(e, category)) : events),
     [events, category],
   )
 

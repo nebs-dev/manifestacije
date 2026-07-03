@@ -8,6 +8,7 @@ export type LocationValue = {
   address: string
   lat: number
   lng: number
+  cityName?: string
 }
 
 // Nominatim result shape
@@ -90,8 +91,8 @@ export function LocationAutocomplete({
     }
   }
 
-  function pick(lbl: string, lat: number, lng: number) {
-    onChange({ address: lbl, lat, lng })
+  function pick(lbl: string, lat: number, lng: number, cityName?: string) {
+    onChange({ address: lbl, lat, lng, cityName })
     setQuery(lbl)
     setOpen(false)
   }
@@ -165,7 +166,7 @@ export function LocationAutocomplete({
           {results.map((r) => (
             <li key={r.place_id}>
               <button type="button" onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(label(r), parseFloat(r.lat), parseFloat(r.lon))}
+                onClick={() => pick(label(r), parseFloat(r.lat), parseFloat(r.lon), r.address.city ?? r.address.town ?? r.address.village)}
                 className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
                 <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary/70" />
                 <span className="truncate">{label(r)}</span>

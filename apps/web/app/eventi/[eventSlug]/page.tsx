@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Baby, Building2, CalendarDays, Clock, ExternalLink, Map, MapPin, Ticket, Trees } from "lucide-react";
+import { ArrowLeft, Baby, Building2, CalendarDays, Clock, ExternalLink, Map, MapPin, Tags, Ticket, Trees } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { EventPoster } from "@/components/public/event-poster";
@@ -26,6 +26,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
   const event = await fetchEvent(params.eventSlug);
   if (!event) notFound();
   const related = await fetchRelatedEvents(event);
+  const eventCategories = event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }];
   const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -57,7 +58,9 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
               <ArrowLeft className="size-4" aria-hidden /> Natrag
             </Link>
             <div className="flex flex-wrap items-center gap-2">
-              <CategoryBadge category={event.category} className="border-transparent bg-ink-foreground/15 text-ink-foreground backdrop-blur" />
+              {eventCategories.map((category) => (
+                <CategoryBadge key={category.slug} category={category.slug} className="border-transparent bg-ink-foreground/15 text-ink-foreground backdrop-blur" />
+              ))}
               <PriceBadge free={event.free} price={event.price} />
             </div>
             <h1 className="mt-3 max-w-3xl text-balance font-heading text-3xl font-semibold leading-tight text-shadow-lg md:text-5xl">{event.title}</h1>
@@ -71,11 +74,6 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
         </section>
 
         <div className="mx-auto max-w-5xl px-4 py-10 md:py-14">
-          {event.imageCredit && (
-            <p className="-mt-6 mb-8 text-xs text-muted-foreground">
-              Foto: {event.imageCredit}
-            </p>
-          )}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
               <div className="space-y-4 text-pretty text-lg leading-relaxed text-foreground/90">
@@ -124,6 +122,13 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                     </a>
                   </InfoRow>
                   <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">{event.organizer}</InfoRow>
+                  <InfoRow icon={<Tags className="size-5" aria-hidden />} label="Kategorije">
+                    <span className="flex flex-wrap gap-1.5">
+                      {eventCategories.map((category) => (
+                        <CategoryBadge key={category.slug} category={category.slug} />
+                      ))}
+                    </span>
+                  </InfoRow>
                   {!event.free && <InfoRow icon={<Ticket className="size-5" aria-hidden />} label="Ulaznica">{priceLabel(event)}</InfoRow>}
                 </dl>
                 <div className="mt-6 flex flex-col gap-3">

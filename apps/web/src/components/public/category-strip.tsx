@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { categories, eventsByCategory, type CroEvent } from "@/lib/data"
+import { categories, eventHasCategory, eventsByCategory, type CroEvent } from "@/lib/data"
 
 export function CategoryStrip({ events }: { events?: CroEvent[] }) {
   return (
@@ -14,7 +14,7 @@ export function CategoryStrip({ events }: { events?: CroEvent[] }) {
           <span className="absolute inset-0 bg-ink/10 transition-colors group-hover:bg-ink/0" aria-hidden />
           <span className="relative font-heading text-lg font-semibold leading-tight">{cat.name}</span>
           <span className="relative mt-0.5 text-xs text-ink-foreground/80">
-            {(events ? events.filter((event) => event.category === cat.slug).length : eventsByCategory(cat.slug).length)} događanja
+            {(events ? events.filter((event) => eventHasCategory(event, cat.slug)).length : eventsByCategory(cat.slug).length)} događanja
           </span>
         </Link>
       ))}

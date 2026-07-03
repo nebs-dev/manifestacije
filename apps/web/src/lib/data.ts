@@ -67,8 +67,6 @@ export interface CroEvent {
   ticketUrl?: string
   image?: string
   imageAlt?: string
-  imageCredit?: string
-  imageSourceUrl?: string
   featured?: boolean
   address?: string
   lat?: number
@@ -577,7 +575,7 @@ export function eventsByRegion(slug: string) {
 }
 
 export function eventsByCategory(slug: string) {
-  return events.filter((e) => e.category === slug).sort(byDate)
+  return events.filter((e) => eventHasCategory(e, slug)).sort(byDate)
 }
 
 export function featuredEvents(limit?: number) {
@@ -616,7 +614,7 @@ export function filterEvents(f: EventFilters) {
   const q = f.q?.trim().toLowerCase()
   return events
     .filter((e) => {
-      if (f.category && e.category !== f.category) return false
+      if (f.category && !eventHasCategory(e, f.category)) return false
       if (f.region && e.region !== f.region) return false
       if (f.city && e.city.toLowerCase() !== f.city.toLowerCase()) return false
       if (f.free && !e.free) return false
@@ -634,9 +632,13 @@ export function filterEvents(f: EventFilters) {
 
 export function relatedEvents(e: CroEvent, limit = 3) {
   return events
-    .filter((x) => x.slug !== e.slug && (x.region === e.region || x.category === e.category))
+    .filter((x) => x.slug !== e.slug && (x.region === e.region || e.categories.some((c) => eventHasCategory(x, c.slug))))
     .sort(byDate)
     .slice(0, limit)
+}
+
+export function eventHasCategory(event: CroEvent, slug: string) {
+  return event.category === slug || event.categories.some((category) => category.slug === slug)
 }
 
 const MONTHS_HR = [

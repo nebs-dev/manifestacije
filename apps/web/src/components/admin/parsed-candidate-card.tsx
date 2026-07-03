@@ -107,8 +107,6 @@ export function ParsedCandidateCard({
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: candidate.imageUrl || "",
     imageAlt: candidate.imageAlt || candidate.title || "",
-    imageCredit: candidate.imageCredit || "",
-    imageSourceUrl: candidate.imageSourceUrl || (candidate.imageUrl ? candidate.sourceUrl : ""),
   })
 
   useEffect(() => {
@@ -187,8 +185,6 @@ export function ParsedCandidateCard({
               organizerName: form.organizerName,
               imageUrl: image.imageUrl,
               imageAlt: image.imageAlt,
-              imageCredit: image.imageCredit,
-              imageSourceUrl: image.imageSourceUrl,
             },
           }),
         }
@@ -329,7 +325,6 @@ export function ParsedCandidateCard({
             onChange={setImage}
             disabled={!isPending}
             suggestedImageUrl={candidate.imageUrl}
-            suggestedImageSourceUrl={candidate.sourceUrl}
           />
         </div>
 

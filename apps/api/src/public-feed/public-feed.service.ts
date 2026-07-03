@@ -9,7 +9,10 @@ const eventInclude = {
   county: true,
   region: true,
   category: true,
-  categories: { include: { category: true } },
+  categories: {
+    include: { category: true },
+    orderBy: [{ isPrimary: "desc" }, { category: { sortOrder: "asc" } }],
+  },
 } satisfies Prisma.EventInclude;
 
 @Injectable()
@@ -22,7 +25,14 @@ export class PublicFeedService {
   }
 
   async event(slug: string) {
-    return this.prisma.event.findFirst({ where: { slug, status: EventStatus.PUBLISHED }, include: eventInclude });
+    return this.prisma.event.findFirst({
+      where: {
+        slug,
+        status: EventStatus.PUBLISHED,
+        AND: [this.publicVisibilityWhere(new Date())],
+      },
+      include: eventInclude,
+    });
   }
 
   regions() {
@@ -51,7 +61,7 @@ export class PublicFeedService {
 
   async mapEvents() {
     return this.prisma.event.findMany({
-      where: { status: EventStatus.PUBLISHED },
+      where: { status: EventStatus.PUBLISHED, AND: [this.publicVisibilityWhere(new Date())] },
       include: eventInclude,
       orderBy: { startsAt: "asc" },
       take: 200
@@ -60,7 +70,10 @@ export class PublicFeedService {
 
   async sitemapData() {
     const [events, regions, cities, categories] = await Promise.all([
-      this.prisma.event.findMany({ where: { status: EventStatus.PUBLISHED }, select: { slug: true, updatedAt: true } }),
+      this.prisma.event.findMany({
+        where: { status: EventStatus.PUBLISHED, AND: [this.publicVisibilityWhere(new Date())] },
+        select: { slug: true, updatedAt: true },
+      }),
       this.prisma.region.findMany({ select: { slug: true } }),
       this.prisma.city.findMany({ select: { slug: true } }),
       this.prisma.category.findMany({ select: { slug: true } })
@@ -70,6 +83,9 @@ export class PublicFeedService {
 
   private async publicWhere(query: Record<string, string | undefined>): Promise<Prisma.EventWhereInput> {
     const where: Prisma.EventWhereInput = { status: EventStatus.PUBLISHED };
+    const now = new Date();
+    this.addAnd(where, this.publicVisibilityWhere(now));
+
     if (query.region) where.region = { slug: query.region };
     if (query.county) where.county = { slug: query.county };
     if (query.city) where.city = { slug: query.city };
@@ -92,22 +108,20 @@ export class PublicFeedService {
     // Category filter: check both legacy categoryId relation and new EventCategory join.
     // During migration transition both paths must work.
     if (query.category) {
-      where.AND = [
-        {
-          OR: [
-            { category: { slug: query.category } },
-            { categories: { some: { category: { slug: query.category } } } }
-          ]
-        }
-      ];
+      this.addAnd(where, {
+        OR: [
+          { category: { slug: query.category } },
+          { categories: { some: { category: { slug: query.category } } } }
+        ]
+      });
     }
 
-    const now = new Date();
     if (query.today === "true") {
+      const start = new Date(now);
       const end = new Date(now);
+      start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
-      now.setHours(0, 0, 0, 0);
-      where.startsAt = { gte: now, lte: end };
+      where.startsAt = { gte: start, lte: end };
     } else if (query.weekend === "true") {
       const start = new Date(now);
       const day = start.getDay();
@@ -129,5 +143,18 @@ export class PublicFeedService {
       };
     }
     return where;
+  }
+
+  private publicVisibilityWhere(now: Date): Prisma.EventWhereInput {
+    return {
+      OR: [
+        { endsAt: { gte: now } },
+        { endsAt: null, startsAt: { gte: now } },
+      ],
+    };
+  }
+
+  private addAnd(where: Prisma.EventWhereInput, clause: Prisma.EventWhereInput) {
+    where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), clause];
   }
 }

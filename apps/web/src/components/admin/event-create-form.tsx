@@ -45,7 +45,7 @@ export function EventCreateForm() {
     sourceUrl: "",
     status: "draft" as EventStatus,
   })
-  const [image, setImage] = useState<EventImageValue>({ imageUrl: "", imageAlt: "", imageCredit: "", imageSourceUrl: "" })
+  const [image, setImage] = useState<EventImageValue>({ imageUrl: "", imageAlt: "" })
 
   useEffect(() => {
     let alive = true
@@ -92,8 +92,6 @@ export function EventCreateForm() {
           status: toApiEventStatus(form.status),
           imageUrl: image.imageUrl || undefined,
           imageAlt: image.imageAlt || undefined,
-          imageCredit: image.imageCredit || undefined,
-          imageSourceUrl: image.imageSourceUrl || undefined,
         }),
       })
       if (!res.ok) throw new Error(await res.text())

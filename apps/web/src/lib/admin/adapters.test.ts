@@ -16,8 +16,6 @@ describe("admin adapters", () => {
           category: "festivali",
           imageUrl: "https://source.example/og.jpg",
           imageAlt: "Poster festivala",
-          imageCredit: "Organizator",
-          imageSourceUrl: "https://source.example/page",
           missingFields: ["startsAt", "city"],
           warnings: ["Only month/year provided; exact date missing."],
           confidence: 0.5,
@@ -32,8 +30,6 @@ describe("admin adapters", () => {
       sourceUrl: "https://source.example/page",
       imageUrl: "https://source.example/og.jpg",
       imageAlt: "Poster festivala",
-      imageCredit: "Organizator",
-      imageSourceUrl: "https://source.example/page",
       missingFields: ["startsAt", "city"],
       warnings: ["Only month/year provided; exact date missing."],
       _status: "pending",
@@ -49,8 +45,6 @@ describe("admin adapters", () => {
       status: "PENDING_REVIEW",
       imageUrl: "https://res.cloudinary.com/demo/image/upload/event.jpg",
       imageAlt: "Alt",
-      imageCredit: "Foto",
-      imageSourceUrl: "https://source.example/image",
       city: { id: 1, name: "Osijek" },
       category: { id: 2, name: "Festivali", slug: "festivali" },
       categories: [{ categoryId: 2, category: { id: 2, name: "Festivali", slug: "festivali" } }],
@@ -59,8 +53,6 @@ describe("admin adapters", () => {
     expect(event.status).toBe("pending")
     expect(event.imageUrl).toBe("https://res.cloudinary.com/demo/image/upload/event.jpg")
     expect(event.imageAlt).toBe("Alt")
-    expect(event.imageCredit).toBe("Foto")
-    expect(event.imageSourceUrl).toBe("https://source.example/image")
   })
 
   it("keeps status mapping explicit and has no approved UI status", () => {

@@ -340,7 +340,9 @@ function AgendaRow({ event }: { event: CroEvent }) {
             <span className="truncate">{event.venue}, {event.city}</span>
           </p>
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <CategoryBadge category={event.category} />
+            {(event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }]).map((category) => (
+              <CategoryBadge key={category.slug} category={category.slug} />
+            ))}
             <PriceBadge free={event.free} price={event.price} />
           </div>
         </div>

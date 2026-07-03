@@ -81,8 +81,6 @@ export function EventEditForm({
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: event.imageUrl ?? "",
     imageAlt: event.imageAlt ?? event.title,
-    imageCredit: event.imageCredit ?? "",
-    imageSourceUrl: event.imageSourceUrl ?? "",
   })
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
     event._categoryIds?.length ? event._categoryIds : (event._categoryId ? [event._categoryId] : [])
@@ -159,8 +157,6 @@ export function EventEditForm({
           lng: location?.lng,
           imageUrl: image.imageUrl || null,
           imageAlt: image.imageAlt || null,
-          imageCredit: image.imageCredit || null,
-          imageSourceUrl: image.imageSourceUrl || null,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
           status: toApiEventStatus(options?.status ?? form.status),
         }),

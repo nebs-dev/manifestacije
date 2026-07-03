@@ -12,8 +12,6 @@ import { authedFetch } from "@/lib/admin/api"
 export type EventImageValue = {
   imageUrl: string
   imageAlt: string
-  imageCredit: string
-  imageSourceUrl: string
 }
 
 export function EventImagePicker({
@@ -21,7 +19,6 @@ export function EventImagePicker({
   onChange,
   disabled,
   suggestedImageUrl,
-  suggestedImageSourceUrl,
   uploadPath = "/api/admin/uploads/event-image",
   uploadFetch = authedFetch,
 }: {
@@ -29,7 +26,6 @@ export function EventImagePicker({
   onChange: (value: EventImageValue) => void
   disabled?: boolean
   suggestedImageUrl?: string | null
-  suggestedImageSourceUrl?: string | null
   uploadPath?: string
   uploadFetch?: typeof authedFetch
 }) {
@@ -65,7 +61,7 @@ export function EventImagePicker({
       })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json() as { imageUrl: string }
-      patch({ imageUrl: data.imageUrl, imageSourceUrl: "" })
+      patch({ imageUrl: data.imageUrl })
       toast.success("Slika učitana")
     } catch (err) {
       toast.error("Upload slike nije uspio", { description: err instanceof Error ? err.message : String(err) })
@@ -112,7 +108,7 @@ export function EventImagePicker({
               type="button"
               variant="outline"
               disabled={disabled || uploading}
-              onClick={() => patch({ imageUrl: suggestedImageUrl || "", imageSourceUrl: suggestedImageSourceUrl || "" })}
+              onClick={() => patch({ imageUrl: suggestedImageUrl || "" })}
             >
               Koristi predloženu sliku
             </Button>
@@ -122,7 +118,7 @@ export function EventImagePicker({
               type="button"
               variant="outline"
               disabled={disabled || uploading}
-              onClick={() => onChange({ imageUrl: "", imageAlt: "", imageCredit: "", imageSourceUrl: "" })}
+              onClick={() => onChange({ imageUrl: "", imageAlt: "" })}
             >
               <X data-icon="inline-start" />
               Ukloni
@@ -139,14 +135,6 @@ export function EventImagePicker({
       <Field>
         <FieldLabel htmlFor="imageAlt">Alt tekst</FieldLabel>
         <Input id="imageAlt" value={value.imageAlt} disabled={disabled || uploading} onChange={(e) => patch({ imageAlt: e.target.value })} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="imageCredit">Autor / kredit</FieldLabel>
-        <Input id="imageCredit" value={value.imageCredit} disabled={disabled || uploading} onChange={(e) => patch({ imageCredit: e.target.value })} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="imageSourceUrl">URL izvora slike</FieldLabel>
-        <Input id="imageSourceUrl" value={value.imageSourceUrl} disabled={disabled || uploading} onChange={(e) => patch({ imageSourceUrl: e.target.value })} />
       </Field>
     </FieldGroup>
   )

@@ -186,12 +186,13 @@ model Event {
   organizer            Organizer? @relation(fields: [organizerId], references: [id])
   venueId              Int?
   venue                Venue?    @relation(fields: [venueId], references: [id])
-  cityId               Int
-  city                 City      @relation(fields: [cityId], references: [id])
-  countyId             Int
-  county               County    @relation(fields: [countyId], references: [id])
-  regionId             Int
-  region               Region    @relation(fields: [regionId], references: [id])
+  cityName             String?
+  cityId               Int?
+  city                 City?     @relation(fields: [cityId], references: [id])
+  countyId             Int?
+  county               County?   @relation(fields: [countyId], references: [id])
+  regionId             Int?
+  region               Region?   @relation(fields: [regionId], references: [id])
   categoryId           Int
   category             Category  @relation(fields: [categoryId], references: [id])
   categories           EventCategory[]
@@ -204,8 +205,6 @@ model Event {
   sourceUrl            String?
   imageUrl             String?
   imageAlt             String?
-  imageCredit          String?
-  imageSourceUrl       String?
   address              String?
   lat                  Float?
   lng                  Float?

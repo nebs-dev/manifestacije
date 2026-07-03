@@ -71,8 +71,6 @@ export class AdminService {
         sourceUrl: current.sourceUrl,
         imageUrl: current.imageUrl,
         imageAlt: current.imageAlt,
-        imageCredit: current.imageCredit,
-        imageSourceUrl: current.imageSourceUrl,
         address: current.address,
         lat: current.lat,
         lng: current.lng,
@@ -282,8 +280,6 @@ export class AdminService {
         lng: candidate.lng ?? undefined,
         imageUrl: candidate.imageUrl || undefined,
         imageAlt: candidate.imageAlt || undefined,
-        imageCredit: candidate.imageCredit || undefined,
-        imageSourceUrl: candidate.imageSourceUrl || undefined,
       },
       { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
     );

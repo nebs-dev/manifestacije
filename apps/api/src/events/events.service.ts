@@ -12,10 +12,10 @@ export class EventsService {
   async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind }) {
     const title = dto.title?.trim() || "Novi događaj";
     const description = dto.description?.trim() || title;
-    const city = await this.resolveCity(dto);
+    const city = (dto.cityId || dto.cityName) ? await this.resolveCity(dto) : null;
     const category = await this.resolveCategory(dto.categoryId ?? undefined);
     let venueId: number | undefined;
-    if (dto.venueName) {
+    if (dto.venueName && city) {
       const venueSlug = slugify(dto.venueName);
       const venue = await this.prisma.venue.upsert({
         where: { slug_cityId: { slug: venueSlug, cityId: city.id } },
@@ -34,9 +34,10 @@ export class EventsService {
         status: opts.status || EventStatus.PENDING_REVIEW,
         organizerId: opts.organizerId || undefined,
         venueId,
-        cityId: city.id,
-        countyId: city.countyId,
-        regionId: city.county.regionId,
+        cityName: dto.cityName || city?.name,
+        cityId: city?.id,
+        countyId: city?.countyId,
+        regionId: city?.county.regionId,
         categoryId: category.id,
         startsAt: dto.startsAt ? new Date(dto.startsAt) : new Date(),
         endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
@@ -47,8 +48,6 @@ export class EventsService {
         sourceUrl: dto.sourceUrl,
         imageUrl: dto.imageUrl,
         imageAlt: dto.imageAlt,
-        imageCredit: dto.imageCredit,
-        imageSourceUrl: dto.imageSourceUrl,
         address: dto.address,
         lat: dto.lat,
         lng: dto.lng,
@@ -91,8 +90,6 @@ export class EventsService {
       sourceUrl: dto.sourceUrl,
       imageUrl: dto.imageUrl,
       imageAlt: dto.imageAlt,
-      imageCredit: dto.imageCredit,
-      imageSourceUrl: dto.imageSourceUrl,
       address: dto.address,
       lat: dto.lat,
       lng: dto.lng,
@@ -109,9 +106,12 @@ export class EventsService {
       }
     }
     if (city) {
+      data.cityName = dto.cityName || city.name;
       data.cityId = city.id;
       data.countyId = city.countyId;
       data.regionId = city.county.regionId;
+    } else if ("cityName" in dto && dto.cityName) {
+      data.cityName = dto.cityName;
     }
     if ("venueName" in dto) {
       if (dto.venueName) {

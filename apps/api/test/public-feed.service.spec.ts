@@ -7,17 +7,27 @@ describe("PublicFeedService", () => {
   });
 
   it("queries only published public events", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) } };
     const service = new PublicFeedService(prisma as never);
 
     await service.events({});
 
     expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { status: EventStatus.PUBLISHED },
+      where: {
+        status: EventStatus.PUBLISHED,
+        AND: [{
+          OR: [
+            { endsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
+            { endsAt: null, startsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
+          ],
+        }],
+      },
     }));
   });
 
   it("builds region, city, free and search filters", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) } };
     const service = new PublicFeedService(prisma as never);
 
@@ -47,14 +57,49 @@ describe("PublicFeedService", () => {
 
     expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
-        AND: [{
-          OR: [
-            { category: { slug: "glazba" } },
-            { categories: { some: { category: { slug: "glazba" } } } },
-          ],
-        }],
+        AND: expect.arrayContaining([
+          {
+            OR: [
+              { category: { slug: "glazba" } },
+              { categories: { some: { category: { slug: "glazba" } } } },
+            ],
+          },
+        ]),
       }),
     }));
+  });
+
+  it("hides past event detail, map events and sitemap events", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
+    const prisma = {
+      event: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      region: { findMany: jest.fn().mockResolvedValue([]) },
+      city: { findMany: jest.fn().mockResolvedValue([]) },
+      category: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new PublicFeedService(prisma as never);
+
+    await service.event("event-slug");
+    await service.mapEvents();
+    await service.sitemapData();
+
+    const visibility = {
+      OR: [
+        { endsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
+        { endsAt: null, startsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
+      ],
+    };
+    expect(prisma.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ slug: "event-slug", status: EventStatus.PUBLISHED, AND: [visibility] }),
+    }));
+    expect(prisma.event.findMany.mock.calls[0][0].where).toEqual({ status: EventStatus.PUBLISHED, AND: [visibility] });
+    expect(prisma.event.findMany.mock.calls[1][0]).toEqual({
+      where: { status: EventStatus.PUBLISHED, AND: [visibility] },
+      select: { slug: true, updatedAt: true },
+    });
   });
 
   it("builds today, weekend and explicit date range filters deterministically", async () => {
@@ -88,6 +133,7 @@ describe("PublicFeedService", () => {
   });
 
   it("returns sitemap data for published events and taxonomy", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
     const prisma = {
       event: { findMany: jest.fn().mockResolvedValue([{ slug: "event", updatedAt: new Date("2026-07-01") }]) },
       region: { findMany: jest.fn().mockResolvedValue([{ slug: "slavonija" }]) },
@@ -98,7 +144,18 @@ describe("PublicFeedService", () => {
 
     const data = await service.sitemapData();
 
-    expect(prisma.event.findMany).toHaveBeenCalledWith({ where: { status: EventStatus.PUBLISHED }, select: { slug: true, updatedAt: true } });
+    expect(prisma.event.findMany).toHaveBeenCalledWith({
+      where: {
+        status: EventStatus.PUBLISHED,
+        AND: [{
+          OR: [
+            { endsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
+            { endsAt: null, startsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
+          ],
+        }],
+      },
+      select: { slug: true, updatedAt: true },
+    });
     expect(data.events).toHaveLength(1);
     expect(data.regions).toHaveLength(1);
     expect(data.cities).toHaveLength(1);

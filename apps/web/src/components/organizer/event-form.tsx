@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { API_URL } from "@/lib/api"
-import { orgFetch, type City, type Category } from "@/lib/organizer/api"
+import { orgFetch, type Category } from "@/lib/organizer/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -33,8 +33,6 @@ type EventData = {
   sourceUrl?: string
   imageUrl?: string
   imageAlt?: string
-  imageCredit?: string
-  imageSourceUrl?: string
 }
 
 function toLocal(iso?: string) {
@@ -55,33 +53,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function OrganizerEventForm({ eventId, initial }: { eventId?: number; initial?: EventData }) {
   const router = useRouter()
-  const [cities, setCities] = useState<City[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [categoryIds, setCategoryIds] = useState<number[]>(
     initial?.categoryIds?.length ? initial.categoryIds : initial?.categoryId ? [initial.categoryId] : []
   )
   const [isFree, setIsFree] = useState(initial?.isFree ?? false)
-  const [location, setLocation] = useState<LocationValue | null>(
-    initial?.lat != null && initial?.lng != null
-      ? { address: initial.address ?? initial.venueName ?? "", lat: initial.lat, lng: initial.lng }
-      : initial?.address ? { address: initial.address, lat: 0, lng: 0 } : null
-  )
+  const [location, setLocation] = useState<LocationValue | null>(null)
+  const savedAddress = initial?.address ?? initial?.venueName ?? null
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: initial?.imageUrl ?? "",
     imageAlt: initial?.imageAlt ?? initial?.title ?? "",
-    imageCredit: initial?.imageCredit ?? "",
-    imageSourceUrl: initial?.imageSourceUrl ?? "",
   })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    Promise.all([
-      fetch(`${API_URL}/api/public/cities`).then((r) => r.json()),
-      fetch(`${API_URL}/api/public/categories`).then((r) => r.json()),
-    ]).then(([c, cats]) => {
-      setCities(c)
-      setCategories(cats)
-    }).catch(() => {})
+    fetch(`${API_URL}/api/public/categories`)
+      .then((r) => r.json())
+      .then(setCategories)
+      .catch(() => {})
   }, [])
 
   function toggleCategory(id: number) {
@@ -94,7 +83,6 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
     const form = new FormData(e.currentTarget)
     const startsAt = String(form.get("startsAt") || "")
     const endsAt = String(form.get("endsAt") || "")
-    const cityId = String(form.get("cityId") || "")
     const primaryCategoryId = categoryIds[0]
     const body = {
       title: String(form.get("title") || ""),
@@ -102,22 +90,16 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       shortDescription: String(form.get("shortDescription") || "") || undefined,
       startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
       endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
-      cityId: cityId ? Number(cityId) : undefined,
-      cityName: String(form.get("cityName") || "") || undefined,
+      cityName: location?.cityName || undefined,
       categoryId: primaryCategoryId,
       categoryIds: categoryIds.length ? categoryIds : undefined,
       venueName: String(form.get("venueName") || "") || undefined,
-      address: location?.address || String(form.get("address") || "") || undefined,
-      lat: location?.lat || undefined,
-      lng: location?.lng || undefined,
+      ...(location ? { address: location.address, lat: location.lat || undefined, lng: location.lng || undefined } : {}),
       isFree,
       priceText: isFree ? undefined : String(form.get("priceText") || "") || undefined,
-      ticketUrl: String(form.get("ticketUrl") || "") || undefined,
-      sourceUrl: String(form.get("sourceUrl") || "") || undefined,
+      ticketUrl: isFree ? undefined : String(form.get("ticketUrl") || "") || undefined,
       imageUrl: image.imageUrl || undefined,
       imageAlt: image.imageAlt || undefined,
-      imageCredit: image.imageCredit || undefined,
-      imageSourceUrl: image.imageSourceUrl || undefined,
     }
     try {
       const res = eventId
@@ -166,33 +148,19 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
           <Field label="Završetak">
             <Input name="endsAt" type="datetime-local" defaultValue={toLocal(initial?.endsAt)} />
           </Field>
-          <Field label="Grad">
-            <select name="cityId" defaultValue={initial?.cityId ?? ""}
-              className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none ring-ring/40 focus:ring-2">
-              <option value="">— Odaberi grad —</option>
-              {cities.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.county.region.name})
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Novi grad ako nije na listi">
-            <Input name="cityName" defaultValue={initial?.cityName} placeholder="npr. Đurđevac" />
-          </Field>
           <Field label="Naziv mjesta / dvorane">
             <Input name="venueName" defaultValue={initial?.venueName} placeholder="npr. Galerija Waldinger" />
           </Field>
-          <Field label="Adresa">
-            <Input name="address" defaultValue={initial?.address ?? ""} placeholder="npr. Ulica 1" />
-          </Field>
           <div className="sm:col-span-2">
-            <Field label="Precizna lokacija (koordinate)">
+            <Field label="Precizna lokacija">
               <LocationAutocomplete
                 value={location}
                 onChange={setLocation}
                 placeholder="Pretraži adresu ili naziv mjesta…"
               />
+              {!location && savedAddress && (
+                <p className="mt-1 text-xs text-muted-foreground">Trenutno: {savedAddress}</p>
+              )}
             </Field>
           </div>
         </CardContent>
@@ -231,22 +199,23 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Ulaznice, cijena i izvori</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Ulaznice i cijena</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-4">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" checked={isFree} onChange={(e) => setIsFree(e.target.checked)}
               className="size-4 rounded border-border accent-primary" />
             Ulaz slobodan / besplatno
           </label>
-          <Field label="Cijena">
-            <Input name="priceText" defaultValue={initial?.priceText} disabled={isFree} placeholder="npr. 10 EUR" />
-          </Field>
-          <Field label="Link za ulaznice">
-            <Input name="ticketUrl" defaultValue={initial?.ticketUrl} placeholder="https://…" type="url" />
-          </Field>
-          <Field label="URL izvora">
-            <Input name="sourceUrl" defaultValue={initial?.sourceUrl} placeholder="https://…" type="url" />
-          </Field>
+          {!isFree && (
+            <>
+              <Field label="Cijena">
+                <Input name="priceText" defaultValue={initial?.priceText} placeholder="npr. 10 EUR" />
+              </Field>
+              <Field label="Link za ulaznice">
+                <Input name="ticketUrl" defaultValue={initial?.ticketUrl} placeholder="https://…" type="url" />
+              </Field>
+            </>
+          )}
         </CardContent>
       </Card>
 

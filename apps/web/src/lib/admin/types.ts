@@ -58,8 +58,6 @@ export interface ParsedCandidate {
   organizerName: string | null
   imageUrl: string | null
   imageAlt?: string | null
-  imageCredit?: string | null
-  imageSourceUrl?: string | null
   confidence: number
   missingFields: string[]
   warnings: string[]
@@ -91,8 +89,6 @@ export interface AdminEvent {
   sourceUrl: string | null
   imageUrl: string | null
   imageAlt: string | null
-  imageCredit: string | null
-  imageSourceUrl: string | null
   status: EventStatus
   confidence: number
   warnings: string[]

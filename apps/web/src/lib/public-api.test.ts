@@ -16,8 +16,6 @@ const apiEvent = {
   sourceUrl: "https://source.example/event",
   imageUrl: "https://res.cloudinary.com/demo/image/upload/event.jpg",
   imageAlt: "Ljudi u šetnji Osijekom",
-  imageCredit: "TZ Osijek",
-  imageSourceUrl: "https://source.example/image",
   extractionConfidence: 0.9,
   organizer: { id: 5, name: "TZ Osijek" },
   venue: { id: 7, name: "Tvrđa", address: "Trg 1", lat: 45.56, lng: 18.69 },
@@ -25,7 +23,10 @@ const apiEvent = {
   county: { id: 2, name: "Osječko-baranjska", slug: "osjecko-baranjska" },
   region: { id: 3, name: "Slavonija i Baranja", slug: "slavonija-i-baranja" },
   category: { id: 4, name: "Na otvorenom", slug: "na-otvorenom" },
-  categories: [{ eventId: 31, categoryId: 4, isPrimary: true, category: { id: 4, name: "Na otvorenom", slug: "na-otvorenom" } }],
+  categories: [
+    { eventId: 31, categoryId: 4, isPrimary: true, category: { id: 4, name: "Na otvorenom", slug: "na-otvorenom" } },
+    { eventId: 31, categoryId: 9, isPrimary: false, category: { id: 9, name: "Sport", slug: "sport" } },
+  ],
 }
 
 describe("public API adapter", () => {
@@ -43,11 +44,13 @@ describe("public API adapter", () => {
 
     expect(events[0]).toEqual(expect.objectContaining({
       slug: "cipelcugom-po-osijeku",
-      image: "https://res.cloudinary.com/demo/image/upload/event.jpg",
+      image: "https://res.cloudinary.com/demo/image/upload/c_fill,g_auto,f_auto,q_auto,w_1200,h_900/event.jpg",
       imageAlt: "Ljudi u šetnji Osijekom",
-      imageCredit: "TZ Osijek",
-      imageSourceUrl: "https://source.example/image",
       category: "na-otvorenom",
+      categories: [
+        { slug: "na-otvorenom", name: "Na otvorenom" },
+        { slug: "sport", name: "Sport" },
+      ],
       outdoor: true,
       free: true,
     }))

@@ -40,7 +40,7 @@ export default function EditEventPage() {
           shortDescription: event.shortDescription as string | undefined,
           startsAt: event.startsAt as string,
           endsAt: event.endsAt as string | undefined,
-          cityId: (event.city as { id: number })?.id,
+          cityName: event.cityName as string | undefined ?? (event.city as { name?: string } | null)?.name,
           categoryId: (event.category as { id: number })?.id,
           categoryIds: ((event.categories as Array<{ categoryId?: number; category?: { id: number } }> | undefined) ?? [])
             .map((c) => c.category?.id ?? c.categoryId)
@@ -55,8 +55,6 @@ export default function EditEventPage() {
           sourceUrl: event.sourceUrl as string | undefined,
           imageUrl: event.imageUrl as string | undefined,
           imageAlt: event.imageAlt as string | undefined,
-          imageCredit: event.imageCredit as string | undefined,
-          imageSourceUrl: event.imageSourceUrl as string | undefined,
         }}
       />
     </div>

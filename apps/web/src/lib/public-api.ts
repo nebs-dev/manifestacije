@@ -1,4 +1,4 @@
-import { cloudinaryImage, events as fallbackEvents, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { cloudinaryImage, eventHasCategory, events as fallbackEvents, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000"
@@ -27,12 +27,11 @@ type ApiEvent = {
   sourceUrl?: string | null
   imageUrl?: string | null
   imageAlt?: string | null
-  imageCredit?: string | null
-  imageSourceUrl?: string | null
   extractionConfidence?: number | null
   organizer?: { id: number; name: string } | null
   venue?: { id: number; name: string; address?: string | null; lat?: number | null; lng?: number | null } | null
-  city: ApiTaxonomy
+  cityName?: string | null
+  city?: ApiTaxonomy | null
   address?: string | null
   lat?: number | null
   lng?: number | null
@@ -113,7 +112,7 @@ export async function fetchEvent(slug: string) {
 export async function fetchRelatedEvents(event: CroEvent) {
   const all = await fetchEvents()
   return all
-    .filter((item) => item.slug !== event.slug && (item.region === event.region || item.category === event.category))
+    .filter((item) => item.slug !== event.slug && (item.region === event.region || event.categories.some((category) => eventHasCategory(item, category.slug))))
     .slice(0, 3)
 }
 
@@ -133,14 +132,16 @@ function toCroEvent(event: ApiEvent): CroEvent {
   const region = regionMap[event.region?.slug || ""] || "slavonija"
 
   // Build categories list from EventCategory join; fall back to singular category
-  const allCats: { slug: string; name: string }[] =
+  const rawCats: { slug: string; name: string }[] =
     event.categories && event.categories.length > 0
       ? event.categories.map((ec) => ({ slug: ec.category.slug, name: ec.category.name }))
       : [{ slug: event.category.slug, name: event.category.name }]
+  const allCats = Array.from(new Map(rawCats.map((category) => [category.slug, category])).values())
 
   // Primary category: prefer isPrimary flag, fall back to first in list or singular
   const primarySlug =
     event.categories?.find((ec) => ec.isPrimary)?.category.slug ||
+    allCats[0]?.slug ||
     event.category.slug
 
   return {
@@ -149,8 +150,8 @@ function toCroEvent(event: ApiEvent): CroEvent {
     category: primarySlug as CategorySlug,
     categories: allCats,
     region,
-    city: event.city.name,
-    venue: event.venue?.name || event.city.name,
+    city: event.cityName ?? event.city?.name ?? "",
+    venue: event.venue?.name || event.cityName || event.city?.name || "",
     date: starts.toISOString().slice(0, 10),
     endDate: ends ? ends.toISOString().slice(0, 10) : undefined,
     time: new Intl.DateTimeFormat("hr-HR", { hour: "2-digit", minute: "2-digit" }).format(starts),
@@ -167,12 +168,10 @@ function toCroEvent(event: ApiEvent): CroEvent {
     ticketUrl: event.ticketUrl || undefined,
     image: cloudinaryImage(event.imageUrl, { w: 1200, h: 900 }) || undefined,
     imageAlt: event.imageAlt || event.title,
-    imageCredit: event.imageCredit || undefined,
-    imageSourceUrl: event.imageSourceUrl || undefined,
     featured: event.extractionConfidence ? event.extractionConfidence >= 0.85 : false,
     address: event.address ?? event.venue?.address ?? undefined,
-    lat: (event.lat ?? event.venue?.lat ?? event.city.lat) ?? undefined,
-    lng: (event.lng ?? event.venue?.lng ?? event.city.lng) ?? undefined,
+    lat: (event.lat ?? event.venue?.lat ?? event.city?.lat) ?? undefined,
+    lng: (event.lng ?? event.venue?.lng ?? event.city?.lng) ?? undefined,
     map: { x: 50, y: 50 },
   }
 }
