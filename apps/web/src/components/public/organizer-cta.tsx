@@ -45,19 +45,13 @@ export function OrganizerCta() {
               Od malih radionica do velikih festivala — objavite svoj program
               besplatno i dosegnite ljude koji traže baš ono što nudite.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8">
               <a
-                href="/organizer/register"
+                href="/organizer/login"
                 className="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-sm font-semibold text-accent-foreground transition-transform hover:-translate-y-0.5"
               >
                 Dodaj event
                 <ArrowRight className="size-4" />
-              </a>
-              <a
-                href="/organizer/login"
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 px-6 py-3.5 text-sm font-semibold text-ink-foreground transition-colors hover:bg-white/10"
-              >
-                Već imam račun
               </a>
             </div>
           </div>

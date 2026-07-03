@@ -51,17 +51,11 @@ describe("EventsService image fields", () => {
       categoryId: 4,
       startsAt: "2026-07-01T10:00:00.000Z",
       imageUrl: "https://res.cloudinary.com/demo/image/upload/event.jpg",
-      imageAlt: "Alt",
-      imageCredit: "Foto kredit",
-      imageSourceUrl: "https://source.example/image",
     }, {});
 
     expect(prisma.event.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         imageUrl: "https://res.cloudinary.com/demo/image/upload/event.jpg",
-        imageAlt: "Alt",
-        imageCredit: "Foto kredit",
-        imageSourceUrl: "https://source.example/image",
       }),
     }));
     expect(prisma.eventCategory.upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -120,18 +114,12 @@ describe("EventsService image fields", () => {
 
     await service.updateEvent(10, {
       imageUrl: null,
-      imageAlt: null,
-      imageCredit: null,
-      imageSourceUrl: null,
     });
 
     expect(prisma.event.update).toHaveBeenCalledWith({
       where: { id: 10 },
       data: expect.objectContaining({
         imageUrl: null,
-        imageAlt: null,
-        imageCredit: null,
-        imageSourceUrl: null,
       }),
     });
   });

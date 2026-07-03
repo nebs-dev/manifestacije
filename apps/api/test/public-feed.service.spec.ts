@@ -107,23 +107,25 @@ describe("PublicFeedService", () => {
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) } };
     const service = new PublicFeedService(prisma as never);
 
-    await service.events({ today: "true" });
-    expect(prisma.event.findMany.mock.calls[0][0].where.startsAt).toEqual({
-      gte: new Date(2026, 6, 1, 0, 0, 0, 0),
-      lte: new Date(2026, 6, 1, 23, 59, 59, 999),
+    const overlap = (start: Date, end: Date) => ({
+      startsAt: { lte: end },
+      OR: [{ endsAt: { gte: start } }, { endsAt: null, startsAt: { gte: start } }],
     });
+
+    await service.events({ today: "true" });
+    expect(prisma.event.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([
+      overlap(new Date(2026, 6, 1, 0, 0, 0, 0), new Date(2026, 6, 1, 23, 59, 59, 999)),
+    ]));
 
     await service.events({ weekend: "true" });
-    expect(prisma.event.findMany.mock.calls[1][0].where.startsAt).toEqual({
-      gte: new Date(2026, 6, 4, 0, 0, 0, 0),
-      lte: new Date(2026, 6, 5, 23, 59, 59, 999),
-    });
+    expect(prisma.event.findMany.mock.calls[1][0].where.AND).toEqual(expect.arrayContaining([
+      overlap(new Date(2026, 6, 4, 0, 0, 0, 0), new Date(2026, 6, 5, 23, 59, 59, 999)),
+    ]));
 
     await service.events({ month: "true" });
-    expect(prisma.event.findMany.mock.calls[2][0].where.startsAt).toEqual({
-      gte: new Date(2026, 6, 1, 0, 0, 0, 0),
-      lte: new Date(2026, 6, 31, 23, 59, 59, 999),
-    });
+    expect(prisma.event.findMany.mock.calls[2][0].where.AND).toEqual(expect.arrayContaining([
+      overlap(new Date(2026, 6, 1, 0, 0, 0, 0), new Date(2026, 6, 31, 23, 59, 59, 999)),
+    ]));
 
     await service.events({ dateFrom: "2026-08-01", dateTo: "2026-08-31" });
     expect(prisma.event.findMany.mock.calls[3][0].where.startsAt).toEqual({

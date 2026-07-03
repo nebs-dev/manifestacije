@@ -16,7 +16,6 @@ import { EventImagePicker, type EventImageValue } from "@/components/admin/event
 type EventData = {
   title?: string
   description?: string
-  shortDescription?: string
   startsAt?: string
   endsAt?: string
   cityId?: number
@@ -32,7 +31,6 @@ type EventData = {
   ticketUrl?: string
   sourceUrl?: string
   imageUrl?: string
-  imageAlt?: string
 }
 
 function toLocal(iso?: string) {
@@ -62,7 +60,6 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
   const savedAddress = initial?.address ?? initial?.venueName ?? null
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: initial?.imageUrl ?? "",
-    imageAlt: initial?.imageAlt ?? initial?.title ?? "",
   })
   const [loading, setLoading] = useState(false)
 
@@ -87,7 +84,6 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
     const body = {
       title: String(form.get("title") || ""),
       description: String(form.get("description") || ""),
-      shortDescription: String(form.get("shortDescription") || "") || undefined,
       startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
       endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
       cityName: location?.cityName || undefined,
@@ -99,7 +95,7 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       priceText: isFree ? undefined : String(form.get("priceText") || "") || undefined,
       ticketUrl: isFree ? undefined : String(form.get("ticketUrl") || "") || undefined,
       imageUrl: image.imageUrl || undefined,
-      imageAlt: image.imageAlt || undefined,
+      sourceUrl: String(form.get("sourceUrl") || "") || undefined,
     }
     try {
       const res = eventId
@@ -129,9 +125,6 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
         <CardContent className="flex flex-col gap-4">
           <Field label="Naziv događaja">
             <Input name="title" defaultValue={initial?.title} placeholder="npr. Jazz večer u Galeriji" />
-          </Field>
-          <Field label="Kratki opis">
-            <Input name="shortDescription" defaultValue={initial?.shortDescription} />
           </Field>
           <Field label="Opis">
             <Textarea name="description" defaultValue={initial?.description} rows={5} placeholder="Opišite događaj…" />
@@ -192,6 +185,7 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
           <EventImagePicker
             value={image}
             onChange={setImage}
+            hideUrlField
             uploadPath="/api/organizer/uploads/event-image"
             uploadFetch={orgFetch}
           />
@@ -216,6 +210,9 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
               </Field>
             </>
           )}
+          <Field label="Dodaj poveznicu na događaj">
+            <Input name="sourceUrl" defaultValue={initial?.sourceUrl} placeholder="https://…" type="url" />
+          </Field>
         </CardContent>
       </Card>
 

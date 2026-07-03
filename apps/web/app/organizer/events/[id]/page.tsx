@@ -37,7 +37,6 @@ export default function EditEventPage() {
         initial={{
           title: event.title as string,
           description: event.description as string,
-          shortDescription: event.shortDescription as string | undefined,
           startsAt: event.startsAt as string,
           endsAt: event.endsAt as string | undefined,
           cityName: event.cityName as string | undefined ?? (event.city as { name?: string } | null)?.name,
@@ -54,7 +53,6 @@ export default function EditEventPage() {
           ticketUrl: event.ticketUrl as string | undefined,
           sourceUrl: event.sourceUrl as string | undefined,
           imageUrl: event.imageUrl as string | undefined,
-          imageAlt: event.imageAlt as string | undefined,
         }}
       />
     </div>

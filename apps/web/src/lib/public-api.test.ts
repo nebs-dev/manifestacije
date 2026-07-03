@@ -6,7 +6,6 @@ const apiEvent = {
   title: "Cipelcugom po Osijeku",
   slug: "cipelcugom-po-osijeku",
   description: "Storytelling tura Osijekom.",
-  shortDescription: "Tura gradom",
   startsAt: "2026-07-04T18:30:00.000Z",
   endsAt: null,
   isAllDay: false,
@@ -15,7 +14,6 @@ const apiEvent = {
   ticketUrl: "https://tickets.example/event",
   sourceUrl: "https://source.example/event",
   imageUrl: "https://res.cloudinary.com/demo/image/upload/event.jpg",
-  imageAlt: "Ljudi u šetnji Osijekom",
   extractionConfidence: 0.9,
   organizer: { id: 5, name: "TZ Osijek" },
   venue: { id: 7, name: "Tvrđa", address: "Trg 1", lat: 45.56, lng: 18.69 },
@@ -45,7 +43,6 @@ describe("public API adapter", () => {
     expect(events[0]).toEqual(expect.objectContaining({
       slug: "cipelcugom-po-osijeku",
       image: "https://res.cloudinary.com/demo/image/upload/c_fill,g_auto,f_auto,q_auto,w_1200,h_900/event.jpg",
-      imageAlt: "Ljudi u šetnji Osijekom",
       category: "na-otvorenom",
       categories: [
         { slug: "na-otvorenom", name: "Na otvorenom" },

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { UserRole } from "@prisma/client";
 import { CurrentUser, Roles } from "../auth/auth.decorators";
@@ -30,6 +30,11 @@ export class OrganizerController {
     return this.organizer.listEvents(user.organizerId!);
   }
 
+  @Get("sources")
+  sources(@CurrentUser() user: AuthUser) {
+    return this.organizer.listSources(user.organizerId!);
+  }
+
   @Post("events")
   createEvent(@CurrentUser() user: AuthUser, @Body() dto: EventUpsertDto) {
     return this.organizer.createEvent(user.organizerId!, dto);
@@ -38,6 +43,11 @@ export class OrganizerController {
   @Put("events/:id")
   updateEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: EventUpsertDto) {
     return this.organizer.updateEvent(user.organizerId!, Number(id), dto);
+  }
+
+  @Delete("events/:id")
+  deleteEvent(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.organizer.deleteEvent(user.organizerId!, Number(id));
   }
 
   @Post("events/submit-url")

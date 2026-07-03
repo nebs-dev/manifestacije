@@ -54,7 +54,6 @@ export class AdminService {
         title,
         slug,
         description: current.description,
-        shortDescription: current.shortDescription,
         status: EventStatus.DRAFT,
         organizerId: current.organizerId,
         venueId: current.venueId,
@@ -70,7 +69,6 @@ export class AdminService {
         ticketUrl: current.ticketUrl,
         sourceUrl: current.sourceUrl,
         imageUrl: current.imageUrl,
-        imageAlt: current.imageAlt,
         address: current.address,
         lat: current.lat,
         lng: current.lng,
@@ -187,12 +185,29 @@ export class AdminService {
       }
     }
 
+    // If listing page (many event sub-links, no dates), crawl sub-pages
+    let subPageRawText: string | undefined;
+    let subPageWarning: string | undefined;
+    if (rawHtml && !skipFetch) {
+      const crawl = await this.parser.crawlListingSubPages(rawHtml, dto.sourceUrl);
+      if (crawl.subTexts.length > 0) {
+        subPageRawText = crawl.subTexts.join("\n\n---\n\n");
+        if (crawl.totalFound > crawl.fetched) {
+          subPageWarning = `Stranica sadrži ${crawl.totalFound} događaja; obrađeno prvih ${crawl.fetched}.`;
+        }
+      }
+    }
+
+    const effectiveHtml = subPageRawText ? undefined : rawHtml || undefined;
     const result = dto.useLlm
-      ? await this.parser.parseBatchWithLlm({ rawHtml: rawHtml || undefined, sourceUrl: dto.sourceUrl })
-      : await this.parser.parseBatch({ rawHtml: rawHtml || undefined, sourceUrl: dto.sourceUrl });
+      ? await this.parser.parseBatchWithLlm({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl })
+      : await this.parser.parseBatch({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl });
 
     if (fetchWarnings.length) {
       result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
+    }
+    if (subPageWarning) {
+      result.candidates.forEach((c) => c.warnings.push(subPageWarning!));
     }
 
     const { confidence, status } = this.sourceMetaFromResult(result);
@@ -212,11 +227,32 @@ export class AdminService {
   async reparseSource(id: number) {
     const source = await this.prisma.eventSource.findUnique({ where: { id } });
     if (!source) throw new NotFoundException("Source not found");
-    const result = await this.parser.parseBatch({
-      rawHtml: source.rawHtml || undefined,
-      rawText: source.rawText || undefined,
-      sourceUrl: source.sourceUrl || undefined,
-    });
+
+    let rawText = source.rawText || undefined;
+    let rawHtml = source.rawHtml || undefined;
+    const sourceUrl = source.sourceUrl || undefined;
+
+    // Re-fetch URL if we have one (stored rawHtml may be stale or listing-only)
+    if (sourceUrl && !this.isFacebookUrl(sourceUrl)) {
+      try {
+        const res = await fetch(sourceUrl, {
+          headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (res.ok) rawHtml = await res.text();
+      } catch { /* use stored rawHtml */ }
+    }
+
+    // Sub-page crawl if listing
+    if (rawHtml && sourceUrl) {
+      const crawl = await this.parser.crawlListingSubPages(rawHtml, sourceUrl);
+      if (crawl.subTexts.length > 0) {
+        rawText = crawl.subTexts.join("\n\n---\n\n");
+        rawHtml = undefined;
+      }
+    }
+
+    const result = await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl });
     const { confidence, status } = this.sourceMetaFromResult(result);
     return this.prisma.eventSource.update({
       where: { id },
@@ -279,7 +315,6 @@ export class AdminService {
         lat: candidate.lat ?? undefined,
         lng: candidate.lng ?? undefined,
         imageUrl: candidate.imageUrl || undefined,
-        imageAlt: candidate.imageAlt || undefined,
       },
       { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
     );

@@ -66,7 +66,6 @@ export interface CroEvent {
   source: string
   ticketUrl?: string
   image?: string
-  imageAlt?: string
   featured?: boolean
   address?: string
   lat?: number

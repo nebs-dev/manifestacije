@@ -11,7 +11,6 @@ import { authedFetch } from "@/lib/admin/api"
 
 export type EventImageValue = {
   imageUrl: string
-  imageAlt: string
 }
 
 export function EventImagePicker({
@@ -19,6 +18,7 @@ export function EventImagePicker({
   onChange,
   disabled,
   suggestedImageUrl,
+  hideUrlField,
   uploadPath = "/api/admin/uploads/event-image",
   uploadFetch = authedFetch,
 }: {
@@ -26,6 +26,7 @@ export function EventImagePicker({
   onChange: (value: EventImageValue) => void
   disabled?: boolean
   suggestedImageUrl?: string | null
+  hideUrlField?: boolean
   uploadPath?: string
   uploadFetch?: typeof authedFetch
 }) {
@@ -80,7 +81,7 @@ export function EventImagePicker({
         <div className="overflow-hidden rounded-2xl border border-border bg-muted">
           {value.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={value.imageUrl} alt={value.imageAlt || "Slika događaja"} className="aspect-video w-full object-cover" />
+            <img src={value.imageUrl} alt="Slika događaja" className="aspect-video w-full object-cover" />
           ) : (
             <div className="flex aspect-video items-center justify-center text-sm text-muted-foreground">
               Nema slike
@@ -118,7 +119,7 @@ export function EventImagePicker({
               type="button"
               variant="outline"
               disabled={disabled || uploading}
-              onClick={() => onChange({ imageUrl: "", imageAlt: "" })}
+              onClick={() => onChange({ imageUrl: "" })}
             >
               <X data-icon="inline-start" />
               Ukloni
@@ -128,14 +129,12 @@ export function EventImagePicker({
         <FieldDescription>JPEG, PNG ili WebP do 5MB. Preporučeno: horizontalno, min. 1200×900px (4:3). Možeš i zalijepiti sliku (⌘V).</FieldDescription>
       </Field>
 
-      <Field>
-        <FieldLabel htmlFor="imageUrl">URL slike</FieldLabel>
-        <Input id="imageUrl" value={value.imageUrl} disabled={disabled || uploading} onChange={(e) => patch({ imageUrl: e.target.value })} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="imageAlt">Alt tekst</FieldLabel>
-        <Input id="imageAlt" value={value.imageAlt} disabled={disabled || uploading} onChange={(e) => patch({ imageAlt: e.target.value })} />
-      </Field>
+      {!hideUrlField && (
+        <Field>
+          <FieldLabel htmlFor="imageUrl">URL slike</FieldLabel>
+          <Input id="imageUrl" value={value.imageUrl} disabled={disabled || uploading} onChange={(e) => patch({ imageUrl: e.target.value })} />
+        </Field>
+      )}
     </FieldGroup>
   )
 }

@@ -21,7 +21,6 @@ export type ParsedEventCandidate = {
   sourceUrl: string;
   organizerName: string;
   imageUrl: string;
-  imageAlt?: string;
   imageCredit?: string;
   imageSourceUrl?: string;
   confidence: number;
@@ -97,6 +96,76 @@ export class AiEventParserService {
 
   // ── Public API ────────────────────────────────────────────────────────────────
 
+  extractEventSubLinks(html: string, baseUrl: string): string[] {
+    let base: URL;
+    try { base = new URL(baseUrl); } catch { return []; }
+
+    const seen = new Set<string>();
+    const allLinks: string[] = [];
+    const hrefRe = /href=["']([^"'#][^"']*?)["']/gi;
+    let m: RegExpExecArray | null;
+    while ((m = hrefRe.exec(html)) !== null) {
+      try {
+        const url = new URL(m[1].trim(), baseUrl);
+        if (url.hostname !== base.hostname) continue;
+        const path = url.pathname;
+        if (path === "/" || path === base.pathname || path.length < 5) continue;
+        if (/\/(kontakt|o-nama|naslovnica|pocetna|home|about|contact|admin|login|prijava|registracija|search|tag|kategorija|rss|sitemap)\/?$/i.test(path)) continue;
+        if (/\.(pdf|doc|docx|xls|jpg|jpeg|png|gif|zip|mp3|mp4)\b/i.test(path)) continue;
+        const full = url.origin + path;
+        if (!seen.has(full)) { seen.add(full); allLinks.push(full); }
+      } catch { /* skip */ }
+    }
+
+    // Only return links that share a parent path with 3+ siblings (structured listing)
+    const byParent = new Map<string, string[]>();
+    for (const link of allLinks) {
+      try {
+        const parts = new URL(link).pathname.split("/").filter(Boolean);
+        if (parts.length >= 2) {
+          const parent = parts.slice(0, -1).join("/");
+          const arr = byParent.get(parent) ?? [];
+          arr.push(link);
+          byParent.set(parent, arr);
+        }
+      } catch { /* skip */ }
+    }
+
+    const result: string[] = [];
+    for (const [, siblings] of byParent) {
+      if (siblings.length >= 3) result.push(...siblings);
+    }
+    return [...new Set(result)];
+  }
+
+  async crawlListingSubPages(html: string, baseUrl: string): Promise<{
+    subTexts: string[];
+    totalFound: number;
+    fetched: number;
+  }> {
+    const MAX = 10;
+    const links = this.extractEventSubLinks(html, baseUrl);
+    if (links.length < 3) return { subTexts: [], totalFound: 0, fetched: 0 };
+
+    const toFetch = links.slice(0, MAX);
+    const results = await Promise.allSettled(
+      toFetch.map(async (url) => {
+        const res = await fetch(url, {
+          headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return "";
+        return this.htmlToText(await res.text()).slice(0, 2000);
+      })
+    );
+
+    const subTexts = results
+      .map((r, i) => r.status === "fulfilled" && r.value ? `[${toFetch[i]}]\n${r.value}` : "")
+      .filter(Boolean);
+
+    return { subTexts, totalFound: links.length, fetched: subTexts.length };
+  }
+
   async parseBatch(input: {
     rawText?: string;
     rawHtml?: string;
@@ -148,8 +217,9 @@ export class AiEventParserService {
     }
 
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
-    const raw = input.rawHtml ? this.htmlToText(input.rawHtml) : (input.rawText ?? "");
-    const text = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
+    const htmlText = input.rawHtml ? this.htmlToText(input.rawHtml) : "";
+    const combined = [htmlText, input.rawText ?? ""].filter(Boolean).join("\n\n---\n\n");
+    const text = combined.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
     const isScreenshot = Boolean(input.screenshotBase64);
     const charLimit = isScreenshot ? 12000 : 24000;
     const truncated = text.length > charLimit ? text.slice(0, charLimit) + "\n[sadržaj skraćen]" : text;
@@ -269,7 +339,6 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       sourceUrl,
       organizerName: p.organizerName ?? "",
       imageUrl: p.imageUrl || htmlImageUrl,
-      imageAlt: p.imageAlt,
       imageCredit: p.imageCredit,
       imageSourceUrl: p.imageSourceUrl,
       confidence: p.confidence ?? 0.7,

@@ -24,3 +24,15 @@ export type OrgEvent = {
   city: { name: string }
   category: { name: string }
 }
+
+export type OrgSource = {
+  id: number
+  sourceUrl: string | null
+  rawText: string | null
+  status: string
+  confidence: number | null
+  createdAt: string
+  parsedJson: {
+    candidates?: { title?: string }[]
+  } | null
+}

@@ -26,7 +26,7 @@ export function EventCard({ event, className }: EventCardProps) {
           <EventPoster
             image={event.image}
             title={event.title}
-            alt={event.imageAlt || event.title}
+            alt={event.title}
             category={event.category}
           />
         </div>

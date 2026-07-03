@@ -10,10 +10,6 @@ export class EventUpsertDto {
   @IsOptional()
   description?: string;
 
-  @IsOptional()
-  @IsString()
-  shortDescription?: string;
-
   @Type(() => Number)
   @IsInt()
   @IsOptional()
@@ -88,8 +84,4 @@ export class EventUpsertDto {
   @IsOptional()
   @IsString()
   imageUrl?: string | null;
-
-  @IsOptional()
-  @IsString()
-  imageAlt?: string | null;
 }

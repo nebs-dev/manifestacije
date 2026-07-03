@@ -20,7 +20,6 @@ function candidate(overrides: Partial<ParsedEventCandidate> = {}): ParsedEventCa
     sourceUrl: "https://source.example/event",
     organizerName: "TZ Osijek",
     imageUrl: "https://source.example/image.jpg",
-    imageAlt: "Poster",
     imageCredit: "Organizator",
     imageSourceUrl: "https://source.example/event",
     confidence: 0.82,
@@ -115,9 +114,6 @@ describe("AdminService ingestion workflow", () => {
       categoryId: 22,
       startsAt: "2026-07-05T19:00:00.000Z",
       imageUrl: "https://source.example/image.jpg",
-      imageAlt: "Poster",
-      imageCredit: "Organizator",
-      imageSourceUrl: "https://source.example/event",
     }), expect.objectContaining({ organizerId: 33, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }));
     const updatedParsed = prisma.eventSource.update.mock.calls[0][0].data.parsedJson as ParsedSourceResult;
     expect(updatedParsed.candidates[0]._status).toBe("created");
@@ -207,7 +203,6 @@ describe("AdminService ingestion workflow", () => {
       ticketUrl: null,
       sourceUrl: "https://source.example",
       imageUrl: null,
-      imageAlt: null,
       imageCredit: null,
       imageSourceUrl: null,
       address: null,

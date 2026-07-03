@@ -31,7 +31,6 @@ export function EventCreateForm() {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    shortDescription: "",
     startsAt: "",
     endsAt: "",
     cityId: "",
@@ -45,7 +44,7 @@ export function EventCreateForm() {
     sourceUrl: "",
     status: "draft" as EventStatus,
   })
-  const [image, setImage] = useState<EventImageValue>({ imageUrl: "", imageAlt: "" })
+  const [image, setImage] = useState<EventImageValue>({ imageUrl: "" })
 
   useEffect(() => {
     let alive = true
@@ -75,7 +74,6 @@ export function EventCreateForm() {
         body: JSON.stringify({
           title: form.title,
           description: form.description,
-          shortDescription: form.shortDescription || undefined,
           cityId: form.cityId ? Number(form.cityId) : undefined,
           cityName: form.cityName || undefined,
           categoryId: primaryCategoryId,
@@ -91,7 +89,6 @@ export function EventCreateForm() {
           sourceUrl: form.sourceUrl || undefined,
           status: toApiEventStatus(form.status),
           imageUrl: image.imageUrl || undefined,
-          imageAlt: image.imageAlt || undefined,
         }),
       })
       if (!res.ok) throw new Error(await res.text())
@@ -116,7 +113,6 @@ export function EventCreateForm() {
           <CardContent>
             <FieldGroup>
               <Field><FieldLabel>Naziv</FieldLabel><Input value={form.title} onChange={(e) => update("title", e.target.value)} /></Field>
-              <Field><FieldLabel>Kratki opis</FieldLabel><Input value={form.shortDescription} onChange={(e) => update("shortDescription", e.target.value)} /></Field>
               <Field><FieldLabel>Opis</FieldLabel><Textarea rows={5} value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field><FieldLabel>Početak</FieldLabel><Input type="datetime-local" value={form.startsAt} onChange={(e) => update("startsAt", e.target.value)} /></Field>

@@ -106,7 +106,6 @@ export function ParsedCandidateCard({
   }))
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: candidate.imageUrl || "",
-    imageAlt: candidate.imageAlt || candidate.title || "",
   })
 
   useEffect(() => {
@@ -184,7 +183,6 @@ export function ParsedCandidateCard({
               ticketUrl: form.ticketUrl,
               organizerName: form.organizerName,
               imageUrl: image.imageUrl,
-              imageAlt: image.imageAlt,
             },
           }),
         }

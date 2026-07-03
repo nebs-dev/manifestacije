@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import { EventStatus, EventSourceType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventUpsertDto } from "../events/event.dto";
@@ -39,6 +39,16 @@ export class OrganizerService {
     });
   }
 
+  async deleteEvent(organizerId: number, id: number) {
+    const event = await this.prisma.event.findFirst({ where: { id, organizerId } });
+    if (!event) throw new BadRequestException("Event not found for organizer");
+    if (event.status !== "PENDING_REVIEW" && event.status !== "DRAFT") {
+      throw new ForbiddenException("Možete obrisati samo evente na pregledu ili nacrte.");
+    }
+    await this.prisma.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
+    return this.prisma.event.delete({ where: { id } });
+  }
+
   async updateEvent(organizerId: number, id: number, dto: EventUpsertDto) {
     const event = await this.prisma.event.findFirst({ where: { id, organizerId } });
     if (!event) throw new BadRequestException("Event not found for organizer");
@@ -47,7 +57,7 @@ export class OrganizerService {
 
   async submitSource(organizerId: number, dto: SubmitSourceDto) {
     const sourceUrl = dto.sourceUrl?.trim() || undefined;
-    const rawText = dto.rawText?.trim() || undefined;
+    let rawText = dto.rawText?.trim() || undefined;
     const hasScreenshot = Boolean(dto.screenshotBase64 && dto.screenshotMediaType);
     const isFacebook = this.isFacebookUrl(sourceUrl);
 
@@ -59,16 +69,56 @@ export class OrganizerService {
       throw new BadRequestException("Dodajte link, tekst ili screenshot/plakat.");
     }
 
+    // Fetch URL content unless it's Facebook (parser handles FB warning itself)
+    let rawHtml: string | undefined;
+    const fetchWarnings: string[] = [];
+    if (sourceUrl && !isFacebook) {
+      try {
+        const response = await fetch(sourceUrl, {
+          headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (response.ok) {
+          rawHtml = await response.text();
+        } else {
+          fetchWarnings.push(`HTTP ${response.status} when fetching URL`);
+        }
+      } catch (err) {
+        fetchWarnings.push(`Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // If main page is a listing (many event sub-links, no dates in text), crawl sub-pages
+    let subPageWarning: string | undefined;
+    if (rawHtml && sourceUrl && !isFacebook && !hasScreenshot) {
+      const crawl = await this.parser.crawlListingSubPages(rawHtml, sourceUrl);
+      if (crawl.subTexts.length > 0) {
+        rawText = crawl.subTexts.join("\n\n---\n\n");
+        rawHtml = undefined;
+        if (crawl.totalFound > crawl.fetched) {
+          subPageWarning = `Stranica sadrži ${crawl.totalFound} događaja; obrađeno prvih ${crawl.fetched}.`;
+        }
+      }
+    }
+
     const useLlm = Boolean(dto.useLlm || hasScreenshot || isFacebook);
     const result = useLlm
       ? await this.parser.parseBatchWithLlm({
           rawText,
+          rawHtml,
           sourceUrl,
           screenshotBase64: dto.screenshotBase64,
           screenshotMediaType: dto.screenshotMediaType,
           contextHint: dto.contextHint,
         })
-      : await this.parser.parseBatch({ rawText, sourceUrl });
+      : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl });
+
+    if (fetchWarnings.length) {
+      result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
+    }
+    if (subPageWarning) {
+      result.candidates.forEach((c) => c.warnings.push(subPageWarning!));
+    }
 
     const parsed = dto.sourceImageUrl ? { ...result, sourceImageUrl: dto.sourceImageUrl } : result;
     const { confidence, status } = this.sourceMetaFromResult(result, isFacebook);
@@ -79,10 +129,27 @@ export class OrganizerService {
         type: sourceUrl ? EventSourceType.URL : EventSourceType.MANUAL,
         sourceUrl,
         rawText,
+        rawHtml,
         parsedJson: parsed as object,
         confidence,
         status,
       }
+    });
+  }
+
+  listSources(organizerId: number) {
+    return this.prisma.eventSource.findMany({
+      where: { organizerId },
+      select: {
+        id: true,
+        sourceUrl: true,
+        rawText: true,
+        status: true,
+        confidence: true,
+        createdAt: true,
+        parsedJson: true,
+      },
+      orderBy: { createdAt: "desc" },
     });
   }
 

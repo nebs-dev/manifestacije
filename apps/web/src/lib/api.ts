@@ -52,7 +52,6 @@ export type EventItem = {
   title: string;
   slug: string;
   description: string;
-  shortDescription?: string | null;
   startsAt: string;
   endsAt?: string | null;
   isFree?: boolean | null;

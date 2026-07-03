@@ -180,7 +180,6 @@ model Event {
   title                String
   slug                 String    @unique
   description          String
-  shortDescription     String?
   status               EventStatus @default(PENDING_REVIEW)
   organizerId          Int?
   organizer            Organizer? @relation(fields: [organizerId], references: [id])
@@ -204,7 +203,6 @@ model Event {
   ticketUrl            String?
   sourceUrl            String?
   imageUrl             String?
-  imageAlt             String?
   address              String?
   lat                  Float?
   lng                  Float?

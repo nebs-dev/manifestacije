@@ -66,7 +66,6 @@ export function EventEditForm({
     title: event.title,
     slug: event.slug,
     description: event.description,
-    shortDescription: event.shortDescription,
     startsAt: toLocalInput(event.startsAt),
     endsAt: toLocalInput(event.endsAt),
     allDay: event.allDay,
@@ -80,7 +79,6 @@ export function EventEditForm({
   })
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: event.imageUrl ?? "",
-    imageAlt: event.imageAlt ?? event.title,
   })
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
     event._categoryIds?.length ? event._categoryIds : (event._categoryId ? [event._categoryId] : [])
@@ -140,7 +138,6 @@ export function EventEditForm({
         body: JSON.stringify({
           title: form.title,
           description: form.description,
-          shortDescription: form.shortDescription || undefined,
           cityId: event._cityId,
           categoryId: primaryCategoryId,
           categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
@@ -156,7 +153,6 @@ export function EventEditForm({
           lat: location?.lat,
           lng: location?.lng,
           imageUrl: image.imageUrl || null,
-          imageAlt: image.imageAlt || null,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
           status: toApiEventStatus(options?.status ?? form.status),
         }),
@@ -267,14 +263,6 @@ export function EventEditForm({
                   <FieldDescription>
                     Koristi se u javnom URL-u događaja.
                   </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="shortDescription">Kratki opis</FieldLabel>
-                  <Input
-                    id="shortDescription"
-                    value={form.shortDescription}
-                    onChange={(e) => update("shortDescription", e.target.value)}
-                  />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="description">Opis</FieldLabel>

@@ -94,7 +94,6 @@ export class PublicFeedService {
       where.OR = [
         { title: { contains: query.search, mode: "insensitive" } },
         { description: { contains: query.search, mode: "insensitive" } },
-        { shortDescription: { contains: query.search, mode: "insensitive" } },
         { city: { name: { contains: query.search, mode: "insensitive" } } },
         { city: { slug: { contains: query.search, mode: "insensitive" } } },
         { venue: { name: { contains: query.search, mode: "insensitive" } } },
@@ -121,7 +120,7 @@ export class PublicFeedService {
       const end = new Date(now);
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
-      where.startsAt = { gte: start, lte: end };
+      this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.weekend === "true") {
       const start = new Date(now);
       const day = start.getDay();
@@ -131,11 +130,11 @@ export class PublicFeedService {
       const end = new Date(start);
       end.setDate(start.getDate() + 1);
       end.setHours(23, 59, 59, 999);
-      where.startsAt = { gte: start, lte: end };
+      this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.month === "true") {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      where.startsAt = { gte: start, lte: end };
+      this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.dateFrom || query.dateTo) {
       where.startsAt = {
         gte: query.dateFrom ? new Date(query.dateFrom) : undefined,
@@ -143,6 +142,18 @@ export class PublicFeedService {
       };
     }
     return where;
+  }
+
+  // Event overlaps with [periodStart, periodEnd] if it starts before period ends
+  // AND (ends after period starts, or is a single-day event starting within the period).
+  private periodOverlapWhere(periodStart: Date, periodEnd: Date): Prisma.EventWhereInput {
+    return {
+      startsAt: { lte: periodEnd },
+      OR: [
+        { endsAt: { gte: periodStart } },
+        { endsAt: null, startsAt: { gte: periodStart } },
+      ],
+    };
   }
 
   private publicVisibilityWhere(now: Date): Prisma.EventWhereInput {

@@ -123,7 +123,7 @@ export default function SubmitLinkPage() {
       screenshotMediaType: screenshot?.mediaType,
       sourceImageUrl: screenshot?.imageUrl,
       contextHint: facebookUrl ? "Facebook event: koristi screenshot/plakat ili zalijepljeni tekst kao primarni izvor." : undefined,
-      useLlm: Boolean(facebookUrl || screenshot),
+      useLlm: true,
     }
     try {
       const res = await orgFetch("/api/organizer/events/submit-url", {
@@ -132,6 +132,7 @@ export default function SubmitLinkPage() {
       })
       if (!res.ok) { toast.error("Greška", { description: await res.text() }); return }
       toast.success("Poslano na pregled! Admin će obraditi vaš zahtjev.")
+      router.refresh()
       router.push("/organizer/events")
     } catch {
       toast.error("Greška pri spajanju na server")
@@ -146,14 +147,19 @@ export default function SubmitLinkPage() {
       <Card>
         <CardHeader>
           <CardTitle>Automatski unos događaja</CardTitle>
-          <CardDescription>
-            Unesite link na stranicu događaja, zalijepite tekst pozivnice ili dodajte screenshot/plakat za parsiranje.
+          <CardDescription className="flex flex-col gap-1">
+            <span>AI će automatski izvući podatke o događajima i poslati adminu na pregled.</span>
+            <span className="text-xs">
+              <strong>Link</strong> — web stranica s programom ili jednim događajem. &nbsp;
+              <strong>Tekst</strong> — email, pozivnica, opis (korisno uz Facebook link). &nbsp;
+              <strong>Screenshot</strong> — plakat ili slika programa.
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} onPaste={onPaste} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label>Link na stranicu događaja</Label>
+              <Label>Link na web stranicu događaja</Label>
               <Input name="sourceUrl" type="url" placeholder="https://…" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
             </div>
 

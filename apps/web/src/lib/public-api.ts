@@ -17,7 +17,6 @@ type ApiEvent = {
   title: string
   slug: string
   description: string
-  shortDescription?: string | null
   startsAt: string
   endsAt?: string | null
   isAllDay?: boolean | null
@@ -26,7 +25,6 @@ type ApiEvent = {
   ticketUrl?: string | null
   sourceUrl?: string | null
   imageUrl?: string | null
-  imageAlt?: string | null
   extractionConfidence?: number | null
   organizer?: { id: number; name: string } | null
   venue?: { id: number; name: string; address?: string | null; lat?: number | null; lng?: number | null } | null
@@ -100,7 +98,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
   if (filters.when === "ovaj-mjesec") params.set("month", "true")
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
-  return fetchApi<ApiEvent[]>(path).then((rows) => rows.map(toCroEvent)).catch(() => fallbackEvents)
+  return fetchApi<ApiEvent[]>(path).then((rows) => rows.map(toCroEvent).filter(notPast)).catch(() => fallbackEvents.filter(notPast))
 }
 
 export async function fetchEvent(slug: string) {
@@ -117,7 +115,12 @@ export async function fetchRelatedEvents(event: CroEvent) {
 }
 
 export async function fetchMapEvents() {
-  return fetchApi<ApiEvent[]>("/api/public/map/events").then((rows) => rows.map(toCroEvent)).catch(() => fallbackEvents)
+  return fetchApi<ApiEvent[]>("/api/public/map/events").then((rows) => rows.map(toCroEvent).filter(notPast)).catch(() => fallbackEvents.filter(notPast))
+}
+
+function notPast(e: CroEvent): boolean {
+  const today = new Date().toISOString().slice(0, 10)
+  return e.endDate ? e.endDate >= today : e.date >= today
 }
 
 async function fetchApi<T>(path: string): Promise<T> {
@@ -129,6 +132,9 @@ async function fetchApi<T>(path: string): Promise<T> {
 function toCroEvent(event: ApiEvent): CroEvent {
   const starts = new Date(event.startsAt)
   const ends = event.endsAt ? new Date(event.endsAt) : null
+  const now = new Date()
+  // For ongoing multi-day events, advance display date to today so past start dates don't show
+  const displayStart = ends && starts < now ? now : starts
   const region = regionMap[event.region?.slug || ""] || "slavonija"
 
   // Build categories list from EventCategory join; fall back to singular category
@@ -152,7 +158,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
     region,
     city: event.cityName ?? event.city?.name ?? "",
     venue: event.venue?.name || event.cityName || event.city?.name || "",
-    date: starts.toISOString().slice(0, 10),
+    date: displayStart.toISOString().slice(0, 10),
     endDate: ends ? ends.toISOString().slice(0, 10) : undefined,
     time: new Intl.DateTimeFormat("hr-HR", { hour: "2-digit", minute: "2-digit" }).format(starts),
     allDay: event.isAllDay === true,
@@ -161,13 +167,12 @@ function toCroEvent(event: ApiEvent): CroEvent {
     forKids: primarySlug === "djeca-i-obitelj" || allCats.some((c) => c.slug === "djeca-i-obitelj"),
     outdoor: primarySlug === "na-otvorenom" || primarySlug === "outdoor" ||
       allCats.some((c) => c.slug === "na-otvorenom" || c.slug === "outdoor"),
-    description: event.shortDescription || event.description,
+    description: event.description,
     longDescription: event.description,
     organizer: event.organizer?.name || "Organizator nije naveden",
     source: event.sourceUrl || "Manifestacije.hr",
     ticketUrl: event.ticketUrl || undefined,
     image: cloudinaryImage(event.imageUrl, { w: 1200, h: 900 }) || undefined,
-    imageAlt: event.imageAlt || event.title,
     featured: event.extractionConfidence ? event.extractionConfidence >= 0.85 : false,
     address: event.address ?? event.venue?.address ?? undefined,
     lat: (event.lat ?? event.venue?.lat ?? event.city?.lat) ?? undefined,
