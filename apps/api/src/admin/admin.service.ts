@@ -16,6 +16,14 @@ export class AdminService {
     private readonly duplicates: DuplicatesService
   ) {}
 
+  async pendingCounts() {
+    const [sources, events] = await Promise.all([
+      this.prisma.eventSource.count({ where: { status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] } } }),
+      this.prisma.event.count({ where: { status: EventStatus.PENDING_REVIEW } }),
+    ]);
+    return { sources, events };
+  }
+
   pendingEvents() {
     return this.prisma.event.findMany({ where: { status: EventStatus.PENDING_REVIEW }, include: this.eventInclude(), orderBy: { createdAt: "desc" } });
   }

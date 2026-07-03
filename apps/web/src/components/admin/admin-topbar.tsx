@@ -1,7 +1,9 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { LogOut, Search, Bell } from "lucide-react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -9,11 +11,21 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { clearToken } from "@/lib/admin/api"
+import { clearToken, authedFetch } from "@/lib/admin/api"
 import type { AdminUser } from "@/components/admin/admin-shell"
+
+type PendingCounts = { sources: number; events: number }
 
 export function AdminTopbar({ user }: { user?: AdminUser | null }) {
   const router = useRouter()
+  const [counts, setCounts] = useState<PendingCounts | null>(null)
+
+  useEffect(() => {
+    authedFetch("/api/admin/pending-counts")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && setCounts(d))
+      .catch(() => {})
+  }, [])
 
   function logout() {
     clearToken()
@@ -22,6 +34,7 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
 
   const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? "A"
   const displayName = user?.name || user?.email || "Admin"
+  const totalPending = (counts?.sources ?? 0) + (counts?.events ?? 0)
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-6">
@@ -39,9 +52,16 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon" aria-label="Obavijesti">
-          <Bell />
-        </Button>
+        <Link href="/admin/sources">
+          <Button variant="ghost" size="icon" aria-label="Obavijesti" className="relative">
+            <Bell className="size-4" />
+            {totalPending > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+                {totalPending > 99 ? "99+" : totalPending}
+              </span>
+            )}
+          </Button>
+        </Link>
 
         {user && (
           <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1">

@@ -13,6 +13,7 @@ import { UploadsService } from "./uploads.service";
 export class AdminController {
   constructor(private readonly admin: AdminService, private readonly uploads: UploadsService) {}
 
+  @Get("pending-counts") pendingCounts() { return this.admin.pendingCounts(); }
   @Get("events/pending") pendingEvents() { return this.admin.pendingEvents(); }
   @Get("events") events() { return this.admin.allEvents(); }
   @Post("events") createAdminEvent(@Body() dto: AdminEventDto) { return this.admin.createEvent(dto); }
