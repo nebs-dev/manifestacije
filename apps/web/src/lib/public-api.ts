@@ -73,11 +73,11 @@ const reverseRegionMap: Record<string, string> = {
 }
 
 export async function fetchCategories(): Promise<PublicCategory[]> {
-  return fetchApi<PublicCategory[]>("/api/public/categories").catch(() => [])
+  return fetchApi<PublicCategory[]>("/api/public/categories", 3600, ["taxonomy"]).catch(() => [])
 }
 
 export async function fetchRegions(): Promise<PublicRegion[]> {
-  return fetchApi<PublicRegion[]>("/api/public/regions").catch(() => [])
+  return fetchApi<PublicRegion[]>("/api/public/regions", 3600, ["taxonomy"]).catch(() => [])
 }
 
 export async function fetchEvents(filters: PublicFilters = {}) {
@@ -115,7 +115,7 @@ export async function fetchRelatedEvents(event: CroEvent) {
 }
 
 export async function fetchMapEvents() {
-  return fetchApi<ApiEvent[]>("/api/public/map/events")
+  return fetchApi<ApiEvent[]>("/api/public/map/events", 300)
     .then((rows) => rows.map(toCroEvent).filter(notPast).filter((e) => e.region === "slavonija"))
     .catch(() => fallbackEvents.filter(notPast).filter((e) => e.region === "slavonija"))
 }
@@ -125,8 +125,8 @@ function notPast(e: CroEvent): boolean {
   return e.endDate ? e.endDate >= today : e.date >= today
 }
 
-async function fetchApi<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" })
+async function fetchApi<T>(path: string, revalidate = 60, tags: string[] = ["events"]): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { next: { revalidate, tags } })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json() as Promise<T>
 }

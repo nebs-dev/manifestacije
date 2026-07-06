@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2 } from "lucide-react"
+import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
@@ -34,10 +34,21 @@ const emptyForm = (): OrgForm => ({ name: "", email: "", websiteUrl: "", phone: 
 
 function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChanged: () => void; selected: boolean; onToggle: () => void }) {
   const [editing, setEditing] = useState(false)
+  const [resettingPw, setResettingPw] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
   const [form, setForm] = useState<OrgForm>({ name: org.name, email: org.email ?? "", websiteUrl: org.websiteUrl ?? "", phone: org.phone ?? "" })
   const [busy, setBusy] = useState(false)
 
   function set(k: keyof OrgForm, v: string) { setForm((p) => ({ ...p, [k]: v })) }
+
+  async function resetPassword() {
+    if (newPassword.length < 8) { toast.error("Lozinka mora imati najmanje 8 znakova"); return }
+    setBusy(true)
+    const res = await authedFetch(`/api/admin/organizers/${org.id}/reset-password`, { method: "POST", body: JSON.stringify({ password: newPassword }) })
+    setBusy(false)
+    if (res.ok) { toast.success("Lozinka promijenjena"); setResettingPw(false); setNewPassword("") }
+    else toast.error("Greška pri promjeni lozinke")
+  }
 
   async function save() {
     if (!form.name.trim()) return
@@ -80,16 +91,33 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
       <TableCell className="text-muted-foreground">{org.phone ?? "—"}</TableCell>
       <TableCell><StatusBadge status={org.status} /></TableCell>
       <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Button size="icon-sm" variant="ghost" aria-label="Uredi" onClick={() => setEditing(true)}><Pencil /></Button>
-          {org.status !== "VERIFIED" && org.status !== "TRUSTED" && (
-            <Button size="icon-sm" variant="ghost" aria-label="Verificiraj" className="text-success" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/verify`, { method: "POST" }); if (r.ok) { toast.success(`Verificirano: ${org.name}`); onChanged() } else toast.error("Greška") }}><ShieldCheck /></Button>
-          )}
-          {org.status !== "TRUSTED" && (
-            <Button size="icon-sm" variant="ghost" aria-label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></Button>
-          )}
-          <DeleteButton onDelete={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}`, { method: "DELETE" }); if (r.ok) { toast.success(`Obrisano: ${org.name}`); onChanged() } else toast.error("Greška pri brisanju") }} />
-        </div>
+        {resettingPw ? (
+          <div className="flex items-center justify-end gap-1">
+            <Input
+              type="password"
+              placeholder="Nova lozinka (min. 8)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") resetPassword(); if (e.key === "Escape") { setResettingPw(false); setNewPassword("") } }}
+              className="h-8 w-44 text-xs"
+              autoFocus
+            />
+            <Button size="icon-sm" variant="ghost" className="text-success" onClick={resetPassword} disabled={busy}><Check /></Button>
+            <Button size="icon-sm" variant="ghost" onClick={() => { setResettingPw(false); setNewPassword("") }}><X /></Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-1">
+            <Button size="icon-sm" variant="ghost" aria-label="Uredi" onClick={() => setEditing(true)}><Pencil /></Button>
+            <Button size="icon-sm" variant="ghost" aria-label="Resetiraj lozinku" onClick={() => setResettingPw(true)}><KeyRound /></Button>
+            {org.status !== "VERIFIED" && org.status !== "TRUSTED" && (
+              <Button size="icon-sm" variant="ghost" aria-label="Verificiraj" className="text-success" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/verify`, { method: "POST" }); if (r.ok) { toast.success(`Verificirano: ${org.name}`); onChanged() } else toast.error("Greška") }}><ShieldCheck /></Button>
+            )}
+            {org.status !== "TRUSTED" && (
+              <Button size="icon-sm" variant="ghost" aria-label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></Button>
+            )}
+            <DeleteButton onDelete={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}`, { method: "DELETE" }); if (r.ok) { toast.success(`Obrisano: ${org.name}`); onChanged() } else toast.error("Greška pri brisanju") }} />
+          </div>
+        )}
       </TableCell>
     </TableRow>
   )

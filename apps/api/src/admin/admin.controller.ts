@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 
 @Controller("admin")
@@ -32,6 +32,7 @@ export class AdminController {
   @Put("organizers/:id") updateOrganizer(@Param("id") id: string, @Body() dto: OrganizerAdminDto) { return this.admin.updateOrganizer(Number(id), dto); }
   @Post("organizers/:id/verify") verify(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
   @Post("organizers/:id/trust") trust(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
+  @Post("organizers/:id/reset-password") resetPassword(@Param("id") id: string, @Body() dto: ResetPasswordDto) { return this.admin.resetOrganizerPassword(Number(id), dto.password); }
   @Delete("organizers/:id") deleteOrganizer(@Param("id") id: string) { return this.admin.deleteOrganizer(Number(id)); }
 
   @Post("uploads/event-image")

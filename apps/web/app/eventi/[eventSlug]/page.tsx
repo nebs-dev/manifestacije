@@ -15,9 +15,21 @@ export async function generateMetadata({ params }: { params: { eventSlug: string
   const event = await fetchEvent(params.eventSlug);
   if (!event) return { title: "Događanje nije pronađeno" };
   return {
-    title: `${event.title} | Manifestacije`,
+    title: event.title,
     description: event.description,
-    openGraph: { title: event.title, description: event.description, images: event.image ? [event.image] : [] },
+    openGraph: {
+      type: "article",
+      title: event.title,
+      description: event.description,
+      images: event.image ? [{ url: event.image, alt: event.title }] : [],
+      url: `${WEB_URL}/eventi/${event.slug}`,
+    },
+    twitter: {
+      card: event.image ? "summary_large_image" : "summary",
+      title: event.title,
+      description: event.description,
+      images: event.image ? [event.image] : [],
+    },
     alternates: { canonical: `${WEB_URL}/eventi/${event.slug}` }
   };
 }

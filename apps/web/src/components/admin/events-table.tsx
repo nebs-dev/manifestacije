@@ -247,20 +247,22 @@ export function EventsTable({
                       className="size-4 cursor-pointer rounded border-border accent-primary"
                     />
                   </TableCell>
-                  <TableCell className="max-w-65">
-                    <Link href={`/admin/events/${e.id}`} className="font-medium text-foreground hover:underline">
+                  <TableCell className="max-w-56">
+                    <Link href={`/admin/events/${e.id}`} className="block truncate font-medium text-foreground hover:underline">
                       {e.title}
                     </Link>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-sm">
                     {formatDateTime(e.startsAt)}
                   </TableCell>
-                  <TableCell>{e.city ?? "—"}</TableCell>
-                  <TableCell>
-                    {(e.categories?.length ? e.categories : e.category ? [{ slug: e.category, name: e.category }] : [])
-                      .slice(0, 2)
-                      .map((c) => c.name)
-                      .join(", ") || "—"}
+                  <TableCell className="whitespace-nowrap">{e.city ?? "—"}</TableCell>
+                  <TableCell className="max-w-40">
+                    <span className="block truncate text-sm">
+                      {(e.categories?.length ? e.categories : e.category ? [{ slug: e.category, name: e.category }] : [])
+                        .slice(0, 2)
+                        .map((c) => c.name)
+                        .join(", ") || "—"}
+                    </span>
                   </TableCell>
                   <TableCell><StatusBadge status={e.status} /></TableCell>
                   <TableCell className="text-right">

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, MapPin, Plus, Menu, X } from "lucide-react";
+import { Search, Plus, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -40,9 +40,7 @@ export function SiteHeader({
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:h-[72px] lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-            <MapPin className="size-5" />
-          </span>
+          <img src="/logo/logo.svg" alt="Manifestacije" className="size-9 rounded-xl" />
           <span className="font-heading text-xl font-bold tracking-tight">
             Manifestacije
           </span>

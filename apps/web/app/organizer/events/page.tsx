@@ -54,10 +54,13 @@ export default function OrganizerEventsPage() {
     if (authLoading) return
     Promise.all([
       orgFetch("/api/organizer/events").then((r) => r.ok ? r.json() : []),
-      orgFetch("/api/organizer/sources").then((r) => r.ok ? r.json() : []),
+      orgFetch("/api/organizer/sources").then(async (r) => {
+        if (!r.ok) { console.error("sources fetch failed", r.status, await r.text()); return [] }
+        return r.json()
+      }),
     ])
       .then(([evs, srcs]) => { setEvents(evs); setSources(srcs) })
-      .catch(() => {})
+      .catch((err) => console.error("organizer page fetch error", err))
       .finally(() => setLoading(false))
   }, [authLoading])
 

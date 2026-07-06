@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { EventStatus } from "@prisma/client";
 import { EventUpsertDto } from "../events/event.dto";
@@ -7,6 +7,12 @@ export class AdminEventDto extends EventUpsertDto {
   @IsOptional()
   @IsEnum(EventStatus)
   status?: EventStatus;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(8)
+  password!: string;
 }
 
 export class OrganizerAdminDto {

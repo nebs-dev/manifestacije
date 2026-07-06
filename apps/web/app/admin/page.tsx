@@ -155,7 +155,7 @@ export default function DashboardPage() {
                         <TableCell className="max-w-[260px]">
                           <Link
                             href={`/admin/sources/${s.id}`}
-                            className="font-medium text-foreground hover:underline"
+                            className="block truncate font-medium text-foreground hover:underline"
                           >
                             {s.subject}
                           </Link>
@@ -163,17 +163,17 @@ export default function DashboardPage() {
                             {s.sourceUrl}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <StatusBadge status={s.status} />
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="whitespace-nowrap text-right">
                           {s.confidence > 0 ? (
                             <ConfidenceBadge value={s.confidence} />
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="whitespace-nowrap text-right text-muted-foreground">
                           {formatRelative(s.createdAt)}
                         </TableCell>
                       </TableRow>

@@ -23,7 +23,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(require("express").json({ limit: "10mb" }));
   app.setGlobalPrefix("api");
-  app.enableCors({ origin: corsOrigin, credentials: true });
+  app.enableCors({ origin: corsOrigin, credentials: true, methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(process.env.PORT ? Number(process.env.PORT) : 3001);
 }

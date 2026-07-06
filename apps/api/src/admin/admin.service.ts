@@ -1,11 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { EventStatus, EventSourceType, OrganizerStatus } from "@prisma/client";
+import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, UpdateEventSourceDto } from "./admin.dto";
+import { RevalidateService } from "./revalidate.service";
 
 @Injectable()
 export class AdminService {
@@ -13,7 +15,8 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly parser: AiEventParserService,
-    private readonly duplicates: DuplicatesService
+    private readonly duplicates: DuplicatesService,
+    private readonly revalidate: RevalidateService,
   ) {}
 
   async pendingCounts(since?: string) {
@@ -63,16 +66,22 @@ export class AdminService {
     return this.prisma.event.findUnique({ where: { id }, include: { ...this.eventInclude(), sources: true, duplicatesA: true, duplicatesB: true } });
   }
 
-  updateEvent(id: number, dto: AdminEventDto) {
-    return this.events.updateEvent(id, dto);
+  async updateEvent(id: number, dto: AdminEventDto) {
+    const result = await this.events.updateEvent(id, dto);
+    void this.revalidate.revalidate("events");
+    return result;
   }
 
-  createEvent(dto: AdminEventDto) {
-    return this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
+  async createEvent(dto: AdminEventDto) {
+    const result = await this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
+    if (dto.status === EventStatus.PUBLISHED) void this.revalidate.revalidate("events");
+    return result;
   }
 
-  setEventStatus(id: number, status: EventStatus) {
-    return this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
+  async setEventStatus(id: number, status: EventStatus) {
+    const result = await this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
+    void this.revalidate.revalidate("events");
+    return result;
   }
 
   async duplicateEvent(id: number) {
@@ -144,20 +153,30 @@ export class AdminService {
     return this.prisma.organizer.update({ where: { id }, data: { status } });
   }
 
+  async resetOrganizerPassword(organizerId: number, password: string) {
+    const user = await this.prisma.user.findFirst({ where: { organizerId } });
+    if (!user) throw new NotFoundException("Korisnik za ovog organizatora nije pronađen");
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    return { ok: true };
+  }
+
   async deleteOrganizer(id: number) {
     const count = await this.prisma.event.count({ where: { organizerId: id } });
     if (count > 0) throw new ConflictException(`Organizator ima ${count} događaja — nije moguće obrisati.`);
     return this.prisma.organizer.delete({ where: { id } });
   }
 
-  deleteEvent(id: number) {
-    return this.prisma.$transaction(async (tx) => {
+  async deleteEvent(id: number) {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
       await tx.eventDuplicateCandidate.deleteMany({
         where: { OR: [{ eventAId: id }, { eventBId: id }] },
       });
       return tx.event.delete({ where: { id } });
     });
+    void this.revalidate.revalidate("events");
+    return result;
   }
 
   deleteEventSource(id: number) {
@@ -379,6 +398,7 @@ export class AdminService {
       await this.prisma.eventSource.update({ where: { id }, data: { eventId: event.id, status: "LINKED" } });
     }
 
+    if (publish) void this.revalidate.revalidate("events");
     return { event, candidateIndex };
   }
 

@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { MapPin } from "lucide-react"
 import { categories } from "@/lib/data"
 
 export function SiteFooter() {
@@ -9,9 +8,7 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <Link href="/" className="flex items-center gap-2">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-                <MapPin className="size-5" />
-              </span>
+              <img src="/logo/logo.svg" alt="Manifestacije" className="size-9 rounded-xl" />
               <span className="font-heading text-xl font-bold">
                 Manifestacije
               </span>
