@@ -11,7 +11,7 @@ const eventInclude = {
   category: true,
   categories: {
     include: { category: true },
-    orderBy: [{ isPrimary: "desc" }, { category: { sortOrder: "asc" } }],
+    orderBy: [{ category: { sortOrder: "asc" } }],
   },
 } satisfies Prisma.EventInclude;
 
