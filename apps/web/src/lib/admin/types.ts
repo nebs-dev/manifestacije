@@ -36,6 +36,8 @@ export interface EventSource {
   createdAt: string
   rawText?: string
   sourceImageUrl?: string
+  organizerName: string | null
+  organizerEmail: string | null
 }
 
 export interface ParsedCandidate {

@@ -151,52 +151,12 @@ export const categories: Category[] = [
 
 export const regions: Region[] = [
   {
-    slug: "dalmacija",
-    name: "Dalmacija",
-    county: "Split · Zadar · Šibenik · Dubrovnik",
-    blurb:
-      "Kamene rive, klape pod zvijezdama i ljetne scene uz Jadran — od starogradskih trgova do otočnih uvala.",
-    image: "/images/region-dalmacija.png",
-  },
-  {
-    slug: "istra",
-    name: "Istra",
-    county: "Pula · Rovinj · Motovun",
-    blurb:
-      "Brežuljci, maslinici i festivali okusa. Zelena Istra spaja vrhunsku gastronomiju s filmom i glazbom.",
-    image: "/images/region-istra.png",
-  },
-  {
-    slug: "zagreb",
-    name: "Zagreb i okolica",
-    county: "Zagreb · Samobor · Zagorje",
-    blurb:
-      "Gradska kultura tijekom cijele godine — koncerti, kazališta, izložbe i živahne kvartovske fešte.",
-    image: "/images/region-zagreb.png",
-  },
-  {
     slug: "slavonija",
-    name: "Slavonija",
-    county: "Osijek · Đakovo · Vukovar",
+    name: "Slavonija i Baranja",
+    county: "Osijek · Đakovo · Vukovar · Beli Manastir",
     blurb:
       "Zlatne ravnice, tamburica i bogata tradicija. Manifestacije koje slave baštinu i domaće okuse.",
     image: "/images/region-slavonija.png",
-  },
-  {
-    slug: "kvarner",
-    name: "Kvarner",
-    county: "Rijeka · Opatija · Krk",
-    blurb:
-      "Rivijera s dugom karnevalskom tradicijom, glazbenim večerima i šetnicama uz more.",
-    image: "/images/region-kvarner.jpg",
-  },
-  {
-    slug: "lika",
-    name: "Lika i gorje",
-    county: "Gospić · Plitvice · Velebit",
-    blurb:
-      "Planine, jezera i čist zrak. Avanturistički i outdoor programi u srcu hrvatske divljine.",
-    image: "/images/region-lika.jpg",
   },
 ]
 

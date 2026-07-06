@@ -91,17 +91,21 @@ export class PublicFeedService {
     if (query.city) where.city = { slug: query.city };
     if (query.free === "true") where.isFree = true;
     if (query.search) {
-      where.OR = [
-        { title: { contains: query.search, mode: "insensitive" } },
-        { description: { contains: query.search, mode: "insensitive" } },
-        { city: { name: { contains: query.search, mode: "insensitive" } } },
-        { city: { slug: { contains: query.search, mode: "insensitive" } } },
-        { venue: { name: { contains: query.search, mode: "insensitive" } } },
-        { category: { name: { contains: query.search, mode: "insensitive" } } },
-        { category: { slug: { contains: query.search, mode: "insensitive" } } },
-        { categories: { some: { category: { name: { contains: query.search, mode: "insensitive" } } } } },
-        { categories: { some: { category: { slug: { contains: query.search, mode: "insensitive" } } } } },
+      const norm = this.normalizeSearch(query.search);
+      const textClauses = (term: string): Prisma.EventWhereInput[] => [
+        { title: { contains: term, mode: "insensitive" } },
+        { description: { contains: term, mode: "insensitive" } },
+        { city: { name: { contains: term, mode: "insensitive" } } },
+        { city: { slug: { contains: term, mode: "insensitive" } } },
+        { venue: { name: { contains: term, mode: "insensitive" } } },
+        { category: { name: { contains: term, mode: "insensitive" } } },
+        { category: { slug: { contains: term, mode: "insensitive" } } },
+        { categories: { some: { category: { name: { contains: term, mode: "insensitive" } } } } },
+        { categories: { some: { category: { slug: { contains: term, mode: "insensitive" } } } } },
       ];
+      where.OR = norm !== query.search.toLowerCase()
+        ? [...textClauses(query.search), ...textClauses(norm)]
+        : textClauses(query.search);
     }
 
     // Category filter: check both legacy categoryId relation and new EventCategory join.
@@ -167,5 +171,14 @@ export class PublicFeedService {
 
   private addAnd(where: Prisma.EventWhereInput, clause: Prisma.EventWhereInput) {
     where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), clause];
+  }
+
+  private normalizeSearch(term: string): string {
+    return term
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/ð/g, "d");
   }
 }

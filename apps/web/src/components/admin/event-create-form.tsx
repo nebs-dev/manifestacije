@@ -79,8 +79,8 @@ export function EventCreateForm() {
           categoryId: primaryCategoryId,
           categoryIds: categoryIds.length ? categoryIds : undefined,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
-          startsAt: form.startsAt,
-          endsAt: form.endsAt || undefined,
+          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
+          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : undefined,
           venueName: form.venueName || undefined,
           address: form.address || undefined,
           isFree: form.isFree,
@@ -93,8 +93,7 @@ export function EventCreateForm() {
       })
       if (!res.ok) throw new Error(await res.text())
       const event = await res.json() as { id: number }
-      toast.success("Događaj kreiran")
-      router.push(`/admin/events/${event.id}`)
+      toast.success("Događaj kreiran", { action: { label: "Otvori", onClick: () => router.push(`/admin/events/${event.id}`) } })
     } catch (err) {
       toast.error("Greška pri kreiranju", { description: err instanceof Error ? err.message : String(err) })
     } finally {

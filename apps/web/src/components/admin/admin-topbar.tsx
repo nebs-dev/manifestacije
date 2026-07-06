@@ -21,7 +21,9 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
   const [counts, setCounts] = useState<PendingCounts | null>(null)
 
   useEffect(() => {
-    authedFetch("/api/admin/pending-counts")
+    const since = localStorage.getItem("adminLastSeenSourcesAt") ?? ""
+    const url = since ? `/api/admin/pending-counts?since=${encodeURIComponent(since)}` : "/api/admin/pending-counts"
+    authedFetch(url)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => d && setCounts(d))
       .catch(() => {})

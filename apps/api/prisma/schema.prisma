@@ -162,7 +162,6 @@ model Category {
 model EventCategory {
   eventId    Int
   categoryId Int
-  isPrimary  Boolean  @default(false)
   source     String?
   confidence Float?
   createdAt  DateTime @default(now())

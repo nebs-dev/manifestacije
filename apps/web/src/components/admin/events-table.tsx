@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Pencil, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -47,6 +47,15 @@ export function EventsTable({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
+  const [bulkCategoryId, setBulkCategoryId] = useState("")
+
+  useEffect(() => {
+    authedFetch("/api/admin/categories")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { id: number; name: string }[]) => setCategories(data))
+      .catch(() => {})
+  }, [])
 
   const filtered = useMemo(() => {
     let result = status === "all" ? events : events.filter((e) => e.status === status)
@@ -89,6 +98,24 @@ export function EventsTable({
     setSelected(new Set())
     setConfirming(false)
     onDelete?.()
+  }
+
+  async function bulkAssignCategory(action: "add" | "remove") {
+    if (!bulkCategoryId) { toast.error("Odaberite kategoriju"); return }
+    setBulkBusy(true)
+    const res = await authedFetch("/api/admin/events/bulk-categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventIds: [...selected].map(Number), categoryId: Number(bulkCategoryId), action }),
+    })
+    setBulkBusy(false)
+    if (res.ok) {
+      toast.success(action === "add" ? "Kategorija dodana" : "Kategorija uklonjena")
+      setSelected(new Set())
+      onDelete?.()
+    } else {
+      toast.error("Greška pri promjeni kategorija")
+    }
   }
 
   async function deleteEvent(id: string, title: string) {
@@ -134,24 +161,49 @@ export function EventsTable({
       </div>
 
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
           <span className="font-medium">{selected.size} odabrano</span>
-          {confirming ? (
-            <>
-              <span className="text-destructive">Sigurno obrisati {selected.size} događaja?</span>
-              <Button variant="destructive" size="sm" onClick={bulkDelete} disabled={bulkBusy}>
-                Da, obriši
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-                Ne
-              </Button>
-            </>
-          ) : (
-            <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
-              <Trash2 data-icon="inline-start" />
-              Obriši odabrano
+
+          <div className="flex items-center gap-2">
+            <Select value={bulkCategoryId} onValueChange={(v) => setBulkCategoryId(v ?? "")}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue placeholder="Odaberi kategoriju" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => bulkAssignCategory("add")} disabled={bulkBusy || !bulkCategoryId}>
+              + Dodaj
             </Button>
-          )}
+            <Button variant="outline" size="sm" onClick={() => bulkAssignCategory("remove")} disabled={bulkBusy || !bulkCategoryId}>
+              − Ukloni
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {confirming ? (
+              <>
+                <span className="text-destructive">Sigurno obrisati {selected.size} događaja?</span>
+                <Button variant="destructive" size="sm" onClick={bulkDelete} disabled={bulkBusy}>
+                  Da, obriši
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+                  Ne
+                </Button>
+              </>
+            ) : (
+              <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
+                <Trash2 data-icon="inline-start" />
+                Obriši
+              </Button>
+            )}
+          </div>
+
           <button onClick={() => { setSelected(new Set()); setConfirming(false) }} className="ml-auto cursor-pointer text-muted-foreground hover:text-foreground">
             Odustani
           </button>
@@ -200,7 +252,7 @@ export function EventsTable({
                       {e.title}
                     </Link>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                  <TableCell className="whitespace-nowrap text-sm">
                     {formatDateTime(e.startsAt)}
                   </TableCell>
                   <TableCell>{e.city ?? "—"}</TableCell>

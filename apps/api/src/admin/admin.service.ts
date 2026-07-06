@@ -16,12 +16,39 @@ export class AdminService {
     private readonly duplicates: DuplicatesService
   ) {}
 
-  async pendingCounts() {
+  async pendingCounts(since?: string) {
+    const sinceDate = since ? new Date(since) : undefined;
     const [sources, events] = await Promise.all([
-      this.prisma.eventSource.count({ where: { status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] } } }),
-      this.prisma.event.count({ where: { status: EventStatus.PENDING_REVIEW } }),
+      this.prisma.eventSource.count({
+        where: {
+          status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] },
+          ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
+        },
+      }),
+      this.prisma.event.count({
+        where: {
+          status: EventStatus.PENDING_REVIEW,
+          ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
+        },
+      }),
     ]);
     return { sources, events };
+  }
+
+  async bulkAssignCategory(eventIds: number[], categoryId: number, action: "add" | "remove") {
+    if (action === "remove") {
+      await this.prisma.eventCategory.deleteMany({
+        where: { eventId: { in: eventIds }, categoryId },
+      });
+    } else {
+      for (const eventId of eventIds) {
+        await this.prisma.eventCategory.upsert({
+          where: { eventId_categoryId: { eventId, categoryId } },
+          update: {},
+          create: { eventId, categoryId, source: "MANUAL" },
+        });
+      }
+    }
   }
 
   pendingEvents() {
@@ -90,7 +117,6 @@ export class AdminService {
         data: {
           eventId: duplicated.id,
           categoryId: category.categoryId,
-          isPrimary: category.isPrimary,
           source: category.source,
           confidence: category.confidence,
         },

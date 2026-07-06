@@ -8,7 +8,6 @@ type ApiTaxonomy = { id: number; name: string; slug: string; lat?: number | null
 type ApiEventCategory = {
   eventId: number
   categoryId: number
-  isPrimary: boolean
   category: ApiTaxonomy
 }
 
@@ -115,7 +114,9 @@ export async function fetchRelatedEvents(event: CroEvent) {
 }
 
 export async function fetchMapEvents() {
-  return fetchApi<ApiEvent[]>("/api/public/map/events").then((rows) => rows.map(toCroEvent).filter(notPast)).catch(() => fallbackEvents.filter(notPast))
+  return fetchApi<ApiEvent[]>("/api/public/map/events")
+    .then((rows) => rows.map(toCroEvent).filter(notPast).filter((e) => e.region === "slavonija"))
+    .catch(() => fallbackEvents.filter(notPast).filter((e) => e.region === "slavonija"))
 }
 
 function notPast(e: CroEvent): boolean {
@@ -144,11 +145,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
       : [{ slug: event.category.slug, name: event.category.name }]
   const allCats = Array.from(new Map(rawCats.map((category) => [category.slug, category])).values())
 
-  // Primary category: prefer isPrimary flag, fall back to first in list or singular
-  const primarySlug =
-    event.categories?.find((ec) => ec.isPrimary)?.category.slug ||
-    allCats[0]?.slug ||
-    event.category.slug
+  const primarySlug = allCats[0]?.slug || event.category.slug
 
   return {
     slug: event.slug,

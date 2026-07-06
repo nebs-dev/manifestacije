@@ -5,6 +5,7 @@ type BE = Record<string, unknown>
 
 export function adaptEventSource(src: BE): EventSource {
   const parsedJson = src.parsedJson as { candidates?: unknown[]; sourceImageUrl?: string } | null
+  const organizer = src.organizer as BE | null
   return {
     id: String(src.id),
     sourceUrl: (src.sourceUrl as string) ?? "",
@@ -17,6 +18,8 @@ export function adaptEventSource(src: BE): EventSource {
     createdAt: src.createdAt as string,
     rawText: (src.rawText as string) ?? undefined,
     sourceImageUrl: parsedJson?.sourceImageUrl,
+    organizerName: (organizer?.name as string) ?? null,
+    organizerEmail: (organizer?.email as string) ?? null,
   }
 }
 

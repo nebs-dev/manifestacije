@@ -161,6 +161,7 @@ export function SourceTable({
                 />
               </TableHead>
               <TableHead>Izvor</TableHead>
+              <TableHead>Organizator</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Pouzdanost</TableHead>
               <TableHead className="text-right">Kandidati</TableHead>
@@ -193,6 +194,16 @@ export function SourceTable({
                         )}
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {s.organizerName ? (
+                      <div>
+                        <span className="font-medium">{s.organizerName}</span>
+                        {s.organizerEmail && <span className="block text-xs text-muted-foreground">{s.organizerEmail}</span>}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell><StatusBadge status={s.status} /></TableCell>
                   <TableCell className="text-right">

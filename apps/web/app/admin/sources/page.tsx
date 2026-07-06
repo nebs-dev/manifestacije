@@ -29,7 +29,10 @@ export default function SourcesPage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    localStorage.setItem("adminLastSeenSourcesAt", new Date().toISOString())
+    load()
+  }, [load])
 
   return (
     <>

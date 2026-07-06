@@ -61,8 +61,8 @@ export class EventsService {
     for (const [idx, catId] of allCategoryIds.entries()) {
       await this.prisma.eventCategory.upsert({
         where: { eventId_categoryId: { eventId: event.id, categoryId: catId } },
-        update: { isPrimary: idx === 0 },
-        create: { eventId: event.id, categoryId: catId, isPrimary: idx === 0, source: "MANUAL" },
+        update: {},
+        create: { eventId: event.id, categoryId: catId, source: "MANUAL" },
       });
     }
 
@@ -135,8 +135,8 @@ export class EventsService {
       for (const [idx, catId] of dto.categoryIds.entries()) {
         await this.prisma.eventCategory.upsert({
           where: { eventId_categoryId: { eventId: id, categoryId: catId } },
-          update: { isPrimary: idx === 0 },
-          create: { eventId: id, categoryId: catId, isPrimary: idx === 0, source: "MANUAL" },
+          update: {},
+          create: { eventId: id, categoryId: catId, source: "MANUAL" },
         });
       }
     }

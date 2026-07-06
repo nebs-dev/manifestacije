@@ -19,7 +19,7 @@ export function QuickFilters({
 }) {
   const isInk = variant === "ink"
   return (
-    <div className={cn("flex flex-wrap gap-2.5", className)}>
+    <div className={cn("flex flex-wrap justify-center gap-2.5", className)}>
       {filters.map((f) => (
         <Link
           key={f.label}
