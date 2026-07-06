@@ -229,6 +229,9 @@ export default function SubmitLinkPage() {
               <Button type="submit" disabled={loading || facebookBlocked}>{loading ? "Slanje…" : "Pošalji na pregled"}</Button>
               <Button type="button" variant="outline" onClick={() => router.push("/organizer/events")}>Odustani</Button>
             </div>
+            <p className="text-xs text-muted-foreground/70 leading-relaxed">
+              Ako nam pošaljete link na događaj putem Facebooka, Instagrama, web stranice ili drugog izvora, podatke koristimo kako bismo pripremili i objavili pregledan unos događaja na platformi manifestacije.hr. Kontakt podatke, ako ih ostavite, koristimo samo za provjeru informacija i komunikaciju vezanu uz poslani događaj.
+            </p>
           </form>
         </CardContent>
       </Card>

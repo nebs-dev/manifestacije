@@ -207,6 +207,7 @@ model Event {
   lng                  Float?
   sourceType           EventSourceKind @default(MANUAL)
   extractionConfidence Float?
+  isFeatured           Boolean   @default(false)
   publishedAt          DateTime?
   sources              EventSource[]
   duplicatesA          EventDuplicateCandidate[] @relation("DuplicateA")

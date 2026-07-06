@@ -84,6 +84,7 @@ export interface AdminEvent {
   categories: { id: number; name: string; slug: string }[]
   organizer: string | null
   isFree: boolean
+  isFeatured: boolean
   priceText: string | null
   ticketUrl: string | null
   sourceUrl: string | null

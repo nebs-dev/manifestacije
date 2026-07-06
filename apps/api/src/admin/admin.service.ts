@@ -100,6 +100,7 @@ export class AdminService {
         endsAt: current.endsAt,
         isAllDay: current.isAllDay,
         isFree: current.isFree,
+        isFeatured: false,
         priceText: current.priceText,
         ticketUrl: current.ticketUrl,
         sourceUrl: current.sourceUrl,

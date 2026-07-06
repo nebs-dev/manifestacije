@@ -70,6 +70,7 @@ export function EventEditForm({
     endsAt: toLocalInput(event.endsAt),
     allDay: event.allDay,
     isFree: event.isFree,
+    isFeatured: event.isFeatured ?? false,
     priceText: event.priceText ?? "",
     ticketUrl: event.ticketUrl ?? "",
     sourceUrl: event.sourceUrl ?? "",
@@ -145,6 +146,7 @@ export function EventEditForm({
           endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : undefined,
           isAllDay: form.allDay,
           isFree: form.isFree,
+          isFeatured: form.isFeatured,
           priceText: form.priceText || undefined,
           ticketUrl: form.ticketUrl || undefined,
           sourceUrl: form.sourceUrl || null,
@@ -362,6 +364,19 @@ export function EventEditForm({
             </CardHeader>
             <CardContent>
               <FieldGroup>
+                <Field
+                  orientation="horizontal"
+                  className="items-center justify-between rounded-lg border border-border p-3"
+                >
+                  <FieldLabel htmlFor="isFeatured" className="mb-0">
+                    Izdvojeno (featured)
+                  </FieldLabel>
+                  <Switch
+                    id="isFeatured"
+                    checked={form.isFeatured}
+                    onCheckedChange={(v) => update("isFeatured", v)}
+                  />
+                </Field>
                 <Field
                   orientation="horizontal"
                   className="items-center justify-between rounded-lg border border-border p-3"

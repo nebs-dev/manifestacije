@@ -52,6 +52,10 @@ export class EventUpsertDto {
   isFree?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @IsOptional()
   @IsString()
   priceText?: string;
 

@@ -18,13 +18,13 @@ export function HomeHero() {
 
       <div className="relative mx-auto flex max-w-6xl flex-col items-center px-4 pb-16 pt-20 text-center sm:pt-28 md:pb-24">
         <span className="inline-flex items-center gap-2 rounded-full border border-ink-foreground/20 bg-ink-foreground/5 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-ink-foreground/80 backdrop-blur">
-          Otkrij Hrvatsku
+          Manje skrolanja, više manifestacija.
         </span>
         <h1 className="mt-6 max-w-3xl text-balance font-heading text-4xl font-semibold leading-[1.05] sm:text-5xl md:text-6xl">
-          Svaki događaj. Svaka regija. Na jednom mjestu.
+          Što se događa oko tebe?
         </h1>
         <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-ink-foreground/75 sm:text-lg">
-          Koncerti, festivali, radionice i lokalna događanja diljem Hrvatske — pažljivo odabrani i uvijek aktualni.
+          Pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.
         </p>
 
         {/* Search bar */}

@@ -66,6 +66,9 @@ export default function RegisterPage() {
             Već imate račun?{" "}
             <Link href="/organizer/login" className="text-primary hover:underline">Prijavite se</Link>
           </p>
+          <p className="text-xs text-muted-foreground/70 leading-relaxed">
+            Registracijom na manifestacije.hr stvarate korisnički račun koji vam omogućuje unos, uređivanje i upravljanje događajima na platformi. Podatke koje unesete koristimo isključivo za rad platforme, komunikaciju vezanu uz vaše događaje, moderaciju sadržaja, sigurnost korisničkog računa i poboljšanje usluge. Vaše podatke ne prodajemo trećim stranama. Marketinške obavijesti i newsletter šaljemo samo ako za to date posebnu privolu, koju u svakom trenutku možete povući.
+          </p>
         </form>
       </CardContent>
     </Card>

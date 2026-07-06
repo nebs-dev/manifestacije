@@ -82,6 +82,7 @@ export function adaptEvent(event: BE): AdminEvent {
     categories,
     organizer: (organizer?.name as string) ?? null,
     isFree: (event.isFree as boolean) ?? false,
+    isFeatured: (event.isFeatured as boolean) ?? false,
     priceText: (event.priceText as string) ?? null,
     ticketUrl: (event.ticketUrl as string) ?? null,
     sourceUrl: (event.sourceUrl as string) ?? null,

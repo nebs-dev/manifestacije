@@ -51,6 +51,7 @@ export class CandidateOverrideDto {
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsArray() @IsInt({ each: true }) @Type(() => Number) categoryIds?: number[];
   @IsOptional() @IsBoolean() isFree?: boolean;
+  @IsOptional() @IsBoolean() isFeatured?: boolean;
   @IsOptional() @IsString() priceText?: string;
   @IsOptional() @IsString() ticketUrl?: string;
   @IsOptional() @IsString() organizerName?: string;
