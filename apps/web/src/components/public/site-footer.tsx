@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { MapPin } from "lucide-react"
-import { categories, regions } from "@/lib/data"
+import { categories } from "@/lib/data"
 
 export function SiteFooter() {
   return (
@@ -34,24 +34,6 @@ export function SiteFooter() {
                     className="text-ink-foreground/80 transition-colors hover:text-accent"
                   >
                     {c.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
-              Regije
-            </h3>
-            <ul className="mt-4 space-y-2.5 text-sm">
-              {regions.map((r) => (
-                <li key={r.slug}>
-                  <Link
-                    href={`/regije/${r.slug}`}
-                    className="text-ink-foreground/80 transition-colors hover:text-accent"
-                  >
-                    {r.name}
                   </Link>
                 </li>
               ))}

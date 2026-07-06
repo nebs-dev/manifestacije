@@ -3,14 +3,12 @@
 import { useState } from "react"
 import { SlidersHorizontal, X } from "lucide-react"
 import { EventFilters } from "@/components/public/event-filters"
-import type { PublicCategory, PublicRegion } from "@/lib/public-api"
+import type { PublicCategory } from "@/lib/public-api"
 
 export function FiltersPanel({
   categories,
-  regions,
 }: {
   categories?: PublicCategory[]
-  regions?: PublicRegion[]
 }) {
   const [open, setOpen] = useState(false)
 
@@ -19,7 +17,7 @@ export function FiltersPanel({
       {/* Desktop */}
       <aside className="hidden md:block">
         <div className="sticky top-24 rounded-2xl border border-border bg-card p-5 shadow-poster">
-          <EventFilters categories={categories} regions={regions} />
+          <EventFilters categories={categories} />
         </div>
       </aside>
 
@@ -48,7 +46,7 @@ export function FiltersPanel({
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-6">
-              <EventFilters categories={categories} regions={regions} />
+              <EventFilters categories={categories} />
             </div>
             <div className="border-t border-border p-4">
               <button

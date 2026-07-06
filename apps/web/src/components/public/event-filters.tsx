@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useState, useEffect } from "react"
 import { Search, X } from "lucide-react"
-import { categories as staticCategories, regions as staticRegions, categoryName } from "@/lib/data"
+import { categories as staticCategories, categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
-import type { PublicCategory, PublicRegion } from "@/lib/public-api"
+import type { PublicCategory } from "@/lib/public-api"
 
 const whenOptions = [
   { value: "", label: "Bilo kada" },
@@ -22,10 +22,8 @@ const toggles = [
 
 export function EventFilters({
   categories: fetchedCategories,
-  regions: fetchedRegions,
 }: {
   categories?: PublicCategory[]
-  regions?: PublicRegion[]
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -36,9 +34,6 @@ export function EventFilters({
   const categories = fetchedCategories?.length
     ? fetchedCategories
     : staticCategories.map((c) => ({ id: 0, slug: c.slug, name: categoryName(c.slug), sortOrder: 0 }))
-  const regions = fetchedRegions?.length
-    ? fetchedRegions
-    : staticRegions.map((r, i) => ({ id: 0, slug: r.slug, name: r.name, sortOrder: i }))
 
   useEffect(() => {
     setQ(params.get("q") ?? "")
@@ -60,7 +55,6 @@ export function EventFilters({
   }
 
   const activeCategory = params.get("kategorija") ?? ""
-  const activeRegion = params.get("regija") ?? ""
   const activeWhen = params.get("kada") ?? ""
   const hasActive =
     [...params.keys()].filter((k) => params.get(k)).length > 0
@@ -105,23 +99,6 @@ export function EventFilters({
               onClick={() => update("kategorija", c.slug)}
             >
               {c.name}
-            </RadioRow>
-          ))}
-        </div>
-      </FilterGroup>
-
-      <FilterGroup label="Regija">
-        <div className="flex flex-col gap-1">
-          <RadioRow active={activeRegion === ""} onClick={() => update("regija", null)}>
-            Cijela Hrvatska
-          </RadioRow>
-          {regions.map((r) => (
-            <RadioRow
-              key={r.slug}
-              active={activeRegion === r.slug}
-              onClick={() => update("regija", r.slug)}
-            >
-              {r.name}
             </RadioRow>
           ))}
         </div>

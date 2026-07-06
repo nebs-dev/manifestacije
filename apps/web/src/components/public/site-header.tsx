@@ -3,15 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, ChevronDown, MapPin, Plus, Menu, X } from "lucide-react";
-import { regions } from "@/lib/data";
+import { Search, MapPin, Plus, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/eventi", label: "Događaji" },
   { href: "/kalendar", label: "Kalendar" },
   { href: "/mapa", label: "Karta" },
-  { href: "/regije", label: "Regije" },
 ];
 
 export function SiteHeader({
@@ -21,8 +19,6 @@ export function SiteHeader({
 }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [regionOpen, setRegionOpen] = useState(false);
-  const [region, setRegion] = useState<string>("Cijela Hrvatska");
   const [query, setQuery] = useState("");
 
   const onSearch = (e: React.FormEvent) => {
@@ -51,50 +47,6 @@ export function SiteHeader({
             Manifestacije
           </span>
         </Link>
-
-        {/* Region selector */}
-        <div className="relative hidden md:block">
-          <button
-            type="button"
-            onClick={() => setRegionOpen((o) => !o)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-              isInk
-                ? "border-white/15 hover:bg-white/10"
-                : "border-border hover:bg-muted",
-            )}
-          >
-            <MapPin className="size-4 text-accent" />
-            {region}
-            <ChevronDown className="size-4 opacity-60" />
-          </button>
-          {regionOpen && (
-            <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-poster-lg">
-              <button
-                className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-muted"
-                onClick={() => {
-                  setRegion("Cijela Hrvatska");
-                  setRegionOpen(false);
-                }}
-              >
-                Cijela Hrvatska
-              </button>
-              {regions.map((r) => (
-                <button
-                  key={r.slug}
-                  className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => {
-                    setRegion(r.name);
-                    setRegionOpen(false);
-                    router.push(`/regije/${r.slug}`);
-                  }}
-                >
-                  {r.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Search */}
         <form

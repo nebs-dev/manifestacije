@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { FiltersPanel } from "@/components/public/filters-panel";
 import { ResultsGrid } from "@/components/public/results-grid";
-import { fetchEvents, fetchCategories, fetchRegions, type PublicFilters } from "@/lib/public-api";
+import { fetchEvents, fetchCategories, type PublicFilters } from "@/lib/public-api";
 
 export const metadata: Metadata = {
   title: "Sva događanja",
@@ -25,10 +25,9 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
     outdoor: str(searchParams.vani) === "1",
     when: str(searchParams.kada) as PublicFilters["when"]
   };
-  const [results, categories, regions] = await Promise.all([
+  const [results, categories] = await Promise.all([
     fetchEvents(filters),
     fetchCategories(),
-    fetchRegions(),
   ]);
 
   return (
@@ -41,7 +40,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
           <p className="mt-2 text-muted-foreground">{results.length} događanja odgovara tvojim filtrima.</p>
         </header>
         <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr] md:items-start">
-          <FiltersPanel categories={categories} regions={regions} />
+          <FiltersPanel categories={categories} />
           <ResultsGrid events={results} />
         </div>
       </main>

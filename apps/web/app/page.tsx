@@ -5,7 +5,6 @@ import { SiteFooter } from "@/components/public/site-footer";
 import { HomeHero } from "@/components/public/home-hero";
 import { SectionHeading } from "@/components/public/section-heading";
 import { EventRail } from "@/components/public/event-rail";
-import { RegionGrid } from "@/components/public/region-grid";
 import { CategoryStrip } from "@/components/public/category-strip";
 import { OrganizerCta } from "@/components/public/organizer-cta";
 import { EventCard } from "@/components/public/event-card";
@@ -26,11 +25,6 @@ export default async function Home() {
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Izdvojeno" title="Događanja koja ne želiš propustiti" description="Ručno odabrani vrhunci sezone diljem zemlje." href="/eventi" hrefLabel="Sva događanja" />
             <EventRail events={featured.length ? featured : upcoming.slice(0, 3)} />
-          </section>
-
-          <section className="py-14 md:py-20">
-            <SectionHeading eyebrow="Po regijama" title="Istraži Hrvatsku" description="Od dalmatinske obale do slavonskih ravnica — svaka regija nosi svoj ritam." />
-            <RegionGrid events={events} />
           </section>
 
           <section className="py-14 md:py-20">
