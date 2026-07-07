@@ -331,7 +331,7 @@ function AgendaRow({ event }: { event: CroEvent }) {
         </div>
         <div className="flex min-w-0 flex-col justify-center gap-1.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1 font-semibold text-primary"><Clock className="size-3.5" aria-hidden />{event.time}</span>
+            {!event.allDay && <span className="inline-flex items-center gap-1 font-semibold text-primary"><Clock className="size-3.5" aria-hidden />{event.time}</span>}
             {multiDay && <span className="text-muted-foreground">· visednevno</span>}
           </div>
           <h4 className="truncate font-heading text-lg font-semibold leading-snug transition-colors group-hover:text-primary">{event.title}</h4>

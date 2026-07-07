@@ -120,8 +120,14 @@ export async function fetchMapEvents() {
     .catch(() => fallbackEvents.filter(notPast).filter((e) => e.region === "slavonija"))
 }
 
+const TZ = "Europe/Zagreb"
+
+function toZagrebDate(d: Date): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+}
+
 function notPast(e: CroEvent): boolean {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = toZagrebDate(new Date())
   return e.endDate ? e.endDate >= today : e.date >= today
 }
 
@@ -156,9 +162,9 @@ function toCroEvent(event: ApiEvent): CroEvent {
     region,
     city: event.cityName ?? event.city?.name ?? "",
     venue: event.venue?.name || event.cityName || event.city?.name || "",
-    date: displayStart.toISOString().slice(0, 10),
-    endDate: ends ? ends.toISOString().slice(0, 10) : undefined,
-    time: new Intl.DateTimeFormat("hr-HR", { hour: "2-digit", minute: "2-digit" }).format(starts),
+    date: toZagrebDate(displayStart),
+    endDate: ends ? toZagrebDate(ends) : undefined,
+    time: new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(starts),
     allDay: event.isAllDay === true,
     free: event.isFree === true,
     price: event.priceText || undefined,

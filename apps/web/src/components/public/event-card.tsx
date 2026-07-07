@@ -46,8 +46,12 @@ export function EventCard({ event, className }: EventCardProps) {
           <span className="font-medium text-accent-foreground/90">
             {dateParts(event.date).weekday}
           </span>
-          <span aria-hidden>·</span>
-          <span>{event.time}</span>
+          {!event.allDay && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{event.time}</span>
+            </>
+          )}
         </div>
 
         <h3 className="font-heading text-xl font-semibold leading-snug text-pretty transition-colors group-hover:text-primary">
