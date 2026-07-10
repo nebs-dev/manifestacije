@@ -232,6 +232,7 @@ export function EventsTable({
                 <TableHead className="whitespace-nowrap">Početak</TableHead>
                 <TableHead>Grad</TableHead>
                 <TableHead>Kategorija</TableHead>
+                <TableHead>Organizator</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Akcije</TableHead>
               </TableRow>
@@ -263,6 +264,9 @@ export function EventsTable({
                         .map((c) => c.name)
                         .join(", ") || "—"}
                     </span>
+                  </TableCell>
+                  <TableCell className="max-w-36">
+                    <span className="block truncate text-sm text-muted-foreground">{e.organizer ?? "—"}</span>
                   </TableCell>
                   <TableCell><StatusBadge status={e.status} /></TableCell>
                   <TableCell className="text-right">
