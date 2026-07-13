@@ -14,7 +14,7 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-muted">
-              Otkrij što se događa u Hrvatskoj — manifestacije, koncerti,
+              Otkrij što se događa u Slavoniji i Baranji — manifestacije, koncerti,
               radionice i skriveni lokalni događaji, po regijama i datumu.
             </p>
           </div>
@@ -77,7 +77,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-ink-muted sm:flex-row">
-          <p>© {new Date().getFullYear()} Manifestacije · Otkrij Hrvatsku</p>
+          <p>© {new Date().getFullYear()} Manifestacije · Otkrij Slavoniju i Baranju</p>
           <div className="flex gap-4">
             <Link href="/pravila-privatnosti" className="hover:text-ink-foreground/80 transition-colors">Privatnost</Link>
             <Link href="/uvjeti-koristenja" className="hover:text-ink-foreground/80 transition-colors">Uvjeti</Link>

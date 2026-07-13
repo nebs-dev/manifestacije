@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
   url.searchParams.set("addressdetails", "1")
   url.searchParams.set("limit", "7")
   url.searchParams.set("accept-language", "hr")
-  // Bias toward Croatia without hard filtering so venue names work too
-  url.searchParams.set("viewbox", "13.5,46.5,19.5,42.0")
+  // Bias toward Slavonia and Baranja without hard filtering so venue names work too
+  url.searchParams.set("viewbox", "17.0,44.5,19.5,46.0")
   url.searchParams.set("bounded", "0")
 
   const res = await fetch(url.toString(), {

@@ -176,9 +176,9 @@ export class EventsService {
 
   private async ensureFallbackCounty() {
     const region = await this.prisma.region.upsert({
-      where: { slug: "hrvatska" },
+      where: { slug: "slavonija-i-baranja" },
       update: {},
-      create: { name: "Hrvatska", slug: "hrvatska", sortOrder: 999 },
+      create: { name: "Slavonija i Baranja", slug: "slavonija-i-baranja", sortOrder: 1 },
     });
     return this.prisma.county.upsert({
       where: { slug: "nepoznata-zupanija" },

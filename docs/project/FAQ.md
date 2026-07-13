@@ -14,13 +14,12 @@ Evidence:
 - Data Imports (Done, High)
 - Locations (Partial, High)
 - AI/Crawler Discovery Surface (Partial, Medium)
-- Business Profiles (Partial, Low)
-- Trust Signals (Partial, Low)
 
 ## What public surfaces were detected?
 - GET `/public/events` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 - GET `/public/events/:slug` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 - GET `/public/regions` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
+- GET `/public/cities` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 - GET `/public/regions/:slug/events` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 - GET `/public/cities/:slug/events` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 - GET `/public/categories` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
@@ -29,7 +28,7 @@ Evidence:
 - GET `/public/seo/sitemap-data` from `apps/api/src/public-feed/public-feed.controller.ts` (Public (Inferred))
 
 ## What API surface exists?
-Kiroq detected 77 route candidates. See `API_ROUTES.md` for inventory and `API_REFERENCE.md` for grouped endpoint notes.
+Kiroq detected 102 route candidates. See `API_ROUTES.md` for inventory and `API_REFERENCE.md` for grouped endpoint notes.
 
 ## What data model exists?
 Kiroq detected 12 Prisma models. Top detected models: `User`, `Organizer`, `Region`, `County`, `City`, `Venue`, `Category`, `EventCategory`, `Event`, `EventSource`.
@@ -49,26 +48,21 @@ Kiroq detected 12 Prisma models. Top detected models: `User`, `Organizer`, `Regi
 - `pnpm build`
 
 ## Is runtime behavior verified?
-Partially. Kiroq ran `pnpm test` and it passed, but this does not prove smoke/sample/client QA coverage.
+Not by default. Kiroq uses static deterministic scanning unless `--run-tests` is provided.
 
 ## What are the main review areas?
-- High: auth related files detected. File paths include risk-sensitive keyword "auth" (12 evidence paths).
-- High: jwt related files detected. File paths include risk-sensitive keyword "jwt" (1 evidence paths).
-- Medium: public related files detected. File paths include review keyword "public" (35 evidence paths).
-- Medium: env related files detected. File paths include review keyword "env" (3 evidence paths).
-- Medium: config related files detected. File paths include review keyword "config" (8 evidence paths).
-- Medium: prisma/schema.prisma related files detected. File paths include review keyword "prisma/schema.prisma" (12 evidence paths).
-- Medium: Public or tokenized routes detected. Route path/source suggests public exposure or token-based access. Affected routes: GET /public/events, GET /public/events/:slug, GET /public/regions, GET /public/regions/:slug/events, GET /public/cities/:slug/events, GET /public/categories, GET /public/categories/:slug/events, GET /public/map/events, GET /public/seo/sitemap-data.
+- High: Auth/session/token source files detected. Source files matching authentication/session/token patterns were found (13 evidence paths).
+- Medium: Database migration/schema files detected. Files matching database schema/migration patterns were found (1 evidence paths).
+- Medium: Public or tokenized routes detected. Route path/source suggests public exposure or token-based access. Affected routes: GET /public/events, GET /public/events/:slug, GET /public/regions, GET /public/cities, GET /public/regions/:slug/events, GET /public/cities/:slug/events, GET /public/categories, GET /public/categories/:slug/events, GET /public/map/events, GET /public/seo/sitemap-data.
 
 ## What is still unknown?
-- Is billing intentionally out of scope? (Medium)
 - Are public crawlable pages production-ready, including 404 behavior and unpublished-data protection? (High)
 - Are deployment env vars complete and aligned with .env.example? (Medium)
 
 ## What should happen next?
 - Review public /b, report, robots, sitemap, llms, and discovery routes for crawler/human parity, 404 behavior, and unpublished-data exposure. (High)
 - Check required production env var coverage between committed examples and deployment config. (Medium)
-- Target test command passed: pnpm test. Add smoke/sample checks for critical flows if not covered. (High)
+- Run target test/build commands manually or re-run Kiroq with --run-tests evidence. (Unknown)
 
 ## How reliable is this FAQ?
 It is evidence-first but static. It should guide review, not replace runtime tests, smoke checks, QA, or human architecture review.

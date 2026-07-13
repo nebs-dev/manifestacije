@@ -559,8 +559,8 @@ export class AdminService {
     const existing = await this.prisma.city.findFirst({ where: { name: { equals: cleaned, mode: "insensitive" } } });
     if (existing) return existing;
 
-    const regionClean = regionName?.trim() || "Hrvatska";
-    const regionSlug = slugify(regionClean) || "hrvatska";
+    const regionClean = regionName?.trim() || "Slavonija i Baranja";
+    const regionSlug = slugify(regionClean) || "slavonija-i-baranja";
     const region = await this.prisma.region.upsert({
       where: { slug: regionSlug },
       update: {},

@@ -53,7 +53,7 @@ export default async function Home() {
         <section className="border-t border-border bg-ink py-16 text-ink-foreground md:py-24">
           <div className="mx-auto flex max-w-6xl flex-col items-center px-4 text-center">
             <h2 className="max-w-2xl text-balance font-heading text-3xl font-semibold md:text-4xl">Vidi sva događanja na karti</h2>
-            <p className="mt-4 max-w-lg text-pretty text-ink-foreground/75 leading-relaxed">Otkrij što se zbiva u tvojoj blizini ili planiraj putovanje uz interaktivnu kartu cijele Hrvatske.</p>
+            <p className="mt-4 max-w-lg text-pretty text-ink-foreground/75 leading-relaxed">Otkrij što se zbiva u tvojoj blizini ili planiraj putovanje uz interaktivnu kartu Slavonije i Baranje.</p>
             <Link href="/mapa" className="mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90">
               Otvori kartu
               <ArrowRight className="size-4" aria-hidden />
