@@ -189,9 +189,10 @@ export function ParsedCandidateCard({
       )
       if (res.ok) {
         const data = await res.json()
-        toast.success(publish ? "Događaj kreiran i objavljen" : "Događaj kreiran")
+        toast.success(publish ? "Događaj kreiran i objavljen" : "Događaj kreiran", {
+          action: { label: "Otvori", onClick: () => router.push(`/admin/events/${data.event.id}`) },
+        })
         onUpdate?.()
-        router.push(`/admin/events/${data.event.id}`)
       } else {
         toast.error("Greška pri kreiranju", { description: await res.text() })
       }

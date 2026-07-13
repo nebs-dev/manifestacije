@@ -22,10 +22,24 @@ if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me
 }
 
 @Controller("health")
-class HealthController {
+export class HealthController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Get()
-  health() {
-    return { ok: true };
+  async health() {
+    let db: "ok" | "error" = "ok";
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      db = "error";
+    }
+    return {
+      ok: db === "ok",
+      db,
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV ?? "development",
+    };
   }
 }
 
