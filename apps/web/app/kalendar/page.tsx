@@ -6,7 +6,7 @@ import { fetchEvents, type PublicFilters } from "@/lib/public-api"
 
 export const metadata: Metadata = {
   title: "Kalendar dogadanja",
-  description: "Pregledaj dogadanja diljem Hrvatske po danima, tjednima i mjesecima.",
+  description: "Pregledaj dogadanja diljem Slavonije i Baranje po danima, tjednima i mjesecima.",
 }
 
 function str(v: string | string[] | undefined) {

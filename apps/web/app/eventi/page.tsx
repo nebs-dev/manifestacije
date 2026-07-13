@@ -7,7 +7,7 @@ import { fetchEvents, fetchCategories, type PublicFilters } from "@/lib/public-a
 
 export const metadata: Metadata = {
   title: "Sva događanja",
-  description: "Pretraži i filtriraj događanja diljem Hrvatske."
+  description: "Pretraži i filtriraj događanja diljem Slavonije i Baranje."
 };
 
 function str(v: string | string[] | undefined) {
