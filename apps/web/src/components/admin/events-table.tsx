@@ -49,6 +49,8 @@ export function EventsTable({
   const [bulkBusy, setBulkBusy] = useState(false)
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
   const [bulkCategoryId, setBulkCategoryId] = useState("")
+  const [organizers, setOrganizers] = useState<{ id: number; name: string }[]>([])
+  const [organizerFilter, setOrganizerFilter] = useState<string>("all")
 
   useEffect(() => {
     authedFetch("/api/admin/categories")
@@ -57,18 +59,29 @@ export function EventsTable({
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    authedFetch("/api/admin/organizers")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { id: number; name: string }[]) => setOrganizers(data))
+      .catch(() => {})
+  }, [])
+
   const filtered = useMemo(() => {
     let result = status === "all" ? events : events.filter((e) => e.status === status)
+    if (organizerFilter !== "all") {
+      result = result.filter((e) => e._organizerId === Number(organizerFilter))
+    }
     const q = search.trim().toLowerCase()
     if (q) {
       result = result.filter((e) =>
         e.title.toLowerCase().includes(q) ||
         (e.city ?? "").toLowerCase().includes(q) ||
-        (e.categories?.some((c) => c.name.toLowerCase().includes(q)) ?? false)
+        (e.categories?.some((c) => c.name.toLowerCase().includes(q)) ?? false) ||
+        (e.organizer ?? "").toLowerCase().includes(q)
       )
     }
     return result
-  }, [events, status, search])
+  }, [events, status, organizerFilter, search])
 
   const allSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id))
 
@@ -151,6 +164,19 @@ export function EventsTable({
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
                 </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Select value={organizerFilter} onValueChange={(v) => setOrganizerFilter(v)}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Svi organizatori" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="all">Svi organizatori</SelectItem>
+              {organizers.map((o) => (
+                <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
               ))}
             </SelectGroup>
           </SelectContent>
