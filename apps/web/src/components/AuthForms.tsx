@@ -1,9 +1,34 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 type Msg = { ok?: string; error?: string };
+
+function PasswordInput({ name, placeholder, defaultValue, required }: { name: string; placeholder?: string; defaultValue?: string; required?: boolean }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        name={name}
+        type={show ? "text" : "password"}
+        placeholder={placeholder}
+        defaultValue={defaultValue}
+        required={required}
+        className="w-full pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
 
 export function LoginForm({ mode }: { mode: "organizer" | "admin" }) {
   const [msg, setMsg] = useState<Msg>({});
@@ -24,7 +49,7 @@ export function LoginForm({ mode }: { mode: "organizer" | "admin" }) {
     <form onSubmit={submit} className="grid max-w-md gap-3 rounded border bg-white p-4">
       <h1 className="text-2xl font-bold">{mode === "admin" ? "Admin login" : "Organizer login"}</h1>
       <input name="email" type="email" placeholder="email" defaultValue={mode === "admin" ? "admin@manifestacije.test" : ""} required />
-      <input name="password" type="password" placeholder="password" defaultValue={mode === "admin" ? "admin1234" : ""} required />
+      <PasswordInput name="password" placeholder="password" defaultValue={mode === "admin" ? "admin1234" : ""} required />
       <button>Login</button>
       <Message msg={msg} />
     </form>
@@ -52,7 +77,7 @@ export function RegisterForm() {
       <input name="name" placeholder="Ime" required />
       <input name="organizerName" placeholder="Naziv organizatora" required />
       <input name="email" type="email" placeholder="email" required />
-      <input name="password" type="password" placeholder="password min 8" required />
+      <PasswordInput name="password" placeholder="password min 8" required />
       <button>Register</button>
       <Message msg={msg} />
     </form>
