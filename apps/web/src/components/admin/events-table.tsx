@@ -173,7 +173,7 @@ export function EventsTable({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-sm text-muted-foreground">Organizator:</span>
-          <Select value={organizerFilter} onValueChange={(v) => setOrganizerFilter(v)}>
+          <Select value={organizerFilter} onValueChange={(v) => setOrganizerFilter(v ?? "all")}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Svi organizatori" />
             </SelectTrigger>
