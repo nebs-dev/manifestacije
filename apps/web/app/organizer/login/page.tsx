@@ -3,11 +3,36 @@
 import { FormEvent, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 import { API_URL } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { storeOrganizerSession } from "@/lib/organizer/auth"
+
+function PasswordInput({ name, placeholder, required, autoComplete }: { name: string; placeholder?: string; required?: boolean; autoComplete?: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <Input
+        name={name}
+        type={show ? "text" : "password"}
+        placeholder={placeholder}
+        required={required}
+        autoComplete={autoComplete}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -49,7 +74,7 @@ export default function LoginPage() {
       <CardContent>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <Input name="email" type="email" placeholder="Email" required autoComplete="email" />
-          <Input name="password" type="password" placeholder="Lozinka" required autoComplete="current-password" />
+          <PasswordInput name="password" placeholder="Lozinka" required autoComplete="current-password" />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={loading}>{loading ? "Prijava…" : "Prijava"}</Button>
           <p className="text-center text-sm text-muted-foreground">
