@@ -2,9 +2,35 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 const TOKEN_KEY = "adminToken"
+
+function PasswordInput({ value, onChange, disabled, autoComplete }: { value: string; onChange: (value: string) => void; disabled?: boolean; autoComplete?: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        autoComplete={autoComplete}
+        required
+        className="w-full rounded-lg border border-input bg-card px-3 py-2 pr-10 text-sm outline-none ring-ring/40 focus:ring-2 disabled:opacity-60"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+}
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -81,15 +107,11 @@ export default function AdminLoginPage() {
             <label htmlFor="password" className="text-sm font-medium">
               Lozinka
             </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
+            <PasswordInput
               value={form.password}
-              onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-              className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none ring-ring/40 focus:ring-2 disabled:opacity-60"
+              onChange={(value) => setForm((p) => ({ ...p, password: value }))}
               disabled={loading}
+              autoComplete="current-password"
             />
           </div>
 

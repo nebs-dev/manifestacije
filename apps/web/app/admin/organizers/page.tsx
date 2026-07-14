@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound } from "lucide-react"
+import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
@@ -31,6 +31,32 @@ interface Organizer {
 
 type OrgForm = { name: string; email: string; websiteUrl: string; phone: string }
 const emptyForm = (): OrgForm => ({ name: "", email: "", websiteUrl: "", phone: "" })
+
+function PasswordInput({ value, onChange, placeholder, className, onKeyDown, autoFocus, disabled }: { value: string; onChange: (value: string) => void; placeholder?: string; className?: string; onKeyDown?: (e: React.KeyboardEvent) => void; autoFocus?: boolean; disabled?: boolean }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <Input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={className}
+        onKeyDown={onKeyDown}
+        autoFocus={autoFocus}
+        disabled={disabled}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+}
 
 function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChanged: () => void; selected: boolean; onToggle: () => void }) {
   const [editing, setEditing] = useState(false)
@@ -93,11 +119,10 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
       <TableCell className="text-right">
         {resettingPw ? (
           <div className="flex items-center justify-end gap-1">
-            <Input
-              type="password"
-              placeholder="Nova lozinka (min. 8)"
+            <PasswordInput
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(value) => setNewPassword(value)}
+              placeholder="Nova lozinka (min. 8)"
               onKeyDown={(e) => { if (e.key === "Enter") resetPassword(); if (e.key === "Escape") { setResettingPw(false); setNewPassword("") } }}
               className="h-8 w-44 text-xs"
               autoFocus
