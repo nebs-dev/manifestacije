@@ -123,7 +123,10 @@ export async function fetchMapEvents() {
 const TZ = "Europe/Zagreb"
 
 function toZagrebDate(d: Date): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
 
 function notPast(e: CroEvent): boolean {
