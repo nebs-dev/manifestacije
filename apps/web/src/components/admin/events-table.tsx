@@ -154,33 +154,39 @@ export function EventsTable({
             className="w-72 pl-8"
           />
         </div>
-        <Select value={status} onValueChange={(v) => setStatus(v as string)}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {statusOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select value={organizerFilter} onValueChange={(v) => setOrganizerFilter(v)}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Svi organizatori" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">Svi organizatori</SelectItem>
-              {organizers.map((o) => (
-                <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-muted-foreground">Status:</span>
+          <Select value={status} onValueChange={(v) => setStatus(v as string)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {statusOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="cursor-pointer">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-muted-foreground">Organizator:</span>
+          <Select value={organizerFilter} onValueChange={(v) => setOrganizerFilter(v)}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Svi organizatori" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all" className="cursor-pointer">Svi organizatori</SelectItem>
+                {organizers.map((o) => (
+                  <SelectItem key={o.id} value={String(o.id)} className="cursor-pointer">{o.name}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
         <span className="ml-auto text-sm text-muted-foreground">
           {filtered.length} događaja
         </span>
