@@ -106,7 +106,7 @@ export default function OrganizerEventsPage() {
               <div className="min-w-0">
                 <p className="truncate font-medium">{ev.title}</p>
                 <p className="text-sm text-muted-foreground">
-                  {new Date(ev.startsAt).toLocaleDateString("hr")} · {ev.city.name} · {ev.category.name}
+                  {new Date(ev.startsAt).toLocaleDateString("hr")} · {ev.city?.name ?? "Online"} · {ev.category?.name ?? "—"}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

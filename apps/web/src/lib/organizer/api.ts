@@ -21,8 +21,8 @@ export type OrgEvent = {
   title: string
   status: string
   startsAt: string
-  city: { name: string }
-  category: { name: string }
+  city: { name: string } | null
+  category: { name: string } | null
 }
 
 export type OrgSource = {
