@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { EventStatus, EventSourceKind, OrganizerStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
+import { COUNTY_TO_REGION_SLUG, lookupCityGeo } from "../common/croatia-geo";
 import { EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
@@ -156,9 +157,33 @@ export class EventsService {
     const name = dto.cityName?.trim() || "Nepoznato";
     const existing = await this.prisma.city.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, include: { county: true } });
     if (existing) return existing;
-    const county = await this.ensureFallbackCounty();
+
+    const geo = await lookupCityGeo(name);
+    const county = geo ? await this.resolveCounty(geo.countyName) : await this.ensureFallbackCounty();
+
     const slug = await uniqueSlug(name, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
-    return this.prisma.city.create({ data: { name, slug, countyId: county.id }, include: { county: true } });
+    return this.prisma.city.create({
+      data: { name, slug, countyId: county.id, lat: geo?.lat, lng: geo?.lng },
+      include: { county: true },
+    });
+  }
+
+  // Finds (or creates) the real county for a geocoded name, attached to the
+  // correct existing region. Falls back to the generic "unknown" county when
+  // the county isn't in our fixed Croatia mapping (e.g. geocoder returned
+  // something unexpected).
+  private async resolveCounty(countyName: string) {
+    const existing = await this.prisma.county.findFirst({ where: { name: { equals: countyName, mode: "insensitive" } } });
+    if (existing) return existing;
+
+    const regionSlug = COUNTY_TO_REGION_SLUG[countyName];
+    if (!regionSlug) return this.ensureFallbackCounty();
+
+    const region = await this.prisma.region.findUnique({ where: { slug: regionSlug } });
+    if (!region) return this.ensureFallbackCounty();
+
+    const slug = await uniqueSlug(countyName, async (s) => !!(await this.prisma.county.findUnique({ where: { slug: s } })));
+    return this.prisma.county.create({ data: { name: countyName, slug, regionId: region.id } });
   }
 
   private async resolveCategory(categoryId?: number) {

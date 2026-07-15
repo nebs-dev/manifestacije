@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { ResultsGrid } from "@/components/public/results-grid";
 import { fetchEvents } from "@/lib/public-api";
+
+export const metadata: Metadata = {
+  title: "Događanja ovaj vikend",
+  description: "Pregled svih događanja koja se održavaju ovaj vikend.",
+};
 
 export default async function WeekendPage() {
   const events = await fetchEvents({ when: "ovaj-vikend" });

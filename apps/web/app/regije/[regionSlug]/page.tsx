@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -5,7 +6,21 @@ import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { ResultsGrid } from "@/components/public/results-grid";
 import { getRegion } from "@/lib/data";
-import { fetchEvents } from "@/lib/public-api";
+import { fetchEvents, WEB_URL } from "@/lib/public-api";
+
+export async function generateMetadata({ params }: { params: { regionSlug: string } }): Promise<Metadata> {
+  const region = getRegion(params.regionSlug);
+  if (!region) return { title: "Regija nije pronađena" };
+  const title = `Događanja u regiji ${region.name}`;
+  const description = region.blurb || `Pregled svih događanja u regiji ${region.name}.`;
+  return {
+    title,
+    description,
+    openGraph: { type: "website", title, description, url: `${WEB_URL}/regije/${region.slug}` },
+    twitter: { card: "summary", title, description },
+    alternates: { canonical: `${WEB_URL}/regije/${region.slug}` },
+  };
+}
 
 export default async function RegionPage({ params }: { params: { regionSlug: string } }) {
   const region = getRegion(params.regionSlug);

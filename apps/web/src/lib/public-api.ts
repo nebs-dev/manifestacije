@@ -116,8 +116,8 @@ export async function fetchRelatedEvents(event: CroEvent) {
 
 export async function fetchMapEvents() {
   return fetchApi<ApiEvent[]>("/api/public/map/events", 300)
-    .then((rows) => rows.map(toCroEvent).filter(notPast).filter((e) => e.region === "slavonija"))
-    .catch(() => fallbackEvents.filter(notPast).filter((e) => e.region === "slavonija"))
+    .then((rows) => rows.map(toCroEvent).filter(notPast))
+    .catch(() => fallbackEvents.filter(notPast))
 }
 
 const TZ = "Europe/Zagreb"

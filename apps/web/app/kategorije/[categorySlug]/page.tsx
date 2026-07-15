@@ -1,10 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { ResultsGrid } from "@/components/public/results-grid";
 import { getCategory } from "@/lib/data";
-import { fetchEvents } from "@/lib/public-api";
+import { fetchEvents, WEB_URL } from "@/lib/public-api";
+
+export async function generateMetadata({ params }: { params: { categorySlug: string } }): Promise<Metadata> {
+  const category = getCategory(params.categorySlug);
+  if (!category) return { title: "Kategorija nije pronađena" };
+  const title = `${category.name} — događanja`;
+  const description = category.tagline || `Pregled svih događanja u kategoriji ${category.name}.`;
+  return {
+    title,
+    description,
+    openGraph: { type: "website", title, description, url: `${WEB_URL}/kategorije/${category.slug}` },
+    twitter: { card: "summary", title, description },
+    alternates: { canonical: `${WEB_URL}/kategorije/${category.slug}` },
+  };
+}
 
 export default async function CategoryPage({ params }: { params: { categorySlug: string } }) {
   const category = getCategory(params.categorySlug);
