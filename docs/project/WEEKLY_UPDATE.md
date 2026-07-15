@@ -2,7 +2,7 @@
 
 Project: manifestacije
 Range: last 7 days
-Generated: 2026-07-13T09:19:37.944Z
+Generated: 2026-07-15T15:46:28.907Z
 Evidence: Kiroq events + git history + changed files + feature status + verification results
 
 ## Summary

@@ -43,6 +43,7 @@
 | apps/api/src/auth/jwt-auth.guard.ts | Fact | ▮▮▮ High | `apps/api/src/auth/jwt-auth.guard.ts` |
 | apps/api/src/categories/categories.module.ts | Fact | ▮▮▮ High | `apps/api/src/categories/categories.module.ts` |
 | apps/api/src/cities/cities.module.ts | Fact | ▮▮▮ High | `apps/api/src/cities/cities.module.ts` |
+| apps/api/src/common/croatia-geo.ts | Fact | ▮▮▮ High | `apps/api/src/common/croatia-geo.ts` |
 | apps/api/src/common/slug.ts | Fact | ▮▮▮ High | `apps/api/src/common/slug.ts` |
 | apps/api/src/counties/counties.module.ts | Fact | ▮▮▮ High | `apps/api/src/counties/counties.module.ts` |
 | apps/api/src/duplicates/duplicates.module.ts | Fact | ▮▮▮ High | `apps/api/src/duplicates/duplicates.module.ts` |
@@ -71,8 +72,7 @@
 | apps/api/test/duplicates.spec.js | Fact | ▮▮▮ High | `apps/api/test/duplicates.spec.js` |
 | apps/api/test/duplicates.spec.ts | Fact | ▮▮▮ High | `apps/api/test/duplicates.spec.ts` |
 | apps/api/test/events-images.spec.ts | Fact | ▮▮▮ High | `apps/api/test/events-images.spec.ts` |
-| apps/api/test/organizer.service.spec.ts | Fact | ▮▮▮ High | `apps/api/test/organizer.service.spec.ts` |
-| apps/api/test/public-feed.service.spec.ts | Fact | ▮▮▮ High | `apps/api/test/public-feed.service.spec.ts` |
+| apps/api/test/health.spec.ts | Fact | ▮▮▮ High | `apps/api/test/health.spec.ts` |
 
 ## Tests
 | Item | Status | Confidence | Evidence |
@@ -84,11 +84,14 @@
 | apps/api/test/duplicates.spec.js | Fact | ▮▮▮ High | `apps/api/test/duplicates.spec.js` |
 | apps/api/test/duplicates.spec.ts | Fact | ▮▮▮ High | `apps/api/test/duplicates.spec.ts` |
 | apps/api/test/events-images.spec.ts | Fact | ▮▮▮ High | `apps/api/test/events-images.spec.ts` |
+| apps/api/test/health.spec.ts | Fact | ▮▮▮ High | `apps/api/test/health.spec.ts` |
 | apps/api/test/organizer.service.spec.ts | Fact | ▮▮▮ High | `apps/api/test/organizer.service.spec.ts` |
 | apps/api/test/public-feed.service.spec.ts | Fact | ▮▮▮ High | `apps/api/test/public-feed.service.spec.ts` |
 | apps/api/test/uploads.spec.ts | Fact | ▮▮▮ High | `apps/api/test/uploads.spec.ts` |
+| apps/web/src/components/public/event-poster.test.ts | Fact | ▮▮▮ High | `apps/web/src/components/public/event-poster.test.ts` |
 | apps/web/src/lib/admin/adapters.test.ts | Fact | ▮▮▮ High | `apps/web/src/lib/admin/adapters.test.ts` |
 | apps/web/src/lib/admin/api.test.ts | Fact | ▮▮▮ High | `apps/web/src/lib/admin/api.test.ts` |
+| apps/web/src/lib/event-jsonld.test.ts | Fact | ▮▮▮ High | `apps/web/src/lib/event-jsonld.test.ts` |
 | apps/web/src/lib/public-api.test.ts | Fact | ▮▮▮ High | `apps/web/src/lib/public-api.test.ts` |
 
 ## Test Run

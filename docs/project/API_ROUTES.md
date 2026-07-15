@@ -4,6 +4,8 @@
 | --- | --- | --- | --- | --- | --- |
 | nestjs | GET | `/admin/pending-counts` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | POST | `/admin/events/bulk-categories` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |
+| nestjs | POST | `/admin/events/bulk-status` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |
+| nestjs | POST | `/admin/events/bulk-shift-dates` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | GET | `/admin/events/pending` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | GET | `/admin/events` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |
 | nestjs | POST | `/admin/events` | Auth-sensitive (Inferred) | ▮▮▮ High | `apps/api/src/admin/admin.controller.ts` |

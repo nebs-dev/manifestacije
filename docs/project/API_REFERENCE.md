@@ -10,6 +10,8 @@ Request and response shapes are marked Unknown unless Kiroq can detect them dire
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/admin/pending-counts` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | Unknown | None detected | High | Unknown | Unknown |
 | POST | `/admin/events/bulk-categories` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
+| POST | `/admin/events/bulk-status` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
+| POST | `/admin/events/bulk-shift-dates` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | GET | `/admin/events/pending` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | GET | `/admin/events` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |
 | POST | `/admin/events` | `apps/api/src/admin/admin.controller.ts` | Auth-sensitive (Inferred) | Unknown from static route evidence. | None | `Event` | None detected | High | Unknown | Unknown |

@@ -17,8 +17,8 @@ It appears to include data imports, locations, ai/crawler discovery surface.
 
 ## Layers
 - Public layer: `/public/events`, `/public/events/:slug`, `/public/regions`, `/public/cities`, `/public/regions/:slug/events`, `/public/cities/:slug/events`, `/public/categories`, `/public/categories/:slug/events`
-- Admin/UI layer: `/admin/pending-counts`, `/admin/events/bulk-categories`, `/admin/events/pending`, `/admin/events`, `/admin/events`, `/admin/events/:id`, `/admin/events/:id`, `/admin/events/:id/approve`
-- API layer: `/admin/pending-counts`, `/admin/events/bulk-categories`, `/admin/events/pending`, `/admin/events`, `/admin/events`, `/admin/events/:id`, `/admin/events/:id`, `/admin/events/:id/approve`
+- Admin/UI layer: `/admin/pending-counts`, `/admin/events/bulk-categories`, `/admin/events/bulk-status`, `/admin/events/bulk-shift-dates`, `/admin/events/pending`, `/admin/events`, `/admin/events`, `/admin/events/:id`
+- API layer: `/admin/pending-counts`, `/admin/events/bulk-categories`, `/admin/events/bulk-status`, `/admin/events/bulk-shift-dates`, `/admin/events/pending`, `/admin/events`, `/admin/events`, `/admin/events/:id`
 - Data layer: `User`, `Organizer`, `Region`, `County`, `City`, `Venue`, `Category`, `EventCategory`, `Event`, `EventSource`, `EventDuplicateCandidate`, `IngestionJob`
 
 ## Important Unknowns
