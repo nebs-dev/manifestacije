@@ -60,7 +60,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />
         <section className="relative isolate h-[44vh] min-h-[320px] w-full overflow-hidden bg-ink text-ink-foreground md:h-[56vh]">
           <div className="absolute inset-0">
-            <EventPoster image={event.image} title={event.title} alt={event.title} category={event.category} sizes="100vw" priority />
+            <EventPoster image={event.heroImage ?? event.image} title={event.title} alt={event.title} category={event.category} sizes="100vw" priority />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-ink/20" aria-hidden />
           <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-8">

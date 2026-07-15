@@ -7,7 +7,7 @@ export function HomeHero() {
   return (
     <section className="relative isolate overflow-hidden bg-ink text-ink-foreground">
       <Image
-        src="/images/hero-night.png"
+        src="/images/hero-night.jpg"
         alt="Noćni kulturni festival u povijesnoj dalmatinskoj jezgri"
         fill
         priority

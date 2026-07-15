@@ -181,7 +181,11 @@ function toCroEvent(event: ApiEvent): CroEvent {
     organizer: event.organizer?.name || "Organizator nije naveden",
     source: event.sourceUrl || "Manifestacije.hr",
     ticketUrl: event.ticketUrl || undefined,
-    image: cloudinaryImage(event.imageUrl, { w: 1200, h: 900 }) || undefined,
+    // Sized for the largest common display context (event card in a 3-column grid,
+    // ~350-400px wide) at 2x for retina.
+    image: cloudinaryImage(event.imageUrl, { w: 800, h: 600 }) || undefined,
+    // Full-bleed detail page hero needs more resolution than a card thumbnail.
+    heroImage: cloudinaryImage(event.imageUrl, { w: 1600, h: 900 }) || undefined,
     featured: event.isFeatured === true || (event.extractionConfidence ? event.extractionConfidence >= 0.85 : false),
     address: event.address ?? event.venue?.address ?? undefined,
     lat: (event.lat ?? event.venue?.lat ?? event.city?.lat) ?? undefined,

@@ -69,7 +69,10 @@ export interface CroEvent {
   organizer: string
   source: string
   ticketUrl?: string
+  /** Card-sized image (800x600) — used on listing cards, calendar agenda, rails. */
   image?: string
+  /** Larger image (1600x900) for the full-width detail page hero — falls back to `image` when absent. */
+  heroImage?: string
   featured?: boolean
   address?: string
   lat?: number
@@ -160,7 +163,7 @@ export const regions: Region[] = [
     county: "Osijek · Đakovo · Vukovar · Beli Manastir",
     blurb:
       "Zlatne ravnice, tamburica i bogata tradicija. Manifestacije koje slave baštinu i domaće okuse.",
-    image: "/images/region-slavonija.png",
+    image: "/images/region-slavonija.jpg",
   },
 ]
 
@@ -186,7 +189,7 @@ export const events: CroEvent[] = [
     organizer: "Turistička zajednica grada Splita",
     source: "Visit Split",
     ticketUrl: "https://example.com",
-    image: "/images/hero-night.png",
+    image: "/images/hero-night.jpg",
     featured: true,
     map: { x: 46, y: 72 },
   },
@@ -211,7 +214,7 @@ export const events: CroEvent[] = [
     organizer: "Zadar Concerts",
     source: "Zadar Concerts",
     ticketUrl: "https://example.com",
-    image: "/images/event-concert.png",
+    image: "/images/event-concert.jpg",
     featured: true,
     map: { x: 40, y: 60 },
   },
@@ -236,7 +239,7 @@ export const events: CroEvent[] = [
     organizer: "Vinari Istre",
     source: "Istra Inspirit",
     ticketUrl: "https://example.com",
-    image: "/images/event-food.png",
+    image: "/images/event-food.jpg",
     featured: true,
     map: { x: 16, y: 30 },
   },
@@ -260,7 +263,7 @@ export const events: CroEvent[] = [
       "Dvosatna radionica za početnike u kojoj svaki polaznik izrađuje vlastitu zdjelu. Materijali i pečenje uključeni su u cijenu, a gotovi radovi šalju se poštom nakon sušenja.",
     organizer: "Atelier Mali Sv. Križ",
     source: "Rovinj Culture",
-    image: "/images/event-workshop.png",
+    image: "/images/event-workshop.jpg",
     map: { x: 14, y: 34 },
   },
   {
@@ -282,7 +285,7 @@ export const events: CroEvent[] = [
       "Cijeli dan zabave za najmlađe: potraga za blagom kroz park, radionice slikanja, lutkarske predstave i prirodoslovne igre. Ulaz je slobodan, a roditeljima su na raspolaganju kutci za odmor uz kavu.",
     organizer: "Javna ustanova Maksimir",
     source: "Zagreb.hr",
-    image: "/images/event-family.png",
+    image: "/images/event-family.jpg",
     featured: true,
     map: { x: 30, y: 16 },
   },
@@ -307,7 +310,7 @@ export const events: CroEvent[] = [
     organizer: "HPD Paklenica",
     source: "Outdoor Croatia",
     ticketUrl: "https://example.com",
-    image: "/images/event-outdoor.png",
+    image: "/images/event-outdoor.jpg",
     map: { x: 34, y: 48 },
   },
   {
@@ -332,7 +335,7 @@ export const events: CroEvent[] = [
     organizer: "Klovićevi dvori",
     source: "Galerija Klovićevi dvori",
     ticketUrl: "https://example.com",
-    image: "/images/event-art.png",
+    image: "/images/event-art.jpg",
     map: { x: 29, y: 15 },
   },
   {
@@ -354,7 +357,7 @@ export const events: CroEvent[] = [
       "Tradicionalna gradska fešta okuplja obiteljska gospodarstva, vinare i tamburaške sastave. Posjetitelji kušaju domaće specijalitete dok se na glavnoj pozornici izmjenjuju folklorni i glazbeni programi.",
     organizer: "Grad Đakovo",
     source: "Visit Slavonija",
-    image: "/images/region-slavonija.png",
+    image: "/images/region-slavonija.jpg",
     map: { x: 76, y: 38 },
   },
   {
@@ -378,7 +381,7 @@ export const events: CroEvent[] = [
     organizer: "Arena Festival",
     source: "Arena Pula",
     ticketUrl: "https://example.com",
-    image: "/images/event-concert.png",
+    image: "/images/event-concert.jpg",
     map: { x: 12, y: 40 },
   },
   {
@@ -423,7 +426,7 @@ export const events: CroEvent[] = [
       "Četiri večeri filma pod vedrim nebom na živopisnom samoborskom trgu. Ulaz je besplatan, a uz projekcije organiziran je i program za djecu u ranim večernjim satima.",
     organizer: "Pučko otvoreno učilište Samobor",
     source: "Samobor Kultura",
-    image: "/images/hero-night.png",
+    image: "/images/hero-night.jpg",
     map: { x: 26, y: 18 },
   },
   {
@@ -446,7 +449,7 @@ export const events: CroEvent[] = [
       "Šetnja riječkim Korzom uz štandove lokalnih restorana koji predstavljaju svoje najbolje riblje specijalitete. Cijena uključuje pet degustacijskih porcija i čašu vina.",
     organizer: "Rijeka Gastro",
     source: "Visit Rijeka",
-    image: "/images/event-food.png",
+    image: "/images/event-food.jpg",
     map: { x: 21, y: 36 },
   },
 ]
