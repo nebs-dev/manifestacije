@@ -35,12 +35,12 @@ export default function OrganizerLayout({ children }: { children: React.ReactNod
           <nav className="flex items-center gap-1">
             <Link href="/organizer/events">
               <Button variant="ghost" size="sm" className="gap-1.5">
-                <List className="size-4" />Moji eventi
+                <List className="size-4" />Događaji
               </Button>
             </Link>
             <Link href="/organizer/events/new">
               <Button variant="ghost" size="sm" className="gap-1.5">
-                <CalendarPlus className="size-4" />Dodaj event
+                <CalendarPlus className="size-4" />Dodaj događaj
               </Button>
             </Link>
             <Link href="/organizer/submit-link">

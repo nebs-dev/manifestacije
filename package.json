@@ -11,6 +11,7 @@
     "smoke:ingestion": "node scripts/smoke-ingestion.mjs"
   },
   "devDependencies": {
+    "kiroq": "^0.1.6",
     "typescript": "^5.6.3"
   }
 }

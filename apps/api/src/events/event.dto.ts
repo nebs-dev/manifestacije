@@ -40,8 +40,7 @@ export class EventUpsertDto {
   startsAt?: string;
 
   @IsOptional()
-  @IsDateString()
-  endsAt?: string;
+  endsAt?: string | null;
 
   @IsOptional()
   @IsBoolean()

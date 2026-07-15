@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      kiroq:
+        specifier: ^0.1.6
+        version: 0.1.6
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -3067,6 +3070,11 @@ packages:
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
+
+  kiroq@0.1.6:
+    resolution: {integrity: sha512-VwAz110TUclzleJyftUuKIJCPxrRAdb3tfAzQ6QVYSx/3Tgv27wctou/1/R/hymjUOxXjD/hdVuUlFwWdkAApw==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   kleur@3.0.3:
     resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==}
@@ -7939,6 +7947,8 @@ snapshots:
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
+
+  kiroq@0.1.6: {}
 
   kleur@3.0.3: {}
 

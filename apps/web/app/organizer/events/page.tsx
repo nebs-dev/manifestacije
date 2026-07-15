@@ -25,7 +25,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 const SOURCE_STATUS_LABEL: Record<string, string> = {
   NEW: "Zaprimljeno",
-  PARSED: "Parsirano",
+  PARSED: "Obradjeno",
   NEEDS_REVIEW: "Čeka pregled",
   PROCESSED: "Obrađeno",
 }
@@ -80,22 +80,22 @@ export default function OrganizerEventsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="font-heading text-2xl font-semibold">Moji eventi</h1>
+        <h1 className="font-heading text-2xl font-semibold">Događaji</h1>
         <div className="flex items-center gap-2">
           <Link href="/organizer/submit-link">
             <Button variant="outline" className="gap-2"><Link2 className="size-4" />Pošalji link</Button>
           </Link>
           <Link href="/organizer/events/new">
-            <Button className="gap-2"><CalendarPlus className="size-4" />Dodaj event</Button>
+            <Button className="gap-2"><CalendarPlus className="size-4" />Dodaj događaj</Button>
           </Link>
         </div>
       </div>
 
       {events.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground">
-          <p className="mb-4">Još nema eventa. Dodajte prvi!</p>
+          <p className="mb-4">Još nema događaja. Dodajte prvi!</p>
           <Link href="/organizer/events/new">
-            <Button variant="outline">Dodaj event</Button>
+            <Button variant="outline">Dodaj događaj</Button>
           </Link>
         </div>
       ) : (

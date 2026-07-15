@@ -21,9 +21,19 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
   const [counts, setCounts] = useState<PendingCounts | null>(null)
 
   useEffect(() => {
-    const since = localStorage.getItem("adminLastSeenSourcesAt") ?? ""
-    const url = since ? `/api/admin/pending-counts?since=${encodeURIComponent(since)}` : "/api/admin/pending-counts"
-    authedFetch(url)
+    const sourcesSince = localStorage.getItem("adminLastSeenSourcesAt")
+    const eventsSince = localStorage.getItem("adminLastSeenEventsAt")
+    if (!sourcesSince && !eventsSince) {
+      authedFetch("/api/admin/pending-counts")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setCounts(d))
+        .catch(() => {})
+      return
+    }
+    const params = new URLSearchParams()
+    if (sourcesSince) params.set("sourcesSince", sourcesSince)
+    if (eventsSince) params.set("eventsSince", eventsSince)
+    authedFetch(`/api/admin/pending-counts?${params}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => d && setCounts(d))
       .catch(() => {})
@@ -54,7 +64,15 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <Link href="/admin/sources">
+        <Link
+          href="/admin/sources"
+          onClick={() => {
+            const now = new Date().toISOString()
+            localStorage.setItem("adminLastSeenSourcesAt", now)
+            localStorage.setItem("adminLastSeenEventsAt", now)
+            setCounts({ sources: 0, events: 0 })
+          }}
+        >
           <Button variant="ghost" size="icon" aria-label="Obavijesti" className="relative">
             <Bell className="size-4" />
             {totalPending > 0 && (

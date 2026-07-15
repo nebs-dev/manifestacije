@@ -80,7 +80,7 @@ export class EventsService {
       description: dto.description,
       categoryId: dto.categoryId,
       startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-      endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
+      endsAt: dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : undefined,
       isAllDay: dto.isAllDay,
       isFree: dto.isFree,
       isFeatured: dto.isFeatured,

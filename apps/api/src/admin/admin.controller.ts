@@ -13,7 +13,10 @@ import { UploadsService } from "./uploads.service";
 export class AdminController {
   constructor(private readonly admin: AdminService, private readonly uploads: UploadsService) {}
 
-  @Get("pending-counts") pendingCounts(@Query("since") since?: string) { return this.admin.pendingCounts(since); }
+  @Get("pending-counts") pendingCounts(
+    @Query("sourcesSince") sourcesSince?: string,
+    @Query("eventsSince") eventsSince?: string
+  ) { return this.admin.pendingCounts({ sourcesSince, eventsSince }); }
   @Post("events/bulk-categories") bulkCategories(@Body() body: { eventIds: number[]; categoryId: number; action: "add" | "remove" }) { return this.admin.bulkAssignCategory(body.eventIds, body.categoryId, body.action); }
   @Get("events/pending") pendingEvents() { return this.admin.pendingEvents(); }
   @Get("events") events() { return this.admin.allEvents(); }

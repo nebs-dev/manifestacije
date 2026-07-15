@@ -19,19 +19,20 @@ export class AdminService {
     private readonly revalidate: RevalidateService,
   ) {}
 
-  async pendingCounts(since?: string) {
-    const sinceDate = since ? new Date(since) : undefined;
+  async pendingCounts(params?: { sourcesSince?: string; eventsSince?: string }) {
+    const sourcesSinceDate = params?.sourcesSince ? new Date(params.sourcesSince) : undefined;
+    const eventsSinceDate = params?.eventsSince ? new Date(params.eventsSince) : undefined;
     const [sources, events] = await Promise.all([
       this.prisma.eventSource.count({
         where: {
           status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] },
-          ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
+          ...(sourcesSinceDate ? { createdAt: { gte: sourcesSinceDate } } : {}),
         },
       }),
       this.prisma.event.count({
         where: {
           status: EventStatus.PENDING_REVIEW,
-          ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
+          ...(eventsSinceDate ? { createdAt: { gte: eventsSinceDate } } : {}),
         },
       }),
     ]);

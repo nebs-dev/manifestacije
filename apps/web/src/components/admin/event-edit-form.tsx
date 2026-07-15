@@ -143,7 +143,7 @@ export function EventEditForm({
           categoryId: primaryCategoryId,
           categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
           startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
-          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : undefined,
+          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
           isAllDay: form.allDay,
           isFree: form.isFree,
           isFeatured: form.isFeatured,
@@ -307,12 +307,25 @@ export function EventEditForm({
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="endsAt">Završetak</FieldLabel>
-                    <Input
-                      id="endsAt"
-                      type="datetime-local"
-                      value={form.endsAt}
-                      onChange={(e) => update("endsAt", e.target.value)}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="endsAt"
+                        type="datetime-local"
+                        value={form.endsAt}
+                        onChange={(e) => update("endsAt", e.target.value)}
+                      />
+                      {form.endsAt && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => update("endsAt", "")}
+                          title="Obriši završni datum"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      )}
+                    </div>
                   </Field>
                 </Field>
                 <Field
