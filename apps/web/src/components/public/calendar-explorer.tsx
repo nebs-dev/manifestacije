@@ -247,7 +247,7 @@ export function CalendarExplorer({
 
         {daySections.length ? (
           <div className="flex flex-col gap-10">
-            <p className="text-sm text-muted-foreground">{totalVisible} dogadanja u ovom prikazu</p>
+            <p className="text-sm text-muted-foreground">{totalVisible} termina u ovom prikazu</p>
             {daySections.map((d) => {
               const key = dateKey(d)
               const dp = dateParts(key)
@@ -264,7 +264,7 @@ export function CalendarExplorer({
                       <p className="font-heading text-lg font-semibold leading-tight">{dp.weekday}{isToday && <span className="ml-2 text-sm font-medium text-accent-foreground">Danas</span>}</p>
                       <p className="text-sm text-muted-foreground">{dp.day}. {dp.monthLong} {dp.year}.</p>
                     </div>
-                    <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">{list.length} dogadanja</span>
+                    <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">{list.length} termina</span>
                   </div>
                   <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={e.slug} event={e} />)}</ul>
                 </section>
@@ -274,8 +274,8 @@ export function CalendarExplorer({
         ) : (
           <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
             <CalendarDays className="mx-auto mb-3 size-8 text-muted-foreground" aria-hidden />
-            <p className="font-heading text-lg font-semibold">Nema dogadanja u ovom prikazu</p>
-            <p className="mt-1 text-sm text-muted-foreground">Pokusaj s drugim mjesecom ili ublazi filtre.</p>
+            <p className="font-heading text-lg font-semibold">Nema termina u ovom prikazu</p>
+            <p className="mt-1 text-sm text-muted-foreground">Pokušaj s drugim mjesecom ili ublaži filtre.</p>
           </div>
         )}
       </div>
@@ -332,7 +332,7 @@ function AgendaRow({ event }: { event: CroEvent }) {
         <div className="flex min-w-0 flex-col justify-center gap-1.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {!event.allDay && <span className="inline-flex items-center gap-1 font-semibold text-primary"><Clock className="size-3.5" aria-hidden />{event.time}</span>}
-            {multiDay && <span className="text-muted-foreground">· visednevno</span>}
+            {multiDay && <span className="text-muted-foreground">· višednevno</span>}
           </div>
           <h4 className="truncate font-heading text-lg font-semibold leading-snug transition-colors group-hover:text-primary">{event.title}</h4>
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">

@@ -42,9 +42,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
       <main className="mx-auto w-full max-w-7xl overflow-hidden px-4 py-10 md:py-14">
         <header className="mb-8 max-w-2xl">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Pregled</p>
-          <h1 className="mt-2 text-balance font-heading text-3xl font-semibold md:text-5xl">Kalendar dogadanja</h1>
+          <h1 className="mt-2 text-balance font-heading text-3xl font-semibold md:text-5xl">Kalendar događanja</h1>
           <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">
-            Otkrij sto se dogada diljem Hrvatske - po danima, tjednima i mjesecima. Listaj agendu, skoci na vikend ili pronadi besplatna dogadanja za cijelu obitelj.
+            Otkrij što se događa diljem Slavonije i Baranje - po danima, tjednima i mjesecima. Listaj agendu, skoči na vikend ili pronađi besplatna događanja za cijelu obitelj.
           </p>
         </header>
 

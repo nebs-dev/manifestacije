@@ -47,7 +47,7 @@ export default async function Home() {
         <HomeHero />
         <div className="mx-auto max-w-6xl px-4">
           <section className="py-14 md:py-20">
-            <SectionHeading eyebrow="Izdvojeno" title="Događanja koja ne želiš propustiti" description="Ručno odabrani vrhunci sezone diljem zemlje." href="/eventi" hrefLabel="Sva događanja" />
+            <SectionHeading eyebrow="Izdvojeno" title="Događanja koja ne želiš propustiti" description="Ručno odabrani vrhunci sezone diljem Slavonije i Baranje." href="/eventi" hrefLabel="Sva događanja" />
             <EventRail events={featured} />
           </section>
 
