@@ -55,6 +55,36 @@ export class AdminService {
     }
   }
 
+  async bulkSetStatus(eventIds: number[], status: EventStatus) {
+    const result = await this.prisma.event.updateMany({
+      where: { id: { in: eventIds } },
+      data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined },
+    });
+    void this.revalidate.revalidate("events");
+    return result;
+  }
+
+  async bulkShiftDates(eventIds: number[], days: number) {
+    const events = await this.prisma.event.findMany({
+      where: { id: { in: eventIds } },
+      select: { id: true, startsAt: true, endsAt: true },
+    });
+    const shiftMs = days * 24 * 60 * 60 * 1000;
+    await this.prisma.$transaction(
+      events.map((e) =>
+        this.prisma.event.update({
+          where: { id: e.id },
+          data: {
+            startsAt: new Date(e.startsAt.getTime() + shiftMs),
+            endsAt: e.endsAt ? new Date(e.endsAt.getTime() + shiftMs) : undefined,
+          },
+        })
+      )
+    );
+    void this.revalidate.revalidate("events");
+    return { count: events.length };
+  }
+
   pendingEvents() {
     return this.prisma.event.findMany({ where: { status: EventStatus.PENDING_REVIEW }, include: this.eventInclude(), orderBy: { createdAt: "desc" } });
   }

@@ -1,4 +1,4 @@
-import { cloudinaryImage, eventHasCategory, events as fallbackEvents, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { cloudinaryImage, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000"
@@ -167,6 +167,8 @@ function toCroEvent(event: ApiEvent): CroEvent {
     venue: event.venue?.name || event.cityName || event.city?.name || "",
     date: toZagrebDate(displayStart),
     endDate: ends ? toZagrebDate(ends) : undefined,
+    startsAtISO: toZagrebISOString(starts),
+    endsAtISO: ends ? toZagrebISOString(ends) : undefined,
     time: new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(starts),
     allDay: event.isAllDay === true,
     free: event.isFree === true,

@@ -65,6 +65,7 @@ export function adaptEvent(event: BE): AdminEvent {
     name: (ec.category?.name as string) || "",
     slug: (ec.category?.slug as string) || "",
   }))
+  const primaryCategoryId = (category?.id ?? event.categoryId) as number | undefined
   return {
     id: String(event.id),
     title: (event.title as string) || "",
@@ -92,7 +93,7 @@ export function adaptEvent(event: BE): AdminEvent {
     warnings: [],
     _cityId: event.cityId as number | undefined,
     _categoryId: event.categoryId as number | undefined,
-    _categoryIds: categories.map((c) => c.id),
+    _categoryIds: categories.length ? categories.map((c) => c.id) : primaryCategoryId ? [primaryCategoryId] : [],
     _organizerId: event.organizerId as number | undefined,
   }
 }

@@ -69,14 +69,21 @@ export class PublicFeedService {
   }
 
   async sitemapData() {
+    const visibleEventWhere: Prisma.EventWhereInput = { status: EventStatus.PUBLISHED, AND: [this.publicVisibilityWhere(new Date())] };
+    // Only list taxonomy pages that currently have at least one visible event —
+    // empty listing pages are noindexed (see web app/*/[slug]/page.tsx) and
+    // shouldn't be submitted to crawlers via the sitemap either.
     const [events, regions, cities, categories] = await Promise.all([
       this.prisma.event.findMany({
-        where: { status: EventStatus.PUBLISHED, AND: [this.publicVisibilityWhere(new Date())] },
+        where: visibleEventWhere,
         select: { slug: true, updatedAt: true },
       }),
-      this.prisma.region.findMany({ select: { slug: true } }),
-      this.prisma.city.findMany({ select: { slug: true } }),
-      this.prisma.category.findMany({ select: { slug: true } })
+      this.prisma.region.findMany({ where: { events: { some: visibleEventWhere } }, select: { slug: true } }),
+      this.prisma.city.findMany({ where: { events: { some: visibleEventWhere } }, select: { slug: true } }),
+      this.prisma.category.findMany({
+        where: { OR: [{ events: { some: visibleEventWhere } }, { eventCats: { some: { event: visibleEventWhere } } }] },
+        select: { slug: true },
+      })
     ]);
     return { events, regions, cities, categories };
   }

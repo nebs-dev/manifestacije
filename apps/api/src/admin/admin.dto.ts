@@ -9,6 +9,16 @@ export class AdminEventDto extends EventUpsertDto {
   status?: EventStatus;
 }
 
+export class BulkStatusDto {
+  @IsArray() @IsInt({ each: true }) @Type(() => Number) eventIds!: number[];
+  @IsEnum(EventStatus) status!: EventStatus;
+}
+
+export class BulkShiftDatesDto {
+  @IsArray() @IsInt({ each: true }) @Type(() => Number) eventIds!: number[];
+  @IsInt() days!: number;
+}
+
 export class ResetPasswordDto {
   @IsString()
   @MinLength(8)

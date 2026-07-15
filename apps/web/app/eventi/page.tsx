@@ -3,11 +3,16 @@ import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { FiltersPanel } from "@/components/public/filters-panel";
 import { ResultsGrid } from "@/components/public/results-grid";
-import { fetchEvents, fetchCategories, type PublicFilters } from "@/lib/public-api";
+import { fetchEvents, fetchCategories, WEB_URL, type PublicFilters } from "@/lib/public-api";
+import { eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 
+// Canonical always points at the bare /eventi URL — filter query params (kategorija,
+// regija, grad, kada, besplatno...) produce the same underlying content as dedicated
+// taxonomy pages or the unfiltered list, so we avoid indexing them as separate URLs.
 export const metadata: Metadata = {
   title: "Sva događanja",
-  description: "Pretraži i filtriraj događanja diljem Slavonije i Baranje."
+  description: "Pretraži i filtriraj događanja diljem Slavonije i Baranje.",
+  alternates: { canonical: `${WEB_URL}/eventi` },
 };
 
 function str(v: string | string[] | undefined) {
@@ -33,6 +38,9 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
   return (
     <>
       <SiteHeader />
+      {results.length > 0 && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(eventsToItemListJsonLd(results, WEB_URL)) }} />
+      )}
       <main className="mx-auto max-w-6xl px-4 py-10 md:py-14">
         <header className="mb-8">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Pregled</p>

@@ -8,10 +8,29 @@ import { EventRail } from "@/components/public/event-rail";
 import { CategoryStrip } from "@/components/public/category-strip";
 import { OrganizerCta } from "@/components/public/organizer-cta";
 import { EventCard } from "@/components/public/event-card";
-import { fetchEvents } from "@/lib/public-api";
+import { fetchEvents, WEB_URL } from "@/lib/public-api";
+import { safeJsonLdString } from "@/lib/event-jsonld";
 
 export default async function Home() {
   const events = await fetchEvents();
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Manifestacije",
+    url: WEB_URL,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${WEB_URL}/eventi?q={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
+  };
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Manifestacije",
+    url: WEB_URL,
+    logo: `${WEB_URL}/logo/logo.svg`,
+  };
   const featuredStrict = events.filter((event) => event.featured);
   const upcoming = events.slice(0, 6);
   const featured = featuredStrict.length >= 3
@@ -22,6 +41,8 @@ export default async function Home() {
   return (
     <>
       <SiteHeader />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(websiteJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(organizationJsonLd) }} />
       <main>
         <HomeHero />
         <div className="mx-auto max-w-6xl px-4">

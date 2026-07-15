@@ -7,10 +7,12 @@ import { SiteFooter } from "@/components/public/site-footer";
 import { ResultsGrid } from "@/components/public/results-grid";
 import { getRegion } from "@/lib/data";
 import { fetchEvents, WEB_URL } from "@/lib/public-api";
+import { eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 
 export async function generateMetadata({ params }: { params: { regionSlug: string } }): Promise<Metadata> {
   const region = getRegion(params.regionSlug);
   if (!region) return { title: "Regija nije pronađena" };
+  const events = await fetchEvents({ region: params.regionSlug });
   const title = `Događanja u regiji ${region.name}`;
   const description = region.blurb || `Pregled svih događanja u regiji ${region.name}.`;
   return {
@@ -19,6 +21,7 @@ export async function generateMetadata({ params }: { params: { regionSlug: strin
     openGraph: { type: "website", title, description, url: `${WEB_URL}/regije/${region.slug}` },
     twitter: { card: "summary", title, description },
     alternates: { canonical: `${WEB_URL}/regije/${region.slug}` },
+    ...(events.length === 0 ? { robots: { index: false, follow: true } } : {}),
   };
 }
 
@@ -28,6 +31,9 @@ export default async function RegionPage({ params }: { params: { regionSlug: str
   return (
     <>
       <SiteHeader />
+      {events.length > 0 && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(eventsToItemListJsonLd(events, WEB_URL)) }} />
+      )}
       <main>
         <section className="relative isolate overflow-hidden bg-ink text-ink-foreground">
           <div className="absolute inset-0 opacity-45">

@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 import { categories } from "@/lib/data"
 
@@ -8,7 +9,7 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo/logo.svg" alt="Manifestacije" className="size-9 rounded-xl" />
+              <Image src="/logo/logo.svg" alt="Manifestacije" width={36} height={36} className="size-9 rounded-xl" />
               <span className="font-heading text-xl font-bold">
                 Manifestacije
               </span>

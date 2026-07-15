@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { gradientFor, categoryName, categoryFallbackImage } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +22,7 @@ export function EventPoster({
   category,
   className,
   sizes = "(max-width: 768px) 100vw, 33vw",
+  priority,
 }: EventPosterProps) {
   const [imageFailed, setImageFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
@@ -28,15 +30,17 @@ export function EventPoster({
   const fallbackUrl = categoryFallbackImage(category, title)
 
   if (image && !imageFailed) {
+    // Event images come from arbitrary external sources (organizer uploads, scraped
+    // sources, social CDNs) that can't be enumerated in next.config.js remotePatterns
+    // ahead of time, so next/image (which requires an explicit host allowlist) isn't
+    // usable here — a raw <img> handles any origin without crashing the page.
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={image}
         alt={alt || title}
-        sizes={sizes}
         className={cn("h-full w-full object-cover", className)}
-        crossOrigin="anonymous"
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
         onError={() => setImageFailed(true)}
       />
     )
@@ -44,13 +48,12 @@ export function EventPoster({
 
   if (!fallbackFailed) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <Image
         src={fallbackUrl}
         alt={categoryName(category)}
+        fill
         sizes={sizes}
         className={cn("h-full w-full object-cover", className)}
-        loading="lazy"
         onError={() => setFallbackFailed(true)}
       />
     )

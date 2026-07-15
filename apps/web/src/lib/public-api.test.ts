@@ -6,7 +6,7 @@ const apiEvent = {
   title: "Cipelcugom po Osijeku",
   slug: "cipelcugom-po-osijeku",
   description: "Storytelling tura Osijekom.",
-  startsAt: "2026-07-04T18:30:00.000Z",
+  startsAt: "2099-07-04T18:30:00.000Z",
   endsAt: null,
   isAllDay: false,
   isFree: true,

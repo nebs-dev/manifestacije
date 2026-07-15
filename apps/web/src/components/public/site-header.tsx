@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Menu, X } from "lucide-react";
@@ -40,7 +41,7 @@ export function SiteHeader({
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:h-[72px] lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <img src="/logo/logo.svg" alt="Manifestacije" className="size-9 rounded-xl" />
+          <Image src="/logo/logo.svg" alt="Manifestacije" width={36} height={36} className="size-9 rounded-xl" />
           <span className="font-heading text-xl font-bold tracking-tight">
             Manifestacije
           </span>

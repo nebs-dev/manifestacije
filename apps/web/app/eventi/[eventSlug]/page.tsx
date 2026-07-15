@@ -10,6 +10,8 @@ import { CategoryBadge, PriceBadge } from "@/components/public/badges";
 import { ShareButton } from "@/components/public/share-button";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
 import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
+import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 export async function generateMetadata({ params }: { params: { eventSlug: string } }): Promise<Metadata> {
   const event = await fetchEvent(params.eventSlug);
@@ -40,29 +42,25 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
   const related = await fetchRelatedEvents(event);
   const eventCategories = event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }];
   const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: event.title,
-    description: event.description,
-    startDate: `${event.date}T${event.time}`,
-    endDate: event.endDate,
-    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-    eventStatus: "https://schema.org/EventScheduled",
-    image: imageUrl ? [imageUrl] : undefined,
-    location: { "@type": "Place", name: event.venue, address: `${event.venue}, ${event.city}` },
-    organizer: { "@type": "Organization", name: event.organizer },
-    offers: event.free ? { "@type": "Offer", price: "0", priceCurrency: "EUR" } : { "@type": "Offer", price: event.price || "", priceCurrency: "EUR", url: event.ticketUrl }
-  };
+  const jsonLd = eventToJsonLd({ ...event, image: imageUrl }, WEB_URL);
+  const breadcrumbJsonLd = breadcrumbsToJsonLd(
+    [
+      { name: "Početna", path: "/" },
+      { name: "Događanja", path: "/eventi" },
+      { name: event.title, path: `/eventi/${event.slug}` },
+    ],
+    WEB_URL
+  );
 
   return (
     <>
       <SiteHeader />
       <main>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(jsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />
         <section className="relative isolate h-[44vh] min-h-[320px] w-full overflow-hidden bg-ink text-ink-foreground md:h-[56vh]">
           <div className="absolute inset-0">
-            <EventPoster image={event.image} title={event.title} alt={event.title} category={event.category} sizes="100vw" />
+            <EventPoster image={event.image} title={event.title} alt={event.title} category={event.category} sizes="100vw" priority />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-ink/20" aria-hidden />
           <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-8">
@@ -86,6 +84,21 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
         </section>
 
         <div className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+          <Breadcrumb className="mb-6">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink render={<Link href="/" />}>Početna</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink render={<Link href="/eventi" />}>Događanja</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="line-clamp-1">{event.title}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
               <div className="space-y-4 text-pretty text-lg leading-relaxed text-foreground/90">

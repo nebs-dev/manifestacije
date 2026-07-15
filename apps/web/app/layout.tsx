@@ -45,10 +45,15 @@ export const viewport: Viewport = {
 };
 
 const gaId = process.env.NEXT_PUBLIC_GA_ID
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="hr" className="light bg-background">
+      <head>
+        {apiUrl && <link rel="preconnect" href={apiUrl} />}
+        <link rel="preconnect" href="https://res.cloudinary.com" />
+      </head>
       <body className="font-sans antialiased">{children}</body>
       {gaId && <GoogleAnalytics gaId={gaId} />}
     </html>

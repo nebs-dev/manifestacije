@@ -4,7 +4,7 @@ import { EventStatus, UserRole } from "@prisma/client";
 import { Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 
 @Controller("admin")
@@ -18,6 +18,8 @@ export class AdminController {
     @Query("eventsSince") eventsSince?: string
   ) { return this.admin.pendingCounts({ sourcesSince, eventsSince }); }
   @Post("events/bulk-categories") bulkCategories(@Body() body: { eventIds: number[]; categoryId: number; action: "add" | "remove" }) { return this.admin.bulkAssignCategory(body.eventIds, body.categoryId, body.action); }
+  @Post("events/bulk-status") bulkStatus(@Body() dto: BulkStatusDto) { return this.admin.bulkSetStatus(dto.eventIds, dto.status); }
+  @Post("events/bulk-shift-dates") bulkShiftDates(@Body() dto: BulkShiftDatesDto) { return this.admin.bulkShiftDates(dto.eventIds, dto.days); }
   @Get("events/pending") pendingEvents() { return this.admin.pendingEvents(); }
   @Get("events") events() { return this.admin.allEvents(); }
   @Post("events") createAdminEvent(@Body() dto: AdminEventDto) { return this.admin.createEvent(dto); }

@@ -51,9 +51,13 @@ export interface CroEvent {
   region: RegionSlug
   city: string
   venue: string
-  /** ISO date */
+  /** ISO date, possibly advanced to today for display if the event is a multi-day event in progress */
   date: string
   endDate?: string
+  /** Raw, unadjusted ISO 8601 datetime (with timezone offset) as stored — for structured data, not display.
+   *  Absent on static fallback/demo events; JSON-LD rendering falls back to `date`+`time` in that case. */
+  startsAtISO?: string
+  endsAtISO?: string
   time: string
   allDay?: boolean
   free: boolean
@@ -702,6 +706,22 @@ export function formatDateRange(start: string, end?: string) {
 
 export function priceLabel(e: CroEvent) {
   return e.free ? "Besplatno" : e.price ?? "Naplata"
+}
+
+/** Format a Date as ISO 8601 with the Croatia (Europe/Zagreb) UTC offset, e.g. 2026-08-28T18:00:00+02:00 */
+export function toZagrebISOString(d: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Zagreb",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+    timeZoneName: "longOffset",
+  }).formatToParts(d)
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ""
+  const offsetRaw = get("timeZoneName") // e.g. "GMT+02:00" or "GMT"
+  const offset = offsetRaw === "GMT" ? "+00:00" : offsetRaw.replace("GMT", "")
+  const hour = get("hour") === "24" ? "00" : get("hour")
+  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}:${get("second")}${offset}`
 }
 
 /* ---------- geo coordinates (lat, lng) by city ---------- */
