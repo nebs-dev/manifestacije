@@ -51,6 +51,57 @@ describe("admin adapters", () => {
     expect(event.imageUrl).toBe("https://res.cloudinary.com/demo/image/upload/event.jpg")
   })
 
+  it("falls back _categoryIds to the primary category when EventCategory rows are empty", () => {
+    // Events created before the many-to-many EventCategory join existed (or created
+    // via the admin quick-create path) only have a primary categoryId — the inline
+    // category editor's checkbox popover reads _categoryIds, so without this fallback
+    // it opened with nothing checked even though the event visibly has a category.
+    const event = adaptEvent({
+      id: 37,
+      title: "Jazz Grmic",
+      slug: "jazz-grmic",
+      description: "Opis",
+      status: "PENDING_REVIEW",
+      categoryId: 13,
+      category: { id: 13, name: "Tradicija i folklor", slug: "tradicija-i-folklor" },
+      categories: [],
+    })
+
+    expect(event._categoryIds).toEqual([13])
+  })
+
+  it("uses the EventCategory join for _categoryIds when rows exist, ignoring the primary category id", () => {
+    const event = adaptEvent({
+      id: 38,
+      title: "Festival",
+      slug: "festival",
+      description: "Opis",
+      status: "PUBLISHED",
+      categoryId: 4,
+      category: { id: 4, name: "Glazba", slug: "glazba" },
+      categories: [
+        { categoryId: 4, category: { id: 4, name: "Glazba", slug: "glazba" } },
+        { categoryId: 9, category: { id: 9, name: "Sport", slug: "sport" } },
+      ],
+    })
+
+    expect(event._categoryIds).toEqual([4, 9])
+  })
+
+  it("returns an empty _categoryIds when there is no primary category and no EventCategory rows", () => {
+    const event = adaptEvent({
+      id: 39,
+      title: "Bez kategorije",
+      slug: "bez-kategorije",
+      description: "Opis",
+      status: "DRAFT",
+      category: null,
+      categories: [],
+    })
+
+    expect(event._categoryIds).toEqual([])
+  })
+
   it("keeps status mapping explicit and has no approved UI status", () => {
     expect(toUiEventStatus("DRAFT")).toBe("draft")
     expect(toUiEventStatus("PENDING_REVIEW")).toBe("pending")

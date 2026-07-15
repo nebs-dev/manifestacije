@@ -124,6 +124,55 @@ describe("EventsService image fields", () => {
     });
   });
 
+  it("clears endsAt when explicitly set to null (e.g. duplicated event with a stale end date)", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, { endsAt: null });
+
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({ endsAt: null }),
+    });
+  });
+
+  it("sets endsAt to the parsed date when a value is supplied", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, { endsAt: "2026-08-29T02:00:00.000Z" });
+
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({ endsAt: new Date("2026-08-29T02:00:00.000Z") }),
+    });
+  });
+
+  it("leaves endsAt untouched when omitted from the update payload", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, { title: "Renamed" });
+
+    const data = prisma.event.update.mock.calls[0][0].data;
+    expect("endsAt" in data).toBe(false);
+  });
+
   it("sets publishedAt when update status publishes the event", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-01T12:00:00.000Z"));
     const prisma = {

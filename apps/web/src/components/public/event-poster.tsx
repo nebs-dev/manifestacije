@@ -15,6 +15,24 @@ interface EventPosterProps {
   priority?: boolean
 }
 
+export type PosterSource = "image" | "fallback" | "placeholder"
+
+/**
+ * Decides which of the three image tiers to render: the event's own image,
+ * the category fallback image, or the gradient placeholder — falling through
+ * in order as each tier's onError fires. Pulled out of the component so the
+ * fallback chain is unit-testable without a DOM/jsdom environment.
+ */
+export function resolvePosterSource(params: {
+  hasImage: boolean
+  imageFailed: boolean
+  fallbackFailed: boolean
+}): PosterSource {
+  if (params.hasImage && !params.imageFailed) return "image"
+  if (!params.fallbackFailed) return "fallback"
+  return "placeholder"
+}
+
 export function EventPoster({
   image,
   title,
@@ -28,8 +46,9 @@ export function EventPoster({
   const [fallbackFailed, setFallbackFailed] = useState(false)
 
   const fallbackUrl = categoryFallbackImage(category, title)
+  const source = resolvePosterSource({ hasImage: !!image, imageFailed, fallbackFailed })
 
-  if (image && !imageFailed) {
+  if (source === "image") {
     // Event images come from arbitrary external sources (organizer uploads, scraped
     // sources, social CDNs) that can't be enumerated in next.config.js remotePatterns
     // ahead of time, so next/image (which requires an explicit host allowlist) isn't
@@ -46,7 +65,7 @@ export function EventPoster({
     )
   }
 
-  if (!fallbackFailed) {
+  if (source === "fallback") {
     return (
       <Image
         src={fallbackUrl}
