@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Baby, Building2, CalendarDays, Clock, ExternalLink, Map, MapPin, Tags, Ticket, Trees } from "lucide-react";
+import { ArrowLeft, Baby, Building2, CalendarDays, Clock, MapPin, Tags, Ticket, Trees } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { EventPoster } from "@/components/public/event-poster";
 import { EventCard } from "@/components/public/event-card";
 import { CategoryBadge, PriceBadge } from "@/components/public/badges";
 import { ShareButton } from "@/components/public/share-button";
+import { EventDetailTracking } from "@/components/public/event-detail-tracking";
+import { TicketLink, MapLink } from "@/components/public/tracked-links";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
 import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
@@ -58,6 +60,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
       <main>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(jsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />
+        <EventDetailTracking slug={event.slug} title={event.title} />
         <section className="relative isolate h-[44vh] min-h-[320px] w-full overflow-hidden bg-ink text-ink-foreground md:h-[56vh]">
           <div className="absolute inset-0">
             <EventPoster image={event.heroImage ?? event.image} title={event.title} alt={event.title} category={event.category} sizes="100vw" priority />
@@ -137,14 +140,11 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                       <span className="block text-sm text-muted-foreground">{event.address}</span>
                     )}
                     <span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span>
-                    <a
+                    <MapLink
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address ?? `${event.venue}, ${event.city}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      <Map className="size-3" /> Otvori kartu
-                    </a>
+                      slug={event.slug}
+                      title={event.title}
+                    />
                   </InfoRow>
                   <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">{event.organizer}</InfoRow>
                   <InfoRow icon={<Tags className="size-5" aria-hidden />} label="Kategorije">
@@ -158,13 +158,11 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                 </dl>
                 <div className="mt-6 flex flex-col gap-3">
                   {event.ticketUrl ? (
-                    <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
-                      <Ticket className="size-4" aria-hidden /> {event.free ? "Rezerviraj mjesto" : "Kupi ulaznicu"} <ExternalLink className="size-3.5" aria-hidden />
-                    </a>
+                    <TicketLink href={event.ticketUrl} slug={event.slug} title={event.title} free={event.free} />
                   ) : event.free ? (
                     <span className="rounded-full bg-muted px-5 py-3 text-center text-sm font-medium text-muted-foreground">Ulaz slobodan</span>
                   ) : null}
-                  <ShareButton title={event.title} />
+                  <ShareButton title={event.title} slug={event.slug} />
                 </div>
               </div>
             </aside>

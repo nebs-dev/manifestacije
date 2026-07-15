@@ -35,9 +35,8 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png"
   },
-  verification: process.env.GOOGLE_SITE_VERIFICATION
-    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
-    : undefined,
+  // No verification meta tag needed — ownership is verified via a DNS TXT
+  // record on the domain property, not the HTML-tag method.
 };
 
 export const viewport: Viewport = {

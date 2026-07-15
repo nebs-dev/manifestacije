@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { Share2, Check } from "lucide-react"
+import { trackEvent } from "@/lib/analytics"
 
-export function ShareButton({ title }: { title: string }) {
+export function ShareButton({ title, slug }: { title: string; slug: string }) {
   const [copied, setCopied] = useState(false)
 
   const onShare = async () => {
@@ -12,6 +13,7 @@ export function ShareButton({ title }: { title: string }) {
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url })
+        trackEvent({ name: "share_event", params: { event_slug: slug, event_title: title, method: "native_share" } })
         return
       } catch {
         /* user cancelled */
@@ -20,6 +22,7 @@ export function ShareButton({ title }: { title: string }) {
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
+      trackEvent({ name: "share_event", params: { event_slug: slug, event_title: title, method: "copy_link" } })
       setTimeout(() => setCopied(false), 2000)
     } catch {
       /* ignore */
