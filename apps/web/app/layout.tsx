@@ -28,13 +28,21 @@ export const metadata: Metadata = {
     images: ["/logo/logo.svg"],
   },
   icons: {
+    // PNG/ICO first for guaranteed browser and Search Console compatibility;
+    // SVG last as a progressive-enhancement fallback for browsers that prefer it.
     icon: [
-      { url: "/icon-light-32x32.png", media: "(prefers-color-scheme: light)" },
-      { url: "/icon-dark-32x32.png", media: "(prefers-color-scheme: dark)" },
-      { url: "/icon.svg", type: "image/svg+xml" }
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/icon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon-48x48.png", type: "image/png", sizes: "48x48" },
+      { url: "/icon-192x192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512x512.png", type: "image/png", sizes: "512x512" },
+      { url: "/icon.svg", type: "image/svg+xml" },
     ],
-    apple: "/apple-icon.png"
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
   },
+  manifest: "/manifest.webmanifest",
   // No verification meta tag needed — ownership is verified via a DNS TXT
   // record on the domain property, not the HTML-tag method.
 };
