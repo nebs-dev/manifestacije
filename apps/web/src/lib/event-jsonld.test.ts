@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { eventToJsonLd, eventsToItemListJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "./event-jsonld"
+import { eventToJsonLd, eventsToItemListJsonLd, breadcrumbsToJsonLd, safeJsonLdString, normalizeOfferPrice } from "./event-jsonld"
 import type { CroEvent } from "./data"
 
 const WEB_URL = "https://manifestacije.hr"
@@ -34,8 +34,9 @@ describe("eventToJsonLd", () => {
       endsAtISO: "2026-08-29T02:00:00+02:00",
       image: "https://res.cloudinary.com/demo/image/upload/event.jpg",
       address: "Kuhačeva 1",
-      price: "od 25 EUR",
+      price: "25 EUR",
       ticketUrl: "https://tickets.example/tvrdja-fest",
+      organizerUrl: "https://tz-osijek.example",
     })
 
     const jsonLd = eventToJsonLd(event, WEB_URL)
@@ -61,9 +62,21 @@ describe("eventToJsonLd", () => {
           addressCountry: "HR",
         },
       },
-      organizer: { "@type": "Organization", name: "TZ Osijek" },
-      offers: { "@type": "Offer", price: "od 25 EUR", priceCurrency: "EUR", url: "https://tickets.example/tvrdja-fest" },
+      organizer: { "@type": "Organization", name: "TZ Osijek", url: "https://tz-osijek.example" },
+      offers: { "@type": "Offer", price: "25", priceCurrency: "EUR", url: "https://tickets.example/tvrdja-fest" },
     })
+  })
+
+  it("omits organizer.url when the organizer has no website", () => {
+    const event = baseEvent({ organizerUrl: undefined })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.organizer).toEqual({ "@type": "Organization", name: "TZ Osijek" })
+  })
+
+  it("omits organizer.url when the stored value isn't a valid http(s) URL", () => {
+    const event = baseEvent({ organizerUrl: "tz-osijek@example.com" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.organizer).toEqual({ "@type": "Organization", name: "TZ Osijek" })
   })
 
   it("uses startsAtISO instead of the display-adjusted date field", () => {
@@ -113,6 +126,54 @@ describe("eventToJsonLd", () => {
     expect("offers" in jsonLd).toBe(false)
   })
 
+  it("normalizes a price with a currency symbol and trailing space to a bare number", () => {
+    const event = baseEvent({ price: "20 € " })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers?.price).toBe("20")
+  })
+
+  it("normalizes a price using a European decimal comma", () => {
+    const event = baseEvent({ price: "41,50" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers?.price).toBe("41.5")
+  })
+
+  it("normalizes a price with a currency word suffix", () => {
+    const event = baseEvent({ price: "25 EUR" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers?.price).toBe("25")
+  })
+
+  it("omits offers entirely when the price is a 'starting at' qualifier (od 15 EUR) rather than emitting the wrong single number", () => {
+    const event = baseEvent({ price: "od 15 EUR" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers).toBeUndefined()
+  })
+
+  it("omits offers entirely when the price is a range rather than guessing which bound to report", () => {
+    const event = baseEvent({ price: "15-20 EUR" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers).toBeUndefined()
+  })
+
+  it("omits offers entirely when the price text has no extractable number", () => {
+    const event = baseEvent({ price: "po dogovoru" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers).toBeUndefined()
+  })
+
+  it("always uses price 0 and priceCurrency EUR for free events, never the raw price text", () => {
+    const event = baseEvent({ free: true, price: "20 EUR" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers).toEqual({ "@type": "Offer", price: "0", priceCurrency: "EUR", availability: "https://schema.org/InStock" })
+  })
+
+  it("omits offers.url when ticketUrl is not a valid http(s) URL (e.g. an email address stored by mistake)", () => {
+    const event = baseEvent({ price: "20 EUR", ticketUrl: "zvukoterapija.osijek@gmail.com" })
+    const jsonLd = eventToJsonLd(event, WEB_URL)
+    expect(jsonLd.offers).toEqual({ "@type": "Offer", price: "20", priceCurrency: "EUR" })
+  })
+
   it("omits location when there is no venue and no address/city", () => {
     const event = baseEvent({ venue: "", city: "", address: undefined })
     const jsonLd = eventToJsonLd(event, WEB_URL)
@@ -128,6 +189,55 @@ describe("eventToJsonLd", () => {
   it("builds an absolute canonical URL from the site URL and slug", () => {
     const jsonLd = eventToJsonLd(baseEvent({ slug: "neki-event" }), "https://manifestacije.hr")
     expect(jsonLd.url).toBe("https://manifestacije.hr/eventi/neki-event")
+  })
+})
+
+describe("normalizeOfferPrice", () => {
+  it("passes through a bare integer unchanged", () => {
+    expect(normalizeOfferPrice("25")).toBe("25")
+  })
+
+  it("strips a trailing currency symbol and whitespace", () => {
+    expect(normalizeOfferPrice("20 € ")).toBe("20")
+  })
+
+  it("strips a currency word suffix", () => {
+    expect(normalizeOfferPrice("25 EUR")).toBe("25")
+  })
+
+  it("converts a European decimal comma to a decimal point", () => {
+    expect(normalizeOfferPrice("41,50")).toBe("41.5")
+  })
+
+  it("handles a thousands-separated value with a decimal comma", () => {
+    expect(normalizeOfferPrice("1.234,56")).toBe("1234.56")
+  })
+
+  it("returns undefined for a 'starting at' qualifier instead of guessing the number", () => {
+    expect(normalizeOfferPrice("od 15 EUR")).toBeUndefined()
+  })
+
+  it("returns undefined for a price range instead of guessing which bound applies", () => {
+    expect(normalizeOfferPrice("15-20 EUR")).toBeUndefined()
+    expect(normalizeOfferPrice("15 ili 20 EUR")).toBeUndefined()
+  })
+
+  it("returns undefined for text with no extractable number", () => {
+    expect(normalizeOfferPrice("po dogovoru")).toBeUndefined()
+    expect(normalizeOfferPrice("besplatno")).toBeUndefined()
+  })
+
+  it("returns undefined for empty or whitespace-only input", () => {
+    expect(normalizeOfferPrice("")).toBeUndefined()
+    expect(normalizeOfferPrice("   ")).toBeUndefined()
+  })
+
+  it("returns undefined for a negative number", () => {
+    expect(normalizeOfferPrice("-5")).toBeUndefined()
+  })
+
+  it("accepts zero", () => {
+    expect(normalizeOfferPrice("0")).toBe("0")
   })
 })
 

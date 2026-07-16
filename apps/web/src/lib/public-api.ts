@@ -26,7 +26,7 @@ type ApiEvent = {
   imageUrl?: string | null
   extractionConfidence?: number | null
   isFeatured?: boolean | null
-  organizer?: { id: number; name: string } | null
+  organizer?: { id: number; name: string; websiteUrl?: string | null } | null
   venue?: { id: number; name: string; address?: string | null; lat?: number | null; lng?: number | null } | null
   cityName?: string | null
   city?: ApiTaxonomy | null
@@ -179,6 +179,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
     description: event.description,
     longDescription: event.description,
     organizer: event.organizer?.name || "Organizator nije naveden",
+    organizerUrl: event.organizer?.websiteUrl || undefined,
     source: event.sourceUrl || "Manifestacije.hr",
     ticketUrl: event.ticketUrl || undefined,
     // Sized for the largest common display context (event card in a 3-column grid,

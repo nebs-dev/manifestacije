@@ -67,6 +67,8 @@ export interface CroEvent {
   description: string
   longDescription: string
   organizer: string
+  /** Organizer's website — Schema.org Organization.url. Only set when the organizer record has one. */
+  organizerUrl?: string
   source: string
   ticketUrl?: string
   /** Card-sized image (800x600) — used on listing cards, calendar agenda, rails. */
