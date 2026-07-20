@@ -77,6 +77,9 @@ export default function LoginPage() {
           <PasswordInput name="password" placeholder="Lozinka" required autoComplete="current-password" />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={loading}>{loading ? "Prijava…" : "Prijava"}</Button>
+          <Link href="/forgot-password" className="text-center text-sm text-muted-foreground hover:text-foreground hover:underline">
+            Zaboravili ste lozinku?
+          </Link>
           <p className="text-center text-sm text-muted-foreground">
             Nemate račun?{" "}
             <Link href="/organizer/register" className="text-primary hover:underline">Registrirajte se</Link>

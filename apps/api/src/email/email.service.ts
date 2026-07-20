@@ -9,6 +9,7 @@ import { eventSubmittedSubject, eventSubmittedHtml, eventSubmittedText, type Eve
 import { eventPublishedSubject, eventPublishedHtml, eventPublishedText, type EventPublishedData } from "./templates/event-published.template";
 import { eventRejectedSubject, eventRejectedHtml, eventRejectedText, type EventRejectedData } from "./templates/event-rejected.template";
 import { adminNewSubmissionSubject, adminNewSubmissionHtml, adminNewSubmissionText, type AdminNewSubmissionData } from "./templates/admin-new-submission.template";
+import { passwordResetSubject, passwordResetHtml, passwordResetText, type PasswordResetData } from "./templates/password-reset.template";
 
 /**
  * The only email entry point the rest of the app should use. Every send*
@@ -43,6 +44,14 @@ export class EmailService {
 
   get adminNotificationEmail(): string {
     return this.config.adminNotificationEmail;
+  }
+
+  get passwordResetUrl(): string {
+    return this.config.passwordResetUrl;
+  }
+
+  get passwordResetTokenTtlMinutes(): number {
+    return this.config.passwordResetTokenTtlMinutes;
   }
 
   async sendOrganizerWelcome(to: string, data: OrganizerWelcomeData): Promise<void> {
@@ -97,6 +106,38 @@ export class EmailService {
       text: adminNewSubmissionText(data),
       relatedId,
     });
+  }
+
+  /** Throws on failure (unlike the other send* methods) — ForgotPassword needs
+   *  to know whether delivery failed so it can delete the just-created reset
+   *  token rather than leaving an unlimited-lifetime valid token behind. */
+  async sendPasswordReset(to: string, data: PasswordResetData): Promise<SendEmailResult> {
+    const input: SendEmailInput = {
+      to,
+      subject: passwordResetSubject(),
+      html: passwordResetHtml(data),
+      text: passwordResetText(data),
+      replyTo: this.config.replyTo,
+      tags: [
+        { name: "template", value: "password_reset" },
+        { name: "environment", value: process.env.NODE_ENV || "development" },
+      ],
+    };
+    // Deliberately not routed through dispatch(): dispatch() swallows errors,
+    // but the caller here (AuthService.forgotPassword) must know about a
+    // failure so it can delete the newly created token instead of leaving an
+    // unlimited-lifetime valid reset token in the database. The raw token
+    // itself never appears in this method or in any log line — only the
+    // already-built resetUrl (data.resetUrl) does, exactly as intended.
+    try {
+      const result = await this.provider.send(input);
+      this.logger.log(`email sent template=password_reset to=${maskEmail(to)} provider=${result.provider}`);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`email delivery failed template=password_reset to=${maskEmail(to)} provider=${this.config.deliveryMode} error=${message}`);
+      throw err;
+    }
   }
 
   /** Central send path: builds the Resend payload, sends, and logs structured

@@ -5,4 +5,5 @@ export type AuthUser = {
   email: string;
   role: UserRole;
   organizerId?: number | null;
+  authVersion: number;
 };

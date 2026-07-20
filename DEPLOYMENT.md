@@ -28,6 +28,8 @@ EMAIL_FROM_NAME=Manifestacije.hr
 EMAIL_FROM_ADDRESS=obavijesti@manifestacije.hr
 EMAIL_REPLY_TO=info@manifestacije.hr
 ADMIN_NOTIFICATION_EMAIL=info@manifestacije.hr
+PASSWORD_RESET_TOKEN_TTL_MINUTES=30
+PASSWORD_RESET_URL=https://manifestacije.hr/reset-password
 ```
 
 Web service:
@@ -139,6 +141,30 @@ locally without risk; it's only used when `EMAIL_DELIVERY_MODE=resend`.
 
 The Resend API key is backend-only — `apps/web` never sees it and never calls
 Resend directly.
+
+## Password Reset
+
+Admins and organizers can request a password reset at `/forgot-password`.
+PrivateEmail still handles all incoming mail; Resend sends the reset email
+the same way it sends other transactional email above.
+
+```text
+PASSWORD_RESET_TOKEN_TTL_MINUTES=30
+PASSWORD_RESET_URL=https://manifestacije.hr/reset-password
+```
+
+- If `PASSWORD_RESET_URL` is unset, the API falls back to
+  `${PUBLIC_WEB_URL}/reset-password`. Set `PUBLIC_WEB_URL` correctly in every
+  environment — it must never resolve to a Vercel preview URL.
+- Reset tokens are stored as a SHA-256 hash only; the raw token exists only
+  in the emailed link and is never logged or persisted.
+- Links expire after `PASSWORD_RESET_TOKEN_TTL_MINUTES` and are single-use.
+  Requesting a new reset invalidates any previous unused token for that user.
+- Completing a reset increments the user's `authVersion`, which invalidates
+  every JWT issued before the reset — all existing sessions are signed out.
+- The forgot-password endpoint always returns the same generic response
+  whether or not the email belongs to an account, so it never reveals
+  account existence.
 
 ## Admin Seed Credentials
 

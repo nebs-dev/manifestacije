@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Eye, EyeOff } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -122,6 +123,10 @@ export default function AdminLoginPage() {
           >
             {loading ? "Prijava…" : "Prijavi se"}
           </button>
+
+          <Link href="/forgot-password" className="text-center text-sm text-muted-foreground hover:text-foreground hover:underline">
+            Zaboravili ste lozinku?
+          </Link>
         </form>
       </div>
     </div>

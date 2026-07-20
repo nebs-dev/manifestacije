@@ -71,15 +71,33 @@ enum IngestionJobStatus {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String
-  name         String
-  role         UserRole
-  organizerId  Int?
-  organizer    Organizer? @relation(fields: [organizerId], references: [id])
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 Int       @id @default(autoincrement())
+  email              String    @unique
+  passwordHash       String
+  name               String
+  role               UserRole
+  organizerId        Int?
+  organizer          Organizer? @relation(fields: [organizerId], references: [id])
+  /// Incremented on password reset to invalidate all previously issued JWTs
+  /// (JwtAuthGuard rejects tokens whose authVersion doesn't match this value).
+  authVersion        Int       @default(0)
+  passwordResetTokens PasswordResetToken[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Organizer {

@@ -9,6 +9,8 @@ export interface EmailConfig {
   replyTo: string;
   adminNotificationEmail: string;
   publicWebUrl: string;
+  passwordResetUrl: string;
+  passwordResetTokenTtlMinutes: number;
 }
 
 /**
@@ -25,6 +27,9 @@ export function loadEmailConfig(): EmailConfig {
   const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "info@manifestacije.hr";
   const publicWebUrl = process.env.PUBLIC_WEB_URL || "http://localhost:3000";
   const resendApiKey = process.env.RESEND_API_KEY;
+  // Never hardcode a Vercel preview URL — fall back to PUBLIC_WEB_URL, not localhost, in prod.
+  const passwordResetUrl = process.env.PASSWORD_RESET_URL || `${publicWebUrl}/reset-password`;
+  const passwordResetTokenTtlMinutes = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES) || 30;
 
   if (process.env.NODE_ENV === "production" && deliveryMode === "resend") {
     const missing: string[] = [];
@@ -36,5 +41,5 @@ export function loadEmailConfig(): EmailConfig {
     }
   }
 
-  return { deliveryMode, provider, resendApiKey, fromName, fromAddress, replyTo, adminNotificationEmail, publicWebUrl };
+  return { deliveryMode, provider, resendApiKey, fromName, fromAddress, replyTo, adminNotificationEmail, publicWebUrl, passwordResetUrl, passwordResetTokenTtlMinutes };
 }
