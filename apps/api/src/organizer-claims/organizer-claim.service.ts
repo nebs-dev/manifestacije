@@ -46,13 +46,19 @@ export class OrganizerClaimService {
    */
   async requestClaim(dto: RequestOrganizerClaimDto): Promise<{ message: string }> {
     const email = this.normalizeEmail(dto.email);
-    const organizer = await this.prisma.organizer.findUnique({ where: { slug: dto.organizerSlug } });
+    const organizer = await this.prisma.organizer.findUnique({
+      where: { slug: dto.organizerSlug },
+      include: { users: { select: { id: true }, take: 1 } },
+    });
 
     if (!organizer) {
       return { message: GENERIC_REQUEST_MESSAGE };
     }
 
-    const alreadyClaimed = organizer.status !== OrganizerStatus.UNCLAIMED;
+    // Whether an account already exists is the real "claimed" signal — NOT
+    // OrganizerStatus, which admins can independently bump to VERIFIED/TRUSTED
+    // (a trust badge) on an organizer that has never actually registered.
+    const alreadyClaimed = organizer.users.length > 0;
     const exactEmailMatch = !!organizer.email && this.normalizeEmail(organizer.email) === email;
 
     if (!alreadyClaimed && exactEmailMatch) {
@@ -73,10 +79,13 @@ export class OrganizerClaimService {
    */
   async requestClaimByEmail(dto: RequestClaimByEmailDto): Promise<{ message: string }> {
     const email = this.normalizeEmail(dto.email);
-    const organizer = await this.prisma.organizer.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+    const organizer = await this.prisma.organizer.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      include: { users: { select: { id: true }, take: 1 } },
+    });
 
     if (organizer) {
-      if (organizer.status === OrganizerStatus.UNCLAIMED) {
+      if (organizer.users.length === 0) {
         await this.sendAutomaticClaim(organizer.id, organizer.name, email);
       } else {
         await this.flagForAdminReview(organizer.id, organizer.name, email);
@@ -105,8 +114,11 @@ export class OrganizerClaimService {
     const claim = await this.findActiveClaimByToken(dto.token);
     if (!claim) throw new BadRequestException(INVALID_CLAIM_MESSAGE);
 
-    const organizer = await this.prisma.organizer.findUnique({ where: { id: claim.organizerId } });
-    if (!organizer || organizer.status !== OrganizerStatus.UNCLAIMED) {
+    const organizer = await this.prisma.organizer.findUnique({
+      where: { id: claim.organizerId },
+      include: { users: { select: { id: true }, take: 1 } },
+    });
+    if (!organizer || organizer.users.length > 0) {
       throw new BadRequestException(INVALID_CLAIM_MESSAGE);
     }
 
@@ -132,7 +144,12 @@ export class OrganizerClaimService {
             data: { email: claim.email, passwordHash: passwordHash!, name: dto.name!, role: UserRole.ORGANIZER, organizerId: organizer.id },
           });
 
-      await tx.organizer.update({ where: { id: organizer.id }, data: { status: OrganizerStatus.CLAIMED } });
+      // Only bump UNCLAIMED → CLAIMED — never downgrade an organizer an
+      // admin already marked VERIFIED/TRUSTED just because they're only now
+      // getting around to actually claiming their account.
+      if (organizer.status === OrganizerStatus.UNCLAIMED) {
+        await tx.organizer.update({ where: { id: organizer.id }, data: { status: OrganizerStatus.CLAIMED } });
+      }
       await tx.organizerClaim.update({ where: { id: claim.id }, data: { status: OrganizerClaimStatus.COMPLETED, completedAt: new Date() } });
       await tx.organizerClaim.updateMany({
         where: { organizerId: organizer.id, id: { not: claim.id }, status: { in: UNRESOLVED_STATUSES } },
@@ -175,8 +192,11 @@ export class OrganizerClaimService {
       throw new ConflictException("Zahtjev nije na čekanju.");
     }
 
-    const organizer = await this.prisma.organizer.findUnique({ where: { id: claim.organizerId } });
-    if (!organizer || organizer.status !== OrganizerStatus.UNCLAIMED) {
+    const organizer = await this.prisma.organizer.findUnique({
+      where: { id: claim.organizerId },
+      include: { users: { select: { id: true }, take: 1 } },
+    });
+    if (!organizer || organizer.users.length > 0) {
       throw new ConflictException("Organizator je već preuzet.");
     }
 
@@ -229,9 +249,12 @@ export class OrganizerClaimService {
    *  claim request — reuses the same token/email machinery as the public
    *  automatic path. Never touches Resend until the claim is completed. */
   async sendClaimInvite(organizerId: number): Promise<{ message: string }> {
-    const organizer = await this.prisma.organizer.findUnique({ where: { id: organizerId } });
+    const organizer = await this.prisma.organizer.findUnique({
+      where: { id: organizerId },
+      include: { users: { select: { id: true }, take: 1 } },
+    });
     if (!organizer) throw new NotFoundException("Organizator nije pronađen.");
-    if (organizer.status !== OrganizerStatus.UNCLAIMED) throw new ConflictException("Organizator je već preuzet.");
+    if (organizer.users.length > 0) throw new ConflictException("Organizator je već preuzet.");
     if (!organizer.email) throw new BadRequestException("Organizator nema email adresu.");
 
     await this.sendAutomaticClaim(organizer.id, organizer.name, this.normalizeEmail(organizer.email));
@@ -246,8 +269,11 @@ export class OrganizerClaimService {
    */
   async bulkInviteUnclaimedOrganizers(options?: { dryRun?: boolean; limit?: number }): Promise<BulkInviteStats> {
     const limit = options?.limit ?? 50;
+    // Eligibility is "no linked User yet" — NOT OrganizerStatus, which admins
+    // can independently bump to VERIFIED/TRUSTED (a trust badge) on an
+    // organizer that has never actually registered.
     const organizers = await this.prisma.organizer.findMany({
-      where: { status: OrganizerStatus.UNCLAIMED },
+      where: { users: { none: {} } },
       include: {
         users: { select: { id: true } },
         claims: { where: { status: OrganizerClaimStatus.EMAIL_VERIFICATION_SENT }, select: { id: true, expiresAt: true } },

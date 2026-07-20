@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
-import { Roles } from "../auth/auth.decorators";
+import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { AuthUser } from "../auth/auth.types";
 import { AdminService } from "./admin.service";
 import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
@@ -47,6 +48,9 @@ export class AdminController {
   @Post("organizers/:id/send-claim-invite") sendClaimInvite(@Param("id") id: string) { return this.claims.sendClaimInvite(Number(id)); }
   @Post("organizers/bulk-invite-unclaimed") bulkInviteUnclaimed(@Body() dto: BulkInviteUnclaimedDto) { return this.claims.bulkInviteUnclaimedOrganizers({ limit: dto.limit }); }
   @Delete("organizers/:id") deleteOrganizer(@Param("id") id: string) { return this.admin.deleteOrganizer(Number(id)); }
+
+  @Get("users") users() { return this.admin.users(); }
+  @Delete("users/:id") deleteUser(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.deleteUser(Number(id), user.id); }
 
   @Get("organizer-claims") organizerClaims() { return this.claims.listClaims(); }
   @Post("organizer-claims/:id/approve") approveClaim(@Param("id") id: string) { return this.claims.approveClaim(Number(id)); }

@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { StatusBadge } from "@/components/admin/status-badge"
-import { TableLoadingState, ErrorState, DeleteButton } from "@/components/admin/states"
+import { TableLoadingState, ErrorState, DeleteButton, ConfirmIconAction } from "@/components/admin/states"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -28,6 +28,7 @@ interface Organizer {
   websiteUrl: string | null
   phone: string | null
   status: string
+  hasUser: boolean
 }
 
 type OrgForm = { name: string; email: string; websiteUrl: string; phone: string }
@@ -157,17 +158,17 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
             {org.status !== "TRUSTED" && (
               <IconAction label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></IconAction>
             )}
-            {org.status === "UNCLAIMED" && org.email && (
-              <IconAction
+            {!org.hasUser && org.email && (
+              <ConfirmIconAction
+                icon={<Send />}
                 label="Pošalji poziv za preuzimanje profila"
-                onClick={async () => {
+                confirmLabel="Poslati poziv?"
+                onConfirm={async () => {
                   const r = await authedFetch(`/api/admin/organizers/${org.id}/send-claim-invite`, { method: "POST" })
                   if (r.ok) toast.success(`Poziv poslan: ${org.name}`)
                   else toast.error("Greška pri slanju poziva")
                 }}
-              >
-                <Send />
-              </IconAction>
+              />
             )}
             <DeleteButton onDelete={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}`, { method: "DELETE" }); if (r.ok) { toast.success(`Obrisano: ${org.name}`); onChanged() } else toast.error("Greška pri brisanju") }} />
           </div>

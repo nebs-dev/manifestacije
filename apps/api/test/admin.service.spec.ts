@@ -222,6 +222,35 @@ describe("AdminService ingestion workflow", () => {
     expect(updatedParsed.candidates[0].warnings).toEqual(["Needs city"]);
   });
 
+  it("deletes an organizer's linked User accounts too, so the email can register again", async () => {
+    const prisma = {
+      event: { count: jest.fn().mockResolvedValue(0) },
+      user: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      organizer: { delete: jest.fn().mockResolvedValue({ id: 7 }) },
+      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    const result = await service.deleteOrganizer(7);
+
+    expect(result).toEqual({ id: 7 });
+    expect(prisma.user.deleteMany).toHaveBeenCalledWith({ where: { organizerId: 7 } });
+    expect(prisma.organizer.delete).toHaveBeenCalledWith({ where: { id: 7 } });
+  });
+
+  it("refuses to delete an organizer that still has events", async () => {
+    const prisma = {
+      event: { count: jest.fn().mockResolvedValue(3) },
+      organizer: { delete: jest.fn() },
+      $transaction: jest.fn(),
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await expect(service.deleteOrganizer(7)).rejects.toThrow(/3 događaja/);
+    expect(prisma.organizer.delete).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it("deletes event by unlinking sources and removing duplicate candidates first", async () => {
     const tx = {
       eventSource: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
@@ -415,5 +444,65 @@ describe("AdminService.setEventStatus organizer notifications", () => {
     const result = await service.setEventStatus(5, EventStatus.PUBLISHED);
 
     expect(result).toEqual({ id: 5, organizerId: 1 });
+  });
+});
+
+describe("AdminService.organizers", () => {
+  it("maps _count.users to a hasUser flag instead of exposing status as the claimed signal", async () => {
+    const prisma = {
+      organizer: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, name: "Claimed via user", status: "UNCLAIMED", _count: { users: 1 } },
+          { id: 2, name: "Verified but never registered", status: "VERIFIED", _count: { users: 0 } },
+        ]),
+      },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    const result = await service.organizers();
+
+    expect(result).toEqual([
+      { id: 1, name: "Claimed via user", status: "UNCLAIMED", hasUser: true },
+      { id: 2, name: "Verified but never registered", status: "VERIFIED", hasUser: false },
+    ]);
+  });
+});
+
+describe("AdminService.users", () => {
+  it("lists users including organizer attachment, without exposing passwordHash", async () => {
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 1, email: "admin@example.hr", name: "Admin", role: "ADMIN", organizerId: null, organizer: null, createdAt: new Date() },
+        ]),
+      },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.users();
+
+    const args = prisma.user.findMany.mock.calls[0][0];
+    expect(args.select.passwordHash).toBeUndefined();
+    expect(args.select).toMatchObject({ id: true, email: true, role: true, organizerId: true, organizer: expect.anything() });
+  });
+});
+
+describe("AdminService.deleteUser", () => {
+  it("deletes a user by id", async () => {
+    const prisma = { user: { delete: jest.fn().mockResolvedValue({ id: 5 }) } };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    const result = await service.deleteUser(5, 1);
+
+    expect(result).toEqual({ id: 5 });
+    expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 5 } });
+  });
+
+  it("refuses to delete your own account", async () => {
+    const prisma = { user: { delete: jest.fn() } };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await expect(service.deleteUser(1, 1)).rejects.toThrow(/vlastiti račun/);
+    expect(prisma.user.delete).not.toHaveBeenCalled();
   });
 });

@@ -222,8 +222,15 @@ export class AdminService {
     return duplicated;
   }
 
-  organizers() {
-    return this.prisma.organizer.findMany({ orderBy: { createdAt: "desc" } });
+  async organizers() {
+    const organizers = await this.prisma.organizer.findMany({
+      include: { _count: { select: { users: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    // hasUser is the real "claimed" signal — OrganizerStatus (VERIFIED/TRUSTED)
+    // is an independent trust badge admins can set without the organizer
+    // ever having actually registered.
+    return organizers.map(({ _count, ...organizer }) => ({ ...organizer, hasUser: _count.users > 0 }));
   }
 
   async createOrganizer(dto: OrganizerAdminDto) {
@@ -250,7 +257,34 @@ export class AdminService {
   async deleteOrganizer(id: number) {
     const count = await this.prisma.event.count({ where: { organizerId: id } });
     if (count > 0) throw new ConflictException(`Organizator ima ${count} događaja — nije moguće obrisati.`);
-    return this.prisma.organizer.delete({ where: { id } });
+    // User.organizerId is ON DELETE SET NULL, not CASCADE — without this,
+    // deleting the Organizer leaves the linked User's account behind
+    // (orphaned, organizerId=null), permanently blocking that email from
+    // registering again with "Email already registered".
+    return this.prisma.$transaction([
+      this.prisma.user.deleteMany({ where: { organizerId: id } }),
+      this.prisma.organizer.delete({ where: { id } }),
+    ]).then(([, organizer]) => organizer);
+  }
+
+  users() {
+    return this.prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        organizerId: true,
+        organizer: { select: { id: true, name: true, slug: true, status: true } },
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async deleteUser(id: number, currentUserId: number) {
+    if (id === currentUserId) throw new BadRequestException("Ne možete obrisati vlastiti račun.");
+    return this.prisma.user.delete({ where: { id } });
   }
 
   async deleteEvent(id: number) {

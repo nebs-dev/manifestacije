@@ -114,6 +114,70 @@ export function DeleteButton({ onDelete, label = "Obriši" }: { onDelete: () => 
   )
 }
 
+export function ConfirmIconAction({
+  icon,
+  label,
+  confirmLabel = "Sigurno?",
+  onConfirm,
+  className,
+}: {
+  icon: ReactNode
+  label: string
+  confirmLabel?: string
+  onConfirm: () => void | Promise<void>
+  className?: string
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  if (confirming) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">{confirmLabel}</span>
+        <Button
+          size="icon-sm"
+          variant="outline"
+          className="text-success"
+          aria-label="Potvrdi"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await onConfirm()
+            } finally {
+              setBusy(false)
+              setConfirming(false)
+            }
+          }}
+        >
+          <Check />
+        </Button>
+        <Button size="icon-sm" variant="ghost" aria-label="Odustani" onClick={() => setConfirming(false)} disabled={busy}>
+          <X />
+        </Button>
+      </span>
+    )
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className={buttonVariants({ size: "icon-sm", variant: "ghost", className })}
+            aria-label={label}
+            onClick={() => setConfirming(true)}
+          />
+        }
+      >
+        {icon}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 export function TableLoadingState({
   rows = 5,
   columns = 5,

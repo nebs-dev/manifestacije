@@ -26,7 +26,7 @@ function contactsMock(overrides: Record<string, unknown> = {}) {
 }
 
 function organizer(overrides: Record<string, unknown> = {}) {
-  return { id: 7, name: "Test Organizer", slug: "test-organizer", email: "organizer@example.hr", status: OrganizerStatus.UNCLAIMED, ...overrides };
+  return { id: 7, name: "Test Organizer", slug: "test-organizer", email: "organizer@example.hr", status: OrganizerStatus.UNCLAIMED, users: [], ...overrides };
 }
 
 function makePrisma(overrides: Record<string, unknown> = {}) {
@@ -102,7 +102,7 @@ describe("OrganizerClaimService.requestClaim", () => {
   });
 
   it("takes the admin-review path when the organizer is already claimed, even on an exact email match", async () => {
-    const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED })) } });
+    const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
     const email = emailMock();
     const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
 
@@ -167,16 +167,16 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
     const result = await service.requestClaimByEmail({ email: "organizer@example.hr" });
 
     expect(result).toEqual({ message: GENERIC_MESSAGE });
-    expect(prisma.organizer.findFirst).toHaveBeenCalledWith({
-      where: { email: { equals: "organizer@example.hr", mode: "insensitive" } },
-    });
+    expect(prisma.organizer.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { email: { equals: "organizer@example.hr", mode: "insensitive" } } })
+    );
     expect(email.sendOrganizerClaim).toHaveBeenCalledTimes(1);
     const createArgs = prisma.organizerClaim.create.mock.calls[0][0];
     expect(createArgs.data.status).toBe("EMAIL_VERIFICATION_SENT");
   });
 
   it("flags for admin review when the matched organizer is already claimed", async () => {
-    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED })) } });
+    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
     const email = emailMock();
     const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
 
@@ -186,6 +186,20 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
     expect(email.sendAdminNewSubmission).toHaveBeenCalledTimes(1);
     const createArgs = prisma.organizerClaim.create.mock.calls[0][0];
     expect(createArgs.data.status).toBe("NEEDS_ADMIN_REVIEW");
+  });
+
+  it("still takes the automatic path for a VERIFIED/TRUSTED organizer that has never actually registered", async () => {
+    // Regression test: OrganizerStatus VERIFIED/TRUSTED is a trust badge an
+    // admin can set independently of whether anyone has ever claimed the
+    // profile — it must never be treated as "already claimed" by itself.
+    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.TRUSTED, users: [] })) } });
+    const email = emailMock();
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+
+    await service.requestClaimByEmail({ email: "organizer@example.hr" });
+
+    expect(email.sendOrganizerClaim).toHaveBeenCalledTimes(1);
+    expect(email.sendAdminNewSubmission).not.toHaveBeenCalled();
   });
 
   it("never syncs a Resend contact for a pending request", async () => {
@@ -266,7 +280,7 @@ describe("OrganizerClaimService.completeClaim", () => {
   });
 
   it("rejects when the organizer is already claimed (race with another completion)", async () => {
-    const { prisma } = makePrismaForComplete({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED })) } });
+    const { prisma } = makePrismaForComplete({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
     const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" }))
@@ -422,7 +436,7 @@ describe("OrganizerClaimService.approveClaim", () => {
 
   it("rejects approving when the organizer is already claimed", async () => {
     const prisma = makePrisma({
-      organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED })) },
+      organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) },
       organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue(reviewClaim()) },
     });
     const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
@@ -482,7 +496,7 @@ describe("OrganizerClaimService.sendClaimInvite", () => {
   });
 
   it("rejects inviting an already-claimed organizer", async () => {
-    const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED })) } });
+    const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
     const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
 
     await expect(service.sendClaimInvite(7)).rejects.toThrow(/već preuzet/);
