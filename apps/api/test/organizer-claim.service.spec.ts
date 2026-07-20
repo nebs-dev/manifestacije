@@ -31,7 +31,7 @@ function organizer(overrides: Record<string, unknown> = {}) {
 
 function makePrisma(overrides: Record<string, unknown> = {}) {
   return {
-    organizer: { findUnique: jest.fn().mockResolvedValue(organizer()) },
+    organizer: { findUnique: jest.fn().mockResolvedValue(organizer()), findFirst: jest.fn().mockResolvedValue(organizer()) },
     organizerClaim: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -134,6 +134,68 @@ describe("OrganizerClaimService.requestClaim", () => {
 
     expect(result).toEqual({ message: GENERIC_MESSAGE });
     expect(prisma.organizerClaim.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+  });
+});
+
+describe("OrganizerClaimService.requestClaimByEmail", () => {
+  it("returns the identical generic message whether or not the email matches anything", async () => {
+    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(null) } });
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+
+    const result = await service.requestClaimByEmail({ email: "nobody@example.hr" });
+
+    expect(result).toEqual({ message: GENERIC_MESSAGE });
+  });
+
+  it("does nothing when no organizer matches the email", async () => {
+    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(null) } });
+    const email = emailMock();
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+
+    await service.requestClaimByEmail({ email: "nobody@example.hr" });
+
+    expect(prisma.organizerClaim.create).not.toHaveBeenCalled();
+    expect(email.sendOrganizerClaim).not.toHaveBeenCalled();
+    expect(email.sendAdminNewSubmission).not.toHaveBeenCalled();
+  });
+
+  it("finds the matching UNCLAIMED organizer by email alone (no slug needed) and sends the automatic claim link", async () => {
+    const prisma = makePrisma();
+    const email = emailMock();
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+
+    const result = await service.requestClaimByEmail({ email: "organizer@example.hr" });
+
+    expect(result).toEqual({ message: GENERIC_MESSAGE });
+    expect(prisma.organizer.findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: "organizer@example.hr", mode: "insensitive" } },
+    });
+    expect(email.sendOrganizerClaim).toHaveBeenCalledTimes(1);
+    const createArgs = prisma.organizerClaim.create.mock.calls[0][0];
+    expect(createArgs.data.status).toBe("EMAIL_VERIFICATION_SENT");
+  });
+
+  it("flags for admin review when the matched organizer is already claimed", async () => {
+    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED })) } });
+    const email = emailMock();
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+
+    await service.requestClaimByEmail({ email: "organizer@example.hr" });
+
+    expect(email.sendOrganizerClaim).not.toHaveBeenCalled();
+    expect(email.sendAdminNewSubmission).toHaveBeenCalledTimes(1);
+    const createArgs = prisma.organizerClaim.create.mock.calls[0][0];
+    expect(createArgs.data.status).toBe("NEEDS_ADMIN_REVIEW");
+  });
+
+  it("never syncs a Resend contact for a pending request", async () => {
+    const prisma = makePrisma();
+    const contacts = contactsMock();
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never);
+
+    await service.requestClaimByEmail({ email: "organizer@example.hr" });
+
+    expect(contacts.syncClaimedOrganizer).not.toHaveBeenCalled();
   });
 });
 

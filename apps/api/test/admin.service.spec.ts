@@ -147,6 +147,63 @@ describe("AdminService ingestion workflow", () => {
     expect(updatedParsed.candidates[0].category).toBe("glazba");
   });
 
+  it("passes isAllDay from candidate overrides into event creation", async () => {
+    const sourceParsed = parsedResult([candidate()]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.createEventFromSource(1, 0, { isAllDay: true });
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ isAllDay: true }), expect.any(Object));
+  });
+
+  it("falls back to the source's own URL when the candidate override doesn't touch sourceUrl", async () => {
+    const sourceParsed = parsedResult([candidate({ sourceUrl: "" })]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example/original", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.createEventFromSource(1, 0);
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: "https://source.example/original" }), expect.any(Object));
+  });
+
+  it("does not fall back to the source's own URL when the admin explicitly clears sourceUrl", async () => {
+    const sourceParsed = parsedResult([candidate()]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example/original", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.createEventFromSource(1, 0, { sourceUrl: null });
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: undefined }), expect.any(Object));
+  });
+
   it("ignores a candidate while preserving missingFields and warnings", async () => {
     const sourceParsed = parsedResult([candidate({ missingFields: ["city"], warnings: ["Needs city"] })]);
     const prisma = {

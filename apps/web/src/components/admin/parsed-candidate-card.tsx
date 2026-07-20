@@ -38,12 +38,14 @@ type CandidateForm = {
   description: string
   startsAt: string
   endsAt: string
+  isAllDay: boolean
   city: string
   venueName: string
   isFree: boolean
   priceText: string
   ticketUrl: string
   organizerName: string
+  sourceUrl: string
 }
 
 function toDateTimeLocal(value: string | null) {
@@ -97,12 +99,14 @@ export function ParsedCandidateCard({
     description: candidate.description || "",
     startsAt: toDateTimeLocal(candidate.startsAt),
     endsAt: toDateTimeLocal(candidate.endsAt),
+    isAllDay: candidate.isAllDay ?? false,
     city: candidate.city || "",
     venueName: candidate.venueName || "",
     isFree: candidate.isFree,
     priceText: candidate.priceText || "",
     ticketUrl: candidate.ticketUrl || "",
     organizerName: candidate.organizerName || "",
+    sourceUrl: candidate.sourceUrl || "",
   }))
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: candidate.imageUrl || "",
@@ -171,6 +175,7 @@ export function ParsedCandidateCard({
               description: form.description,
               startsAt: fromDateTimeLocal(form.startsAt),
               endsAt: fromDateTimeLocal(form.endsAt),
+              isAllDay: form.isAllDay,
               city: form.city,
               venueName: form.venueName,
               address: location?.address,
@@ -183,6 +188,9 @@ export function ParsedCandidateCard({
               ticketUrl: form.ticketUrl,
               organizerName: form.organizerName,
               imageUrl: image.imageUrl,
+              // null explicitly clears the source URL instead of falling back
+              // to the parent source's URL — see admin.service.ts.
+              sourceUrl: form.sourceUrl.trim() || null,
             },
           }),
         }
@@ -271,6 +279,17 @@ export function ParsedCandidateCard({
           <Field label="Završetak">
             <Input type="datetime-local" value={form.endsAt} disabled={!isPending} onChange={(e) => setField("endsAt", e.target.value)} />
           </Field>
+          <div className="flex items-center gap-2 pt-5">
+            <input
+              id={`allday-${candidate.id}`}
+              type="checkbox"
+              checked={form.isAllDay}
+              disabled={!isPending}
+              onChange={(e) => setField("isAllDay", e.target.checked)}
+              className="size-4 rounded border-border"
+            />
+            <Label htmlFor={`allday-${candidate.id}`} className="text-sm">Cjelodnevni događaj</Label>
+          </div>
           <Field label="Grad">
             <Input value={form.city} disabled={!isPending} onChange={(e) => setField("city", e.target.value)} placeholder="npr. Osijek" />
           </Field>
@@ -385,17 +404,26 @@ export function ParsedCandidateCard({
           </>
         )}
 
-        {candidate.sourceUrl && (
-          <a
-            href={candidate.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
-          >
-            <ExternalLink className="size-3.5" />
-            <span className="truncate">{candidate.sourceUrl}</span>
-          </a>
-        )}
+        <Field label="URL izvora">
+          <div className="flex items-center gap-2">
+            <Input
+              value={form.sourceUrl}
+              disabled={!isPending}
+              onChange={(e) => setField("sourceUrl", e.target.value)}
+              placeholder="https://…"
+            />
+            {form.sourceUrl && (
+              <Button
+                variant="outline"
+                size="icon"
+                nativeButton={false}
+                render={<a href={form.sourceUrl} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}
+              >
+                <ExternalLink className="size-4" />
+              </Button>
+            )}
+          </div>
+        </Field>
       </CardContent>
 
       {isPending && (

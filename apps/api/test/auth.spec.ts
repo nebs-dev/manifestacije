@@ -64,6 +64,32 @@ describe("AuthService", () => {
     await expect(service.login({ email: "admin@example.hr", password: "wrong" })).rejects.toThrow(UnauthorizedException);
   });
 
+  it("rejects login for an email with no account and no matching organizer", async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+      organizer: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never, contactsMock() as never);
+
+    await expect(service.login({ email: "nobody@example.hr", password: "whatever123" })).rejects.toThrow(UnauthorizedException);
+  });
+
+  it("tells an unclaimed organizer to claim their profile instead of a generic wrong-password error", async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 7, slug: "test-organizer", status: "UNCLAIMED" }) },
+    };
+    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never, contactsMock() as never);
+
+    await expect(service.login({ email: "orga@example.hr", password: "whatever123" })).rejects.toMatchObject({
+      status: 403,
+      response: expect.objectContaining({ code: "CLAIM_REQUIRED", organizerSlug: "test-organizer" }),
+    });
+    expect(prisma.organizer.findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: "orga@example.hr", mode: "insensitive" }, status: "UNCLAIMED" },
+    });
+  });
+
   it("sends the organizer welcome email after a successful registration", async () => {
     const prisma = {
       user: {

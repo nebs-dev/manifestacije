@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Check, X, Send } from "lucide-react"
 import { toast } from "sonner"
 
@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/admin/status-badge"
 import { TableLoadingState, ErrorState, EmptyState } from "@/components/admin/states"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -24,6 +25,7 @@ interface OrganizerClaim {
   email: string
   status: string
   createdAt: string
+  completedAt: string | null
   organizer: {
     id: number
     name: string
@@ -34,7 +36,17 @@ interface OrganizerClaim {
   }
 }
 
-function formatDate(iso: string) {
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: "ALL", label: "Sve" },
+  { value: "NEEDS_ADMIN_REVIEW", label: "Za pregled" },
+  { value: "EMAIL_VERIFICATION_SENT", label: "Poslano" },
+  { value: "COMPLETED", label: "Preuzeto" },
+  { value: "REJECTED", label: "Odbijeno" },
+  { value: "EXPIRED", label: "Isteklo" },
+]
+
+function formatDate(iso: string | null) {
+  if (!iso) return "—"
   return new Date(iso).toLocaleString("hr-HR", { dateStyle: "medium", timeStyle: "short" })
 }
 
@@ -72,6 +84,7 @@ function ClaimRow({ claim, onChanged }: { claim: OrganizerClaim; onChanged: () =
       <TableCell className="max-w-40 truncate text-muted-foreground">{claim.organizer.websiteUrl ?? "—"}</TableCell>
       <TableCell><StatusBadge status={claim.status} /></TableCell>
       <TableCell className="text-muted-foreground">{formatDate(claim.createdAt)}</TableCell>
+      <TableCell className="text-muted-foreground">{formatDate(claim.completedAt)}</TableCell>
       <TableCell className="text-right">
         {!pending ? null : rejecting ? (
           <div className="flex items-center justify-end gap-1">
@@ -104,6 +117,7 @@ export default function OrganizerClaimsPage() {
   const [claims, setClaims] = useState<OrganizerClaim[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [statusFilter, setStatusFilter] = useState("ALL")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -117,6 +131,14 @@ export default function OrganizerClaimsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const counts = useMemo(() => {
+    const byStatus: Record<string, number> = {}
+    for (const c of claims) byStatus[c.status] = (byStatus[c.status] ?? 0) + 1
+    return byStatus
+  }, [claims])
+
+  const filtered = statusFilter === "ALL" ? claims : claims.filter((c) => c.status === statusFilter)
+
   return (
     <>
       <PageHeader
@@ -124,28 +146,50 @@ export default function OrganizerClaimsPage() {
         description="Pregled i odobravanje zahtjeva za preuzimanje organizatorskih profila."
         breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Zahtjevi za preuzimanje" }]}
       />
-      {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : claims.length === 0 ? (
-        <EmptyState title="Nema zahtjeva" description="Trenutno nema zahtjeva za preuzimanje profila." icon={<Send />} />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead>Organizator</TableHead>
-                <TableHead>Poslani email</TableHead>
-                <TableHead>Email organizatora</TableHead>
-                <TableHead>Web</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Kreirano</TableHead>
-                <TableHead className="text-right">Akcije</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {claims.map((c) => (
-                <ClaimRow key={c.id} claim={c} onChanged={load} />
-              ))}
-            </TableBody>
-          </Table>
+      {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  statusFilter === f.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f.label} {f.value === "ALL" ? claims.length : (counts[f.value] ?? 0)}
+              </button>
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState title="Nema zahtjeva" description="Nema zahtjeva s ovim statusom." icon={<Send />} />
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Organizator</TableHead>
+                    <TableHead>Poslani email</TableHead>
+                    <TableHead>Email organizatora</TableHead>
+                    <TableHead>Web</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Kreirano</TableHead>
+                    <TableHead>Preuzeto</TableHead>
+                    <TableHead className="text-right">Akcije</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((c) => (
+                    <ClaimRow key={c.id} claim={c} onChanged={load} />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
     </>

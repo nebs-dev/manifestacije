@@ -7,6 +7,7 @@ export type ParsedEventCandidate = {
   description: string;
   startsAt: string;
   endsAt: string;
+  isAllDay?: boolean;
   venueName: string;
   address: string;
   lat?: number;
@@ -327,6 +328,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       description: p.description ?? "",
       startsAt: p.startsAt ?? "",
       endsAt: p.endsAt ?? "",
+      isAllDay: p.isAllDay ?? false,
       venueName: p.venueName ?? "",
       address: p.address ?? "",
       city: p.city ?? "",

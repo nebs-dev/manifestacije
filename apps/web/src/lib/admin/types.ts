@@ -48,6 +48,7 @@ export interface ParsedCandidate {
   description: string
   startsAt: string | null
   endsAt: string | null
+  isAllDay?: boolean
   venueName: string | null
   address: string | null
   city: string | null

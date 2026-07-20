@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { UserRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -60,8 +60,27 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: this.normalizeEmail(dto.email) } });
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException("Invalid credentials");
+    const email = this.normalizeEmail(dto.email);
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      // No User account yet — if this email belongs to an UNCLAIMED
+      // Organizer, tell them exactly what to do instead of a generic
+      // "wrong password" (there's no password to get wrong: no account
+      // exists yet). This is a deliberate UX choice for organizer login,
+      // not the anti-enumeration surface — that's forgotPassword above.
+      const organizer = await this.prisma.organizer.findFirst({ where: { email: { equals: email, mode: "insensitive" }, status: "UNCLAIMED" } });
+      if (organizer) {
+        throw new ForbiddenException({
+          message: "Ovaj organizator još nema postavljenu lozinku. Preuzmite svoj profil da biste je postavili.",
+          code: "CLAIM_REQUIRED",
+          organizerSlug: organizer.slug,
+        });
+      }
+      throw new UnauthorizedException("Invalid credentials");
+    }
+
+    if (!(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException("Invalid credentials");
     return this.session(user);
   }
 

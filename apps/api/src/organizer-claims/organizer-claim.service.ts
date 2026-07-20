@@ -5,7 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { generateResetToken, hashResetToken } from "../common/reset-token";
 import { EmailService } from "../email/email.service";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
-import { RequestOrganizerClaimDto, CompleteOrganizerClaimDto, VerifyOrganizerClaimDto } from "./organizer-claim.dto";
+import { RequestOrganizerClaimDto, RequestClaimByEmailDto, CompleteOrganizerClaimDto, VerifyOrganizerClaimDto } from "./organizer-claim.dto";
 
 const GENERIC_REQUEST_MESSAGE = "Ako je moguće potvrditi zahtjev, poslali smo vam poveznicu na unesenu adresu.";
 const INVALID_CLAIM_MESSAGE = "Poveznica za preuzimanje profila nije valjana ili je istekla.";
@@ -60,6 +60,30 @@ export class OrganizerClaimService {
     } else {
       await this.flagForAdminReview(organizer.id, organizer.name, email);
     }
+
+    return { message: GENERIC_REQUEST_MESSAGE };
+  }
+
+  /**
+   * Same generic-response contract as requestClaim, but for the "am I
+   * already on Manifestacije.hr?" unified entry point — the sender doesn't
+   * know their organizer slug (e.g. a manually-sent outreach email to a
+   * mixed list of already-listed and brand-new organizers), only their own
+   * email. Searches across all organizers instead of one known-by-slug.
+   */
+  async requestClaimByEmail(dto: RequestClaimByEmailDto): Promise<{ message: string }> {
+    const email = this.normalizeEmail(dto.email);
+    const organizer = await this.prisma.organizer.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+
+    if (organizer) {
+      if (organizer.status === OrganizerStatus.UNCLAIMED) {
+        await this.sendAutomaticClaim(organizer.id, organizer.name, email);
+      } else {
+        await this.flagForAdminReview(organizer.id, organizer.name, email);
+      }
+    }
+    // No match at all: nothing to do — same generic response either way, so
+    // this never reveals whether the email exists in our system.
 
     return { message: GENERIC_REQUEST_MESSAGE };
   }

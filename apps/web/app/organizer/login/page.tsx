@@ -37,11 +37,13 @@ function PasswordInput({ name, placeholder, required, autoComplete }: { name: st
 export default function LoginPage() {
   const router = useRouter()
   const [error, setError] = useState("")
+  const [claimSlug, setClaimSlug] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError("")
+    setClaimSlug(null)
     setLoading(true)
     const form = new FormData(e.currentTarget)
     const email = String(form.get("email") || "").trim().toLowerCase()
@@ -52,7 +54,15 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password: form.get("password") }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.message || "Pogrešan email ili lozinka"); return }
+      if (!res.ok) {
+        if (data.code === "CLAIM_REQUIRED" && data.organizerSlug) {
+          setClaimSlug(data.organizerSlug)
+          setError(data.message || "Ovaj organizator još nema postavljenu lozinku.")
+          return
+        }
+        setError(data.message || "Pogrešan email ili lozinka")
+        return
+      }
       if (data.user?.role !== "ORGANIZER" || data.user?.email?.toLowerCase() !== email) {
         setError("Ovaj email je admin račun. Za organizatora koristite drugi email.")
         return
@@ -76,6 +86,14 @@ export default function LoginPage() {
           <Input name="email" type="email" placeholder="Email" required autoComplete="email" />
           <PasswordInput name="password" placeholder="Lozinka" required autoComplete="current-password" />
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {claimSlug && (
+            <Link
+              href={`/organizatori/${claimSlug}/preuzmi`}
+              className="rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Preuzmi svoj profil
+            </Link>
+          )}
           <Button type="submit" disabled={loading}>{loading ? "Prijava…" : "Prijava"}</Button>
           <Link href="/forgot-password" className="text-center text-sm text-muted-foreground hover:text-foreground hover:underline">
             Zaboravili ste lozinku?

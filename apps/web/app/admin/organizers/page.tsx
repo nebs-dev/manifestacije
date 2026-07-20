@@ -1,14 +1,15 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, type ComponentProps } from "react"
 import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { TableLoadingState, ErrorState, DeleteButton } from "@/components/admin/states"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import {
   Table,
   TableBody,
@@ -31,6 +32,22 @@ interface Organizer {
 
 type OrgForm = { name: string; email: string; websiteUrl: string; phone: string }
 const emptyForm = (): OrgForm => ({ name: "", email: "", websiteUrl: "", phone: "" })
+
+// Uses a native <button> (not the <Button> component) as the tooltip trigger
+// target — <Button> isn't wrapped in forwardRef, so React 18 drops the ref
+// Tooltip needs to attach/position itself and the tooltip silently never opens.
+function IconAction({ label, className, children, ...props }: ComponentProps<"button"> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<button type="button" className={buttonVariants({ size: "icon-sm", variant: "ghost", className })} aria-label={label} {...props} />}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 function PasswordInput({ value, onChange, placeholder, className, onKeyDown, autoFocus, disabled }: { value: string; onChange: (value: string) => void; placeholder?: string; className?: string; onKeyDown?: (e: React.KeyboardEvent) => void; autoFocus?: boolean; disabled?: boolean }) {
   const [show, setShow] = useState(false)
@@ -132,19 +149,17 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
           </div>
         ) : (
           <div className="flex items-center justify-end gap-1">
-            <Button size="icon-sm" variant="ghost" aria-label="Uredi" onClick={() => setEditing(true)}><Pencil /></Button>
-            <Button size="icon-sm" variant="ghost" aria-label="Resetiraj lozinku" onClick={() => setResettingPw(true)}><KeyRound /></Button>
+            <IconAction label="Uredi" onClick={() => setEditing(true)}><Pencil /></IconAction>
+            <IconAction label="Resetiraj lozinku" onClick={() => setResettingPw(true)}><KeyRound /></IconAction>
             {org.status !== "VERIFIED" && org.status !== "TRUSTED" && (
-              <Button size="icon-sm" variant="ghost" aria-label="Verificiraj" className="text-success" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/verify`, { method: "POST" }); if (r.ok) { toast.success(`Verificirano: ${org.name}`); onChanged() } else toast.error("Greška") }}><ShieldCheck /></Button>
+              <IconAction label="Verificiraj" className="text-success" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/verify`, { method: "POST" }); if (r.ok) { toast.success(`Verificirano: ${org.name}`); onChanged() } else toast.error("Greška") }}><ShieldCheck /></IconAction>
             )}
             {org.status !== "TRUSTED" && (
-              <Button size="icon-sm" variant="ghost" aria-label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></Button>
+              <IconAction label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></IconAction>
             )}
             {org.status === "UNCLAIMED" && org.email && (
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="Pošalji poziv za preuzimanje profila"
+              <IconAction
+                label="Pošalji poziv za preuzimanje profila"
                 onClick={async () => {
                   const r = await authedFetch(`/api/admin/organizers/${org.id}/send-claim-invite`, { method: "POST" })
                   if (r.ok) toast.success(`Poziv poslan: ${org.name}`)
@@ -152,7 +167,7 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
                 }}
               >
                 <Send />
-              </Button>
+              </IconAction>
             )}
             <DeleteButton onDelete={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}`, { method: "DELETE" }); if (r.ok) { toast.success(`Obrisano: ${org.name}`); onChanged() } else toast.error("Greška pri brisanju") }} />
           </div>
@@ -215,6 +230,8 @@ export default function OrganizersPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [inviteConfirming, setInviteConfirming] = useState(false)
+  const [inviteBusy, setInviteBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -258,12 +275,54 @@ export default function OrganizersPage() {
     load()
   }
 
+  interface BulkInviteStats {
+    eligible: number
+    invited: number
+    activeInviteSkipped: number
+    missingEmail: number
+    alreadyClaimed: number
+    failed: number
+  }
+
+  async function bulkInviteUnclaimed() {
+    setInviteBusy(true)
+    try {
+      const res = await authedFetch("/api/admin/organizers/bulk-invite-unclaimed", { method: "POST" })
+      if (!res.ok) { toast.error("Greška pri slanju poziva."); return }
+      const stats: BulkInviteStats = await res.json()
+      toast.success(
+        `Pozvano ${stats.invited} organizatora`,
+        { description: `Već imaju aktivan poziv: ${stats.activeInviteSkipped} · Bez emaila: ${stats.missingEmail} · Neuspjelo: ${stats.failed}` }
+      )
+      load()
+    } catch {
+      toast.error("Greška pri slanju poziva.")
+    } finally {
+      setInviteBusy(false)
+      setInviteConfirming(false)
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Organizatori"
         description="Upravljanje organizatorima i njihovim statusima."
         breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Organizatori" }]}
+        actions={
+          inviteConfirming ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Pozvati sve nepreuzete organizatore s emailom (do 50)?</span>
+              <Button size="sm" onClick={bulkInviteUnclaimed} disabled={inviteBusy}>Da, pozovi</Button>
+              <Button size="sm" variant="ghost" onClick={() => setInviteConfirming(false)} disabled={inviteBusy}>Odustani</Button>
+            </div>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setInviteConfirming(true)}>
+              <Send data-icon="inline-start" />
+              Pozovi sve nepreuzete
+            </Button>
+          )
+        }
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
         <div className="flex flex-col gap-2">

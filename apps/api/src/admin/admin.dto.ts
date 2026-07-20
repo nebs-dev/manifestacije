@@ -59,6 +59,7 @@ export class CandidateOverrideDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() startsAt?: string;
   @IsOptional() @IsString() endsAt?: string;
+  @IsOptional() @IsBoolean() isAllDay?: boolean;
   @IsOptional() @IsString() city?: string;
   @IsOptional() @IsString() venueName?: string;
   @IsOptional() @IsString() address?: string;
@@ -70,6 +71,7 @@ export class CandidateOverrideDto {
   @IsOptional() @IsBoolean() isFeatured?: boolean;
   @IsOptional() @IsString() priceText?: string;
   @IsOptional() @IsString() ticketUrl?: string;
+  @IsOptional() @IsString() sourceUrl?: string | null;
   @IsOptional() @IsString() organizerName?: string;
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsString() imageCredit?: string;

@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from "react"
 import { Inbox, TriangleAlert, RefreshCw, Trash2, Check, X } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import {
   Empty,
   EmptyContent,
@@ -95,15 +96,21 @@ export function DeleteButton({ onDelete, label = "Obriši" }: { onDelete: () => 
   }
 
   return (
-    <Button
-      size="icon-sm"
-      variant="ghost"
-      aria-label={label}
-      className="text-muted-foreground hover:text-destructive"
-      onClick={() => setConfirming(true)}
-    >
-      <Trash2 />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className={buttonVariants({ size: "icon-sm", variant: "ghost", className: "text-muted-foreground hover:text-destructive" })}
+            aria-label={label}
+            onClick={() => setConfirming(true)}
+          />
+        }
+      >
+        <Trash2 />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

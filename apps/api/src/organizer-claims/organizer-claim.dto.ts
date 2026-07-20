@@ -1,10 +1,16 @@
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { IsEmail, IsInt, IsOptional, IsString, Max, Min, MaxLength, MinLength } from "class-validator";
 import { Transform } from "class-transformer";
 
 export class RequestOrganizerClaimDto {
   @IsString()
   organizerSlug!: string;
 
+  @IsEmail()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim().toLowerCase() : value))
+  email!: string;
+}
+
+export class RequestClaimByEmailDto {
   @IsEmail()
   @Transform(({ value }) => (typeof value === "string" ? value.trim().toLowerCase() : value))
   email!: string;
@@ -38,4 +44,12 @@ export class RejectOrganizerClaimDto {
   @IsString()
   @MaxLength(500)
   internalReason?: string;
+}
+
+export class BulkInviteUnclaimedDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }

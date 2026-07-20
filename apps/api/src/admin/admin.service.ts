@@ -446,10 +446,15 @@ export class AdminService {
         categoryIds,
         startsAt: candidate.startsAt || undefined,
         endsAt: candidate.endsAt || undefined,
+        isAllDay: candidate.isAllDay ?? undefined,
         isFree: candidate.isFree ?? undefined,
         priceText: candidate.priceText || undefined,
         ticketUrl: candidate.ticketUrl || undefined,
-        sourceUrl: candidate.sourceUrl || source.sourceUrl || undefined,
+        // null means the admin explicitly cleared the source URL override —
+        // must not fall back to the source's own URL in that case.
+        sourceUrl: (candidate.sourceUrl as string | null | undefined) === null
+          ? undefined
+          : candidate.sourceUrl || source.sourceUrl || undefined,
         venueName: candidate.venueName || undefined,
         address: candidate.address || undefined,
         lat: candidate.lat ?? undefined,

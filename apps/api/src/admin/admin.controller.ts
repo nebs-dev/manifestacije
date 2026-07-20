@@ -7,7 +7,7 @@ import { AdminService } from "./admin.service";
 import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
-import { RejectOrganizerClaimDto } from "../organizer-claims/organizer-claim.dto";
+import { RejectOrganizerClaimDto, BulkInviteUnclaimedDto } from "../organizer-claims/organizer-claim.dto";
 
 @Controller("admin")
 @UseGuards(JwtAuthGuard)
@@ -45,6 +45,7 @@ export class AdminController {
   @Post("organizers/:id/trust") trust(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
   @Post("organizers/:id/reset-password") resetPassword(@Param("id") id: string, @Body() dto: ResetPasswordDto) { return this.admin.resetOrganizerPassword(Number(id), dto.password); }
   @Post("organizers/:id/send-claim-invite") sendClaimInvite(@Param("id") id: string) { return this.claims.sendClaimInvite(Number(id)); }
+  @Post("organizers/bulk-invite-unclaimed") bulkInviteUnclaimed(@Body() dto: BulkInviteUnclaimedDto) { return this.claims.bulkInviteUnclaimedOrganizers({ limit: dto.limit }); }
   @Delete("organizers/:id") deleteOrganizer(@Param("id") id: string) { return this.admin.deleteOrganizer(Number(id)); }
 
   @Get("organizer-claims") organizerClaims() { return this.claims.listClaims(); }

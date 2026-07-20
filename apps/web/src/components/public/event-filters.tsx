@@ -42,11 +42,17 @@ export function EventFilters({
   const update = useCallback(
     (key: string, value: string | null) => {
       const next = new URLSearchParams(params.toString())
+      // Any filter change also commits whatever is currently typed in the
+      // search box — otherwise clearing it without pressing Enter left a
+      // stale q= behind the next time a different filter (e.g. category)
+      // was clicked, silently narrowing results by the old search term too.
+      if (q) next.set("q", q)
+      else next.delete("q")
       if (value === null || value === "") next.delete(key)
       else next.set(key, value)
       router.push(`${pathname}?${next.toString()}`, { scroll: false })
     },
-    [params, pathname, router],
+    [params, pathname, router, q],
   )
 
   const onSearch = (e: React.FormEvent) => {

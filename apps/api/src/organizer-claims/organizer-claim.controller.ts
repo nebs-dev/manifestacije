@@ -1,7 +1,7 @@
 import { Body, Controller, Post } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { OrganizerClaimService } from "./organizer-claim.service";
-import { RequestOrganizerClaimDto, CompleteOrganizerClaimDto, VerifyOrganizerClaimDto } from "./organizer-claim.dto";
+import { RequestOrganizerClaimDto, RequestClaimByEmailDto, CompleteOrganizerClaimDto, VerifyOrganizerClaimDto } from "./organizer-claim.dto";
 
 @Controller("organizer-claims")
 export class OrganizerClaimController {
@@ -11,6 +11,12 @@ export class OrganizerClaimController {
   @Throttle({ default: { ttl: 15 * 60_000, limit: 5 } })
   request(@Body() dto: RequestOrganizerClaimDto) {
     return this.claims.requestClaim(dto);
+  }
+
+  @Post("request-by-email")
+  @Throttle({ default: { ttl: 15 * 60_000, limit: 5 } })
+  requestByEmail(@Body() dto: RequestClaimByEmailDto) {
+    return this.claims.requestClaimByEmail(dto);
   }
 
   @Post("verify")
