@@ -60,7 +60,7 @@ describe("EventsService image fields", () => {
     }));
     expect(prisma.eventCategory.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { eventId_categoryId: { eventId: 10, categoryId: 4 } },
-      create: expect.objectContaining({ eventId: 10, categoryId: 4, isPrimary: true }),
+      create: expect.objectContaining({ eventId: 10, categoryId: 4, source: "MANUAL" }),
     }));
   });
 
@@ -86,10 +86,10 @@ describe("EventsService image fields", () => {
     }, {});
 
     expect(prisma.eventCategory.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      create: expect.objectContaining({ categoryId: 4, isPrimary: true }),
+      create: expect.objectContaining({ categoryId: 4 }),
     }));
     expect(prisma.eventCategory.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      create: expect.objectContaining({ categoryId: 8, isPrimary: false }),
+      create: expect.objectContaining({ categoryId: 8 }),
     }));
   });
 

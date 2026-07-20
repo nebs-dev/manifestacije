@@ -3,7 +3,9 @@ import { EventStatus, EventSourceType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventUpsertDto } from "../events/event.dto";
 import { EventsService } from "../events/events.service";
-import { AiEventParserService, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { EmailService } from "../email/email.service";
+import { formatHrDate } from "../email/format-date";
 import { OrganizerProfileDto, SubmitSourceDto } from "./organizer.dto";
 
 @Injectable()
@@ -11,7 +13,8 @@ export class OrganizerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
-    private readonly parser: AiEventParserService
+    private readonly parser: AiEventParserService,
+    private readonly email: EmailService
   ) {}
 
   profile(organizerId: number) {
@@ -30,13 +33,62 @@ export class OrganizerService {
     });
   }
 
-  async createEvent(organizerId: number, dto: EventUpsertDto) {
+  async createEvent(organizerId: number, dto: EventUpsertDto, organizerEmail?: string) {
     const organizer = await this.prisma.organizer.findUniqueOrThrow({ where: { id: organizerId } });
-    return this.events.createFromDto(dto, {
-      organizerId,
-      status: organizer.status === "TRUSTED" ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW,
-      sourceType: "ORGANIZER_FORM"
-    });
+    const status = organizer.status === "TRUSTED" ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW;
+    const event = await this.events.createFromDto(dto, { organizerId, status, sourceType: "ORGANIZER_FORM" });
+
+    await this.notifyEventCreated(event, organizer.name, status, organizerEmail);
+
+    return event;
+  }
+
+  /** Never throws — organizer/admin notification failures must never fail event creation. */
+  private async notifyEventCreated(
+    event: { id: number; title: string; slug: string; startsAt: Date; cityName: string | null },
+    organizerName: string,
+    status: typeof EventStatus.PUBLISHED | typeof EventStatus.PENDING_REVIEW,
+    organizerEmail?: string
+  ): Promise<void> {
+    try {
+      if (organizerEmail) {
+        const emailData = {
+          eventTitle: event.title,
+          eventDateLabel: formatHrDate(event.startsAt),
+          eventLocationLabel: event.cityName || undefined,
+          webUrl: this.email.webUrl,
+        };
+        if (status === EventStatus.PUBLISHED) {
+          await this.email.sendEventPublished(
+            organizerEmail,
+            { ...emailData, publicEventUrl: `${this.email.webUrl}/eventi/${event.slug}` },
+            event.id
+          );
+        } else {
+          await this.email.sendEventSubmitted(
+            organizerEmail,
+            { ...emailData, organizerEventUrl: `${this.email.webUrl}/organizer/events/${event.id}` },
+            event.id
+          );
+        }
+      }
+
+      if (status === EventStatus.PENDING_REVIEW) {
+        await this.email.sendAdminNewSubmission(
+          {
+            titleOrSource: event.title,
+            organizerLabel: organizerName,
+            sourceTypeLabel: "Organizator — ručni unos",
+            adminReviewUrl: `${this.email.webUrl}/admin/events/${event.id}`,
+            webUrl: this.email.webUrl,
+          },
+          event.id
+        );
+      }
+    } catch {
+      // EmailService.send* already catches provider errors; this guards against
+      // an unexpected failure in the data prepared above so it can never bubble up.
+    }
   }
 
   async deleteEvent(organizerId: number, id: number) {
@@ -55,7 +107,7 @@ export class OrganizerService {
     return this.events.updateEvent(id, { ...dto, status: EventStatus.PENDING_REVIEW });
   }
 
-  async submitSource(organizerId: number, dto: SubmitSourceDto) {
+  async submitSource(organizerId: number, dto: SubmitSourceDto, organizerEmail?: string) {
     const sourceUrl = dto.sourceUrl?.trim() || undefined;
     let rawText = dto.rawText?.trim() || undefined;
     const hasScreenshot = Boolean(dto.screenshotBase64 && dto.screenshotMediaType);
@@ -123,7 +175,7 @@ export class OrganizerService {
     const parsed = dto.sourceImageUrl ? { ...result, sourceImageUrl: dto.sourceImageUrl } : result;
     const { confidence, status } = this.sourceMetaFromResult(result, isFacebook);
 
-    return this.prisma.eventSource.create({
+    const source = await this.prisma.eventSource.create({
       data: {
         organizerId,
         type: sourceUrl ? EventSourceType.URL : EventSourceType.MANUAL,
@@ -135,6 +187,54 @@ export class OrganizerService {
         status,
       }
     });
+
+    const firstCandidate = result.candidates[0];
+    const titleOrSource = firstCandidate?.title || sourceUrl || "Zaprimljeni sadržaj";
+
+    await this.notifySourceSubmitted(source.id, organizerId, titleOrSource, firstCandidate, sourceUrl, organizerEmail);
+
+    return source;
+  }
+
+  /** Never throws — organizer/admin notification failures must never fail source submission. */
+  private async notifySourceSubmitted(
+    sourceId: number,
+    organizerId: number,
+    titleOrSource: string,
+    firstCandidate: ParsedEventCandidate | undefined,
+    sourceUrl: string | undefined,
+    organizerEmail?: string
+  ): Promise<void> {
+    try {
+      if (organizerEmail) {
+        await this.email.sendEventSubmitted(
+          organizerEmail,
+          {
+            eventTitle: titleOrSource,
+            eventDateLabel: firstCandidate?.startsAt ? formatHrDate(new Date(firstCandidate.startsAt)) : undefined,
+            eventLocationLabel: firstCandidate?.city || undefined,
+            organizerEventUrl: `${this.email.webUrl}/organizer/events`,
+            webUrl: this.email.webUrl,
+          }
+        );
+      }
+
+      const organizer = await this.prisma.organizer.findUnique({ where: { id: organizerId } });
+      await this.email.sendAdminNewSubmission(
+        {
+          titleOrSource,
+          organizerLabel: organizer?.name,
+          sourceTypeLabel: sourceUrl ? "Organizator — poveznica" : "Organizator — sadržaj",
+          adminReviewUrl: `${this.email.webUrl}/admin/sources/${sourceId}`,
+          warningsCount: firstCandidate?.warnings.length,
+          webUrl: this.email.webUrl,
+        },
+        sourceId
+      );
+    } catch {
+      // EmailService.send* already catches provider errors; this guards against
+      // an unexpected failure in the data prepared above so it can never bubble up.
+    }
   }
 
   listSources(organizerId: number) {

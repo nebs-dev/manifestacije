@@ -40,7 +40,7 @@ describe("AdminService ingestion workflow", () => {
       eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     };
     const parser = { parseBatch: jest.fn().mockResolvedValue(result) };
-    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never);
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, {} as never, {} as never);
 
     await service.createManualEmail({ rawText: "raw", sourceUrl: "https://source.example", rawEmailSubject: "Subject", rawEmailFrom: "from@example.hr" });
 
@@ -60,7 +60,7 @@ describe("AdminService ingestion workflow", () => {
       eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     };
     const parser = { parseBatch: jest.fn().mockResolvedValue(result) };
-    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never);
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, {} as never, {} as never);
     jest.spyOn(global, "fetch").mockRejectedValueOnce(new Error("network down"));
 
     await service.parseUrl({ sourceUrl: "https://source.example/event" });
@@ -79,7 +79,7 @@ describe("AdminService ingestion workflow", () => {
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
 
     await service.createEventFromSource(1, 0);
 
@@ -104,7 +104,7 @@ describe("AdminService ingestion workflow", () => {
       },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
 
     const created = await service.createEventFromSource(1, 0, { startsAt: "2026-07-05T19:00:00.000Z" });
 
@@ -135,7 +135,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 55 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
 
     await service.createEventFromSource(1, 0, { categoryIds: [44, 45] });
 
@@ -155,7 +155,7 @@ describe("AdminService ingestion workflow", () => {
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
 
     await service.ignoreCandidate(1, 0);
 
@@ -174,7 +174,8 @@ describe("AdminService ingestion workflow", () => {
     const prisma = {
       $transaction: jest.fn((callback) => callback(tx)),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never);
+    const revalidate = { revalidate: jest.fn() };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, {} as never);
 
     await service.deleteEvent(9);
 
@@ -210,7 +211,7 @@ describe("AdminService ingestion workflow", () => {
       lng: null,
       sourceType: "MANUAL",
       extractionConfidence: null,
-      categories: [{ categoryId: 6, isPrimary: true, source: "MANUAL", confidence: null }],
+      categories: [{ categoryId: 6, source: "MANUAL", confidence: null }],
     };
     const prisma = {
       event: {
@@ -221,7 +222,7 @@ describe("AdminService ingestion workflow", () => {
       },
       eventCategory: { create: jest.fn() },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
 
     await service.duplicateEvent(9);
 
@@ -233,7 +234,129 @@ describe("AdminService ingestion workflow", () => {
       }),
     }));
     expect(prisma.eventCategory.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ eventId: 10, categoryId: 6, isPrimary: true }),
+      data: expect.objectContaining({ eventId: 10, categoryId: 6, source: "MANUAL" }),
     });
+  });
+});
+
+describe("AdminService.setEventStatus organizer notifications", () => {
+  function makePrisma(overrides: {
+    currentStatus: EventStatus;
+    event?: Record<string, unknown>;
+  }) {
+    const event = overrides.event ?? {
+      id: 5,
+      title: "Ljetni koncert",
+      slug: "ljetni-koncert",
+      startsAt: new Date("2026-07-04T18:00:00.000Z"),
+      cityName: "Osijek",
+      organizer: { email: "organizer@example.hr" },
+    };
+    return {
+      event: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ status: overrides.currentStatus })
+          .mockResolvedValueOnce(event),
+        update: jest.fn().mockResolvedValue({ id: event.id, organizerId: 1 }),
+      },
+    };
+  }
+
+  function makeEmail() {
+    return { webUrl: "https://manifestacije.hr", sendEventPublished: jest.fn(), sendEventRejected: jest.fn() };
+  }
+
+  it("sends the published email when status actually transitions to PUBLISHED", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.PENDING_REVIEW });
+    const revalidate = { revalidate: jest.fn() };
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    await service.setEventStatus(5, EventStatus.PUBLISHED);
+
+    expect(email.sendEventPublished).toHaveBeenCalledTimes(1);
+    expect(email.sendEventPublished).toHaveBeenCalledWith(
+      "organizer@example.hr",
+      expect.objectContaining({ eventTitle: "Ljetni koncert", publicEventUrl: "https://manifestacije.hr/eventi/ljetni-koncert" }),
+      5
+    );
+  });
+
+  it("does not send a duplicate published email when the event is already PUBLISHED", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.PUBLISHED });
+    const revalidate = { revalidate: jest.fn() };
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    await service.setEventStatus(5, EventStatus.PUBLISHED);
+
+    expect(email.sendEventPublished).not.toHaveBeenCalled();
+  });
+
+  it("sends the rejected email when status actually transitions to REJECTED", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.PENDING_REVIEW });
+    const revalidate = { revalidate: jest.fn() };
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    await service.setEventStatus(5, EventStatus.REJECTED);
+
+    expect(email.sendEventRejected).toHaveBeenCalledTimes(1);
+    expect(email.sendEventRejected).toHaveBeenCalledWith("organizer@example.hr", expect.objectContaining({ eventTitle: "Ljetni koncert" }), 5);
+  });
+
+  it("does not send a duplicate rejected email when the event is already REJECTED", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.REJECTED });
+    const revalidate = { revalidate: jest.fn() };
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    await service.setEventStatus(5, EventStatus.REJECTED);
+
+    expect(email.sendEventRejected).not.toHaveBeenCalled();
+  });
+
+  it("does not send any email when the event has no organizer email on file", async () => {
+    const prisma = makePrisma({
+      currentStatus: EventStatus.PENDING_REVIEW,
+      event: {
+        id: 5,
+        title: "Ljetni koncert",
+        slug: "ljetni-koncert",
+        startsAt: new Date("2026-07-04T18:00:00.000Z"),
+        cityName: "Osijek",
+        organizer: null,
+      },
+    });
+    const revalidate = { revalidate: jest.fn() };
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    await service.setEventStatus(5, EventStatus.PUBLISHED);
+
+    expect(email.sendEventPublished).not.toHaveBeenCalled();
+  });
+
+  it("does not send a notification for statuses other than PUBLISHED/REJECTED (e.g. ARCHIVED)", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.PUBLISHED });
+    const revalidate = { revalidate: jest.fn() };
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    await service.setEventStatus(5, EventStatus.ARCHIVED);
+
+    expect(email.sendEventPublished).not.toHaveBeenCalled();
+    expect(email.sendEventRejected).not.toHaveBeenCalled();
+  });
+
+  it("main operation still succeeds and returns the updated event when the email provider throws", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.PENDING_REVIEW });
+    const revalidate = { revalidate: jest.fn() };
+    const email = { webUrl: "https://manifestacije.hr", sendEventPublished: jest.fn().mockRejectedValue(new Error("Resend down")), sendEventRejected: jest.fn() };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, email as never);
+
+    const result = await service.setEventStatus(5, EventStatus.PUBLISHED);
+
+    expect(result).toEqual({ id: 5, organizerId: 1 });
   });
 });

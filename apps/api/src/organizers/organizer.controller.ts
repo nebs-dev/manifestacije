@@ -37,7 +37,7 @@ export class OrganizerController {
 
   @Post("events")
   createEvent(@CurrentUser() user: AuthUser, @Body() dto: EventUpsertDto) {
-    return this.organizer.createEvent(user.organizerId!, dto);
+    return this.organizer.createEvent(user.organizerId!, dto, user.email);
   }
 
   @Put("events/:id")
@@ -52,7 +52,7 @@ export class OrganizerController {
 
   @Post("events/submit-url")
   submitSource(@CurrentUser() user: AuthUser, @Body() dto: SubmitSourceDto) {
-    return this.organizer.submitSource(user.organizerId!, dto);
+    return this.organizer.submitSource(user.organizerId!, dto, user.email);
   }
 
   @Post("uploads/event-image")

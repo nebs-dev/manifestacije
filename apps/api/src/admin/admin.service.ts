@@ -6,6 +6,8 @@ import { slugify, uniqueSlug } from "../common/slug";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
+import { EmailService } from "../email/email.service";
+import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, UpdateEventSourceDto } from "./admin.dto";
 import { RevalidateService } from "./revalidate.service";
 
@@ -17,6 +19,7 @@ export class AdminService {
     private readonly parser: AiEventParserService,
     private readonly duplicates: DuplicatesService,
     private readonly revalidate: RevalidateService,
+    private readonly email: EmailService,
   ) {}
 
   async pendingCounts(params?: { sourcesSince?: string; eventsSince?: string }) {
@@ -56,11 +59,20 @@ export class AdminService {
   }
 
   async bulkSetStatus(eventIds: number[], status: EventStatus) {
+    const changedIds = (status === EventStatus.PUBLISHED || status === EventStatus.REJECTED)
+      ? (await this.prisma.event.findMany({ where: { id: { in: eventIds }, status: { not: status } }, select: { id: true } })).map((e) => e.id)
+      : [];
+
     const result = await this.prisma.event.updateMany({
       where: { id: { in: eventIds } },
       data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined },
     });
     void this.revalidate.revalidate("events");
+
+    for (const eventId of changedIds) {
+      await this.notifyOrganizerOfStatusChange(eventId, status as typeof EventStatus.PUBLISHED | typeof EventStatus.REJECTED);
+    }
+
     return result;
   }
 
@@ -105,14 +117,57 @@ export class AdminService {
 
   async createEvent(dto: AdminEventDto) {
     const result = await this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
-    if (dto.status === EventStatus.PUBLISHED) void this.revalidate.revalidate("events");
+    if (dto.status === EventStatus.PUBLISHED) {
+      void this.revalidate.revalidate("events");
+      if (result.organizerId) await this.notifyOrganizerOfStatusChange(result.id, EventStatus.PUBLISHED);
+    }
     return result;
   }
 
   async setEventStatus(id: number, status: EventStatus) {
+    const current = await this.prisma.event.findUnique({ where: { id }, select: { status: true } });
+    const statusChanged = current?.status !== status;
+
     const result = await this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
     void this.revalidate.revalidate("events");
+
+    // Only notify on an actual transition — repeated approve/publish clicks on an
+    // already-published event (or repeated reject) must not send duplicate emails.
+    // Awaited (not voided) because notifyOrganizerOfStatusChange never throws — it
+    // catches its own errors internally — so awaiting it can't fail this operation,
+    // and doing so keeps status-change notifications deterministic for tests.
+    if (statusChanged && (status === EventStatus.PUBLISHED || status === EventStatus.REJECTED)) {
+      await this.notifyOrganizerOfStatusChange(result.id, status);
+    }
+
     return result;
+  }
+
+  /** Never throws — a failure here (missing organizer, missing email, DB error,
+   *  or delivery error) must never break the caller's status-change operation. */
+  private async notifyOrganizerOfStatusChange(eventId: number, status: typeof EventStatus.PUBLISHED | typeof EventStatus.REJECTED): Promise<void> {
+    try {
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { organizer: true } });
+      const organizerEmail = event?.organizer?.email;
+      if (!event || !organizerEmail) return;
+
+      const shared = {
+        eventTitle: event.title,
+        eventDateLabel: formatHrDate(event.startsAt),
+        eventLocationLabel: event.cityName || undefined,
+        webUrl: this.email.webUrl,
+      };
+
+      if (status === EventStatus.PUBLISHED) {
+        await this.email.sendEventPublished(organizerEmail, { ...shared, publicEventUrl: `${this.email.webUrl}/eventi/${event.slug}` }, event.id);
+      } else {
+        // Schema has no rejection-reason field today — template falls back to neutral wording.
+        await this.email.sendEventRejected(organizerEmail, { eventTitle: event.title, webUrl: this.email.webUrl }, event.id);
+      }
+    } catch {
+      // EmailService.send* already catches provider errors; this guards against
+      // an unexpected failure in the prisma lookup above so it can never bubble up.
+    }
   }
 
   async duplicateEvent(id: number) {
@@ -429,7 +484,10 @@ export class AdminService {
       await this.prisma.eventSource.update({ where: { id }, data: { eventId: event.id, status: "LINKED" } });
     }
 
-    if (publish) void this.revalidate.revalidate("events");
+    if (publish) {
+      void this.revalidate.revalidate("events");
+      if (event.organizerId) await this.notifyOrganizerOfStatusChange(event.id, EventStatus.PUBLISHED);
+    }
     return { event, candidateIndex };
   }
 

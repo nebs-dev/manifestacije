@@ -15,6 +15,7 @@ import { AiEventParserService } from "./ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "./duplicates/duplicates.service";
 import { EventsService } from "./events/events.service";
 import { UploadsService } from "./admin/uploads.service";
+import { EmailService } from "./email/email.service";
 
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
@@ -63,7 +64,8 @@ export class HealthController {
     UploadsService,
     AiEventParserService,
     DuplicatesService,
-    EventsService
+    EventsService,
+    EmailService
   ]
 })
 export class AppModule {}

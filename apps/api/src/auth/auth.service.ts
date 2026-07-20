@@ -4,11 +4,16 @@ import { UserRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
+import { EmailService } from "../email/email.service";
 import { LoginDto, RegisterDto } from "./auth.dto";
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    private readonly email: EmailService
+  ) {}
 
   async register(dto: RegisterDto) {
     const email = this.normalizeEmail(dto.email);
@@ -24,6 +29,16 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: { email, passwordHash, name: dto.name, role: UserRole.ORGANIZER, organizerId: organizer.id }
     });
+
+    // EmailService.send* already catches provider errors internally and never
+    // throws; this try/catch is a second guard so registration can never fail
+    // even if that guarantee is ever broken.
+    try {
+      await this.email.sendOrganizerWelcome(email, { organizerName, webUrl: this.email.webUrl });
+    } catch {
+      // intentionally swallowed — see comment above
+    }
+
     return this.session(user);
   }
 

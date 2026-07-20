@@ -36,9 +36,18 @@ function parsedResult(overrides: Partial<ParsedSourceResult> = {}): ParsedSource
   };
 }
 
+function emailMock() {
+  return {
+    webUrl: "https://manifestacije.hr",
+    sendEventSubmitted: jest.fn(),
+    sendEventPublished: jest.fn(),
+    sendAdminNewSubmission: jest.fn(),
+  };
+}
+
 describe("OrganizerService submitSource", () => {
   it("rejects Facebook URL without screenshot or raw text", async () => {
-    const service = new OrganizerService({} as never, {} as never, {} as never);
+    const service = new OrganizerService({} as never, {} as never, {} as never, emailMock() as never);
 
     await expect(service.submitSource(1, { sourceUrl: "https://facebook.com/events/123" }))
       .rejects.toBeInstanceOf(BadRequestException);
@@ -48,12 +57,13 @@ describe("OrganizerService submitSource", () => {
     const result = parsedResult();
     const prisma = {
       eventSource: { create: jest.fn().mockResolvedValue({ id: 10 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
     };
     const parser = {
       parseBatchWithLlm: jest.fn().mockResolvedValue(result),
       parseBatch: jest.fn(),
     };
-    const service = new OrganizerService(prisma as never, {} as never, parser as never);
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, emailMock() as never);
 
     await service.submitSource(7, {
       sourceUrl: "https://www.facebook.com/events/123",
@@ -80,11 +90,12 @@ describe("OrganizerService submitSource", () => {
     const result = parsedResult({ candidates: [{ ...candidate({ confidence: 0.6 }), _status: "pending" }] });
     const prisma = {
       eventSource: { create: jest.fn().mockResolvedValue({ id: 11 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
     };
     const parser = {
       parseBatchWithLlm: jest.fn().mockResolvedValue(result),
     };
-    const service = new OrganizerService(prisma as never, {} as never, parser as never);
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, emailMock() as never);
 
     await service.submitSource(7, {
       sourceUrl: "https://fb.me/e/abc",
@@ -107,12 +118,13 @@ describe("OrganizerService submitSource", () => {
     const result = parsedResult({ sourceUrl: "https://example.com/event" });
     const prisma = {
       eventSource: { create: jest.fn().mockResolvedValue({ id: 12 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
     };
     const parser = {
       parseBatch: jest.fn().mockResolvedValue(result),
       parseBatchWithLlm: jest.fn(),
     };
-    const service = new OrganizerService(prisma as never, {} as never, parser as never);
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, emailMock() as never);
 
     await service.submitSource(7, { sourceUrl: "https://example.com/event", rawText: "Opis" });
 
@@ -127,5 +139,75 @@ describe("OrganizerService submitSource", () => {
         status: "PARSED",
       }),
     });
+  });
+
+  it("sends the submitted confirmation to the organizer when their email is known", async () => {
+    const result = parsedResult({ sourceUrl: "https://example.com/event" });
+    const prisma = {
+      eventSource: { create: jest.fn().mockResolvedValue({ id: 20 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
+    };
+    const parser = { parseBatch: jest.fn().mockResolvedValue(result), parseBatchWithLlm: jest.fn() };
+    const email = emailMock();
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, email as never);
+
+    await service.submitSource(7, { sourceUrl: "https://example.com/event", rawText: "Opis" }, "organizer@example.hr");
+
+    expect(email.sendEventSubmitted).toHaveBeenCalledWith("organizer@example.hr", expect.objectContaining({ eventTitle: expect.any(String) }));
+  });
+
+  it("does not send a submitted confirmation when no organizer email is known", async () => {
+    const result = parsedResult({ sourceUrl: "https://example.com/event" });
+    const prisma = {
+      eventSource: { create: jest.fn().mockResolvedValue({ id: 21 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
+    };
+    const parser = { parseBatch: jest.fn().mockResolvedValue(result), parseBatchWithLlm: jest.fn() };
+    const email = emailMock();
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, email as never);
+
+    await service.submitSource(7, { sourceUrl: "https://example.com/event", rawText: "Opis" });
+
+    expect(email.sendEventSubmitted).not.toHaveBeenCalled();
+  });
+
+  it("always notifies the admin of a new submission regardless of organizer email", async () => {
+    const result = parsedResult({ sourceUrl: "https://example.com/event" });
+    const prisma = {
+      eventSource: { create: jest.fn().mockResolvedValue({ id: 22 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
+    };
+    const parser = { parseBatch: jest.fn().mockResolvedValue(result), parseBatchWithLlm: jest.fn() };
+    const email = emailMock();
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, email as never);
+
+    await service.submitSource(7, { sourceUrl: "https://example.com/event", rawText: "Opis" });
+
+    expect(email.sendAdminNewSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({ organizerLabel: "Test Organizer" }),
+      22
+    );
+  });
+
+  it("main operation still succeeds and returns the created source even when the email dependency throws", async () => {
+    // EmailService.send* never throws in real usage (it catches provider errors
+    // internally) — this simulates an unexpected failure in that dependency anyway
+    // to prove submitSource's own try/catch guard keeps the business operation safe.
+    const result = parsedResult({ sourceUrl: "https://example.com/event" });
+    const prisma = {
+      eventSource: { create: jest.fn().mockResolvedValue({ id: 23 }) },
+      organizer: { findUnique: jest.fn().mockResolvedValue({ id: 7, name: "Test Organizer" }) },
+    };
+    const parser = { parseBatch: jest.fn().mockResolvedValue(result), parseBatchWithLlm: jest.fn() };
+    const email = {
+      webUrl: "https://manifestacije.hr",
+      sendEventSubmitted: jest.fn().mockRejectedValue(new Error("Resend down")),
+      sendAdminNewSubmission: jest.fn().mockRejectedValue(new Error("Resend down")),
+    };
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, email as never);
+
+    const source = await service.submitSource(7, { sourceUrl: "https://example.com/event", rawText: "Opis" }, "organizer@example.hr");
+
+    expect(source).toEqual({ id: 23 });
   });
 });
