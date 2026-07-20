@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, type ComponentProps } from "react"
-import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff, Send } from "lucide-react"
+import { Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
@@ -152,12 +152,6 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
           <div className="flex items-center justify-end gap-1">
             <IconAction label="Uredi" onClick={() => setEditing(true)}><Pencil /></IconAction>
             <IconAction label="Resetiraj lozinku" onClick={() => setResettingPw(true)}><KeyRound /></IconAction>
-            {org.status !== "VERIFIED" && org.status !== "TRUSTED" && (
-              <IconAction label="Verificiraj" className="text-success" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/verify`, { method: "POST" }); if (r.ok) { toast.success(`Verificirano: ${org.name}`); onChanged() } else toast.error("Greška") }}><ShieldCheck /></IconAction>
-            )}
-            {org.status !== "TRUSTED" && (
-              <IconAction label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></IconAction>
-            )}
             {!org.hasUser && org.email && (
               <ConfirmIconAction
                 icon={<Send />}
