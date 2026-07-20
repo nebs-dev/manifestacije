@@ -146,7 +146,17 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                       title={event.title}
                     />
                   </InfoRow>
-                  <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">{event.organizer}</InfoRow>
+                  <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">
+                    {event.organizer}
+                    {event.organizerClaimable && event.organizerSlug && (
+                      <Link
+                        href={`/organizatori/${event.organizerSlug}/preuzmi`}
+                        className="ml-2 text-xs font-medium text-muted-foreground hover:text-primary hover:underline"
+                      >
+                        Vi organizirate ovaj događaj? Preuzmite profil
+                      </Link>
+                    )}
+                  </InfoRow>
                   <InfoRow icon={<Tags className="size-5" aria-hidden />} label="Kategorije">
                     <span className="flex flex-wrap gap-1.5">
                       {eventCategories.map((category) => (

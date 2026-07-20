@@ -35,6 +35,15 @@ export class PublicFeedService {
     });
   }
 
+  /** Only the fields needed for the public claim-request page header — never
+   *  the organizer's email, which the claim flow must not reveal. */
+  organizerBySlug(slug: string) {
+    return this.prisma.organizer.findUnique({
+      where: { slug },
+      select: { id: true, name: true, slug: true, status: true },
+    });
+  }
+
   regions() {
     return this.prisma.region.findMany({ orderBy: { sortOrder: "asc" } });
   }

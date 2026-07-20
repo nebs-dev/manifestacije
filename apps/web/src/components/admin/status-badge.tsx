@@ -40,6 +40,13 @@ const statusMap: Record<string, { tone: Tone; label: string }> = {
   open: { tone: "warning", label: "Otvoreno" },
   merged: { tone: "success", label: "Spojeno" },
   dismissed: { tone: "neutral", label: "Odbačeno" },
+  // organizer claim statuses
+  PENDING: { tone: "neutral", label: "Na čekanju" },
+  EMAIL_VERIFICATION_SENT: { tone: "info", label: "Poslana poveznica" },
+  NEEDS_ADMIN_REVIEW: { tone: "warning", label: "Za pregled" },
+  APPROVED: { tone: "info", label: "Odobreno" },
+  COMPLETED: { tone: "success", label: "Preuzeto" },
+  EXPIRED: { tone: "neutral", label: "Isteklo" },
 }
 
 export function StatusBadge({

@@ -21,7 +21,16 @@ function corsOrigin(origin: string | undefined, callback: (error: Error | null, 
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.use(require("express").json({ limit: "10mb" }));
+  app.use(
+    require("express").json({
+      limit: "10mb",
+      // Stash the raw bytes alongside the parsed body — the Resend webhook
+      // route needs the exact original bytes to verify its Svix signature.
+      verify: (req: { rawBody?: Buffer }, _res: unknown, buf: Buffer) => {
+        req.rawBody = buf;
+      },
+    })
+  );
   app.setGlobalPrefix("api");
   app.enableCors({ origin: corsOrigin, credentials: true, methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

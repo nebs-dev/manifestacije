@@ -6,6 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { generateResetToken, hashResetToken } from "../common/reset-token";
 import { EmailService } from "../email/email.service";
+import { ResendContactsService } from "../contacts/resend-contacts.service";
 import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from "./auth.dto";
 
 const GENERIC_FORGOT_PASSWORD_MESSAGE = "Ako račun s tom adresom postoji, poslali smo upute za promjenu lozinke.";
@@ -18,7 +19,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly email: EmailService
+    private readonly email: EmailService,
+    private readonly contacts: ResendContactsService
   ) {}
 
   async register(dto: RegisterDto) {
@@ -41,6 +43,15 @@ export class AuthService {
     // even if that guarantee is ever broken.
     try {
       await this.email.sendOrganizerWelcome(email, { organizerName, webUrl: this.email.webUrl });
+    } catch {
+      // intentionally swallowed — see comment above
+    }
+
+    // ResendContactsService guarantees this never throws; the try/catch here
+    // is a second guard so registration can never fail even if that
+    // guarantee is ever broken (same pattern as the welcome email above).
+    try {
+      await this.contacts.syncOrganizerRegistration(user, organizer);
     } catch {
       // intentionally swallowed — see comment above
     }

@@ -16,6 +16,10 @@ import { DuplicatesService } from "./duplicates/duplicates.service";
 import { EventsService } from "./events/events.service";
 import { UploadsService } from "./admin/uploads.service";
 import { EmailService } from "./email/email.service";
+import { ResendContactsService } from "./contacts/resend-contacts.service";
+import { OrganizerClaimController } from "./organizer-claims/organizer-claim.controller";
+import { OrganizerClaimService } from "./organizer-claims/organizer-claim.service";
+import { ResendWebhookController } from "./webhooks/resend-webhook.controller";
 
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
@@ -53,7 +57,7 @@ export class HealthController {
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController],
+  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController],
   providers: [
     PrismaService,
     AuthService,
@@ -65,7 +69,9 @@ export class HealthController {
     AiEventParserService,
     DuplicatesService,
     EventsService,
-    EmailService
+    EmailService,
+    ResendContactsService,
+    OrganizerClaimService
   ]
 })
 export class AppModule {}

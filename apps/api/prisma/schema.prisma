@@ -70,6 +70,31 @@ enum IngestionJobStatus {
   FAILED
 }
 
+enum EmailContactSource {
+  REGISTRATION
+  EVENT_SUBMISSION
+  SOURCE_SUBMISSION
+  PROFILE_CLAIM
+  EXISTING_ENGAGED_ORGANIZER_BACKFILL
+}
+
+enum EmailContactSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  UNSUBSCRIBED
+}
+
+enum OrganizerClaimStatus {
+  PENDING
+  EMAIL_VERIFICATION_SENT
+  NEEDS_ADMIN_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+  EXPIRED
+}
+
 model User {
   id                 Int       @id @default(autoincrement())
   email              String    @unique
@@ -82,6 +107,7 @@ model User {
   /// (JwtAuthGuard rejects tokens whose authVersion doesn't match this value).
   authVersion        Int       @default(0)
   passwordResetTokens PasswordResetToken[]
+  emailContacts      EmailContact[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
@@ -114,8 +140,54 @@ model Organizer {
   users        User[]
   events       Event[]
   sources      EventSource[]
+  emailContacts EmailContact[]
+  claims       OrganizerClaim[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model OrganizerClaim {
+  id             Int                  @id @default(autoincrement())
+  organizerId    Int
+  email          String
+  tokenHash      String?              @unique
+  status         OrganizerClaimStatus @default(PENDING)
+  expiresAt      DateTime?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  completedAt    DateTime?
+  internalReason String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organizer Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+  @@index([email])
+  @@index([status])
+}
+
+model EmailContact {
+  id              Int                     @id @default(autoincrement())
+  email           String                  @unique
+  organizerId     Int?
+  userId          Int?
+  source          EmailContactSource
+  resendContactId String?
+  syncStatus      EmailContactSyncStatus  @default(PENDING)
+  isUnsubscribed  Boolean                 @default(false)
+  unsubscribedAt  DateTime?
+  lastSyncedAt    DateTime?
+  syncError       String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  organizer Organizer? @relation(fields: [organizerId], references: [id], onDelete: SetNull)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizerId])
+  @@index([userId])
+  @@index([syncStatus])
 }
 
 model Region {

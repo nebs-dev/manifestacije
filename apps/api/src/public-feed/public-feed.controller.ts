@@ -15,6 +15,11 @@ export class PublicFeedController {
     return this.feed.event(slug);
   }
 
+  @Get("organizers/:slug")
+  organizer(@Param("slug") slug: string) {
+    return this.feed.organizerBySlug(slug);
+  }
+
   @Get("regions")
   regions() {
     return this.feed.regions();

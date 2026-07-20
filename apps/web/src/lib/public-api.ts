@@ -26,7 +26,7 @@ type ApiEvent = {
   imageUrl?: string | null
   extractionConfidence?: number | null
   isFeatured?: boolean | null
-  organizer?: { id: number; name: string; websiteUrl?: string | null } | null
+  organizer?: { id: number; name: string; websiteUrl?: string | null; slug?: string; status?: string } | null
   venue?: { id: number; name: string; address?: string | null; lat?: number | null; lng?: number | null } | null
   cityName?: string | null
   city?: ApiTaxonomy | null
@@ -114,6 +114,12 @@ export async function fetchRelatedEvents(event: CroEvent) {
     .slice(0, 3)
 }
 
+export type ApiOrganizer = { id: number; name: string; slug: string; status: string }
+
+export async function fetchOrganizer(slug: string) {
+  return fetchApi<ApiOrganizer | null>(`/api/public/organizers/${slug}`, 60, ["organizers"]).catch(() => null)
+}
+
 export async function fetchMapEvents() {
   return fetchApi<ApiEvent[]>("/api/public/map/events", 300)
     .then((rows) => rows.map(toCroEvent).filter(notPast))
@@ -180,6 +186,8 @@ function toCroEvent(event: ApiEvent): CroEvent {
     longDescription: event.description,
     organizer: event.organizer?.name || "Organizator nije naveden",
     organizerUrl: event.organizer?.websiteUrl || undefined,
+    organizerSlug: event.organizer?.status === "UNCLAIMED" ? event.organizer?.slug : undefined,
+    organizerClaimable: event.organizer?.status === "UNCLAIMED",
     source: event.sourceUrl || "Manifestacije.hr",
     ticketUrl: event.ticketUrl || undefined,
     // Sized for the largest common display context (event card in a 3-column grid,

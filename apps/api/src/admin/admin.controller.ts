@@ -6,12 +6,18 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AdminService } from "./admin.service";
 import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
+import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
+import { RejectOrganizerClaimDto } from "../organizer-claims/organizer-claim.dto";
 
 @Controller("admin")
 @UseGuards(JwtAuthGuard)
 @Roles(UserRole.ADMIN)
 export class AdminController {
-  constructor(private readonly admin: AdminService, private readonly uploads: UploadsService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly uploads: UploadsService,
+    private readonly claims: OrganizerClaimService
+  ) {}
 
   @Get("pending-counts") pendingCounts(
     @Query("sourcesSince") sourcesSince?: string,
@@ -38,7 +44,12 @@ export class AdminController {
   @Post("organizers/:id/verify") verify(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
   @Post("organizers/:id/trust") trust(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "TRUSTED"); }
   @Post("organizers/:id/reset-password") resetPassword(@Param("id") id: string, @Body() dto: ResetPasswordDto) { return this.admin.resetOrganizerPassword(Number(id), dto.password); }
+  @Post("organizers/:id/send-claim-invite") sendClaimInvite(@Param("id") id: string) { return this.claims.sendClaimInvite(Number(id)); }
   @Delete("organizers/:id") deleteOrganizer(@Param("id") id: string) { return this.admin.deleteOrganizer(Number(id)); }
+
+  @Get("organizer-claims") organizerClaims() { return this.claims.listClaims(); }
+  @Post("organizer-claims/:id/approve") approveClaim(@Param("id") id: string) { return this.claims.approveClaim(Number(id)); }
+  @Post("organizer-claims/:id/reject") rejectClaim(@Param("id") id: string, @Body() dto: RejectOrganizerClaimDto) { return this.claims.rejectClaim(Number(id), dto.internalReason); }
 
   @Post("uploads/event-image")
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 5 * 1024 * 1024 } }))

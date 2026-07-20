@@ -69,6 +69,9 @@ export interface CroEvent {
   organizer: string
   /** Organizer's website — Schema.org Organization.url. Only set when the organizer record has one. */
   organizerUrl?: string
+  /** Set only when the organizer record is UNCLAIMED — drives the "preuzmite profil" CTA. */
+  organizerSlug?: string
+  organizerClaimable?: boolean
   source: string
   ticketUrl?: string
   /** Card-sized image (800x600) — used on listing cards, calendar agenda, rails. */

@@ -11,6 +11,8 @@ export interface EmailConfig {
   publicWebUrl: string;
   passwordResetUrl: string;
   passwordResetTokenTtlMinutes: number;
+  organizerClaimUrl: string;
+  organizerClaimTokenTtlMinutes: number;
 }
 
 /**
@@ -30,6 +32,8 @@ export function loadEmailConfig(): EmailConfig {
   // Never hardcode a Vercel preview URL — fall back to PUBLIC_WEB_URL, not localhost, in prod.
   const passwordResetUrl = process.env.PASSWORD_RESET_URL || `${publicWebUrl}/reset-password`;
   const passwordResetTokenTtlMinutes = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES) || 30;
+  const organizerClaimUrl = process.env.ORGANIZER_CLAIM_URL || `${publicWebUrl}/preuzmi-profil`;
+  const organizerClaimTokenTtlMinutes = Number(process.env.ORGANIZER_CLAIM_TOKEN_TTL_MINUTES) || 30;
 
   if (process.env.NODE_ENV === "production" && deliveryMode === "resend") {
     const missing: string[] = [];
@@ -41,5 +45,5 @@ export function loadEmailConfig(): EmailConfig {
     }
   }
 
-  return { deliveryMode, provider, resendApiKey, fromName, fromAddress, replyTo, adminNotificationEmail, publicWebUrl, passwordResetUrl, passwordResetTokenTtlMinutes };
+  return { deliveryMode, provider, resendApiKey, fromName, fromAddress, replyTo, adminNotificationEmail, publicWebUrl, passwordResetUrl, passwordResetTokenTtlMinutes, organizerClaimUrl, organizerClaimTokenTtlMinutes };
 }

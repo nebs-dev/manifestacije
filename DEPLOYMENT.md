@@ -30,6 +30,9 @@ EMAIL_REPLY_TO=info@manifestacije.hr
 ADMIN_NOTIFICATION_EMAIL=info@manifestacije.hr
 PASSWORD_RESET_TOKEN_TTL_MINUTES=30
 PASSWORD_RESET_URL=https://manifestacije.hr/reset-password
+ORGANIZER_CLAIM_TOKEN_TTL_MINUTES=30
+ORGANIZER_CLAIM_URL=https://manifestacije.hr/preuzmi-profil
+RESEND_WEBHOOK_SECRET=<resend webhook signing secret>
 ```
 
 Web service:
@@ -165,6 +168,89 @@ PASSWORD_RESET_URL=https://manifestacije.hr/reset-password
 - The forgot-password endpoint always returns the same generic response
   whether or not the email belongs to an account, so it never reveals
   account existence.
+
+## Organizer Onboarding & Resend Contacts
+
+Organizer email addresses enter Resend Contacts automatically — nobody ever
+enters a contact into Resend by hand. PrivateEmail still handles all inbound
+mail; Resend handles outbound transactional mail (above) plus the Contacts /
+Broadcasts list used for organizer marketing.
+
+**An email becomes an active Resend Contact only when the person performs a
+direct action:**
+
+- successful organizer registration
+- successful authenticated event submission
+- successful authenticated source (URL/raw content) submission
+- a completed organizer profile claim
+
+It is deliberately **not** added when: an admin creates an Organizer record,
+the parser discovers an Organizer, an imported event is attributed to an
+Organizer, someone logs in, someone requests/resets a password, or a claim
+request/invitation is merely sent but not completed. See
+`apps/api/src/contacts/resend-contacts.service.ts` for the sync logic and
+`apps/api/test/resend-contacts.service.spec.ts` for the behavior contract.
+
+Once Resend reports a contact as globally unsubscribed, nothing in this app
+— registration, login, submission, profile update, backfill, or claim sync —
+ever resubscribes them. Only an explicit Resend-side change (mirrored via the
+webhook below) can do that.
+
+### Organizer Profile Claims
+
+Existing Organizer records (created by admins or the parser while importing
+events) start `UNCLAIMED`. An organizer can take ownership at
+`/organizatori/<slug>/preuzmi`:
+
+- if the submitted email exactly matches the stored `Organizer.email`, a
+  single-use, SHA-256-hashed, 30-minute claim link is emailed automatically
+- otherwise the request is queued for admin review at
+  `/admin/organizer-claims` — the admin can approve (re-sends the same kind
+  of link to the submitted address) or reject
+- completing the link sets `Organizer.status=CLAIMED`, attaches the User,
+  and is the only point in this flow that syncs a Resend Contact
+- claim tokens are a separate table/token from password-reset tokens and are
+  never interchangeable
+
+Admins can also proactively invite one UNCLAIMED organizer with a known email
+from `/admin/organizers` ("send claim invite"), or bulk-invite from the CLI
+(see below). Neither adds anyone to Resend — only a completed claim does.
+
+### CLI Commands (run manually, never during deploy/seed)
+
+```bash
+pnpm --filter api contacts:retry-failed
+pnpm --filter api contacts:backfill-engaged-organizers [--dry-run]
+pnpm --filter api claims:invite-unclaimed-organizers [--dry-run] [--limit=N]
+```
+
+- `contacts:retry-failed` re-attempts every `EmailContact` row stuck at
+  `syncStatus=FAILED`. Safe to run repeatedly.
+- `contacts:backfill-engaged-organizers` syncs pre-existing organizers that
+  already show real engagement — a linked `ORGANIZER`-role User, or
+  `CLAIMED`/`VERIFIED`/`TRUSTED` status. Organizers that merely exist, have
+  events, have an email, or were admin/parser-created are skipped. Idempotent
+  and safe to run repeatedly; always run `--dry-run` first.
+- `claims:invite-unclaimed-organizers` bulk-sends claim invites to `UNCLAIMED`
+  organizers with a usable email and no already-active invite (default cap 50
+  per run). Never wired into deploy or seed — deliberate manual execution only.
+
+### Resend Webhook (unsubscribe sync)
+
+`POST /api/webhooks/resend` keeps `EmailContact.isUnsubscribed` in sync with
+Resend's own state (`contact.updated` / `contact.deleted`). Requests are
+verified against `RESEND_WEBHOOK_SECRET` using Resend's Svix-style HMAC
+signature (`svix-id` / `svix-timestamp` / `svix-signature` headers) — see
+`apps/api/src/webhooks/verify-resend-signature.ts`. Requests without a valid
+signature get a 401; without `RESEND_WEBHOOK_SECRET` set, the endpoint always
+401s.
+
+Setup: in the Resend dashboard, add a webhook pointing at
+`https://<railway-api-domain>/api/webhooks/resend`, subscribe to contact
+events, and put its signing secret in `RESEND_WEBHOOK_SECRET`.
+
+Every marketing Broadcast sent from Resend must include an unsubscribe link
+(Resend adds this by default) — that's what ultimately fires this webhook.
 
 ## Admin Seed Credentials
 

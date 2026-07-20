@@ -1,11 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
-import { EventStatus, EventSourceType } from "@prisma/client";
+import { EventStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventUpsertDto } from "../events/event.dto";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
+import { ResendContactsService } from "../contacts/resend-contacts.service";
 import { OrganizerProfileDto, SubmitSourceDto } from "./organizer.dto";
 
 @Injectable()
@@ -14,7 +15,8 @@ export class OrganizerService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly parser: AiEventParserService,
-    private readonly email: EmailService
+    private readonly email: EmailService,
+    private readonly contacts: ResendContactsService
   ) {}
 
   profile(organizerId: number) {
@@ -33,12 +35,21 @@ export class OrganizerService {
     });
   }
 
-  async createEvent(organizerId: number, dto: EventUpsertDto, organizerEmail?: string) {
+  async createEvent(organizerId: number, dto: EventUpsertDto, organizerEmail?: string, userId?: number) {
     const organizer = await this.prisma.organizer.findUniqueOrThrow({ where: { id: organizerId } });
     const status = organizer.status === "TRUSTED" ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW;
     const event = await this.events.createFromDto(dto, { organizerId, status, sourceType: "ORGANIZER_FORM" });
 
     await this.notifyEventCreated(event, organizer.name, status, organizerEmail);
+
+    // ResendContactsService guarantees this never throws; the try/catch here
+    // is a second guard so event creation can never fail even if that
+    // guarantee is ever broken.
+    try {
+      await this.contacts.syncEventSubmitter(organizerEmail, EmailContactSource.EVENT_SUBMISSION, organizer, userId);
+    } catch {
+      // intentionally swallowed — see comment above
+    }
 
     return event;
   }
@@ -107,7 +118,7 @@ export class OrganizerService {
     return this.events.updateEvent(id, { ...dto, status: EventStatus.PENDING_REVIEW });
   }
 
-  async submitSource(organizerId: number, dto: SubmitSourceDto, organizerEmail?: string) {
+  async submitSource(organizerId: number, dto: SubmitSourceDto, organizerEmail?: string, userId?: number) {
     const sourceUrl = dto.sourceUrl?.trim() || undefined;
     let rawText = dto.rawText?.trim() || undefined;
     const hasScreenshot = Boolean(dto.screenshotBase64 && dto.screenshotMediaType);
@@ -192,6 +203,17 @@ export class OrganizerService {
     const titleOrSource = firstCandidate?.title || sourceUrl || "Zaprimljeni sadržaj";
 
     await this.notifySourceSubmitted(source.id, organizerId, titleOrSource, firstCandidate, sourceUrl, organizerEmail);
+
+    if (organizerEmail) {
+      try {
+        const organizer = await this.prisma.organizer.findUnique({ where: { id: organizerId } });
+        await this.contacts.syncEventSubmitter(organizerEmail, EmailContactSource.SOURCE_SUBMISSION, organizer, userId);
+      } catch {
+        // ResendContactsService guarantees this never throws; this try/catch
+        // is a second guard so source submission can never fail even if that
+        // guarantee is ever broken.
+      }
+    }
 
     return source;
   }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff } from "lucide-react"
+import { ShieldCheck, Star, Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/admin/page-header"
@@ -139,6 +139,20 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
             )}
             {org.status !== "TRUSTED" && (
               <Button size="icon-sm" variant="ghost" aria-label="Pouzdano" className="text-primary" onClick={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}/trust`, { method: "POST" }); if (r.ok) { toast.success(`Pouzdano: ${org.name}`); onChanged() } else toast.error("Greška") }}><Star /></Button>
+            )}
+            {org.status === "UNCLAIMED" && org.email && (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Pošalji poziv za preuzimanje profila"
+                onClick={async () => {
+                  const r = await authedFetch(`/api/admin/organizers/${org.id}/send-claim-invite`, { method: "POST" })
+                  if (r.ok) toast.success(`Poziv poslan: ${org.name}`)
+                  else toast.error("Greška pri slanju poziva")
+                }}
+              >
+                <Send />
+              </Button>
             )}
             <DeleteButton onDelete={async () => { const r = await authedFetch(`/api/admin/organizers/${org.id}`, { method: "DELETE" }); if (r.ok) { toast.success(`Obrisano: ${org.name}`); onChanged() } else toast.error("Greška pri brisanju") }} />
           </div>

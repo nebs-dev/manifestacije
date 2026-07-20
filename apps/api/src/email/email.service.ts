@@ -10,6 +10,7 @@ import { eventPublishedSubject, eventPublishedHtml, eventPublishedText, type Eve
 import { eventRejectedSubject, eventRejectedHtml, eventRejectedText, type EventRejectedData } from "./templates/event-rejected.template";
 import { adminNewSubmissionSubject, adminNewSubmissionHtml, adminNewSubmissionText, type AdminNewSubmissionData } from "./templates/admin-new-submission.template";
 import { passwordResetSubject, passwordResetHtml, passwordResetText, type PasswordResetData } from "./templates/password-reset.template";
+import { organizerClaimSubject, organizerClaimHtml, organizerClaimText, type OrganizerClaimData } from "./templates/organizer-claim.template";
 
 /**
  * The only email entry point the rest of the app should use. Every send*
@@ -52,6 +53,14 @@ export class EmailService {
 
   get passwordResetTokenTtlMinutes(): number {
     return this.config.passwordResetTokenTtlMinutes;
+  }
+
+  get organizerClaimUrl(): string {
+    return this.config.organizerClaimUrl;
+  }
+
+  get organizerClaimTokenTtlMinutes(): number {
+    return this.config.organizerClaimTokenTtlMinutes;
   }
 
   async sendOrganizerWelcome(to: string, data: OrganizerWelcomeData): Promise<void> {
@@ -136,6 +145,32 @@ export class EmailService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`email delivery failed template=password_reset to=${maskEmail(to)} provider=${this.config.deliveryMode} error=${message}`);
+      throw err;
+    }
+  }
+
+  /** Throws on failure (unlike the other send* methods) — OrganizerClaimService
+   *  needs to know whether delivery failed so it can delete the just-created
+   *  claim token rather than leaving an unlimited-lifetime valid token behind. */
+  async sendOrganizerClaim(to: string, data: OrganizerClaimData): Promise<SendEmailResult> {
+    const input: SendEmailInput = {
+      to,
+      subject: organizerClaimSubject(),
+      html: organizerClaimHtml(data),
+      text: organizerClaimText(data),
+      replyTo: this.config.replyTo,
+      tags: [
+        { name: "template", value: "organizer_claim" },
+        { name: "environment", value: process.env.NODE_ENV || "development" },
+      ],
+    };
+    try {
+      const result = await this.provider.send(input);
+      this.logger.log(`email sent template=organizer_claim to=${maskEmail(to)} provider=${result.provider}`);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`email delivery failed template=organizer_claim to=${maskEmail(to)} provider=${this.config.deliveryMode} error=${message}`);
       throw err;
     }
   }

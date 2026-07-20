@@ -17,6 +17,13 @@ function emailMock(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function contactsMock(overrides: Record<string, unknown> = {}) {
+  return {
+    syncOrganizerRegistration: jest.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 describe("AuthService", () => {
   it("logs in with valid credentials and returns a JWT session", async () => {
     const passwordHash = await bcrypt.hash("secret123", 10);
@@ -34,11 +41,14 @@ describe("AuthService", () => {
       },
     };
     const jwt = { sign: jest.fn().mockReturnValue("signed-token") };
-    const service = new AuthService(prisma as never, jwt as never, emailMock() as never);
+    const contacts = contactsMock();
+    const service = new AuthService(prisma as never, jwt as never, emailMock() as never, contacts as never);
 
     const session = await service.login({ email: " Admin@Example.hr ", password: "secret123" });
 
     expect(session.token).toBe("signed-token");
+    // Login must never touch Resend Contacts sync.
+    expect(contacts.syncOrganizerRegistration).not.toHaveBeenCalled();
     expect(session.user).toEqual(expect.objectContaining({ id: 1, role: UserRole.ADMIN }));
     expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: "admin@example.hr" } });
     expect(jwt.sign).toHaveBeenCalledWith(expect.objectContaining({ id: 1, email: "admin@example.hr", role: UserRole.ADMIN, authVersion: 0 }));
@@ -49,7 +59,7 @@ describe("AuthService", () => {
     const prisma = {
       user: { findUnique: jest.fn().mockResolvedValue({ passwordHash }) },
     };
-    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never);
+    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never, contactsMock() as never);
 
     await expect(service.login({ email: "admin@example.hr", password: "wrong" })).rejects.toThrow(UnauthorizedException);
   });
@@ -67,11 +77,16 @@ describe("AuthService", () => {
     };
     const jwt = { sign: jest.fn().mockReturnValue("signed-token") };
     const email = emailMock();
-    const service = new AuthService(prisma as never, jwt as never, email as never);
+    const contacts = contactsMock();
+    const service = new AuthService(prisma as never, jwt as never, email as never, contacts as never);
 
     await service.register({ name: "New Organizer", organizerName: "New Organizer Co", email: "new@example.hr", password: "secret123" });
 
     expect(email.sendOrganizerWelcome).toHaveBeenCalledWith("new@example.hr", { organizerName: "New Organizer Co", webUrl: "https://manifestacije.hr" });
+    expect(contacts.syncOrganizerRegistration).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 2, email: "new@example.hr" }),
+      expect.objectContaining({ id: 5, name: "New Organizer Co" })
+    );
   });
 
   it("registration still succeeds and returns a session when the welcome email dependency throws", async () => {
@@ -90,7 +105,7 @@ describe("AuthService", () => {
     // an unexpected failure anyway to prove register()'s own try/catch guard keeps
     // registration safe even if that guarantee is ever broken.
     const email = emailMock({ sendOrganizerWelcome: jest.fn().mockRejectedValue(new Error("Resend down")) });
-    const service = new AuthService(prisma as never, jwt as never, email as never);
+    const service = new AuthService(prisma as never, jwt as never, email as never, contactsMock() as never);
 
     const session = await service.register({ name: "New Organizer", organizerName: "New Organizer Co", email: "new@example.hr", password: "secret123" });
 
@@ -107,7 +122,7 @@ describe("AuthService", () => {
         }),
       },
     };
-    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never);
+    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never, contactsMock() as never);
 
     await expect(service.register({
       name: "Test User",
@@ -135,7 +150,7 @@ describe("AuthService.forgotPassword", () => {
 
   it("returns the generic success message for a known email", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(KNOWN_USER) } });
-    const service = new AuthService(prisma as never, {} as never, emailMock() as never);
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never);
 
     const result = await service.forgotPassword({ email: "organizer@example.hr" });
 
@@ -144,7 +159,7 @@ describe("AuthService.forgotPassword", () => {
 
   it("returns the exact same generic message for an unknown email", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(null) } });
-    const service = new AuthService(prisma as never, {} as never, emailMock() as never);
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never);
 
     const result = await service.forgotPassword({ email: "unknown@example.hr" });
 
@@ -153,7 +168,7 @@ describe("AuthService.forgotPassword", () => {
 
   it("creates a hashed reset token for a known email, never storing the raw token", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(KNOWN_USER) } });
-    const service = new AuthService(prisma as never, {} as never, emailMock() as never);
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never);
 
     await service.forgotPassword({ email: "organizer@example.hr" });
 
@@ -165,7 +180,7 @@ describe("AuthService.forgotPassword", () => {
 
   it("does not create a reset token for an unknown email", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(null) } });
-    const service = new AuthService(prisma as never, {} as never, emailMock() as never);
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never);
 
     await service.forgotPassword({ email: "unknown@example.hr" });
 
@@ -174,7 +189,7 @@ describe("AuthService.forgotPassword", () => {
 
   it("invalidates previously issued unused tokens for the same user before creating a new one", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(KNOWN_USER) } });
-    const service = new AuthService(prisma as never, {} as never, emailMock() as never);
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never);
 
     await service.forgotPassword({ email: "organizer@example.hr" });
 
@@ -184,7 +199,7 @@ describe("AuthService.forgotPassword", () => {
   it("sends the email with a reset URL built from the raw token, not the hash", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(KNOWN_USER) } });
     const email = emailMock();
-    const service = new AuthService(prisma as never, {} as never, email as never);
+    const service = new AuthService(prisma as never, {} as never, email as never, contactsMock() as never);
 
     await service.forgotPassword({ email: "organizer@example.hr" });
 
@@ -200,7 +215,7 @@ describe("AuthService.forgotPassword", () => {
   it("returns the generic response even when email sending fails, without revealing account existence", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(KNOWN_USER) } });
     const email = emailMock({ sendPasswordReset: jest.fn().mockRejectedValue(new Error("Resend down")) });
-    const service = new AuthService(prisma as never, {} as never, email as never);
+    const service = new AuthService(prisma as never, {} as never, email as never, contactsMock() as never);
 
     const result = await service.forgotPassword({ email: "organizer@example.hr" });
 
@@ -210,7 +225,7 @@ describe("AuthService.forgotPassword", () => {
   it("deletes the newly created token when email sending fails (preferred strategy: no orphaned valid token)", async () => {
     const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(KNOWN_USER) } });
     const email = emailMock({ sendPasswordReset: jest.fn().mockRejectedValue(new Error("Resend down")) });
-    const service = new AuthService(prisma as never, {} as never, email as never);
+    const service = new AuthService(prisma as never, {} as never, email as never, contactsMock() as never);
 
     await service.forgotPassword({ email: "organizer@example.hr" });
 
@@ -237,7 +252,7 @@ describe("AuthService.resetPassword", () => {
       },
       $transaction: jest.fn((cb) => cb(tx)),
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     const result = await service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" });
 
@@ -256,7 +271,7 @@ describe("AuthService.resetPassword", () => {
       },
       $transaction: jest.fn((cb) => cb(tx)),
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" });
 
@@ -273,7 +288,7 @@ describe("AuthService.resetPassword", () => {
       },
       $transaction: jest.fn((cb) => cb(tx)),
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" });
 
@@ -288,7 +303,7 @@ describe("AuthService.resetPassword", () => {
       },
       $transaction: jest.fn((cb) => cb(tx)),
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" });
 
@@ -299,7 +314,7 @@ describe("AuthService.resetPassword", () => {
 
   it("rejects an unknown token", async () => {
     const prisma = { passwordResetToken: { findUnique: jest.fn().mockResolvedValue(null) } };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await expect(service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" }))
       .rejects.toThrow("Poveznica za promjenu lozinke nije valjana ili je istekla.");
@@ -311,7 +326,7 @@ describe("AuthService.resetPassword", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 9, userId: 1, tokenHash: TOKEN_HASH, expiresAt: new Date(Date.now() - 60_000), usedAt: null }),
       },
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await expect(service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" }))
       .rejects.toThrow(BadRequestException);
@@ -323,7 +338,7 @@ describe("AuthService.resetPassword", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 9, userId: 1, tokenHash: TOKEN_HASH, expiresAt: new Date(Date.now() + 60_000), usedAt: new Date() }),
       },
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await expect(service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" }))
       .rejects.toThrow(BadRequestException);
@@ -334,7 +349,7 @@ describe("AuthService.resetPassword", () => {
       passwordResetToken: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn(),
     };
-    const service = new AuthService(prisma as never, {} as never, {} as never);
+    const service = new AuthService(prisma as never, {} as never, {} as never, contactsMock() as never);
 
     await expect(service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" })).rejects.toThrow();
     expect(prisma.$transaction).not.toHaveBeenCalled();
