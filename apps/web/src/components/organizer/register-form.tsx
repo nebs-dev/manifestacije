@@ -1,0 +1,101 @@
+"use client"
+
+import { FormEvent, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
+import { API_URL } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { storeOrganizerSession } from "@/lib/organizer/auth"
+
+function PasswordInput({ name, placeholder, required, autoComplete }: { name: string; placeholder?: string; required?: boolean; autoComplete?: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <Input
+        name={name}
+        type={show ? "text" : "password"}
+        placeholder={placeholder}
+        required={required}
+        autoComplete={autoComplete}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+        tabIndex={-1}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+}
+
+export function RegisterForm({ initialEmail = "" }: { initialEmail?: string }) {
+  const router = useRouter()
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError("")
+    setLoading(true)
+    const form = new FormData(e.currentTarget)
+    const password = form.get("password") as string
+    const email = String(form.get("email") || "").trim().toLowerCase()
+    if (password.length < 8) { setError("Lozinka mora imati najmanje 8 znakova"); setLoading(false); return }
+    try {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.get("name"),
+          organizerName: form.get("organizerName"),
+          email,
+          password,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.message || "Registracija nije uspjela"); return }
+      if (data.user?.role !== "ORGANIZER" || data.user?.email?.toLowerCase() !== email) {
+        setError("Registracija je uspjela, ali sesija nije organizatorska")
+        return
+      }
+      storeOrganizerSession(data.token, data.user)
+      router.push("/organizer/events")
+    } catch {
+      setError("Greška pri spajanju na server")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>Registracija</CardTitle>
+        <CardDescription>Kreirajte organizatorski račun i dodajte svoje događaje besplatno.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <Input name="name" placeholder="Vaše ime i prezime" required />
+          <Input name="organizerName" placeholder="Naziv organizatora / udruge" required />
+          <Input name="email" type="email" placeholder="Email" required autoComplete="email" defaultValue={initialEmail} />
+          <PasswordInput name="password" placeholder="Lozinka (min 8 znakova)" required autoComplete="new-password" />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" disabled={loading}>{loading ? "Registracija…" : "Registriraj se"}</Button>
+          <p className="text-center text-sm text-muted-foreground">
+            Već imate račun?{" "}
+            <Link href="/organizer/login" className="text-primary hover:underline">Prijavite se</Link>
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground/70">
+            Registracijom na manifestacije.hr stvarate korisnički račun koji vam omogućuje unos, uređivanje i upravljanje događajima na platformi. Podatke koje unesete koristimo isključivo za rad platforme, komunikaciju vezanu uz vaše događaje, moderaciju sadržaja, sigurnost korisničkog računa i poboljšanje usluge. Vaše podatke ne prodajemo trećim stranama. Marketinške obavijesti i newsletter šaljemo samo ako za to date posebnu privolu, koju u svakom trenutku možete povući.
+          </p>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
