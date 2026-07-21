@@ -74,6 +74,17 @@ const reverseRegionMap: Record<string, string> = {
   medimurje: "medimurje-i-zagorje",
 }
 
+function slugifyLabel(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+}
+
 export async function fetchCategories(): Promise<PublicCategory[]> {
   return fetchApi<PublicCategory[]>("/api/public/categories", 3600, ["taxonomy"]).catch(() => [])
 }
@@ -100,7 +111,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
   if (filters.when === "ovaj-mjesec") params.set("month", "true")
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
-  return fetchApi<ApiEvent[]>(path).then((rows) => rows.map(toCroEvent).filter(notPast)).catch(() => fallbackEvents.filter(notPast))
+  return fetchApi<ApiEvent[]>(path).then((rows) => rows.map(toCroEvent).filter(notPast)).catch(() => fallbackEventsForFilters(filters))
 }
 
 export async function fetchEvent(slug: string) {
@@ -142,6 +153,61 @@ function notPast(e: CroEvent): boolean {
   return e.endDate ? e.endDate >= today : e.date >= today
 }
 
+function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
+  const today = toZagrebDate(new Date())
+  const q = filters.q?.trim().toLowerCase()
+  const region = filters.region ? (reverseRegionMap[filters.region] || filters.region) : undefined
+  return fallbackEvents
+    .filter(notPast)
+    .filter((event) => {
+      if (filters.category && !eventHasCategory(event, filters.category)) return false
+      if (region && (reverseRegionMap[event.region] || event.region) !== region) return false
+      if (filters.city && citySlugForFallback(event) !== filters.city && event.city.toLowerCase() !== filters.city.toLowerCase()) return false
+      if (filters.free && !event.free) return false
+      if (filters.kids && !event.forKids) return false
+      if (filters.outdoor && !event.outdoor) return false
+      if (filters.when === "danas" && !(event.date <= today && (event.endDate || event.date) >= today)) return false
+      if (filters.when === "ovaj-vikend" && !fallbackOccursThisWeekend(event, today)) return false
+      if (filters.when === "ovaj-mjesec" && event.date.slice(0, 7) !== today.slice(0, 7)) return false
+      if (q) {
+        const hay = [
+          event.title,
+          event.description,
+          event.longDescription,
+          event.city,
+          event.citySlug,
+          event.venue,
+          event.address,
+          event.organizer,
+          event.source,
+          event.price,
+          event.region,
+          event.category,
+          ...event.categories.flatMap((category) => [category.slug, category.name]),
+        ].filter(Boolean).join(" ").toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+}
+
+function citySlugForFallback(event: CroEvent) {
+  return event.citySlug || slugifyLabel(event.city)
+}
+
+function fallbackOccursThisWeekend(event: CroEvent, today: string) {
+  const now = new Date(`${today}T00:00:00`)
+  const day = now.getDay()
+  const daysUntilSaturday = (6 - day + 7) % 7
+  const saturday = new Date(now)
+  saturday.setDate(now.getDate() + daysUntilSaturday)
+  const sunday = new Date(saturday)
+  sunday.setDate(saturday.getDate() + 1)
+  const start = toZagrebDate(saturday)
+  const end = toZagrebDate(sunday)
+  return event.date <= end && (event.endDate || event.date) >= start
+}
+
 async function fetchApi<T>(path: string, revalidate = 60, tags: string[] = ["events"]): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate, tags } })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
@@ -172,6 +238,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
     categories: allCats,
     region,
     city: event.cityName ?? event.city?.name ?? "",
+    citySlug: event.city?.slug || (event.cityName ? slugifyLabel(event.cityName) : undefined),
     venue: event.venue?.name || event.cityName || event.city?.name || "",
     date: toZagrebDate(displayStart),
     endDate: ends ? toZagrebDate(ends) : undefined,

@@ -82,7 +82,7 @@ export class PublicFeedService {
     // Only list taxonomy pages that currently have at least one visible event —
     // empty listing pages are noindexed (see web app/*/[slug]/page.tsx) and
     // shouldn't be submitted to crawlers via the sitemap either.
-    const [events, regions, cities, categories] = await Promise.all([
+    const [events, regions, cities, categories, comboEvents] = await Promise.all([
       this.prisma.event.findMany({
         where: visibleEventWhere,
         select: { slug: true, updatedAt: true },
@@ -92,9 +92,42 @@ export class PublicFeedService {
       this.prisma.category.findMany({
         where: { OR: [{ events: { some: visibleEventWhere } }, { eventCats: { some: { event: visibleEventWhere } } }] },
         select: { slug: true },
-      })
+      }),
+      this.prisma.event.findMany({
+        where: visibleEventWhere,
+        select: {
+          city: { select: { slug: true } },
+          region: { select: { slug: true } },
+          category: { select: { slug: true } },
+          categories: { select: { category: { select: { slug: true } } } },
+        },
+      }),
     ]);
-    return { events, regions, cities, categories };
+    const cityCategoryKeys = new Set<string>();
+    const regionCategoryKeys = new Set<string>();
+
+    for (const event of comboEvents) {
+      const categorySlugs = new Set([
+        event.category?.slug,
+        ...event.categories.map((eventCategory) => eventCategory.category.slug),
+      ].filter((slug): slug is string => Boolean(slug)));
+
+      for (const categorySlug of categorySlugs) {
+        if (event.city?.slug) cityCategoryKeys.add(`${event.city.slug}::${categorySlug}`);
+        if (event.region?.slug) regionCategoryKeys.add(`${event.region.slug}::${categorySlug}`);
+      }
+    }
+
+    const cityCategories = [...cityCategoryKeys].sort().map((key) => {
+      const [citySlug, categorySlug] = key.split("::");
+      return { citySlug, categorySlug };
+    });
+    const regionCategories = [...regionCategoryKeys].sort().map((key) => {
+      const [regionSlug, categorySlug] = key.split("::");
+      return { regionSlug, categorySlug };
+    });
+
+    return { events, regions, cities, categories, cityCategories, regionCategories };
   }
 
   private async publicWhere(query: Record<string, string | undefined>): Promise<Prisma.EventWhereInput> {
@@ -111,9 +144,21 @@ export class PublicFeedService {
       const textClauses = (term: string): Prisma.EventWhereInput[] => [
         { title: { contains: term, mode: "insensitive" } },
         { description: { contains: term, mode: "insensitive" } },
+        { cityName: { contains: term, mode: "insensitive" } },
+        { address: { contains: term, mode: "insensitive" } },
+        { priceText: { contains: term, mode: "insensitive" } },
+        { sourceUrl: { contains: term, mode: "insensitive" } },
+        { organizer: { name: { contains: term, mode: "insensitive" } } },
+        { organizer: { slug: { contains: term, mode: "insensitive" } } },
+        { organizer: { websiteUrl: { contains: term, mode: "insensitive" } } },
         { city: { name: { contains: term, mode: "insensitive" } } },
         { city: { slug: { contains: term, mode: "insensitive" } } },
         { venue: { name: { contains: term, mode: "insensitive" } } },
+        { venue: { address: { contains: term, mode: "insensitive" } } },
+        { county: { name: { contains: term, mode: "insensitive" } } },
+        { county: { slug: { contains: term, mode: "insensitive" } } },
+        { region: { name: { contains: term, mode: "insensitive" } } },
+        { region: { slug: { contains: term, mode: "insensitive" } } },
         { category: { name: { contains: term, mode: "insensitive" } } },
         { category: { slug: { contains: term, mode: "insensitive" } } },
         { categories: { some: { category: { name: { contains: term, mode: "insensitive" } } } } },

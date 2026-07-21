@@ -80,4 +80,21 @@ describe("public API adapter", () => {
 
     expect(events.length).toBeGreaterThan(0)
   })
+
+  it("applies filters to fallback data when the public API is offline", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")))
+
+    const events = await fetchEvents({ city: "osijek" })
+
+    expect(events).toEqual([])
+  })
+
+  it("searches fallback data across categories and other event fields", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")))
+
+    const events = await fetchEvents({ q: "festivali" })
+
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.some((event) => event.categories.some((category) => category.name === "Festivali"))).toBe(true)
+  })
 })

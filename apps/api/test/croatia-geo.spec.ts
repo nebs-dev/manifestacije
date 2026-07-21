@@ -15,9 +15,17 @@ describe("croatia geo fallback", () => {
     expect(COUNTY_TO_REGION_SLUG[geo!.countyName]).toBe("medimurje-i-zagorje");
   });
 
+  it("maps Drniš to Šibensko-kninska and Dalmacija without network lookup", () => {
+    const geo = fallbackCityGeo("Drniš");
+
+    expect(geo).toEqual(expect.objectContaining({ countyName: "Šibensko-kninska" }));
+    expect(COUNTY_TO_REGION_SLUG[geo!.countyName]).toBe("dalmacija");
+  });
+
   it("normalizes county names returned by external geocoders", () => {
     expect(normalizeCountyName("Primorsko-goranska županija")).toBe("Primorsko-goranska");
     expect(normalizeCountyName("Primorje-Gorski Kotar County")).toBe("Primorsko-goranska");
+    expect(normalizeCountyName("Sibenik-Knin County")).toBe("Šibensko-kninska");
     expect(normalizeCountyName("Varaždinska županija")).toBe("Varaždinska");
   });
 });

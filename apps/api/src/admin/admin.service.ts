@@ -3,6 +3,7 @@ import { EventStatus, EventSourceType, OrganizerStatus } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
+import { COUNTY_TO_REGION_SLUG, lookupCityGeo, normalizeCountyName } from "../common/croatia-geo";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -708,15 +709,17 @@ export class AdminService {
     const existing = await this.prisma.city.findFirst({ where: { name: { equals: cleaned, mode: "insensitive" } } });
     if (existing) return existing;
 
-    const regionClean = regionName?.trim() || "Slavonija i Baranja";
-    const regionSlug = slugify(regionClean) || "slavonija-i-baranja";
+    const geo = countyName || regionName ? null : await lookupCityGeo(cleaned);
+    const countyClean = normalizeCountyName(countyName?.trim() || geo?.countyName || "Nepoznata županija");
+    const resolvedRegionSlug = COUNTY_TO_REGION_SLUG[countyClean];
+    const regionClean = regionName?.trim() || (resolvedRegionSlug ? this.regionNameFromSlug(resolvedRegionSlug) : "Slavonija i Baranja");
+    const regionSlug = resolvedRegionSlug || slugify(regionClean) || "slavonija-i-baranja";
     const region = await this.prisma.region.upsert({
       where: { slug: regionSlug },
       update: {},
       create: { name: regionClean, slug: regionSlug, sortOrder: 999 },
     });
 
-    const countyClean = countyName?.trim() || "Nepoznata županija";
     const countySlug = slugify(countyClean) || "nepoznata-zupanija";
     const county = await this.prisma.county.upsert({
       where: { slug: countySlug },
@@ -725,7 +728,19 @@ export class AdminService {
     });
 
     const citySlug = await uniqueSlug(cleaned, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
-    return this.prisma.city.create({ data: { name: cleaned, slug: citySlug, countyId: county.id } });
+    return this.prisma.city.create({ data: { name: cleaned, slug: citySlug, countyId: county.id, lat: geo?.lat, lng: geo?.lng } });
+  }
+
+  private regionNameFromSlug(slug: string) {
+    return {
+      "slavonija-i-baranja": "Slavonija i Baranja",
+      "zagreb-i-okolica": "Zagreb i okolica",
+      "dalmacija": "Dalmacija",
+      "istra-i-kvarner": "Istra i Kvarner",
+      "sredisnja-hrvatska": "Središnja Hrvatska",
+      "lika-i-gorski-kotar": "Lika i Gorski kotar",
+      "medimurje-i-zagorje": "Međimurje i Zagorje",
+    }[slug] || slug;
   }
 
   private async findOrCreateCategory(category?: string | null) {

@@ -13,6 +13,7 @@ import { TicketLink, MapLink } from "@/components/public/tracked-links";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
 import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
+import { citySlugForEvent } from "@/lib/seo-taxonomy";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 const BACK_LINKS = {
@@ -62,14 +63,17 @@ export default async function EventDetailPage({
   const backLink = backLinkFrom(searchParams);
   const related = await fetchRelatedEvents(event);
   const eventCategories = event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }];
+  const citySlug = event.city ? citySlugForEvent(event) : undefined;
   const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
   const jsonLd = eventToJsonLd({ ...event, image: imageUrl }, WEB_URL);
+  const breadcrumbCrumbs = [
+    { name: "Početna", path: "/" },
+    { name: "Događanja", path: "/eventi" },
+    ...(citySlug && event.city ? [{ name: event.city, path: `/gradovi/${citySlug}` }] : []),
+    { name: event.title, path: `/eventi/${event.slug}` },
+  ];
   const breadcrumbJsonLd = breadcrumbsToJsonLd(
-    [
-      { name: "Početna", path: "/" },
-      { name: "Događanja", path: "/eventi" },
-      { name: event.title, path: `/eventi/${event.slug}` },
-    ],
+    breadcrumbCrumbs,
     WEB_URL
   );
 
@@ -116,6 +120,14 @@ export default async function EventDetailPage({
                 <BreadcrumbLink render={<Link href="/eventi" />}>Događanja</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
+              {citySlug && event.city && (
+                <>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink render={<Link href={`/gradovi/${citySlug}`} />}>{event.city}</BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                </>
+              )}
               <BreadcrumbItem>
                 <BreadcrumbPage className="line-clamp-1">{event.title}</BreadcrumbPage>
               </BreadcrumbItem>

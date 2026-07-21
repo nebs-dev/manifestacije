@@ -4,6 +4,8 @@ import { useState } from "react"
 import Image from "next/image"
 import { gradientFor, categoryName, categoryFallbackImage } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { resolvePosterSource } from "@/components/public/event-poster-source"
+export { resolvePosterSource } from "@/components/public/event-poster-source"
 
 interface EventPosterProps {
   image?: string
@@ -13,24 +15,6 @@ interface EventPosterProps {
   className?: string
   sizes?: string
   priority?: boolean
-}
-
-export type PosterSource = "image" | "fallback" | "placeholder"
-
-/**
- * Decides which of the three image tiers to render: the event's own image,
- * the category fallback image, or the gradient placeholder — falling through
- * in order as each tier's onError fires. Pulled out of the component so the
- * fallback chain is unit-testable without a DOM/jsdom environment.
- */
-export function resolvePosterSource(params: {
-  hasImage: boolean
-  imageFailed: boolean
-  fallbackFailed: boolean
-}): PosterSource {
-  if (params.hasImage && !params.imageFailed) return "image"
-  if (!params.fallbackFailed) return "fallback"
-  return "placeholder"
 }
 
 export function EventPoster({

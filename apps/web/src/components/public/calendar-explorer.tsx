@@ -51,10 +51,12 @@ export function CalendarExplorer({
   events,
   initialYear,
   initialMonth,
+  initialDate,
 }: {
   events: CroEvent[]
   initialYear: number
   initialMonth: number
+  initialDate?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -67,8 +69,8 @@ export function CalendarExplorer({
   }, [])
   const todayKey = dateKey(today)
 
-  const [view, setView] = useState<View>("mjesec")
-  const [anchor, setAnchor] = useState<Date>(() => new Date(initialYear, initialMonth, 1))
+  const [view, setView] = useState<View>("tjedan")
+  const [anchor, setAnchor] = useState<Date>(() => initialDate ? new Date(`${initialDate}T00:00:00`) : new Date(initialYear, initialMonth, 1))
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
@@ -178,11 +180,11 @@ export function CalendarExplorer({
       <div className="min-w-0">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <button onClick={goPrev} aria-label="Prethodni prikaz" className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted">
+            <button onClick={goPrev} aria-label={view === "tjedan" ? "Prethodni tjedan" : "Prethodni mjesec"} className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted">
               <ChevronLeft className="size-5" aria-hidden />
             </button>
             <h2 className="min-w-44 font-heading text-2xl font-semibold md:text-3xl">{heading}</h2>
-            <button onClick={goNext} aria-label="Sljedeci prikaz" className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted">
+            <button onClick={goNext} aria-label={view === "tjedan" ? "Sljedeći tjedan" : "Sljedeći mjesec"} className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted">
               <ChevronRight className="size-5" aria-hidden />
             </button>
           </div>

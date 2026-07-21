@@ -10,6 +10,7 @@ import { OrganizerCta } from "@/components/public/organizer-cta";
 import { EventCard } from "@/components/public/event-card";
 import { fetchEvents, WEB_URL } from "@/lib/public-api";
 import { safeJsonLdString } from "@/lib/event-jsonld";
+import { cityEventSummaries } from "@/lib/seo-taxonomy";
 
 export default async function Home() {
   const events = await fetchEvents();
@@ -37,6 +38,12 @@ export default async function Home() {
     ? featuredStrict.slice(0, 3)
     : [...featuredStrict, ...events.filter((e) => !e.featured)].slice(0, 3);
   const free = events.filter((event) => event.free).slice(0, 3);
+  const cityCounts = cityEventSummaries(events)
+  const osijek = cityCounts.find((city) => city.slug === "osijek")
+  const popularCities = cityCounts.slice(0, 8)
+  if (osijek && !popularCities.some((city) => city.slug === "osijek")) {
+    popularCities.splice(Math.max(popularCities.length - 1, 0), 1, osijek)
+  }
 
   return (
     <>
@@ -62,6 +69,23 @@ export default async function Home() {
             <SectionHeading eyebrow="Po kategoriji" title="Pronađi svoj žanr" description="Koncerti, festivali, radionice i još mnogo toga." />
             <CategoryStrip events={events} />
           </section>
+
+          {popularCities.length > 0 && (
+            <section className="py-14 md:py-20">
+              <SectionHeading eyebrow="Po gradu" title="Događanja po gradovima" description="Brzo pronađi događanja u gradovima s aktualnim programom." href="/gradovi" hrefLabel="Svi gradovi" />
+              <div className="flex flex-wrap gap-2">
+                {popularCities.map((city) => (
+                  <Link
+                    key={city.slug}
+                    href={`/gradovi/${city.slug}`}
+                    className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/40 hover:text-primary"
+                  >
+                    {city.name}
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Bez ulaznice" title="Besplatna događanja" description="Kultura dostupna svima — bez troška." href="/eventi?besplatno=1" hrefLabel="Sva besplatna" />

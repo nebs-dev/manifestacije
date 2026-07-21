@@ -44,6 +44,12 @@ describe("PublicFeedService", () => {
           { description: { contains: "koncert", mode: "insensitive" } },
           { city: { name: { contains: "koncert", mode: "insensitive" } } },
           { venue: { name: { contains: "koncert", mode: "insensitive" } } },
+          { organizer: { name: { contains: "koncert", mode: "insensitive" } } },
+          { category: { name: { contains: "koncert", mode: "insensitive" } } },
+          { categories: { some: { category: { name: { contains: "koncert", mode: "insensitive" } } } } },
+          { region: { name: { contains: "koncert", mode: "insensitive" } } },
+          { county: { name: { contains: "koncert", mode: "insensitive" } } },
+          { address: { contains: "koncert", mode: "insensitive" } },
         ]),
       }),
     }));
@@ -137,7 +143,18 @@ describe("PublicFeedService", () => {
   it("returns sitemap data for published events and taxonomy", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
     const prisma = {
-      event: { findMany: jest.fn().mockResolvedValue([{ slug: "event", updatedAt: new Date("2026-07-01") }]) },
+      event: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([{ slug: "event", updatedAt: new Date("2026-07-01") }])
+          .mockResolvedValueOnce([
+            {
+              city: { slug: "osijek" },
+              region: { slug: "slavonija-i-baranja" },
+              category: { slug: "glazba" },
+              categories: [{ category: { slug: "festivali" } }],
+            },
+          ]),
+      },
       region: { findMany: jest.fn().mockResolvedValue([{ slug: "slavonija" }]) },
       city: { findMany: jest.fn().mockResolvedValue([{ slug: "osijek" }]) },
       category: { findMany: jest.fn().mockResolvedValue([{ slug: "glazba" }]) },
@@ -162,5 +179,13 @@ describe("PublicFeedService", () => {
     expect(data.regions).toHaveLength(1);
     expect(data.cities).toHaveLength(1);
     expect(data.categories).toHaveLength(1);
+    expect(data.cityCategories).toEqual([
+      { citySlug: "osijek", categorySlug: "festivali" },
+      { citySlug: "osijek", categorySlug: "glazba" },
+    ]);
+    expect(data.regionCategories).toEqual([
+      { regionSlug: "slavonija-i-baranja", categorySlug: "festivali" },
+      { regionSlug: "slavonija-i-baranja", categorySlug: "glazba" },
+    ]);
   });
 });

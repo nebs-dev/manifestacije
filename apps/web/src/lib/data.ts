@@ -53,6 +53,7 @@ export interface CroEvent {
   categories: { slug: string; name: string }[]
   region: RegionSlug
   city: string
+  citySlug?: string
   venue: string
   /** ISO date, possibly advanced to today for display if the event is a multi-day event in progress */
   date: string

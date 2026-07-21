@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, RefreshCw, ExternalLink, Search, Save } from "lucide-react"
+import { ChevronDown, RefreshCw, ExternalLink, Search, Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import Image from "next/image"
@@ -139,6 +139,7 @@ export function SourceReview({
   const [search, setSearch] = useState("")
   const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
   const [savingUrl, setSavingUrl] = useState(false)
+  const [reparsing, setReparsing] = useState(false)
 
   useEffect(() => {
     setSourceUrl(source.sourceUrl || "")
@@ -160,9 +161,15 @@ export function SourceReview({
   }, [tab, search, pending, created, ignored, candidates])
 
   async function handleReparse() {
-    const res = await authedFetch(`/api/admin/event-sources/${source.id}/reparse`, { method: "POST" })
-    if (res.ok) { toast.success("Reparsiranje završeno"); onReparse?.() }
-    else toast.error("Reparsiranje neuspješno")
+    if (reparsing) return
+    setReparsing(true)
+    try {
+      const res = await authedFetch(`/api/admin/event-sources/${source.id}/reparse`, { method: "POST" })
+      if (res.ok) { toast.success("Reparsiranje završeno"); onReparse?.() }
+      else toast.error("Reparsiranje neuspješno")
+    } finally {
+      setReparsing(false)
+    }
   }
 
   async function saveSourceUrl() {
@@ -189,9 +196,13 @@ export function SourceReview({
               <CardTitle>{source.subject}</CardTitle>
               <CardDescription>Sažetak izvora i dokazi parsiranja.</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={handleReparse}>
-              <RefreshCw data-icon="inline-start" />
-              Ponovno parsiraj
+            <Button variant="outline" size="sm" onClick={handleReparse} disabled={reparsing}>
+              {reparsing ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              ) : (
+                <RefreshCw data-icon="inline-start" />
+              )}
+              {reparsing ? "Reparsiranje…" : "Ponovno parsiraj"}
             </Button>
           </div>
         </CardHeader>

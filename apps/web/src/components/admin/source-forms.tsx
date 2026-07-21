@@ -2,7 +2,7 @@
 
 import { useRef, useState, type DragEvent, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { ImagePlus, Link2, Plus, Sparkles, X, Upload } from "lucide-react"
+import { ImagePlus, Link2, Loader2, Plus, Sparkles, X, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -125,10 +125,21 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
               )}
             </Field>
 
+            {loading && (
+              <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+                <Loader2 className="size-4 animate-spin" />
+                <span>Parsiranje izvora je u tijeku. Ovo može potrajati nekoliko sekundi.</span>
+              </div>
+            )}
+
             <Field orientation="horizontal" className="justify-end">
               <Button type="submit" disabled={loading || facebook}>
-                <Link2 data-icon="inline-start" />
-                {loading ? "Parsiranje…" : "Parsiraj URL"}
+                {loading ? (
+                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <Link2 data-icon="inline-start" />
+                )}
+                {loading ? "Parsiranje u tijeku…" : "Parsiraj URL"}
               </Button>
             </Field>
           </FieldGroup>
@@ -238,6 +249,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
                   <button
                     type="button"
                     onClick={removeScreenshot}
+                    disabled={loading}
                     className="text-muted-foreground hover:text-foreground"
                     aria-label="Ukloni screenshot"
                   >
@@ -323,6 +335,13 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
               </div>
             </div>
 
+            {loading && (
+              <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+                <Loader2 className="size-4 animate-spin" />
+                <span>AI parsira uneseni sadržaj i kreira izvor. Ne zatvarajte stranicu dok postupak ne završi.</span>
+              </div>
+            )}
+
             <Field orientation="horizontal" className="items-center justify-between">
               <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
                 <input
@@ -336,8 +355,12 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
                 AI parser (Claude)
               </label>
               <Button type="submit" disabled={loading}>
-                <Plus data-icon="inline-start" />
-                {loading ? "Kreiranje…" : "Kreiraj izvor"}
+                {loading ? (
+                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <Plus data-icon="inline-start" />
+                )}
+                {loading ? "Parsiranje i kreiranje…" : "Kreiraj izvor"}
               </Button>
             </Field>
           </FieldGroup>

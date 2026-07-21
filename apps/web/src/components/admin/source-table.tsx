@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Eye, RefreshCw, Globe, Mail, FileText, Trash2 } from "lucide-react"
+import { Eye, RefreshCw, Globe, Mail, FileText, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -65,6 +65,7 @@ export function SourceTable({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [reparsingId, setReparsingId] = useState<string | null>(null)
 
   const allSelected = sources.length > 0 && sources.every((s) => selected.has(s.id))
 
@@ -97,9 +98,15 @@ export function SourceTable({
   }
 
   async function reparse(id: string, label: string) {
-    const res = await authedFetch(`/api/admin/event-sources/${id}/reparse`, { method: "POST" })
-    if (res.ok) { toast.success("Reparsiranje završeno", { description: label }); onReparse?.() }
-    else toast.error("Reparsiranje neuspješno")
+    if (reparsingId) return
+    setReparsingId(id)
+    try {
+      const res = await authedFetch(`/api/admin/event-sources/${id}/reparse`, { method: "POST" })
+      if (res.ok) { toast.success("Reparsiranje završeno", { description: label }); onReparse?.() }
+      else toast.error("Reparsiranje neuspješno")
+    } finally {
+      setReparsingId(null)
+    }
   }
 
   async function deleteSource(id: string, label: string) {
@@ -219,8 +226,14 @@ export function SourceTable({
                         <Eye data-icon="inline-start" />
                         Pregled
                       </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Ponovno parsiraj" onClick={() => reparse(s.id, primary)}>
-                        <RefreshCw />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={reparsingId === s.id ? "Reparsiranje u tijeku" : "Ponovno parsiraj"}
+                        onClick={() => reparse(s.id, primary)}
+                        disabled={reparsingId !== null}
+                      >
+                        {reparsingId === s.id ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                       </Button>
                       <DeleteButton onDelete={() => deleteSource(s.id, primary)} />
                     </div>

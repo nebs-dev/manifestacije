@@ -35,11 +35,17 @@ const COUNTY_ALIASES: Record<string, string> = {
   "primorje-gorski kotar county": "Primorsko-goranska",
   "primorje-gorski kotar": "Primorsko-goranska",
   "primorsko goranska": "Primorsko-goranska",
+  "sibenik-knin county": "Šibensko-kninska",
+  "sibenik-knin": "Šibensko-kninska",
+  "sibenik knin": "Šibensko-kninska",
+  "sibensko kninska": "Šibensko-kninska",
   "varazdin county": "Varaždinska",
   "varazdinska": "Varaždinska",
 };
 
 const CITY_FALLBACKS: Record<string, GeoLookupResult> = {
+  drnis: { countyName: "Šibensko-kninska", lat: 43.8625, lng: 16.1556 },
+  drniš: { countyName: "Šibensko-kninska", lat: 43.8625, lng: 16.1556 },
   rijeka: { countyName: "Primorsko-goranska", lat: 45.3271, lng: 14.4422 },
   varazdin: { countyName: "Varaždinska", lat: 46.3057, lng: 16.3366 },
   varaždin: { countyName: "Varaždinska", lat: 46.3057, lng: 16.3366 },

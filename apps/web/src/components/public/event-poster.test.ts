@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { resolvePosterSource } from "./event-poster"
+import { resolvePosterSource } from "./event-poster-source"
 
 describe("resolvePosterSource", () => {
   it("uses the event image when present and not failed", () => {

@@ -29,11 +29,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
   const now = new Date()
   let year = now.getFullYear()
   let month = now.getMonth()
+  let initialDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
   if (results.length) {
     const earliest = results.reduce((a, b) => (a.date <= b.date ? a : b))
     const d = new Date(`${earliest.date}T00:00:00`)
     year = d.getFullYear()
     month = d.getMonth()
+    initialDate = earliest.date
   }
 
   return (
@@ -48,7 +50,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
           </p>
         </header>
 
-        <CalendarExplorer events={results} initialYear={year} initialMonth={month} />
+        <CalendarExplorer events={results} initialYear={year} initialMonth={month} initialDate={initialDate} />
       </main>
       <SiteFooter />
     </>
