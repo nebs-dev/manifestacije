@@ -23,23 +23,29 @@ export class AdminService {
   ) {}
 
   async pendingCounts(params?: { sourcesSince?: string; eventsSince?: string }) {
-    const sourcesSinceDate = params?.sourcesSince ? new Date(params.sourcesSince) : undefined;
     const eventsSinceDate = params?.eventsSince ? new Date(params.eventsSince) : undefined;
-    const [sources, events] = await Promise.all([
+    const [sources, events, organizers] = await Promise.all([
       this.prisma.eventSource.count({
         where: {
           status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] },
-          ...(sourcesSinceDate ? { createdAt: { gte: sourcesSinceDate } } : {}),
+          adminViewedAt: null,
         },
       }),
       this.prisma.event.count({
         where: {
           status: EventStatus.PENDING_REVIEW,
+          sourceType: "ORGANIZER_FORM",
           ...(eventsSinceDate ? { createdAt: { gte: eventsSinceDate } } : {}),
         },
       }),
+      this.prisma.organizer.count({
+        where: {
+          adminViewedAt: null,
+          users: { some: {} },
+        },
+      }),
     ]);
-    return { sources, events };
+    return { sources, events, organizers };
   }
 
   async bulkAssignCategory(eventIds: number[], categoryId: number, action: "add" | "remove") {
@@ -227,6 +233,10 @@ export class AdminService {
       include: { _count: { select: { users: true } } },
       orderBy: { createdAt: "desc" },
     });
+    const unreadIds = organizers.filter((organizer) => !organizer.adminViewedAt && organizer._count.users > 0).map((organizer) => organizer.id);
+    if (unreadIds.length) {
+      await this.prisma.organizer.updateMany({ where: { id: { in: unreadIds } }, data: { adminViewedAt: new Date() } });
+    }
     // hasUser is the real "claimed" signal — OrganizerStatus (VERIFIED/TRUSTED)
     // is an independent trust badge admins can set without the organizer
     // ever having actually registered.
@@ -235,7 +245,7 @@ export class AdminService {
 
   async createOrganizer(dto: OrganizerAdminDto) {
     const slug = await uniqueSlug(dto.name, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
-    return this.prisma.organizer.create({ data: { ...dto, slug, status: OrganizerStatus.UNCLAIMED } });
+    return this.prisma.organizer.create({ data: { ...dto, slug, status: OrganizerStatus.UNCLAIMED, adminViewedAt: new Date() } });
   }
 
   updateOrganizer(id: number, dto: OrganizerAdminDto) {
@@ -307,7 +317,16 @@ export class AdminService {
     return this.prisma.eventSource.findMany({ include: { event: true, organizer: true }, orderBy: { createdAt: "desc" }, take: 200 });
   }
 
-  getSource(id: number) {
+  async getSource(id: number) {
+    const source = await this.prisma.eventSource.findUnique({ where: { id } });
+    if (!source) return null;
+    if (!source.adminViewedAt) {
+      return this.prisma.eventSource.update({
+        where: { id },
+        data: { adminViewedAt: new Date() },
+        include: { event: true, organizer: true },
+      });
+    }
     return this.prisma.eventSource.findUnique({ where: { id }, include: { event: true, organizer: true } });
   }
 
@@ -329,6 +348,7 @@ export class AdminService {
         sourceUrl: dto.sourceUrl,
         rawText: dto.rawText,
         rawEmailSubject: dto.rawEmailSubject || dto.contextHint || undefined,
+        adminViewedAt: new Date(),
         parsedJson: result as object,
         confidence,
         status,
@@ -391,6 +411,7 @@ export class AdminService {
         type: EventSourceType.URL,
         sourceUrl: dto.sourceUrl,
         rawHtml: rawHtml || undefined,
+        adminViewedAt: new Date(),
         parsedJson: result as object,
         confidence,
         status,

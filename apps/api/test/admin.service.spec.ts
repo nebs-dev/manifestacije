@@ -452,9 +452,10 @@ describe("AdminService.organizers", () => {
     const prisma = {
       organizer: {
         findMany: jest.fn().mockResolvedValue([
-          { id: 1, name: "Claimed via user", status: "UNCLAIMED", _count: { users: 1 } },
-          { id: 2, name: "Verified but never registered", status: "VERIFIED", _count: { users: 0 } },
+          { id: 1, name: "Claimed via user", status: "UNCLAIMED", adminViewedAt: null, _count: { users: 1 } },
+          { id: 2, name: "Verified but never registered", status: "VERIFIED", adminViewedAt: new Date("2026-07-21T10:00:00Z"), _count: { users: 0 } },
         ]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
     const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
@@ -462,9 +463,13 @@ describe("AdminService.organizers", () => {
     const result = await service.organizers();
 
     expect(result).toEqual([
-      { id: 1, name: "Claimed via user", status: "UNCLAIMED", hasUser: true },
-      { id: 2, name: "Verified but never registered", status: "VERIFIED", hasUser: false },
+      { id: 1, name: "Claimed via user", status: "UNCLAIMED", adminViewedAt: null, hasUser: true },
+      { id: 2, name: "Verified but never registered", status: "VERIFIED", adminViewedAt: new Date("2026-07-21T10:00:00Z"), hasUser: false },
     ]);
+    expect(prisma.organizer.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: [1] } },
+      data: { adminViewedAt: expect.any(Date) },
+    });
   });
 });
 

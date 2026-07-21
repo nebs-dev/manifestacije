@@ -34,6 +34,7 @@ export interface EventSource {
   confidence: number
   candidateCount: number
   createdAt: string
+  adminViewedAt: string | null
   rawText?: string
   sourceImageUrl?: string
   organizerName: string | null

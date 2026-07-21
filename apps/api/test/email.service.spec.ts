@@ -56,6 +56,34 @@ describe("EmailService provider selection", () => {
       expect(() => new EmailService()).toThrow(/Missing required email env vars/);
     });
   });
+
+  it("defaults to Resend on Railway production when EMAIL_DELIVERY_MODE is omitted", () => {
+    withEnv({
+      EMAIL_DELIVERY_MODE: undefined,
+      RESEND_API_KEY: "re_test_key",
+      EMAIL_FROM_ADDRESS: "info@manifestacije.hr",
+      PUBLIC_WEB_URL: "https://manifestacije.hr",
+      NODE_ENV: undefined,
+      RAILWAY_ENVIRONMENT_NAME: "production",
+    }, () => {
+      const service = new EmailService();
+      const provider = (service as unknown as { provider: unknown }).provider;
+      expect(provider).toBeInstanceOf(ResendEmailProvider);
+    });
+  });
+
+  it("refuses explicit log mode in production", () => {
+    withEnv({
+      EMAIL_DELIVERY_MODE: "log",
+      RESEND_API_KEY: "re_test_key",
+      EMAIL_FROM_ADDRESS: "info@manifestacije.hr",
+      PUBLIC_WEB_URL: "https://manifestacije.hr",
+      NODE_ENV: "production",
+      RAILWAY_ENVIRONMENT_NAME: undefined,
+    }, () => {
+      expect(() => new EmailService()).toThrow(/EMAIL_DELIVERY_MODE must be set to resend/);
+    });
+  });
 });
 
 describe("EmailService.dispatch (via public send* methods)", () => {

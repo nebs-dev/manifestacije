@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 import { API_URL } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,8 @@ function PasswordInput({ name, placeholder, required, autoComplete }: { name: st
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialEmail = searchParams.get("email")?.trim().toLowerCase() ?? ""
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -83,7 +85,7 @@ export default function RegisterPage() {
         <form onSubmit={submit} className="flex flex-col gap-3">
           <Input name="name" placeholder="Vaše ime i prezime" required />
           <Input name="organizerName" placeholder="Naziv organizatora / udruge" required />
-          <Input name="email" type="email" placeholder="Email" required autoComplete="email" />
+          <Input name="email" type="email" placeholder="Email" required autoComplete="email" defaultValue={initialEmail} />
           <PasswordInput name="password" placeholder="Lozinka (min 8 znakova)" required autoComplete="new-password" />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={loading}>{loading ? "Registracija…" : "Registriraj se"}</Button>

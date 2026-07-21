@@ -16,8 +16,8 @@ export default async function TodayPage() {
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-4 py-10 md:py-14">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Danas</p>
-        <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Dogadanja danas</h1>
-        <p className="mb-8 mt-2 text-muted-foreground">{events.length} dogadanja</p>
+        <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Događanja danas</h1>
+        <p className="mb-8 mt-2 text-muted-foreground">{events.length} događanja</p>
         <ResultsGrid events={events} />
       </main>
       <SiteFooter />

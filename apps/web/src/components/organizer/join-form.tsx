@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react"
 import Link from "next/link"
 import { API_URL } from "@/lib/api"
 
-const GENERIC_MESSAGE = "Ako je moguće potvrditi zahtjev, poslali smo vam poveznicu na unesenu adresu."
+const GENERIC_MESSAGE = "Ako je email već povezan s navedenim organizatorom, poslali smo poveznicu za preuzimanje profila."
 
 type Choice = "unset" | "existing" | "new"
 type Status = "idle" | "loading" | "done" | "error"
@@ -13,6 +13,9 @@ export function JoinForm() {
   const [choice, setChoice] = useState<Choice>("unset")
   const [email, setEmail] = useState("")
   const [status, setStatus] = useState<Status>("idle")
+  const registerHref = email.trim()
+    ? `/organizer/register?email=${encodeURIComponent(email.trim().toLowerCase())}`
+    : "/organizer/register"
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -44,7 +47,7 @@ export function JoinForm() {
           </div>
         </div>
         <h1 className="font-heading text-2xl font-semibold">Dobrodošli, organizatori</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Jeste li već navedeni na Manifestacije.hr?</p>
+        <p className="mt-1 text-sm text-muted-foreground">Ako je vaš profil već naveden, poveznicu možemo poslati samo na email spremljen uz taj profil.</p>
       </div>
 
       {choice === "unset" && (
@@ -54,7 +57,7 @@ export function JoinForm() {
             className="cursor-pointer rounded-lg border border-input bg-card px-4 py-3 text-left text-sm hover:bg-muted"
           >
             <span className="block font-medium">Da, već sam naveden/a</span>
-            <span className="block text-muted-foreground">Netko je već dodao moj program/organizaciju.</span>
+            <span className="block text-muted-foreground">Unijet ću email koji je vjerojatno spremljen uz moj profil.</span>
           </button>
           <Link
             href="/organizer/register"
@@ -112,12 +115,14 @@ export function JoinForm() {
         <div className="flex flex-col gap-4">
           <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-secondary-foreground">{GENERIC_MESSAGE}</div>
           <p className="text-center text-sm text-muted-foreground">
-            Niste dobili ništa? Vjerojatno niste još navedeni —{" "}
-            <Link href="/organizer/register" className="font-medium text-primary hover:underline">
-              registrirajte se
-            </Link>
-            .
+            Niste dobili email? Moguće je da niste još navedeni ili je uz profil spremljen drugi email.
           </p>
+          <Link
+            href={registerHref}
+            className="rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Nastavi registraciju
+          </Link>
         </div>
       )}
     </div>

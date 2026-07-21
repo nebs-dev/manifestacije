@@ -14,6 +14,7 @@ function emailMock(overrides: Record<string, unknown> = {}) {
     organizerClaimTokenTtlMinutes: 30,
     sendOrganizerClaim: jest.fn().mockResolvedValue({ provider: "log" }),
     sendAdminNewSubmission: jest.fn().mockResolvedValue(undefined),
+    sendAdminNewOrganizer: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

@@ -13,6 +13,7 @@ function emailMock(overrides: Record<string, unknown> = {}) {
     passwordResetTokenTtlMinutes: 30,
     sendOrganizerWelcome: jest.fn().mockResolvedValue(undefined),
     sendPasswordReset: jest.fn().mockResolvedValue({ provider: "log" }),
+    sendAdminNewOrganizer: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -98,7 +99,7 @@ describe("AuthService", () => {
       },
       organizer: {
         findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: 5, name: "New Organizer Co" }),
+        create: jest.fn().mockResolvedValue({ id: 5, name: "New Organizer Co", createdAt: new Date("2026-07-21T20:00:00.000Z") }),
       },
     };
     const jwt = { sign: jest.fn().mockReturnValue("signed-token") };
@@ -109,6 +110,14 @@ describe("AuthService", () => {
     await service.register({ name: "New Organizer", organizerName: "New Organizer Co", email: "new@example.hr", password: "secret123" });
 
     expect(email.sendOrganizerWelcome).toHaveBeenCalledWith("new@example.hr", { organizerName: "New Organizer Co", webUrl: "https://manifestacije.hr" });
+    expect(email.sendAdminNewOrganizer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizerName: "New Organizer Co",
+        organizerEmail: "new@example.hr",
+        adminOrganizersUrl: "https://manifestacije.hr/admin/organizers",
+      }),
+      5
+    );
     expect(contacts.syncOrganizerRegistration).toHaveBeenCalledWith(
       expect.objectContaining({ id: 2, email: "new@example.hr" }),
       expect.objectContaining({ id: 5, name: "New Organizer Co" })

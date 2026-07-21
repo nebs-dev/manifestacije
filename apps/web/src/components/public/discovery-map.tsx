@@ -71,7 +71,7 @@ export default function DiscoveryMap({
               {e.city} · {regionName(e.region)}
             </span>
             <span className="mt-1 block text-xs font-medium">{priceLabel(e)}</span>
-            <Link href={`/eventi/${e.slug}`} className="mt-1 block text-xs font-semibold text-blue-700 underline">
+            <Link href={`/eventi/${e.slug}?from=mapa`} className="mt-1 block text-xs font-semibold text-blue-700 underline">
               Pogledaj detalje
             </Link>
           </Popup>

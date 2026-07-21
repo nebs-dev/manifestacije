@@ -65,7 +65,7 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs font-semibold text-accent-foreground">{priceLabel(e)}</span>
                       <Link
-                        href={`/eventi/${e.slug}`}
+                        href={`/eventi/${e.slug}?from=mapa`}
                         className="text-xs font-medium text-primary hover:underline"
                       >
                         Detalji

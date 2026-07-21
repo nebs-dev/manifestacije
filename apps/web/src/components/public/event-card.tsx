@@ -72,7 +72,7 @@ export function EventCard({ event, className }: EventCardProps) {
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
           {(event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }])
             .map((c) => (
-              <CategoryBadge key={c.slug} category={c.slug} />
+              <CategoryBadge key={c.slug} category={c.slug} label={c.name} />
             ))}
         </div>
       </div>

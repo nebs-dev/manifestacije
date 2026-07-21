@@ -16,6 +16,7 @@ export function adaptEventSource(src: BE): EventSource {
     confidence: (src.confidence as number) ?? 0,
     candidateCount: parsedJson?.candidates?.length ?? 0,
     createdAt: src.createdAt as string,
+    adminViewedAt: (src.adminViewedAt as string | null) ?? null,
     rawText: (src.rawText as string) ?? undefined,
     sourceImageUrl: parsedJson?.sourceImageUrl,
     organizerName: (organizer?.name as string) ?? null,

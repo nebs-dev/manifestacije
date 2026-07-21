@@ -3,9 +3,11 @@ import { cn } from "@/lib/utils"
 
 export function CategoryBadge({
   category,
+  label,
   className,
 }: {
   category: string
+  label?: string
   className?: string
 }) {
   return (
@@ -15,7 +17,7 @@ export function CategoryBadge({
         className,
       )}
     >
-      {categoryName(category)}
+      {label || categoryName(category)}
     </span>
   )
 }

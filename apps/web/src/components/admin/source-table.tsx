@@ -173,7 +173,7 @@ export function SourceTable({
             {sources.map((s) => {
               const { primary, secondary } = sourceDisplayName(s)
               return (
-                <TableRow key={s.id} className={selected.has(s.id) ? "bg-muted/30" : undefined}>
+                <TableRow key={s.id} className={selected.has(s.id) ? "bg-muted/30" : !s.adminViewedAt ? "bg-primary/5" : undefined}>
                   <TableCell>
                     <input
                       type="checkbox"
@@ -186,7 +186,7 @@ export function SourceTable({
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5">{typeIcon[s.type] ?? <FileText className="size-3.5 shrink-0 text-muted-foreground" />}</span>
                       <div className="min-w-0">
-                        <Link href={`/admin/sources/${s.id}`} className="block truncate font-medium text-foreground hover:underline">
+                        <Link href={`/admin/sources/${s.id}`} className={`block truncate text-foreground hover:underline ${!s.adminViewedAt ? "font-bold" : "font-medium"}`}>
                           {primary}
                         </Link>
                         {secondary && secondary !== primary && (

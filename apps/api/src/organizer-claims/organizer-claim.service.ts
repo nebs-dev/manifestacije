@@ -4,6 +4,7 @@ import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { generateResetToken, hashResetToken } from "../common/reset-token";
 import { EmailService } from "../email/email.service";
+import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
 import { RequestOrganizerClaimDto, RequestClaimByEmailDto, CompleteOrganizerClaimDto, VerifyOrganizerClaimDto } from "./organizer-claim.dto";
 
@@ -165,6 +166,21 @@ export class OrganizerClaimService {
       await this.contacts.syncClaimedOrganizer(user, organizer);
     } catch (err) {
       this.logger.error(`contacts sync failed trigger=profile_claim error=${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    try {
+      await this.email.sendAdminNewOrganizer(
+        {
+          organizerName: organizer.name,
+          organizerEmail: claim.email,
+          registeredAtLabel: formatHrDate(new Date()),
+          adminOrganizersUrl: `${this.email.webUrl}/admin/organizers`,
+          webUrl: this.email.webUrl,
+        },
+        organizer.id
+      );
+    } catch {
+      // Admin notification failure must never roll back a completed claim.
     }
 
     return { message: "Profil je uspješno preuzet." };

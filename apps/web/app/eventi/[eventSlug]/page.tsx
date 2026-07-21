@@ -15,6 +15,18 @@ import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
+const BACK_LINKS = {
+  kalendar: { href: "/kalendar", label: "Natrag na kalendar" },
+  mapa: { href: "/mapa", label: "Natrag na kartu" },
+  eventi: { href: "/eventi", label: "Natrag" },
+} as const;
+
+function backLinkFrom(searchParams: Record<string, string | string[] | undefined> | undefined) {
+  const source = Array.isArray(searchParams?.from) ? searchParams?.from[0] : searchParams?.from;
+  if (source === "kalendar" || source === "mapa") return BACK_LINKS[source];
+  return BACK_LINKS.eventi;
+}
+
 export async function generateMetadata({ params }: { params: { eventSlug: string } }): Promise<Metadata> {
   const event = await fetchEvent(params.eventSlug);
   if (!event) return { title: "Događanje nije pronađeno" };
@@ -38,9 +50,16 @@ export async function generateMetadata({ params }: { params: { eventSlug: string
   };
 }
 
-export default async function EventDetailPage({ params }: { params: { eventSlug: string } }) {
+export default async function EventDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { eventSlug: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const event = await fetchEvent(params.eventSlug);
   if (!event) notFound();
+  const backLink = backLinkFrom(searchParams);
   const related = await fetchRelatedEvents(event);
   const eventCategories = event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }];
   const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
@@ -67,12 +86,12 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-ink/20" aria-hidden />
           <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-8">
-            <Link href="/eventi" className="absolute left-4 top-6 inline-flex items-center gap-1.5 rounded-full bg-ink/40 px-3 py-1.5 text-sm text-ink-foreground backdrop-blur hover:bg-ink/60">
-              <ArrowLeft className="size-4" aria-hidden /> Natrag
+            <Link href={backLink.href} className="absolute left-4 top-6 inline-flex items-center gap-1.5 rounded-full bg-ink/40 px-3 py-1.5 text-sm text-ink-foreground backdrop-blur hover:bg-ink/60">
+              <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               {eventCategories.map((category) => (
-                <CategoryBadge key={category.slug} category={category.slug} className="border-transparent bg-ink-foreground/15 text-ink-foreground backdrop-blur" />
+                <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground backdrop-blur" />
               ))}
               <PriceBadge free={event.free} price={event.price} />
             </div>
@@ -160,7 +179,7 @@ export default async function EventDetailPage({ params }: { params: { eventSlug:
                   <InfoRow icon={<Tags className="size-5" aria-hidden />} label="Kategorije">
                     <span className="flex flex-wrap gap-1.5">
                       {eventCategories.map((category) => (
-                        <CategoryBadge key={category.slug} category={category.slug} />
+                        <CategoryBadge key={category.slug} category={category.slug} label={category.name} />
                       ))}
                     </span>
                   </InfoRow>

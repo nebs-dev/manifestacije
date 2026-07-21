@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { authedFetch } from "@/lib/admin/api"
+import { formatRelative } from "@/lib/admin/format"
 
 interface Organizer {
   id: number
@@ -29,6 +30,8 @@ interface Organizer {
   phone: string | null
   status: string
   hasUser: boolean
+  adminViewedAt: string | null
+  createdAt: string
 }
 
 type OrgForm = { name: string; email: string; websiteUrl: string; phone: string }
@@ -114,6 +117,7 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
         <TableCell><Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://..." className="h-8" /></TableCell>
         <TableCell><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+385..." className="h-8" /></TableCell>
         <TableCell />
+        <TableCell />
         <TableCell className="text-right">
           <div className="flex items-center justify-end gap-1">
             <Button size="icon-sm" variant="ghost" className="text-success" onClick={save} disabled={busy}><Check /></Button>
@@ -125,15 +129,16 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
   }
 
   return (
-    <TableRow className={selected ? "bg-muted/30" : undefined}>
+    <TableRow className={selected ? "bg-muted/30" : !org.adminViewedAt ? "bg-primary/5" : undefined}>
       <TableCell>
         <input type="checkbox" checked={selected} onChange={onToggle} className="size-4 cursor-pointer rounded border-border accent-primary" />
       </TableCell>
-      <TableCell className="font-medium">{org.name}</TableCell>
+      <TableCell className={!org.adminViewedAt ? "font-bold" : "font-medium"}>{org.name}</TableCell>
       <TableCell className="text-muted-foreground">{org.email ?? "—"}</TableCell>
       <TableCell className="max-w-40 truncate text-muted-foreground">{org.websiteUrl ?? "—"}</TableCell>
       <TableCell className="text-muted-foreground">{org.phone ?? "—"}</TableCell>
       <TableCell><StatusBadge status={org.status} /></TableCell>
+      <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">{formatRelative(org.createdAt)}</TableCell>
       <TableCell className="text-right">
         {resettingPw ? (
           <div className="flex items-center justify-end gap-1">
@@ -191,7 +196,7 @@ function AddRow({ onCreated }: { onCreated: () => void }) {
   if (!open) {
     return (
       <TableRow>
-        <TableCell colSpan={7}>
+        <TableCell colSpan={8}>
           <button onClick={() => setOpen(true)} className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <Plus className="size-3.5" /> Dodaj organizatora
           </button>
@@ -207,6 +212,7 @@ function AddRow({ onCreated }: { onCreated: () => void }) {
       <TableCell><Input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email" className="h-8" /></TableCell>
       <TableCell><Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://..." className="h-8" /></TableCell>
       <TableCell><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+385..." className="h-8" /></TableCell>
+      <TableCell />
       <TableCell />
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
@@ -367,6 +373,7 @@ export default function OrganizersPage() {
                   <TableHead>Web</TableHead>
                   <TableHead>Telefon</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Dodano</TableHead>
                   <TableHead className="text-right">Akcije</TableHead>
                 </TableRow>
               </TableHeader>

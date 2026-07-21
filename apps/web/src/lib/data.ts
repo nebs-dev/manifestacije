@@ -26,6 +26,9 @@ export type RegionSlug =
   | "slavonija"
   | "kvarner"
   | "lika"
+  | "sredisnja"
+  | "medimurje"
+  | "nepoznato"
 
 export interface Category {
   slug: CategorySlug
@@ -169,6 +172,34 @@ export const regions: Region[] = [
     blurb:
       "Zlatne ravnice, tamburica i bogata tradicija. Manifestacije koje slave baštinu i domaće okuse.",
     image: "/images/region-slavonija.jpg",
+  },
+  {
+    slug: "istra",
+    name: "Istra i Kvarner",
+    county: "Rijeka · Pula · Opatija · Rovinj",
+    blurb: "Obala, festivali, gastronomija i kulturna događanja sjevernog Jadrana.",
+    image: "/images/region-istra.jpg",
+  },
+  {
+    slug: "medimurje",
+    name: "Međimurje i Zagorje",
+    county: "Varaždin · Čakovec · Krapina",
+    blurb: "Sjever Hrvatske kroz tradiciju, dvorce, sajmove i gradske programe.",
+    image: "/images/region-zagreb.jpg",
+  },
+  {
+    slug: "sredisnja",
+    name: "Središnja Hrvatska",
+    county: "Karlovac · Sisak · Bjelovar · Koprivnica",
+    blurb: "Kontinentalna događanja, baština i lokalni programi iz središta Hrvatske.",
+    image: "/images/region-zagreb.jpg",
+  },
+  {
+    slug: "nepoznato",
+    name: "Nepoznata regija",
+    county: "Provjeriti lokaciju",
+    blurb: "Događanja za koja regija još nije pouzdano određena.",
+    image: "/placeholder.jpg",
   },
 ]
 

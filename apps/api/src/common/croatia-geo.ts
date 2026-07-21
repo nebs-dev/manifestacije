@@ -3,32 +3,50 @@
 // app's region slugs (defined in prisma/seed.ts) could change.
 export const COUNTY_TO_REGION_SLUG: Record<string, string> = {
   "Grad Zagreb": "zagreb-i-okolica",
-  "Zagrebačka županija": "zagreb-i-okolica",
+  "Zagrebačka": "zagreb-i-okolica",
 
-  "Osječko-baranjska županija": "slavonija-i-baranja",
-  "Vukovarsko-srijemska županija": "slavonija-i-baranja",
-  "Brodsko-posavska županija": "slavonija-i-baranja",
-  "Požeško-slavonska županija": "slavonija-i-baranja",
-  "Virovitičko-podravska županija": "slavonija-i-baranja",
+  "Osječko-baranjska": "slavonija-i-baranja",
+  "Vukovarsko-srijemska": "slavonija-i-baranja",
+  "Brodsko-posavska": "slavonija-i-baranja",
+  "Požeško-slavonska": "slavonija-i-baranja",
+  "Virovitičko-podravska": "slavonija-i-baranja",
 
-  "Splitsko-dalmatinska županija": "dalmacija",
-  "Zadarska županija": "dalmacija",
-  "Šibensko-kninska županija": "dalmacija",
-  "Dubrovačko-neretvanska županija": "dalmacija",
+  "Splitsko-dalmatinska": "dalmacija",
+  "Zadarska": "dalmacija",
+  "Šibensko-kninska": "dalmacija",
+  "Dubrovačko-neretvanska": "dalmacija",
 
-  "Istarska županija": "istra-i-kvarner",
-  "Primorsko-goranska županija": "istra-i-kvarner",
+  "Istarska": "istra-i-kvarner",
+  "Primorsko-goranska": "istra-i-kvarner",
 
-  "Sisačko-moslavačka županija": "sredisnja-hrvatska",
-  "Karlovačka županija": "sredisnja-hrvatska",
-  "Bjelovarsko-bilogorska županija": "sredisnja-hrvatska",
-  "Koprivničko-križevačka županija": "sredisnja-hrvatska",
+  "Sisačko-moslavačka": "sredisnja-hrvatska",
+  "Karlovačka": "sredisnja-hrvatska",
+  "Bjelovarsko-bilogorska": "sredisnja-hrvatska",
+  "Koprivničko-križevačka": "sredisnja-hrvatska",
 
-  "Ličko-senjska županija": "lika-i-gorski-kotar",
+  "Ličko-senjska": "lika-i-gorski-kotar",
 
-  "Međimurska županija": "medimurje-i-zagorje",
-  "Krapinsko-zagorska županija": "medimurje-i-zagorje",
-  "Varaždinska županija": "medimurje-i-zagorje",
+  "Međimurska": "medimurje-i-zagorje",
+  "Krapinsko-zagorska": "medimurje-i-zagorje",
+  "Varaždinska": "medimurje-i-zagorje",
+};
+
+const COUNTY_ALIASES: Record<string, string> = {
+  "primorje-gorski kotar county": "Primorsko-goranska",
+  "primorje-gorski kotar": "Primorsko-goranska",
+  "primorsko goranska": "Primorsko-goranska",
+  "varazdin county": "Varaždinska",
+  "varazdinska": "Varaždinska",
+};
+
+const CITY_FALLBACKS: Record<string, GeoLookupResult> = {
+  rijeka: { countyName: "Primorsko-goranska", lat: 45.3271, lng: 14.4422 },
+  varazdin: { countyName: "Varaždinska", lat: 46.3057, lng: 16.3366 },
+  varaždin: { countyName: "Varaždinska", lat: 46.3057, lng: 16.3366 },
+  pula: { countyName: "Istarska", lat: 44.8666, lng: 13.8496 },
+  zadar: { countyName: "Zadarska", lat: 44.1194, lng: 15.2314 },
+  split: { countyName: "Splitsko-dalmatinska", lat: 43.5081, lng: 16.4402 },
+  dubrovnik: { countyName: "Dubrovačko-neretvanska", lat: 42.6507, lng: 18.0944 },
 };
 
 export type GeoLookupResult = {
@@ -52,7 +70,17 @@ export async function lookupCityGeo(cityName: string): Promise<GeoLookupResult |
     const viaGoogle = await lookupViaGooglePlaces(cityName, apiKey).catch(() => null);
     if (viaGoogle) return viaGoogle;
   }
-  return lookupViaNominatim(cityName).catch(() => null);
+  const viaNominatim = await lookupViaNominatim(cityName).catch(() => null);
+  return viaNominatim ?? fallbackCityGeo(cityName);
+}
+
+export function fallbackCityGeo(cityName: string): GeoLookupResult | null {
+  return CITY_FALLBACKS[normalizeKey(cityName)] ?? null;
+}
+
+export function normalizeCountyName(countyName: string): string {
+  const trimmed = countyName.trim().replace(/\s+County$/i, "").replace(/\s+županija$/i, "");
+  return COUNTY_ALIASES[normalizeKey(trimmed)] ?? trimmed;
 }
 
 async function lookupViaGooglePlaces(cityName: string, apiKey: string): Promise<GeoLookupResult | null> {
@@ -76,7 +104,7 @@ async function lookupViaGooglePlaces(cityName: string, apiKey: string): Promise<
   const county = place.addressComponents?.find((c) => c.types?.includes("administrative_area_level_1"))?.longText;
   if (!county) return null;
 
-  return { countyName: county, lat: place.location.latitude, lng: place.location.longitude };
+  return { countyName: normalizeCountyName(county), lat: place.location.latitude, lng: place.location.longitude };
 }
 
 type NominatimResult = {
@@ -102,5 +130,14 @@ async function lookupViaNominatim(cityName: string): Promise<GeoLookupResult | n
   const county = row?.address?.state;
   if (!row || !county) return null;
 
-  return { countyName: county, lat: parseFloat(row.lat), lng: parseFloat(row.lon) };
+  return { countyName: normalizeCountyName(county), lat: parseFloat(row.lat), lng: parseFloat(row.lon) };
+}
+
+function normalizeKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
 }

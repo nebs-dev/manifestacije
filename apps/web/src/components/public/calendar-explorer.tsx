@@ -323,7 +323,7 @@ function AgendaRow({ event }: { event: CroEvent }) {
   const multiDay = event.endDate && event.endDate !== event.date
   return (
     <li>
-      <Link href={`/eventi/${event.slug}`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
+      <Link href={`/eventi/${event.slug}?from=kalendar`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
         <div className="relative aspect-square overflow-hidden rounded-xl">
           <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
             <EventPoster image={event.image} title={event.title} category={event.category} sizes="96px" />
@@ -341,7 +341,7 @@ function AgendaRow({ event }: { event: CroEvent }) {
           </p>
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             {(event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }]).map((category) => (
-              <CategoryBadge key={category.slug} category={category.slug} />
+              <CategoryBadge key={category.slug} category={category.slug} label={category.name} />
             ))}
             <PriceBadge free={event.free} price={event.price} />
           </div>

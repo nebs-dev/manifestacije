@@ -58,9 +58,9 @@ const regionMap: Record<string, RegionSlug> = {
   "zagreb-i-okolica": "zagreb",
   dalmacija: "dalmacija",
   "istra-i-kvarner": "istra",
-  "sredisnja-hrvatska": "zagreb",
+  "sredisnja-hrvatska": "sredisnja",
   "lika-i-gorski-kotar": "lika",
-  "medimurje-i-zagorje": "zagreb",
+  "medimurje-i-zagorje": "medimurje",
 }
 
 const reverseRegionMap: Record<string, string> = {
@@ -70,6 +70,8 @@ const reverseRegionMap: Record<string, string> = {
   istra: "istra-i-kvarner",
   kvarner: "istra-i-kvarner",
   lika: "lika-i-gorski-kotar",
+  sredisnja: "sredisnja-hrvatska",
+  medimurje: "medimurje-i-zagorje",
 }
 
 export async function fetchCategories(): Promise<PublicCategory[]> {
@@ -152,7 +154,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
   const now = new Date()
   // For ongoing multi-day events, advance display date to today so past start dates don't show
   const displayStart = ends && starts < now ? now : starts
-  const region = regionMap[event.region?.slug || ""] || "slavonija"
+  const region = regionMap[event.region?.slug || ""] || "nepoznato"
 
   // Build categories list from EventCategory join; fall back to singular category
   const rawCats: { slug: string; name: string }[] =

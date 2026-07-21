@@ -142,6 +142,7 @@ model Organizer {
   sources      EventSource[]
   emailContacts EmailContact[]
   claims       OrganizerClaim[]
+  adminViewedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -322,6 +323,7 @@ model EventSource {
   parsedJson      Json?
   confidence      Float?
   status          EventSourceStatus @default(NEW)
+  adminViewedAt   DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

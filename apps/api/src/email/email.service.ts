@@ -11,6 +11,7 @@ import { eventRejectedSubject, eventRejectedHtml, eventRejectedText, type EventR
 import { adminNewSubmissionSubject, adminNewSubmissionHtml, adminNewSubmissionText, type AdminNewSubmissionData } from "./templates/admin-new-submission.template";
 import { passwordResetSubject, passwordResetHtml, passwordResetText, type PasswordResetData } from "./templates/password-reset.template";
 import { organizerClaimSubject, organizerClaimHtml, organizerClaimText, type OrganizerClaimData } from "./templates/organizer-claim.template";
+import { adminNewOrganizerSubject, adminNewOrganizerHtml, adminNewOrganizerText, type AdminNewOrganizerData } from "./templates/admin-new-organizer.template";
 
 /**
  * The only email entry point the rest of the app should use. Every send*
@@ -113,6 +114,17 @@ export class EmailService {
       subject: adminNewSubmissionSubject(data),
       html: adminNewSubmissionHtml(data),
       text: adminNewSubmissionText(data),
+      relatedId,
+    });
+  }
+
+  async sendAdminNewOrganizer(data: AdminNewOrganizerData, relatedId?: number): Promise<void> {
+    await this.dispatch({
+      template: "admin_new_organizer",
+      to: this.config.adminNotificationEmail,
+      subject: adminNewOrganizerSubject(data),
+      html: adminNewOrganizerHtml(data),
+      text: adminNewOrganizerText(data),
       relatedId,
     });
   }

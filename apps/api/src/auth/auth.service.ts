@@ -6,6 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { generateResetToken, hashResetToken } from "../common/reset-token";
 import { EmailService } from "../email/email.service";
+import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
 import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from "./auth.dto";
 
@@ -45,6 +46,21 @@ export class AuthService {
       await this.email.sendOrganizerWelcome(email, { organizerName, webUrl: this.email.webUrl });
     } catch {
       // intentionally swallowed — see comment above
+    }
+
+    try {
+      await this.email.sendAdminNewOrganizer(
+        {
+          organizerName,
+          organizerEmail: email,
+          registeredAtLabel: formatHrDate(user.createdAt ?? new Date()),
+          adminOrganizersUrl: `${this.email.webUrl}/admin/organizers`,
+          webUrl: this.email.webUrl,
+        },
+        organizer.id
+      );
+    } catch {
+      // Admin notification failure must never block registration.
     }
 
     // ResendContactsService guarantees this never throws; the try/catch here

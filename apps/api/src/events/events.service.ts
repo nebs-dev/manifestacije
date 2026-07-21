@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { EventStatus, EventSourceKind, OrganizerStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
-import { COUNTY_TO_REGION_SLUG, lookupCityGeo } from "../common/croatia-geo";
+import { COUNTY_TO_REGION_SLUG, lookupCityGeo, normalizeCountyName } from "../common/croatia-geo";
 import { EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
@@ -173,17 +173,18 @@ export class EventsService {
   // the county isn't in our fixed Croatia mapping (e.g. geocoder returned
   // something unexpected).
   private async resolveCounty(countyName: string) {
-    const existing = await this.prisma.county.findFirst({ where: { name: { equals: countyName, mode: "insensitive" } } });
+    const normalizedCountyName = normalizeCountyName(countyName);
+    const existing = await this.prisma.county.findFirst({ where: { name: { equals: normalizedCountyName, mode: "insensitive" } } });
     if (existing) return existing;
 
-    const regionSlug = COUNTY_TO_REGION_SLUG[countyName];
+    const regionSlug = COUNTY_TO_REGION_SLUG[normalizedCountyName];
     if (!regionSlug) return this.ensureFallbackCounty();
 
     const region = await this.prisma.region.findUnique({ where: { slug: regionSlug } });
     if (!region) return this.ensureFallbackCounty();
 
-    const slug = await uniqueSlug(countyName, async (s) => !!(await this.prisma.county.findUnique({ where: { slug: s } })));
-    return this.prisma.county.create({ data: { name: countyName, slug, regionId: region.id } });
+    const slug = await uniqueSlug(normalizedCountyName, async (s) => !!(await this.prisma.county.findUnique({ where: { slug: s } })));
+    return this.prisma.county.create({ data: { name: normalizedCountyName, slug, regionId: region.id } });
   }
 
   private async resolveCategory(categoryId?: number) {
