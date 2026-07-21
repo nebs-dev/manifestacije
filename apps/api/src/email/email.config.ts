@@ -24,7 +24,7 @@ export function loadEmailConfig(): EmailConfig {
   const deliveryMode = (process.env.EMAIL_DELIVERY_MODE || "log") as EmailProviderName;
   const provider = (process.env.EMAIL_PROVIDER || "resend") as EmailProviderName;
   const fromName = process.env.EMAIL_FROM_NAME || "Manifestacije.hr";
-  const fromAddress = process.env.EMAIL_FROM_ADDRESS || "obavijesti@manifestacije.hr";
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS || "info@manifestacije.hr";
   const replyTo = process.env.EMAIL_REPLY_TO || "info@manifestacije.hr";
   const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "info@manifestacije.hr";
   const publicWebUrl = process.env.PUBLIC_WEB_URL || "http://localhost:3000";

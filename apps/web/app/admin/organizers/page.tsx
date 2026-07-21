@@ -279,15 +279,29 @@ export default function OrganizersPage() {
     failed: number
   }
 
+  // Conservative default for a single click — safe to run again for the
+  // rest of the list (already-invited/already-claimed are skipped
+  // automatically), rather than blasting up to 50 in one go.
+  const BULK_INVITE_BATCH_SIZE = 20
+
   async function bulkInviteUnclaimed() {
     setInviteBusy(true)
     try {
-      const res = await authedFetch("/api/admin/organizers/bulk-invite-unclaimed", { method: "POST" })
+      const res = await authedFetch("/api/admin/organizers/bulk-invite-unclaimed", {
+        method: "POST",
+        body: JSON.stringify({ limit: BULK_INVITE_BATCH_SIZE }),
+      })
       if (!res.ok) { toast.error("Greška pri slanju poziva."); return }
       const stats: BulkInviteStats = await res.json()
+      const remaining = Math.max(stats.eligible - stats.invited, 0)
       toast.success(
         `Pozvano ${stats.invited} organizatora`,
-        { description: `Već imaju aktivan poziv: ${stats.activeInviteSkipped} · Bez emaila: ${stats.missingEmail} · Neuspjelo: ${stats.failed}` }
+        {
+          description: [
+            `Već imaju aktivan poziv: ${stats.activeInviteSkipped} · Bez emaila: ${stats.missingEmail} · Neuspjelo: ${stats.failed}`,
+            remaining > 0 ? `Još ${remaining} čeka — klikni ponovno za sljedeću rundu.` : null,
+          ].filter(Boolean).join(" "),
+        }
       )
       load()
     } catch {
@@ -307,7 +321,7 @@ export default function OrganizersPage() {
         actions={
           inviteConfirming ? (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Pozvati sve nepreuzete organizatore s emailom (do 50)?</span>
+              <span className="text-muted-foreground">Pozvati do {BULK_INVITE_BATCH_SIZE} nepreuzetih organizatora s emailom? Sigurno je pokrenuti opet za ostatak.</span>
               <Button size="sm" onClick={bulkInviteUnclaimed} disabled={inviteBusy}>Da, pozovi</Button>
               <Button size="sm" variant="ghost" onClick={() => setInviteConfirming(false)} disabled={inviteBusy}>Odustani</Button>
             </div>

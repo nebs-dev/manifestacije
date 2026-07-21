@@ -6,7 +6,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-white/10 bg-ink text-ink-foreground">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Link href="/" className="flex items-center gap-2">
               <Image src="/logo/logo.svg" alt="Manifestacije" width={36} height={36} className="size-9 rounded-xl" />
@@ -40,6 +40,39 @@ export function SiteFooter() {
 
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
+              Otkrij
+            </h3>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              <li>
+                <Link href="/danas" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Danas
+                </Link>
+              </li>
+              <li>
+                <Link href="/ovaj-vikend" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Ovaj vikend
+                </Link>
+              </li>
+              <li>
+                <Link href="/kalendar" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Kalendar
+                </Link>
+              </li>
+              <li>
+                <Link href="/gradovi" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Gradovi
+                </Link>
+              </li>
+              <li>
+                <Link href="/regije" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Regije
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-muted">
               Platforma
             </h3>
             <ul className="mt-4 space-y-2.5 text-sm">
@@ -59,18 +92,8 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/pravila-privatnosti" className="text-ink-foreground/80 transition-colors hover:text-accent">
-                  Privatnost
-                </Link>
-              </li>
-              <li>
-                <Link href="/uvjeti-koristenja" className="text-ink-foreground/80 transition-colors hover:text-accent">
-                  Uvjeti korištenja
-                </Link>
-              </li>
-              <li>
-                <Link href="/kolacici" className="text-ink-foreground/80 transition-colors hover:text-accent">
-                  Kolačići
+                <Link href="/organizer/login" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Prijava organizatora
                 </Link>
               </li>
             </ul>

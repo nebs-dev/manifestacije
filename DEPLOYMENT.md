@@ -25,12 +25,12 @@ RESEND_API_KEY=<resend api key>
 EMAIL_PROVIDER=resend
 EMAIL_DELIVERY_MODE=resend
 EMAIL_FROM_NAME=Manifestacije.hr
-EMAIL_FROM_ADDRESS=obavijesti@manifestacije.hr
+EMAIL_FROM_ADDRESS=info@manifestacije.hr
 EMAIL_REPLY_TO=info@manifestacije.hr
 ADMIN_NOTIFICATION_EMAIL=info@manifestacije.hr
 PASSWORD_RESET_TOKEN_TTL_MINUTES=30
 PASSWORD_RESET_URL=https://manifestacije.hr/reset-password
-ORGANIZER_CLAIM_TOKEN_TTL_MINUTES=30
+ORGANIZER_CLAIM_TOKEN_TTL_MINUTES=10080
 ORGANIZER_CLAIM_URL=https://manifestacije.hr/preuzmi-profil
 RESEND_WEBHOOK_SECRET=<resend webhook signing secret>
 ```
@@ -114,9 +114,10 @@ not send newsletters/broadcasts and does not receive mail.
 - **PrivateEmail** remains the real inbox for `info@manifestacije.hr` and
   handles all incoming mail. Nothing about incoming mail changes.
 - **Resend** only sends outbound transactional email from
-  `obavijesti@manifestacije.hr` on the verified `manifestacije.hr` domain.
-  Inbound receiving on Resend must stay disabled — do not add MX records for
-  Resend.
+  `info@manifestacije.hr` on the verified `manifestacije.hr` domain. Domain
+  verification (SPF/DKIM) authorizes sending from any address on the domain
+  regardless of which mailbox provider receives replies to it. Inbound
+  receiving on Resend must stay disabled — do not add MX records for Resend.
 - Marketing campaigns/broadcasts are **not** built into the app. They're
   managed manually in the Resend dashboard if/when needed later.
 
@@ -127,7 +128,7 @@ RESEND_API_KEY=<resend api key>
 EMAIL_PROVIDER=resend
 EMAIL_DELIVERY_MODE=resend
 EMAIL_FROM_NAME=Manifestacije.hr
-EMAIL_FROM_ADDRESS=obavijesti@manifestacije.hr
+EMAIL_FROM_ADDRESS=info@manifestacije.hr
 EMAIL_REPLY_TO=info@manifestacije.hr
 ADMIN_NOTIFICATION_EMAIL=info@manifestacije.hr
 PUBLIC_WEB_URL=https://manifestacije.hr
@@ -203,7 +204,10 @@ events) start `UNCLAIMED`. An organizer can take ownership at
 `/organizatori/<slug>/preuzmi`:
 
 - if the submitted email exactly matches the stored `Organizer.email`, a
-  single-use, SHA-256-hashed, 30-minute claim link is emailed automatically
+  single-use, SHA-256-hashed claim link (valid for
+  `ORGANIZER_CLAIM_TOKEN_TTL_MINUTES`, 7 days by default — longer than the
+  password-reset TTL since this is an invite people check at their own pace)
+  is emailed automatically
 - otherwise the request is queued for admin review at
   `/admin/organizer-claims` — the admin can approve (re-sends the same kind
   of link to the submitted address) or reject
