@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma, EventStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { currentWeekendRange } from "../common/weekend";
 
 const eventInclude = {
   organizer: true,
@@ -187,14 +188,7 @@ export class PublicFeedService {
       end.setHours(23, 59, 59, 999);
       this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.weekend === "true") {
-      const start = new Date(now);
-      const day = start.getDay();
-      const daysUntilSaturday = (6 - day + 7) % 7;
-      start.setDate(start.getDate() + daysUntilSaturday);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 1);
-      end.setHours(23, 59, 59, 999);
+      const { start, end } = currentWeekendRange(now);
       this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.month === "true") {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);

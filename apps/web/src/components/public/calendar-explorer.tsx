@@ -15,6 +15,7 @@ import {
   WEEKDAY_SHORT_HR,
 } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { currentWeekendDisplayRange } from "@/lib/weekend"
 import { CategoryBadge, PriceBadge } from "./badges"
 import { EventFilters } from "./event-filters"
 import { EventPoster } from "./event-poster"
@@ -74,10 +75,7 @@ export function CalendarExplorer({
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
-  const thisSaturday = useMemo(() => {
-    const md = (today.getDay() + 6) % 7
-    return addDays(today, (5 - md + 7) % 7)
-  }, [today])
+  const weekend = useMemo(() => currentWeekendDisplayRange(today), [today])
 
   const visibleDays = useMemo(() => {
     if (view === "tjedan") {
@@ -121,14 +119,14 @@ export function CalendarExplorer({
       setAnchor(today)
       setSelectedDay(todayKey)
     } else {
-      setAnchor(thisSaturday)
-      setSelectedDay(dateKey(thisSaturday))
+      setAnchor(weekend.friday)
+      setSelectedDay(dateKey(weekend.friday))
     }
   }
 
   const presetActive = {
     danas: view === "tjedan" && selectedDay === todayKey,
-    vikend: view === "tjedan" && selectedDay === dateKey(thisSaturday),
+    vikend: view === "tjedan" && selectedDay === dateKey(weekend.friday),
     mjesec: view === "mjesec" && sameMonth(anchor, today),
   }
 

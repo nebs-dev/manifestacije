@@ -1,4 +1,5 @@
 import { cloudinaryImage, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { eventOccursDuringCurrentWeekend } from "./weekend"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000"
@@ -167,7 +168,7 @@ function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
       if (filters.kids && !event.forKids) return false
       if (filters.outdoor && !event.outdoor) return false
       if (filters.when === "danas" && !(event.date <= today && (event.endDate || event.date) >= today)) return false
-      if (filters.when === "ovaj-vikend" && !fallbackOccursThisWeekend(event, today)) return false
+      if (filters.when === "ovaj-vikend" && !eventOccursDuringCurrentWeekend(event)) return false
       if (filters.when === "ovaj-mjesec" && event.date.slice(0, 7) !== today.slice(0, 7)) return false
       if (q) {
         const hay = [
@@ -193,19 +194,6 @@ function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
 
 function citySlugForFallback(event: CroEvent) {
   return event.citySlug || slugifyLabel(event.city)
-}
-
-function fallbackOccursThisWeekend(event: CroEvent, today: string) {
-  const now = new Date(`${today}T00:00:00`)
-  const day = now.getDay()
-  const daysUntilSaturday = (6 - day + 7) % 7
-  const saturday = new Date(now)
-  saturday.setDate(now.getDate() + daysUntilSaturday)
-  const sunday = new Date(saturday)
-  sunday.setDate(saturday.getDate() + 1)
-  const start = toZagrebDate(saturday)
-  const end = toZagrebDate(sunday)
-  return event.date <= end && (event.endDate || event.date) >= start
 }
 
 async function fetchApi<T>(path: string, revalidate = 60, tags: string[] = ["events"]): Promise<T> {

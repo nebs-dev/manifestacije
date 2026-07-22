@@ -1,4 +1,5 @@
 import { EventStatus } from "@prisma/client";
+import { currentWeekendRange } from "../src/common/weekend";
 import { PublicFeedService } from "../src/public-feed/public-feed.service";
 
 describe("PublicFeedService", () => {
@@ -109,7 +110,8 @@ describe("PublicFeedService", () => {
   });
 
   it("builds today, weekend and explicit date range filters deterministically", async () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 6, 1, 12, 0, 0, 0));
+    const now = new Date("2026-07-01T10:00:00.000Z");
+    jest.useFakeTimers().setSystemTime(now);
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) } };
     const service = new PublicFeedService(prisma as never);
 
@@ -124,8 +126,9 @@ describe("PublicFeedService", () => {
     ]));
 
     await service.events({ weekend: "true" });
+    const weekend = currentWeekendRange(now);
     expect(prisma.event.findMany.mock.calls[1][0].where.AND).toEqual(expect.arrayContaining([
-      overlap(new Date(2026, 6, 4, 0, 0, 0, 0), new Date(2026, 6, 5, 23, 59, 59, 999)),
+      overlap(weekend.start, weekend.end),
     ]));
 
     await service.events({ month: "true" });

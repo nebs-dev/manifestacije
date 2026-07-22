@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/eventi", label: "Događaji" },
+  { href: "/ovaj-vikend", label: "Ovaj vikend" },
   { href: "/kalendar", label: "Kalendar" },
   { href: "/mapa", label: "Karta" },
 ];
