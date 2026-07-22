@@ -41,6 +41,10 @@ const COUNTY_ALIASES: Record<string, string> = {
   "sibensko kninska": "Šibensko-kninska",
   "varazdin county": "Varaždinska",
   "varazdinska": "Varaždinska",
+  "osijek-baranja county": "Osječko-baranjska",
+  "osijek-baranja": "Osječko-baranjska",
+  "osijek baranja": "Osječko-baranjska",
+  "osjecko baranjska": "Osječko-baranjska",
 };
 
 const CITY_FALLBACKS: Record<string, GeoLookupResult> = {
@@ -49,6 +53,8 @@ const CITY_FALLBACKS: Record<string, GeoLookupResult> = {
   rijeka: { countyName: "Primorsko-goranska", lat: 45.3271, lng: 14.4422 },
   varazdin: { countyName: "Varaždinska", lat: 46.3057, lng: 16.3366 },
   varaždin: { countyName: "Varaždinska", lat: 46.3057, lng: 16.3366 },
+  belisce: { countyName: "Osječko-baranjska", lat: 45.6809, lng: 18.4056 },
+  belišće: { countyName: "Osječko-baranjska", lat: 45.6809, lng: 18.4056 },
   pula: { countyName: "Istarska", lat: 44.8666, lng: 13.8496 },
   zadar: { countyName: "Zadarska", lat: 44.1194, lng: 15.2314 },
   split: { countyName: "Splitsko-dalmatinska", lat: 43.5081, lng: 16.4402 },

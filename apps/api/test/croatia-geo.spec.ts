@@ -22,10 +22,18 @@ describe("croatia geo fallback", () => {
     expect(COUNTY_TO_REGION_SLUG[geo!.countyName]).toBe("dalmacija");
   });
 
+  it("maps Belišće to Osječko-baranjska and Slavonija/Baranja without network lookup", () => {
+    const geo = fallbackCityGeo("Belišće");
+
+    expect(geo).toEqual(expect.objectContaining({ countyName: "Osječko-baranjska" }));
+    expect(COUNTY_TO_REGION_SLUG[geo!.countyName]).toBe("slavonija-i-baranja");
+  });
+
   it("normalizes county names returned by external geocoders", () => {
     expect(normalizeCountyName("Primorsko-goranska županija")).toBe("Primorsko-goranska");
     expect(normalizeCountyName("Primorje-Gorski Kotar County")).toBe("Primorsko-goranska");
     expect(normalizeCountyName("Sibenik-Knin County")).toBe("Šibensko-kninska");
     expect(normalizeCountyName("Varaždinska županija")).toBe("Varaždinska");
+    expect(normalizeCountyName("Osijek-Baranja County")).toBe("Osječko-baranjska");
   });
 });

@@ -28,7 +28,7 @@ type NomResult = {
   }
 }
 
-type SavedVenue = { label: string; lat: number; lng: number }
+type SavedVenue = { label: string; lat: number; lng: number; cityName?: string }
 
 function label(r: NomResult): string {
   const a = r.address
@@ -151,7 +151,7 @@ export function LocationAutocomplete({
               {saved.map((v, i) => (
                 <li key={`s${i}`}>
                   <button type="button" onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pick(v.label, v.lat, v.lng)}
+                    onClick={() => pick(v.label, v.lat, v.lng, v.cityName)}
                     className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
                     <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
                     <span className="truncate">{v.label}</span>

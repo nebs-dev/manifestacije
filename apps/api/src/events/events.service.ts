@@ -75,7 +75,11 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id } });
     if (!current) throw new NotFoundException("Event not found");
-    const city = dto.cityId || dto.cityName ? await this.resolveCity(dto) : null;
+    const cityLookup = {
+      cityId: dto.cityId,
+      cityName: dto.cityName || (!current.cityId && dto.venueName ? current.cityName ?? undefined : undefined),
+    };
+    const city = cityLookup.cityId || cityLookup.cityName ? await this.resolveCity(cityLookup) : null;
     const data: Record<string, unknown> = {
       title: dto.title,
       description: dto.description,
@@ -114,8 +118,8 @@ export class EventsService {
     }
     if ("venueName" in dto) {
       if (dto.venueName) {
-        const effectiveCityId = (city?.id ?? current.cityId)!;
-        const venueCity = city ?? await this.prisma.city.findUnique({ where: { id: effectiveCityId } });
+        const effectiveCityId = city?.id ?? current.cityId;
+        const venueCity = city ?? (effectiveCityId ? await this.prisma.city.findUnique({ where: { id: effectiveCityId } }) : null);
         if (venueCity) {
           const venueSlug = slugify(dto.venueName);
           const venue = await this.prisma.venue.upsert({

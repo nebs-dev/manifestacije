@@ -661,6 +661,7 @@ export class AdminService {
       label: [v.name, v.address, v.city.name].filter(Boolean).join(", "),
       lat: v.lat!,
       lng: v.lng!,
+      cityName: v.city.name,
     }));
   }
 

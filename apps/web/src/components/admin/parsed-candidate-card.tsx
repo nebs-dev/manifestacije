@@ -176,7 +176,7 @@ export function ParsedCandidateCard({
               startsAt: fromDateTimeLocal(form.startsAt),
               endsAt: fromDateTimeLocal(form.endsAt),
               isAllDay: form.isAllDay,
-              city: form.city,
+              city: location?.cityName || form.city,
               venueName: form.venueName,
               address: location?.address,
               lat: location?.lat,

@@ -140,6 +140,7 @@ export function EventEditForm({
           title: form.title,
           description: form.description,
           cityId: event._cityId,
+          cityName: location?.cityName || event.city || undefined,
           categoryId: primaryCategoryId,
           categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
           startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,

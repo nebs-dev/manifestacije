@@ -124,6 +124,49 @@ describe("EventsService image fields", () => {
     });
   });
 
+  it("resolves existing city/region when adding a custom venue to a cityName-only event", async () => {
+    const city = { id: 7, name: "Belišće", countyId: 8, county: { regionId: 1 } };
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, cityName: "Belišće" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+      city: {
+        findFirst: jest.fn().mockResolvedValue(city),
+      },
+      venue: {
+        upsert: jest.fn().mockResolvedValue({ id: 12 }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, {
+      venueName: "Park hrvatskih branitelja",
+      address: "Belišće, Belišće",
+      lat: 45.6809,
+      lng: 18.4056,
+    });
+
+    expect(prisma.city.findFirst).toHaveBeenCalledWith({
+      where: { name: { equals: "Belišće", mode: "insensitive" } },
+      include: { county: true },
+    });
+    expect(prisma.venue.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { slug_cityId: { slug: "park-hrvatskih-branitelja", cityId: 7 } },
+      create: expect.objectContaining({ name: "Park hrvatskih branitelja", cityId: 7 }),
+    }));
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        cityName: "Belišće",
+        cityId: 7,
+        countyId: 8,
+        regionId: 1,
+        venueId: 12,
+      }),
+    });
+  });
+
   it("clears endsAt when explicitly set to null (e.g. duplicated event with a stale end date)", async () => {
     const prisma = {
       event: {
