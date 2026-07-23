@@ -8,6 +8,7 @@
     "lint": "pnpm --recursive lint",
     "prisma:migrate": "pnpm --filter api prisma:migrate",
     "prisma:seed": "pnpm --filter api prisma:seed",
+    "locations:repair": "pnpm --filter api locations:repair -- --apply",
     "smoke:ingestion": "node scripts/smoke-ingestion.mjs"
   },
   "devDependencies": {

@@ -2,8 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
-import { slugify, uniqueSlug } from "../common/slug";
-import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionNameFromSlug, regionSlugForCounty } from "../common/croatia-geo";
+import { uniqueSlug } from "../common/slug";
+import { findOrCreateCity } from "../common/city-resolver";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -719,33 +719,8 @@ export class AdminService {
     return organizer.id;
   }
 
-  private async findOrCreateCity(name: string, countyName?: string, regionName?: string) {
-    const cleaned = name.trim();
-    const existing = await this.prisma.city.findFirst({ where: { name: { equals: cleaned, mode: "insensitive" } } });
-    if (existing) return existing;
-
-    const cleanRegionSlug = regionName ? slugify(regionName) : undefined;
-    const usableRegionSlug = cleanRegionSlug && KNOWN_REGION_SLUGS.has(cleanRegionSlug) ? cleanRegionSlug : undefined;
-    const geo = countyName || usableRegionSlug ? null : await lookupCityGeo(cleaned);
-    const countyClean = normalizeCountyName(countyName?.trim() || geo?.countyName || "Nepoznata županija");
-    const resolvedRegionSlug = regionSlugForCounty(countyClean);
-    const regionSlug = resolvedRegionSlug || usableRegionSlug || "slavonija-i-baranja";
-    const regionClean = regionNameFromSlug(regionSlug) || "Slavonija i Baranja";
-    const region = await this.prisma.region.upsert({
-      where: { slug: regionSlug },
-      update: {},
-      create: { name: regionClean, slug: regionSlug, sortOrder: 999 },
-    });
-
-    const countySlug = slugify(countyClean) || "nepoznata-zupanija";
-    const county = await this.prisma.county.upsert({
-      where: { slug: countySlug },
-      update: {},
-      create: { name: countyClean, slug: countySlug, regionId: region.id },
-    });
-
-    const citySlug = await uniqueSlug(cleaned, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
-    return this.prisma.city.create({ data: { name: cleaned, slug: citySlug, countyId: county.id, lat: geo?.lat, lng: geo?.lng } });
+  private findOrCreateCity(name: string, countyName?: string, regionName?: string) {
+    return findOrCreateCity(this.prisma, name, countyName, regionName);
   }
 
   private async findOrCreateCategory(category?: string | null) {

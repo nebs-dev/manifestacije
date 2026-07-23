@@ -80,11 +80,19 @@ pnpm --filter api prisma:seed
 
 For production, set `SEED_DEMO_DATA=false` before seed if demo events should not be created.
 
-Railway pre-deploy command can run both root scripts:
+Railway pre-deploy command can run all three root scripts:
 
 ```bash
-pnpm prisma:migrate && pnpm prisma:seed
+pnpm prisma:migrate && pnpm prisma:seed && pnpm locations:repair
 ```
+
+`locations:repair` self-heals any City stuck on a bad/placeholder region
+(from an old failed geocode or an older version of the resolution logic) by
+re-geocoding it — see "Event Location & Region Resolution" below. It's
+idempotent and fast when nothing's broken, so it's safe to run on every
+deploy. New events also self-heal the city they use the moment it's
+referenced again, independent of this — this pre-deploy run is a sweep for
+cities nothing has touched since the last fix.
 
 ## Vercel Web
 
@@ -283,6 +291,40 @@ The Prisma seed is safe for Railway staging:
 - demo organizers/events run only when `SEED_DEMO_DATA=true`
 - demo records use stable slugs and `upsert`, so reruns do not duplicate them
 - seed does not delete existing data
+
+## Event Location & Region Resolution
+
+A City's county/region is resolved **once**, the first time that city name
+is saved (either the AI parser/admin gives an explicit county/region, or the
+app live-geocodes the city name via Google Places, falling back to
+Nominatim). That result is cached on the `City` row — a venue address typed
+for a *later* event under the same city always geocodes fine (it's a
+separate, per-request lookup for the pin's coordinates), but it does **not**
+retroactively fix a city that got stuck with a bad county/region from an
+earlier failed or outdated lookup. Symptom: the event detail page shows
+"Nepoznata regija" even though the venue address/map pin is correct.
+
+Two things guard against this:
+
+- **On-demand self-heal**: `findOrCreateCity` (`apps/api/src/common/city-resolver.ts`)
+  checks the existing city's cached region on every use — if it's not one of
+  the app's known regions, it re-geocodes and fixes it on the spot before
+  returning. So the next time *any* event references a broken city, that
+  city fixes itself automatically.
+- **Deploy-time sweep**: `pnpm locations:repair` (wired into the Railway
+  pre-deploy command above) re-geocodes any city nothing has touched since
+  it broke, and fixes affected events' cached county/region to match.
+
+Run it manually against any environment:
+
+```bash
+pnpm --filter api locations:repair            # dry run — prints what it would change
+pnpm --filter api locations:repair -- --apply # writes the changes
+```
+
+Needs that environment's `DATABASE_URL` (e.g. via `railway run` for
+production — see Railway's docs for running one-off commands against a
+service's environment).
 
 ## Smoke Test Checklist
 

@@ -125,7 +125,7 @@ describe("AdminService ingestion workflow", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
-      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11, county: { region: { slug: "slavonija-i-baranja" } } }) },
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
       organizer: {
         findFirst: jest.fn().mockResolvedValue({ id: 33 }),
@@ -194,7 +194,7 @@ describe("AdminService ingestion workflow", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
-      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11, county: { region: { slug: "slavonija-i-baranja" } } }) },
       category: { findUnique: jest.fn().mockResolvedValue({ id: 44 }) },
       organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
     };
@@ -218,7 +218,7 @@ describe("AdminService ingestion workflow", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
-      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11, county: { region: { slug: "slavonija-i-baranja" } } }) },
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
       organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
     };
@@ -237,7 +237,7 @@ describe("AdminService ingestion workflow", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example/original", organizerId: null }),
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
-      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11, county: { region: { slug: "slavonija-i-baranja" } } }) },
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
       organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
     };
@@ -256,7 +256,7 @@ describe("AdminService ingestion workflow", () => {
         findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example/original", organizerId: null }),
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
-      city: { findFirst: jest.fn().mockResolvedValue({ id: 11 }) },
+      city: { findFirst: jest.fn().mockResolvedValue({ id: 11, county: { region: { slug: "slavonija-i-baranja" } } }) },
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
       organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
     };

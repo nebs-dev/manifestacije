@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { KNOWN_REGION_SLUGS } from "../common/croatia-geo";
+import { KNOWN_REGION_SLUGS, lookupCityGeo } from "../common/croatia-geo";
+import { findOrCreateCity, resolveCountyAndRegion } from "../common/city-resolver";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const prisma = new PrismaClient();
 const apply = process.argv.includes("--apply");
@@ -23,7 +26,49 @@ function cityMentionInText(text: string, cityName: string) {
     || normalizedText.endsWith(normalizedCity);
 }
 
+/**
+ * City rows carry a cached county/region link resolved once, when the city
+ * was first created — a bad geocoding result (or an older, less accurate
+ * version of this resolution logic) at that time leaves the city stuck on a
+ * wrong county/region forever after, even though live geocoding for a venue
+ * address on a *new* event under that same city works fine (it's a
+ * completely separate per-request lookup). Re-resolves any city whose
+ * cached region isn't one of the app's known regions.
+ */
+async function repairBrokenCityRegions() {
+  const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
+  let fixed = 0;
+
+  for (const city of cities) {
+    if (KNOWN_REGION_SLUGS.has(city.county.region.slug)) continue;
+
+    console.log(JSON.stringify({
+      step: "city-region-repair",
+      cityId: city.id,
+      cityName: city.name,
+      badCounty: city.county.name,
+      badRegionSlug: city.county.region.slug,
+      applied: apply,
+    }));
+
+    if (!apply) continue;
+
+    const geo = await lookupCityGeo(city.name);
+    await sleep(1100); // be polite to Nominatim's ~1req/sec usage policy
+    const { county } = await resolveCountyAndRegion(prisma, { geo });
+    await prisma.city.update({
+      where: { id: city.id },
+      data: { countyId: county.id, lat: geo?.lat ?? city.lat, lng: geo?.lng ?? city.lng },
+    });
+    fixed += 1;
+  }
+
+  console.log(JSON.stringify({ step: "city-region-repair-summary", fixed, mode: apply ? "apply" : "dry-run" }));
+}
+
 async function main() {
+  await repairBrokenCityRegions();
+
   const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
   const citiesByLongestName = [...cities].sort((a, b) => b.name.length - a.name.length);
   const cityByName = new Map(cities.map((city) => [normalize(city.name), city]));
@@ -43,13 +88,30 @@ async function main() {
       ? citiesByLongestName.find((city) => cityMentionInText(haystack, city.name))
       : undefined;
     const cityFromCityName = event.cityName ? cityByName.get(normalize(event.cityName)) : undefined;
-    const targetCity = cityFromAddress ?? cityFromCityName;
+    let targetCity = cityFromAddress ?? cityFromCityName;
     const cityMismatch = Boolean(targetCity && event.cityId !== targetCity.id);
     const missingRegion = !event.regionId || !event.region?.slug || !KNOWN_REGION_SLUGS.has(event.region.slug);
     const cityNameMismatch = Boolean(event.city && event.cityName && normalize(event.cityName) !== normalize(event.city.name));
 
     if (!cityMismatch && !missingRegion && !cityNameMismatch) continue;
     suggested += 1;
+
+    // No local City row matches at all (e.g. a small village never seeded) —
+    // in --apply mode, resolve it the same way a brand-new event would: live
+    // geocode via findOrCreateCity, which also creates the County/Region if
+    // needed. Skipped in dry-run to avoid burning geocoding API calls/quota
+    // on a preview that might not be applied.
+    let geocoded = false;
+    if (!targetCity && event.cityName && apply) {
+      const created = await findOrCreateCity(prisma, event.cityName);
+      targetCity = await prisma.city.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { county: { include: { region: true } } },
+      });
+      geocoded = true;
+      await sleep(1100); // be polite to Nominatim's ~1req/sec usage policy
+    }
+    const needsGeocoding = !targetCity && Boolean(event.cityName) && !apply;
 
     const suggestion = targetCity
       ? {
@@ -78,8 +140,10 @@ async function main() {
         cityMismatch,
         cityNameMismatch,
         missingRegion,
+        needsGeocoding,
       },
       suggestion,
+      geocoded,
       applied: apply && Boolean(suggestion),
     }));
 
