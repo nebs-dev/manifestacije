@@ -76,7 +76,9 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id } });
     if (!current) throw new NotFoundException("Event not found");
+    console.log(`[updateEvent ${id}] dto.cityName=${dto.cityName} dto.countyName=${dto.countyName} dto.regionSlug=${dto.regionSlug} dto.cityId=${dto.cityId} address=${dto.address?.substring(0, 50)}`);
     const city = await this.resolveCityForWrite(dto, current);
+    console.log(`[updateEvent ${id}] resolved city: ${city?.name} (id=${city?.id} countyId=${city?.countyId})`);
     this.assertPublishableLocation(dto.status, city, current);
 
     let slug: string | undefined;

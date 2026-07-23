@@ -142,7 +142,7 @@ export function EventEditForm({
           slug: form.slug,
           description: form.description,
           cityId: locationChanged ? undefined : event._cityId,
-          cityName: location?.cityName || event.city || undefined,
+          cityName: location ? location.cityName : event.city,
           countyName: location?.countyName,
           regionSlug: location?.regionSlug,
           categoryId: primaryCategoryId,
