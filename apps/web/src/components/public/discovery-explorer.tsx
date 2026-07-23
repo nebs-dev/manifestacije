@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { MapPin, CalendarDays } from "lucide-react"
+import { MapPin, CalendarDays, Search, X } from "lucide-react"
 import { categories, dateParts, eventHasCategory, priceLabel, regionName, type CroEvent } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
@@ -14,19 +14,48 @@ const DiscoveryMap = dynamic(() => import("@/components/public/discovery-map"), 
 
 export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
   const [category, setCategory] = useState<string>("")
+  const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<string | undefined>(undefined)
 
-  const filtered = useMemo(
-    () => (category ? events.filter((e) => eventHasCategory(e, category)) : events),
-    [events, category],
-  )
+  const filtered = useMemo(() => {
+    let result = category ? events.filter((e) => eventHasCategory(e, category)) : events
+    const q = query.trim().toLowerCase()
+    if (q) {
+      result = result.filter((e) =>
+        e.title.toLowerCase().includes(q) ||
+        e.city.toLowerCase().includes(q) ||
+        e.venue.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [events, category, query])
 
   return (
     <div className="grid h-[calc(100vh-4rem)] grid-rows-[auto_1fr] md:grid-rows-1 md:grid-cols-[400px_1fr]">
       {/* List panel */}
       <div className="flex min-h-0 flex-col border-b border-border md:border-b-0 md:border-r">
         <div className="border-b border-border px-4 py-3">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              type="search"
+              placeholder="Pretraži naziv, grad, lokaciju…"
+              aria-label="Pretraži događanja"
+              className="w-full rounded-full border border-input bg-card py-2 pl-9 pr-8 text-sm outline-none ring-ring/40 transition focus:ring-2"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                aria-label="Očisti pretragu"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+          <div className="mt-2.5 flex gap-2 overflow-x-auto no-scrollbar">
             <FilterPill active={category === ""} onClick={() => setCategory("")}>
               Sve
             </FilterPill>
@@ -78,7 +107,7 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
           {filtered.length === 0 && (
             <li className="flex flex-col items-center gap-2 px-4 py-16 text-center text-muted-foreground">
               <CalendarDays className="size-8" aria-hidden />
-              <span className="text-sm">Nema događanja u ovoj kategoriji.</span>
+              <span className="text-sm">{query ? "Nema rezultata za tu pretragu." : "Nema događanja u ovoj kategoriji."}</span>
             </li>
           )}
         </ul>
