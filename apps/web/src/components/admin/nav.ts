@@ -9,6 +9,7 @@ import {
   CopyCheck,
   Tags,
   MapPin,
+  Handshake,
   type LucideIcon,
 } from "lucide-react"
 
@@ -29,5 +30,6 @@ export const navItems: NavItem[] = [
   { label: "Users", href: "/admin/users", icon: UserCog },
   { label: "Duplicates", href: "/admin/duplicates", icon: CopyCheck },
   { label: "Categories", href: "/admin/categories", icon: Tags },
+  { label: "Partners", href: "/admin/partners", icon: Handshake },
   { label: "Regions", href: "/admin/regions", icon: MapPin },
 ]

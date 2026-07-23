@@ -133,3 +133,11 @@ export class RegionDto {
   @IsString() slug!: string;
   @IsOptional() @IsInt() @Min(0) sortOrder?: number;
 }
+
+export class PartnerDto {
+  @IsString() name!: string;
+  @IsString() logoUrl!: string;
+  @IsOptional() @IsString() websiteUrl?: string;
+  @IsOptional() @IsInt() @Min(0) sortOrder?: number;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+}

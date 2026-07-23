@@ -149,6 +149,12 @@ export async function fetchRegions(): Promise<PublicRegion[]> {
   return fetchApi<PublicRegion[]>("/api/public/regions", 3600, ["taxonomy"]).catch(() => [])
 }
 
+export type PublicPartner = { id: number; name: string; logoUrl: string; websiteUrl?: string | null; sortOrder: number }
+
+export async function fetchPartners(): Promise<PublicPartner[]> {
+  return fetchApi<PublicPartner[]>("/api/public/partners", 3600, ["partners"]).catch(() => [])
+}
+
 export async function fetchEvents(filters: PublicFilters = {}) {
   const params = new URLSearchParams()
   if (filters.q) params.set("search", filters.q)

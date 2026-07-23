@@ -23,14 +23,23 @@ type UploadedFile = {
 export class UploadsService {
   async uploadEventImage(file?: UploadedFile): Promise<UploadedEventImage> {
     this.validateEventImage(file);
-
-    const { cloudName, apiKey, apiSecret } = this.cloudinaryCredentials();
     const folder = process.env.CLOUDINARY_UPLOAD_FOLDER || "manifestacije/events";
+    return this.uploadToCloudinary(file!, folder);
+  }
+
+  async uploadPartnerLogo(file?: UploadedFile): Promise<UploadedEventImage> {
+    this.validateEventImage(file);
+    const folder = process.env.CLOUDINARY_PARTNER_FOLDER || "manifestacije/partners";
+    return this.uploadToCloudinary(file!, folder);
+  }
+
+  private async uploadToCloudinary(file: UploadedFile, folder: string): Promise<UploadedEventImage> {
+    const { cloudName, apiKey, apiSecret } = this.cloudinaryCredentials();
 
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const signature = this.sign({ folder, timestamp }, apiSecret);
     const form = new FormData();
-    form.append("file", new Blob([new Uint8Array(file!.buffer)], { type: file!.mimetype }), file!.originalname || "event-image");
+    form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname || "image");
     form.append("api_key", apiKey);
     form.append("timestamp", timestamp);
     form.append("folder", folder);

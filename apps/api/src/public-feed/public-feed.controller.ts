@@ -45,6 +45,11 @@ export class PublicFeedController {
     return this.feed.categories();
   }
 
+  @Get("partners")
+  partners() {
+    return this.feed.partners();
+  }
+
   @Get("categories/:slug/events")
   categoryEvents(@Param("slug") slug: string) {
     return this.feed.byCategory(slug);

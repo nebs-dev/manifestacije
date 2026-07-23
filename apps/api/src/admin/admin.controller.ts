@@ -5,7 +5,7 @@ import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser } from "../auth/auth.types";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
 import { RejectOrganizerClaimDto, BulkInviteUnclaimedDto } from "../organizer-claims/organizer-claim.dto";
@@ -62,6 +62,12 @@ export class AdminController {
     return this.uploads.uploadEventImage(file as never);
   }
 
+  @Post("uploads/partner-logo")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadPartnerLogo(@UploadedFile() file: unknown) {
+    return this.uploads.uploadPartnerLogo(file as never);
+  }
+
   // Literal routes must be declared before parametric :id routes
   @Get("event-sources") eventSources() { return this.admin.eventSources(); }
   @Post("event-sources/manual-email") manualEmail(@Body() dto: ManualEmailDto) { return this.admin.createManualEmail(dto); }
@@ -98,4 +104,9 @@ export class AdminController {
   @Post("categories") createCategory(@Body() dto: CategoryDto) { return this.admin.createCategory(dto); }
   @Put("categories/:id") updateCategory(@Param("id") id: string, @Body() dto: CategoryDto) { return this.admin.updateCategory(Number(id), dto); }
   @Delete("categories/:id") deleteCategory(@Param("id") id: string) { return this.admin.deleteCategory(Number(id)); }
+
+  @Get("partners") partners() { return this.admin.partners(); }
+  @Post("partners") createPartner(@Body() dto: PartnerDto) { return this.admin.createPartner(dto); }
+  @Put("partners/:id") updatePartner(@Param("id") id: string, @Body() dto: PartnerDto) { return this.admin.updatePartner(Number(id), dto); }
+  @Delete("partners/:id") deletePartner(@Param("id") id: string) { return this.admin.deletePartner(Number(id)); }
 }

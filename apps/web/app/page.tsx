@@ -7,13 +7,14 @@ import { SectionHeading } from "@/components/public/section-heading";
 import { EventRail } from "@/components/public/event-rail";
 import { CategoryStrip } from "@/components/public/category-strip";
 import { OrganizerCta } from "@/components/public/organizer-cta";
+import { PartnersStrip } from "@/components/public/partners-strip";
 import { EventCard } from "@/components/public/event-card";
-import { fetchEvents, WEB_URL } from "@/lib/public-api";
+import { fetchEvents, fetchPartners, WEB_URL } from "@/lib/public-api";
 import { safeJsonLdString } from "@/lib/event-jsonld";
 import { cityEventSummaries } from "@/lib/seo-taxonomy";
 
 export default async function Home() {
-  const events = await fetchEvents();
+  const [events, partners] = await Promise.all([fetchEvents(), fetchPartners()]);
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -94,6 +95,8 @@ export default async function Home() {
         </div>
 
         <OrganizerCta />
+
+        <PartnersStrip partners={partners} />
 
         <section className="border-t border-border bg-ink py-16 text-ink-foreground md:py-24">
           <div className="mx-auto flex max-w-6xl flex-col items-center px-4 text-center">

@@ -21,6 +21,8 @@ export function EventImagePicker({
   hideUrlField,
   uploadPath = "/api/admin/uploads/event-image",
   uploadFetch = authedFetch,
+  fit = "cover",
+  aspectClassName = "aspect-video",
 }: {
   value: EventImageValue
   onChange: (value: EventImageValue) => void
@@ -29,6 +31,8 @@ export function EventImagePicker({
   hideUrlField?: boolean
   uploadPath?: string
   uploadFetch?: typeof authedFetch
+  fit?: "cover" | "contain"
+  aspectClassName?: string
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -81,9 +85,9 @@ export function EventImagePicker({
         <div className="overflow-hidden rounded-2xl border border-border bg-muted">
           {value.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={value.imageUrl} alt="Slika događaja" className="aspect-video w-full object-cover" />
+            <img src={value.imageUrl} alt="Slika događaja" className={`w-full ${aspectClassName} object-${fit}`} />
           ) : (
-            <div className="flex aspect-video items-center justify-center text-sm text-muted-foreground">
+            <div className={`flex ${aspectClassName} items-center justify-center text-sm text-muted-foreground`}>
               Nema slike
             </div>
           )}

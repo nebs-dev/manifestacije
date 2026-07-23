@@ -649,6 +649,32 @@ export class AdminService {
     return this.prisma.category.delete({ where: { id } });
   }
 
+  partners() {
+    return this.prisma.partner.findMany({ orderBy: { sortOrder: "asc" } });
+  }
+
+  async createPartner(dto: import("./admin.dto").PartnerDto) {
+    const p = await this.prisma.partner.create({
+      data: { name: dto.name, logoUrl: dto.logoUrl, websiteUrl: dto.websiteUrl, sortOrder: dto.sortOrder ?? 0, isActive: dto.isActive ?? true },
+    });
+    void this.revalidate.revalidate("partners");
+    return p;
+  }
+
+  async updatePartner(id: number, dto: import("./admin.dto").PartnerDto) {
+    const p = await this.prisma.partner.update({
+      where: { id },
+      data: { name: dto.name, logoUrl: dto.logoUrl, websiteUrl: dto.websiteUrl, sortOrder: dto.sortOrder, isActive: dto.isActive },
+    });
+    void this.revalidate.revalidate("partners");
+    return p;
+  }
+
+  async deletePartner(id: number) {
+    await this.prisma.partner.delete({ where: { id } });
+    void this.revalidate.revalidate("partners");
+  }
+
   async searchVenues(q: string) {
     const venues = await this.prisma.venue.findMany({
       where: {

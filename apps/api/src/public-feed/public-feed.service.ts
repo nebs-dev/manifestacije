@@ -57,6 +57,10 @@ export class PublicFeedService {
     return this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
   }
 
+  partners() {
+    return this.prisma.partner.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } });
+  }
+
   async byRegion(slug: string) {
     return this.events({ region: slug });
   }
