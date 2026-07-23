@@ -1,9 +1,14 @@
+"use client"
+
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Search, MapPin, CalendarDays } from "lucide-react"
+import { Search, MapPin, CalendarDays, Loader2 } from "lucide-react"
 import { QuickFilters } from "@/components/public/quick-filters"
 
 export function HomeHero() {
+  const [searching, setSearching] = useState(false)
+
   return (
     <section className="relative isolate overflow-hidden bg-ink text-ink-foreground">
       <Image
@@ -30,6 +35,7 @@ export function HomeHero() {
         {/* Search bar */}
         <form
           action="/eventi"
+          onSubmit={() => setSearching(true)}
           className="mt-9 flex w-full max-w-2xl flex-col gap-2 rounded-2xl bg-background p-2 text-foreground shadow-poster-lg sm:flex-row sm:items-center sm:rounded-full"
         >
           <label className="flex flex-1 items-center gap-2 rounded-xl px-3 py-2.5 sm:rounded-full">
@@ -55,10 +61,11 @@ export function HomeHero() {
           </label>
           <button
             type="submit"
+            disabled={searching}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:rounded-full"
           >
-            <Search className="size-4" aria-hidden />
-            Traži
+            {searching ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Search className="size-4" aria-hidden />}
+            {searching ? "Tražim…" : "Traži"}
           </button>
         </form>
 

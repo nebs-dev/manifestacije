@@ -27,7 +27,7 @@ describe("PublicFeedService", () => {
     }));
   });
 
-  it("builds region, city, free and search filters", async () => {
+  it("builds region, city and free filters before application-level search", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) } };
     const service = new PublicFeedService(prisma as never);
@@ -40,20 +40,53 @@ describe("PublicFeedService", () => {
         region: { slug: "slavonija-i-baranja" },
         city: { slug: "osijek" },
         isFree: true,
-        OR: expect.arrayContaining([
-          { title: { contains: "koncert", mode: "insensitive" } },
-          { description: { contains: "koncert", mode: "insensitive" } },
-          { city: { name: { contains: "koncert", mode: "insensitive" } } },
-          { venue: { name: { contains: "koncert", mode: "insensitive" } } },
-          { organizer: { name: { contains: "koncert", mode: "insensitive" } } },
-          { category: { name: { contains: "koncert", mode: "insensitive" } } },
-          { categories: { some: { category: { name: { contains: "koncert", mode: "insensitive" } } } } },
-          { region: { name: { contains: "koncert", mode: "insensitive" } } },
-          { county: { name: { contains: "koncert", mode: "insensitive" } } },
-          { address: { contains: "koncert", mode: "insensitive" } },
-        ]),
       }),
     }));
+  });
+
+  it("searches without Croatian diacritics and tolerates one-letter typos", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
+    const rows = [
+      {
+        id: 1,
+        title: "Đakovački vezovi",
+        description: "Folklorni program",
+        startsAt: new Date("2026-07-05T18:00:00.000Z"),
+        cityName: "Đakovo",
+        address: "Strossmayerov trg, Đakovo",
+        priceText: null,
+        sourceUrl: null,
+        organizer: { name: "TZ Đakovo", slug: "tz-dakovo", websiteUrl: null },
+        venue: { name: "Centar za kulturu Đakovo", address: "Đakovo" },
+        city: { name: "Đakovo", slug: "dakovo" },
+        county: { name: "Osječko-baranjska", slug: "osjecko-baranjska" },
+        region: { name: "Slavonija i Baranja", slug: "slavonija-i-baranja" },
+        category: { name: "Manifestacije", slug: "manifestacije" },
+        categories: [],
+      },
+      {
+        id: 2,
+        title: "Koncert u Osijeku",
+        description: "Glazbeni program",
+        startsAt: new Date("2026-07-06T18:00:00.000Z"),
+        cityName: "Osijek",
+        address: "Tvrđa, Osijek",
+        priceText: null,
+        sourceUrl: null,
+        organizer: { name: "Organizator", slug: "organizator", websiteUrl: null },
+        venue: { name: "Tvrđa", address: "Osijek" },
+        city: { name: "Osijek", slug: "osijek" },
+        county: { name: "Osječko-baranjska", slug: "osjecko-baranjska" },
+        region: { name: "Slavonija i Baranja", slug: "slavonija-i-baranja" },
+        category: { name: "Glazba", slug: "glazba" },
+        categories: [],
+      },
+    ];
+    const prisma = { event: { findMany: jest.fn().mockResolvedValue(rows) } };
+    const service = new PublicFeedService(prisma as never);
+
+    await expect(service.events({ search: "Dakovo" })).resolves.toEqual([rows[0]]);
+    await expect(service.events({ search: "Osjek" })).resolves.toEqual([rows[1]]);
   });
 
   it("filters category through legacy category and EventCategory join", async () => {

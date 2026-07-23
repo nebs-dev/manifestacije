@@ -217,7 +217,8 @@ function notPast(e: CroEvent): boolean {
 
 function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
   const today = toZagrebDate(new Date())
-  const q = filters.q?.trim().toLowerCase()
+  const q = normalizeSearch(filters.q ?? "")
+  const qTokens = [...new Set(q.split(" ").filter((token) => token.length >= 2))]
   const region = filters.region ? (reverseRegionMap[filters.region] || filters.region) : undefined
   return fallbackEvents
     .filter(notPast)
@@ -231,8 +232,8 @@ function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
       if (filters.when === "danas" && !(event.date <= today && (event.endDate || event.date) >= today)) return false
       if (filters.when === "ovaj-vikend" && !eventOccursDuringCurrentWeekend(event)) return false
       if (filters.when === "ovaj-mjesec" && event.date.slice(0, 7) !== today.slice(0, 7)) return false
-      if (q) {
-        const hay = [
+      if (qTokens.length > 0) {
+        const hay = normalizeSearch([
           event.title,
           event.description,
           event.longDescription,
@@ -246,11 +247,54 @@ function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
           event.region,
           event.category,
           ...event.categories.flatMap((category) => [category.slug, category.name]),
-        ].filter(Boolean).join(" ").toLowerCase()
-        if (!hay.includes(q)) return false
+        ].filter(Boolean).join(" "))
+        if (!matchesFuzzySearch(hay, q, qTokens)) return false
       }
       return true
     })
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/ð/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function matchesFuzzySearch(haystack: string, query: string, queryTokens: string[]) {
+  const haystackTokens = [...new Set(haystack.split(" ").filter((token) => token.length >= 2))]
+  if (haystack.includes(query)) return true
+  return queryTokens.every((token) => {
+    if (haystack.includes(token)) return true
+    const maxDistance = token.length <= 4 ? 1 : Math.max(1, Math.floor(token.length * 0.25))
+    return haystackTokens.some((candidate) => {
+      if (Math.abs(candidate.length - token.length) > maxDistance) return false
+      return levenshtein(token, candidate, maxDistance) <= maxDistance
+    })
+  })
+}
+
+function levenshtein(a: string, b: string, maxDistance: number) {
+  if (a === b) return 0
+  if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i]
+    let rowMin = current[0]
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost)
+      rowMin = Math.min(rowMin, current[j])
+    }
+    if (rowMin > maxDistance) return maxDistance + 1
+    previous = current
+  }
+  return previous[b.length]
 }
 
 function citySlugForFallback(event: CroEvent) {
