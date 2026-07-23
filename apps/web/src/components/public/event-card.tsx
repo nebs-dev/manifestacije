@@ -1,18 +1,20 @@
 import Link from "next/link"
 import { MapPin } from "lucide-react"
 import type { CroEvent } from "@/lib/data"
-import { dateParts } from "@/lib/data"
 import { EventPoster } from "@/components/public/event-poster"
 import { DateBadge } from "@/components/public/date-badge"
 import { CategoryBadge, PriceBadge } from "@/components/public/badges"
 import { cn } from "@/lib/utils"
+import { eventCardDateDisplay } from "./event-card-display"
 
 interface EventCardProps {
   event: CroEvent
   className?: string
+  displayDate?: string
 }
 
-export function EventCard({ event, className }: EventCardProps) {
+export function EventCard({ event, className, displayDate }: EventCardProps) {
+  const dateForCard = eventCardDateDisplay(event.date, displayDate)
   return (
     <Link
       href={`/eventi/${event.slug}`}
@@ -34,7 +36,7 @@ export function EventCard({ event, className }: EventCardProps) {
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
         )}
         <div className="absolute left-4 top-4">
-          <DateBadge date={event.date} size="md" />
+          <DateBadge date={dateForCard.date} size="md" />
         </div>
         <div className="absolute right-4 top-4">
           <PriceBadge free={event.free} price={event.price} />
@@ -44,7 +46,7 @@ export function EventCard({ event, className }: EventCardProps) {
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium text-accent-foreground/90">
-            {dateParts(event.date).weekday}
+            {dateForCard.weekday}
           </span>
           {!event.allDay && (
             <>

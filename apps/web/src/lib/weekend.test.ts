@@ -76,8 +76,8 @@ describe("weekend helpers", () => {
   })
 
   it("exposes canonical weekend SEO metadata", () => {
-    expect(weekendPageTitle).toBe("Događanja ovaj vikend – što raditi od petka do nedjelje | Manifestacije")
-    expect(weekendPageDescription).toBe("Pogledajte aktualna događanja ovog vikenda: koncerte, predstave, festivale, radionice i druga događanja od petka do nedjelje.")
+    expect(weekendPageTitle).toBe("Kamo za vikend? Događanja ovaj vikend od petka do nedjelje | Manifestacije")
+    expect(weekendPageDescription).toBe("Ne znaš kamo za vikend? Pogledaj aktualna događanja ovaj vikend: koncerte, predstave, festivale, radionice i druga događanja od petka do nedjelje.")
     expect(weekendPageCanonical).toBe("https://manifestacije.hr/ovaj-vikend")
   })
 })

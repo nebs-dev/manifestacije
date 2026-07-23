@@ -5,7 +5,6 @@ import type { PublicRegion } from "@/lib/public-api"
 const canonicalBase = process.env.NEXT_PUBLIC_WEB_URL || "https://manifestacije.hr"
 
 export type WeekendSeoScope =
-  | { kind: "global" }
   | { kind: "city"; slug: string; events: CroEvent[] }
   | { kind: "region"; slug: string; regions?: PublicRegion[] }
 
@@ -38,12 +37,5 @@ export function kamoZaVikendSeo(scope: WeekendSeoScope) {
     }
   }
 
-  return {
-    eyebrow: "Kamo za vikend",
-    title: "Kamo za vikend? Događanja od petka do nedjelje | Manifestacije",
-    h1: "Kamo za vikend?",
-    description: "Ne znaš kamo za vikend? Pogledaj aktualna događanja, koncerte, festivale, predstave, radionice i obiteljske programe od petka do nedjelje.",
-    canonical: `${canonicalBase}/kamo-za-vikend`,
-    breadcrumbName: "Kamo za vikend",
-  }
+  throw new Error("Unsupported weekend SEO scope")
 }

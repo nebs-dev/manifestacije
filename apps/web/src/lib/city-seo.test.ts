@@ -65,13 +65,10 @@ describe("city discovery SEO", () => {
     expect(metadata.canonical).toBe("https://manifestacije.hr/gradovi/osijek")
   })
 
-  it("builds kamo za vikend SEO metadata for global, city and region pages", () => {
-    const globalSeo = kamoZaVikendSeo({ kind: "global" })
+  it("builds kamo za vikend SEO metadata for city and region pages", () => {
     const citySeo = kamoZaVikendSeo({ kind: "city", slug: "osijek", events: [osijekEvent] })
     const regionSeo = kamoZaVikendSeo({ kind: "region", slug: "slavonija-i-baranja" })
 
-    expect(globalSeo.title).toBe("Kamo za vikend? Događanja od petka do nedjelje | Manifestacije")
-    expect(globalSeo.canonical).toBe("https://manifestacije.hr/kamo-za-vikend")
     expect(citySeo.title).toBe("Kamo za vikend Osijek? Događanja u Osijeku | Manifestacije")
     expect(citySeo.h1).toBe("Kamo za vikend u Osijeku?")
     expect(citySeo.canonical).toBe("https://manifestacije.hr/kamo-za-vikend/gradovi/osijek")
@@ -124,7 +121,7 @@ describe("city discovery SEO", () => {
     expect(urls).toContainEqual({ url: "http://localhost:3000/gradovi" })
     expect(urls).toContainEqual({ url: "http://localhost:3000/gradovi/osijek" })
     expect(urls).toContainEqual({ url: "http://localhost:3000/gradovi/osijek/kategorije/glazba" })
-    expect(urls).toContainEqual({ url: "http://localhost:3000/kamo-za-vikend" })
+    expect(urls).not.toContainEqual({ url: "http://localhost:3000/kamo-za-vikend" })
     expect(urls).toContainEqual({ url: "http://localhost:3000/kamo-za-vikend/gradovi/osijek" })
     expect(urls).toContainEqual({ url: "http://localhost:3000/kamo-za-vikend/regije/slavonija-i-baranja" })
   })

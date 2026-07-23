@@ -38,7 +38,7 @@ export default async function WeekendPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />
       <main className="mx-auto max-w-6xl px-4 py-10 md:py-14">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Vikend</p>
-        <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Što se događa ovaj vikend?</h1>
+        <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Kamo za vikend? Što se događa ovaj vikend</h1>
         <p className="mb-8 mt-2 text-muted-foreground">
           {events.length} {events.length === 1 ? "događanje" : "događanja"} {grouped.weekend.longLabel}.
         </p>
@@ -47,6 +47,7 @@ export default async function WeekendPage() {
           <div className="flex flex-col gap-12">
             {visibleDays.map((day) => {
               const parts = dateParts(dateKeyFromDate(day.date));
+              const displayDate = dateKeyFromDate(day.date);
               return (
                 <section key={day.key}>
                   <div className="mb-5">
@@ -55,7 +56,7 @@ export default async function WeekendPage() {
                   </div>
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                     {day.events.map((event) => (
-                      <EventCard key={`${day.key}-${event.slug}`} event={event} />
+                      <EventCard key={`${day.key}-${event.slug}`} event={event} displayDate={displayDate} />
                     ))}
                   </div>
                 </section>

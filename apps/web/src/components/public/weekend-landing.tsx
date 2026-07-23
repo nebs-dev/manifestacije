@@ -42,6 +42,7 @@ export function WeekendLanding({
           <div className="flex flex-col gap-12">
             {visibleDays.map((day) => {
               const parts = dateParts(dateKeyFromDate(day.date))
+              const displayDate = dateKeyFromDate(day.date)
               return (
                 <section key={day.key}>
                   <div className="mb-5">
@@ -52,7 +53,7 @@ export function WeekendLanding({
                   </div>
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                     {day.events.map((event) => (
-                      <EventCard key={`${day.key}-${event.slug}`} event={event} />
+                      <EventCard key={`${day.key}-${event.slug}`} event={event} displayDate={displayDate} />
                     ))}
                   </div>
                 </section>

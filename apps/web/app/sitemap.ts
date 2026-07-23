@@ -17,7 +17,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${WEB_URL}/eventi` },
     { url: `${WEB_URL}/danas` },
     { url: `${WEB_URL}/ovaj-vikend` },
-    { url: `${WEB_URL}/kamo-za-vikend` },
     { url: `${WEB_URL}/kalendar` },
     { url: `${WEB_URL}/mapa` },
     { url: `${WEB_URL}/gradovi` },
