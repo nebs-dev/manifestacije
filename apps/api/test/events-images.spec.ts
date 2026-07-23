@@ -174,13 +174,14 @@ describe("EventsService image fields", () => {
   });
 
   it("resolves existing city/region when adding a custom venue to a cityName-only event", async () => {
-    const city = { id: 7, name: "Belišće", countyId: 8, county: { regionId: 1 } };
+    const city = { id: 7, name: "Belišće", countyId: 8, county: { regionId: 1, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, cityName: "Belišće" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
       city: {
+        findMany: jest.fn().mockResolvedValue([city]),
         findFirst: jest.fn().mockResolvedValue(city),
       },
       venue: {
@@ -197,8 +198,13 @@ describe("EventsService image fields", () => {
     });
 
     expect(prisma.city.findFirst).toHaveBeenCalledWith({
-      where: { name: { equals: "Belišće", mode: "insensitive" } },
-      include: { county: true },
+      where: {
+        OR: [
+          { name: { equals: "Belišće", mode: "insensitive" } },
+          { slug: "belisce" },
+        ],
+      },
+      include: { county: { include: { region: true } } },
     });
     expect(prisma.venue.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { slug_cityId: { slug: "park-hrvatskih-branitelja", cityId: 7 } },
@@ -217,7 +223,7 @@ describe("EventsService image fields", () => {
   });
 
   it("uses precise location city metadata to set city, county and region", async () => {
-    const city = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3 } };
+    const city = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, cityName: "Donji Kukuljica" }),
@@ -254,7 +260,7 @@ describe("EventsService image fields", () => {
   });
 
   it("overwrites a stale cityId when precise location resolves a different city", async () => {
-    const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3 } };
+    const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 999, cityName: "Stari grad" }),
@@ -284,6 +290,119 @@ describe("EventsService image fields", () => {
         cityId: 1,
         countyId: 2,
         regionId: 3,
+      }),
+    });
+  });
+
+  it("resolves city from precise address even without Google city metadata", async () => {
+    const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 999, cityName: "Stari grad" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+      city: {
+        findMany: jest.fn().mockResolvedValue([osijek]),
+        findFirst: jest.fn().mockResolvedValue(osijek),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, {
+      address: "Zadarska ul. 33, Osijek",
+      lat: 45.555,
+      lng: 18.695,
+    });
+
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        cityName: "Osijek",
+        cityId: 1,
+        countyId: 2,
+        regionId: 3,
+      }),
+    });
+  });
+
+  it("prefers known city in address over stale Google/admin cityName metadata", async () => {
+    const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
+    const donjiKukljica = { id: 99, name: "Donji Kukljica", countyId: 98, county: { regionId: 97, region: { slug: "dalmacija" } } };
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 97, cityName: "Donji Kukljica" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+      city: {
+        findMany: jest.fn().mockResolvedValue([donjiKukljica, osijek]),
+        findFirst: jest.fn().mockResolvedValue(osijek),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, {
+      cityName: "Donji Kukljica",
+      address: 'Dječji kreativni centar "DOKKICA", Osijek',
+      lat: 45.555,
+      lng: 18.695,
+    });
+
+    expect(prisma.city.findFirst).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { name: { equals: "Osijek", mode: "insensitive" } },
+          { slug: "osijek" },
+        ],
+      },
+      include: { county: { include: { region: true } } },
+    });
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        cityName: "Osijek",
+        cityId: 1,
+        countyId: 2,
+        regionId: 3,
+      }),
+    });
+  });
+
+  it("moves an unchanged venue name under the city resolved from the new precise address", async () => {
+    const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 97, cityName: "Stari grad" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+      city: {
+        findMany: jest.fn().mockResolvedValue([osijek]),
+        findFirst: jest.fn().mockResolvedValue(osijek),
+      },
+      venue: {
+        upsert: jest.fn().mockResolvedValue({ id: 44 }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, {
+      venueName: "Garaza",
+      address: "Zadarska ul. 33, Osijek",
+      lat: 45.555,
+      lng: 18.695,
+    });
+
+    expect(prisma.venue.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { slug_cityId: { slug: "garaza", cityId: 1 } },
+      create: expect.objectContaining({ name: "Garaza", cityId: 1 }),
+    }));
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        cityName: "Osijek",
+        cityId: 1,
+        countyId: 2,
+        regionId: 3,
+        venueId: 44,
       }),
     });
   });

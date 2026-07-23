@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { KNOWN_REGION_SLUGS, lookupCityGeo } from "../common/croatia-geo";
 import { findOrCreateCity, resolveCountyAndRegion } from "../common/city-resolver";
+import { slugify } from "../common/slug";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -66,14 +67,110 @@ async function repairBrokenCityRegions() {
   console.log(JSON.stringify({ step: "city-region-repair-summary", fixed, mode: apply ? "apply" : "dry-run" }));
 }
 
+function duplicateCityKey(city: { name: string; slug: string }) {
+  const nameSlug = slugify(city.name);
+  const baseSlug = city.slug.replace(/-\d+$/, "");
+  return nameSlug && nameSlug === baseSlug ? baseSlug : null;
+}
+
+async function mergeDuplicateCities() {
+  const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } }, orderBy: { id: "asc" } });
+  const groups = new Map<string, typeof cities>();
+  for (const city of cities) {
+    const key = duplicateCityKey(city);
+    if (!key) continue;
+    const group = groups.get(key) ?? [];
+    group.push(city);
+    groups.set(key, group);
+  }
+
+  let merged = 0;
+  for (const [key, group] of groups) {
+    if (group.length < 2) continue;
+    const canonical = group.find((city) => city.slug === key) ?? group[0];
+    const duplicates = group.filter((city) => city.id !== canonical.id);
+
+    for (const duplicate of duplicates) {
+      const [directEventCount, venueEventCount, venueCount] = await Promise.all([
+        prisma.event.count({ where: { cityId: duplicate.id } }),
+        prisma.event.count({ where: { venue: { cityId: duplicate.id } } }),
+        prisma.venue.count({ where: { cityId: duplicate.id } }),
+      ]);
+
+      console.log(JSON.stringify({
+        step: "city-duplicate-merge",
+        key,
+        canonical: { cityId: canonical.id, name: canonical.name, slug: canonical.slug },
+        duplicate: { cityId: duplicate.id, name: duplicate.name, slug: duplicate.slug },
+        directEventCount,
+        venueEventCount,
+        venueCount,
+        applied: apply,
+      }));
+
+      if (!apply) continue;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.event.updateMany({
+          where: { cityId: duplicate.id },
+          data: {
+            cityName: canonical.name,
+            cityId: canonical.id,
+            countyId: canonical.countyId,
+            regionId: canonical.county.regionId,
+          },
+        });
+
+        const duplicateVenues = await tx.venue.findMany({ where: { cityId: duplicate.id } });
+        for (const venue of duplicateVenues) {
+          const existingVenue = await tx.venue.findUnique({
+            where: { slug_cityId: { slug: venue.slug, cityId: canonical.id } },
+          });
+
+          if (existingVenue) {
+            await tx.event.updateMany({
+              where: { venueId: venue.id },
+              data: {
+                venueId: existingVenue.id,
+                cityName: canonical.name,
+                cityId: canonical.id,
+                countyId: canonical.countyId,
+                regionId: canonical.county.regionId,
+              },
+            });
+            await tx.venue.delete({ where: { id: venue.id } });
+          } else {
+            await tx.venue.update({ where: { id: venue.id }, data: { cityId: canonical.id } });
+            await tx.event.updateMany({
+              where: { venueId: venue.id },
+              data: {
+                cityName: canonical.name,
+                cityId: canonical.id,
+                countyId: canonical.countyId,
+                regionId: canonical.county.regionId,
+              },
+            });
+          }
+        }
+
+        await tx.city.delete({ where: { id: duplicate.id } });
+      });
+      merged += 1;
+    }
+  }
+
+  console.log(JSON.stringify({ step: "city-duplicate-merge-summary", merged, mode: apply ? "apply" : "dry-run" }));
+}
+
 async function main() {
   await repairBrokenCityRegions();
+  await mergeDuplicateCities();
 
   const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
   const citiesByLongestName = [...cities].sort((a, b) => b.name.length - a.name.length);
   const cityByName = new Map(cities.map((city) => [normalize(city.name), city]));
   const events = await prisma.event.findMany({
-    include: { city: true, county: true, region: true },
+    include: { city: true, county: true, region: true, venue: true },
     orderBy: { id: "asc" },
   });
 
@@ -135,6 +232,9 @@ async function main() {
         region: event.region?.name,
         regionSlug: event.region?.slug,
         address: event.address,
+        venue: event.venue?.name,
+        venueCityId: event.venue?.cityId,
+        venueAddress: event.venue?.address,
       },
       issues: {
         cityMismatch,
@@ -148,6 +248,28 @@ async function main() {
     }));
 
     if (apply && suggestion) {
+      let venueId: number | undefined;
+      if (event.venue?.name) {
+        const venueSlug = slugify(event.venue.name);
+        const venue = await prisma.venue.upsert({
+          where: { slug_cityId: { slug: venueSlug, cityId: suggestion.cityId } },
+          update: {
+            address: event.address ?? event.venue.address,
+            lat: event.lat ?? event.venue.lat,
+            lng: event.lng ?? event.venue.lng,
+          },
+          create: {
+            name: event.venue.name,
+            slug: venueSlug,
+            cityId: suggestion.cityId,
+            address: event.address ?? event.venue.address,
+            lat: event.lat ?? event.venue.lat,
+            lng: event.lng ?? event.venue.lng,
+          },
+        });
+        venueId = venue.id;
+      }
+
       await prisma.event.update({
         where: { id: event.id },
         data: {
@@ -155,6 +277,7 @@ async function main() {
           cityId: suggestion.cityId,
           countyId: suggestion.countyId,
           regionId: suggestion.regionId,
+          venueId,
         },
       });
       changed += 1;

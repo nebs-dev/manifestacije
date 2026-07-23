@@ -78,7 +78,10 @@ function CityRow({ city, onChanged }: { city: City; onChanged: () => void }) {
           <DeleteButton onDelete={async () => {
             const r = await authedFetch(`/api/admin/cities/${city.id}`, { method: "DELETE" })
             if (r.ok) { toast.success(`Obrisano: ${city.name}`); onChanged() }
-            else toast.error("Grad je u upotrebi — nije moguće obrisati")
+            else {
+              const body = await r.json().catch(() => null)
+              toast.error(body?.message || "Grad je u upotrebi — nije moguće obrisati")
+            }
           }} />
         </div>
       </TableCell>

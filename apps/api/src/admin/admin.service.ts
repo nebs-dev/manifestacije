@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
-import { uniqueSlug } from "../common/slug";
+import { slugify, uniqueSlug } from "../common/slug";
 import { findOrCreateCity } from "../common/city-resolver";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
@@ -617,18 +617,42 @@ export class AdminService {
     return this.prisma.county.delete({ where: { id } });
   }
 
-  createCity(dto: import("./admin.dto").CityDto) {
+  async createCity(dto: import("./admin.dto").CityDto) {
+    await this.assertNoDuplicateCity(dto);
     return this.prisma.city.create({ data: { name: dto.name, slug: dto.slug, countyId: dto.countyId, lat: dto.lat, lng: dto.lng } });
   }
 
-  updateCity(id: number, dto: import("./admin.dto").CityDto) {
+  async updateCity(id: number, dto: import("./admin.dto").CityDto) {
+    await this.assertNoDuplicateCity(dto, id);
     return this.prisma.city.update({ where: { id }, data: { name: dto.name, slug: dto.slug, lat: dto.lat, lng: dto.lng } });
   }
 
+  private async assertNoDuplicateCity(dto: import("./admin.dto").CityDto, currentId?: number) {
+    const canonicalSlug = slugify(dto.name);
+    const duplicate = await this.prisma.city.findFirst({
+      where: {
+        OR: [
+          { slug: dto.slug },
+          ...(canonicalSlug ? [{ slug: canonicalSlug }] : []),
+          { name: { equals: dto.name, mode: "insensitive" } },
+        ],
+        ...(currentId ? { NOT: { id: currentId } } : {}),
+      },
+    });
+    if (duplicate) throw new ConflictException(`Grad već postoji: ${duplicate.name} (${duplicate.slug}).`);
+  }
+
   async deleteCity(id: number) {
-    const count = await this.prisma.event.count({ where: { cityId: id } });
-    if (count > 0) throw new ConflictException(`Grad ima ${count} događaja — nije moguće obrisati.`);
-    return this.prisma.city.delete({ where: { id } });
+    const [eventCount, venueEventCount] = await Promise.all([
+      this.prisma.event.count({ where: { cityId: id } }),
+      this.prisma.event.count({ where: { venue: { cityId: id } } }),
+    ]);
+    if (eventCount > 0) throw new ConflictException(`Grad ima ${eventCount} događaja — nije moguće obrisati.`);
+    if (venueEventCount > 0) throw new ConflictException(`Grad ima ${venueEventCount} događaja preko lokacija — nije moguće obrisati.`);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.venue.deleteMany({ where: { cityId: id } });
+      return tx.city.delete({ where: { id } });
+    });
   }
 
   categories() {

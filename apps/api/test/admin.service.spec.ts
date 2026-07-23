@@ -575,3 +575,91 @@ describe("AdminService.deleteUser", () => {
     expect(prisma.user.delete).not.toHaveBeenCalled();
   });
 });
+
+describe("AdminService.deleteCity", () => {
+  it("blocks deleting a city that still has direct events", async () => {
+    const prisma = {
+      event: {
+        count: jest.fn()
+          .mockResolvedValueOnce(2)
+          .mockResolvedValueOnce(0),
+      },
+      $transaction: jest.fn(),
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await expect(service.deleteCity(518)).rejects.toThrow("Grad ima 2 događaja");
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("blocks deleting a city that has events through venues", async () => {
+    const prisma = {
+      event: {
+        count: jest.fn()
+          .mockResolvedValueOnce(0)
+          .mockResolvedValueOnce(1),
+      },
+      $transaction: jest.fn(),
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await expect(service.deleteCity(518)).rejects.toThrow("Grad ima 1 događaja preko lokacija");
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("deletes orphan venues before deleting an otherwise unused city", async () => {
+    const tx = {
+      venue: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      city: { delete: jest.fn().mockResolvedValue({ id: 518, name: "Podravlje" }) },
+    };
+    const prisma = {
+      event: {
+        count: jest.fn()
+          .mockResolvedValueOnce(0)
+          .mockResolvedValueOnce(0),
+      },
+      $transaction: jest.fn(async (callback) => callback(tx)),
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    const result = await service.deleteCity(518);
+
+    expect(prisma.event.count).toHaveBeenNthCalledWith(1, { where: { cityId: 518 } });
+    expect(prisma.event.count).toHaveBeenNthCalledWith(2, { where: { venue: { cityId: 518 } } });
+    expect(tx.venue.deleteMany).toHaveBeenCalledWith({ where: { cityId: 518 } });
+    expect(tx.city.delete).toHaveBeenCalledWith({ where: { id: 518 } });
+    expect(result).toEqual({ id: 518, name: "Podravlje" });
+  });
+});
+
+describe("AdminService city taxonomy writes", () => {
+  it("rejects creating a city whose normalized name matches an existing city slug", async () => {
+    const prisma = {
+      city: {
+        findFirst: jest.fn().mockResolvedValue({ id: 3, name: "Đakovo", slug: "dakovo" }),
+        create: jest.fn(),
+      },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await expect(service.createCity({ name: "Dakovo", slug: "dakovo-2", countyId: 1 })).rejects.toThrow("Grad već postoji: Đakovo (dakovo).");
+    expect(prisma.city.create).not.toHaveBeenCalled();
+  });
+
+  it("allows updating a city when the only normalized duplicate is itself", async () => {
+    const prisma = {
+      city: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({ id: 3, name: "Đakovo" }),
+      },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    const result = await service.updateCity(3, { name: "Đakovo", slug: "dakovo", countyId: 1 });
+
+    expect(prisma.city.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ NOT: { id: 3 } }),
+    }));
+    expect(result).toEqual({ id: 3, name: "Đakovo" });
+  });
+});

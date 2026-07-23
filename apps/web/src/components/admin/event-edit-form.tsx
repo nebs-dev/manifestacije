@@ -369,11 +369,6 @@ export function EventEditForm({
                       return res.ok ? res.json() : []
                     }}
                   />
-                  {(event.city || event.venue || location) && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Trenutno: {location ? [form.venueName, location.cityName].filter(Boolean).join(", ") : [event.venue, event.city].filter(Boolean).join(", ")}
-                    </p>
-                  )}
                 </Field>
               </FieldGroup>
             </CardContent>

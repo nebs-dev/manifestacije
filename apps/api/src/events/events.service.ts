@@ -35,7 +35,7 @@ export class EventsService {
         status: opts.status || EventStatus.PENDING_REVIEW,
         organizerId: opts.organizerId || undefined,
         venueId,
-        cityName: dto.cityName || city?.name,
+        cityName: city?.name ?? dto.cityName,
         cityId: city?.id,
         countyId: city?.countyId,
         regionId: city?.county.regionId,
@@ -76,9 +76,7 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id } });
     if (!current) throw new NotFoundException("Event not found");
-    console.log(`[updateEvent ${id}] dto.cityName=${dto.cityName} dto.countyName=${dto.countyName} dto.regionSlug=${dto.regionSlug} dto.cityId=${dto.cityId} address=${dto.address?.substring(0, 50)}`);
     const city = await this.resolveCityForWrite(dto, current);
-    console.log(`[updateEvent ${id}] resolved city: ${city?.name} (id=${city?.id} countyId=${city?.countyId})`);
     this.assertPublishableLocation(dto.status, city, current);
 
     let slug: string | undefined;
@@ -169,11 +167,11 @@ export class EventsService {
     dto: Partial<EventUpsertDto>,
     current?: { cityId?: number | null; cityName?: string | null; regionId?: number | null; status?: EventStatus },
   ) {
-    const addressCity = dto.address && (dto.cityName || dto.countyName || dto.regionSlug)
+    const hasPreciseLocationChange = "address" in dto || "lat" in dto || "lng" in dto || Boolean(dto.countyName || dto.regionSlug);
+    const addressCity = dto.address && hasPreciseLocationChange
       ? await this.findKnownCityInText(dto.address)
       : null;
     const explicitCityName = dto.cityName?.trim();
-    const hasPreciseLocationChange = "address" in dto || "lat" in dto || "lng" in dto || Boolean(dto.countyName || dto.regionSlug);
     const preferCityName = Boolean(addressCity || explicitCityName);
 
     if (!preferCityName && dto.cityId) {

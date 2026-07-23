@@ -50,8 +50,12 @@ export async function findOrCreateCity(
   regionName?: string
 ) {
   const cleaned = name.trim();
+  const citySlug = slugify(cleaned);
+  const cityLookup = citySlug
+    ? { OR: [{ name: { equals: cleaned, mode: "insensitive" as const } }, { slug: citySlug }] }
+    : { name: { equals: cleaned, mode: "insensitive" as const } };
   const existing = await prisma.city.findFirst({
-    where: { name: { equals: cleaned, mode: "insensitive" } },
+    where: cityLookup,
     include: { county: { include: { region: true } } },
   });
   if (existing) {
@@ -74,9 +78,9 @@ export async function findOrCreateCity(
   const geo = countyName || usableRegionSlug ? null : await lookupCityGeo(cleaned);
   const { county } = await resolveCountyAndRegion(prisma, { countyName, regionName, geo });
 
-  const citySlug = await uniqueSlug(cleaned, async (s) => !!(await prisma.city.findUnique({ where: { slug: s } })));
+  const uniqueCitySlug = await uniqueSlug(cleaned, async (s) => !!(await prisma.city.findUnique({ where: { slug: s } })));
   return prisma.city.create({
-    data: { name: cleaned, slug: citySlug, countyId: county.id, lat: geo?.lat, lng: geo?.lng },
+    data: { name: cleaned, slug: uniqueCitySlug, countyId: county.id, lat: geo?.lat, lng: geo?.lng },
     include: { county: { include: { region: true } } },
   });
 }
