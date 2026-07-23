@@ -53,7 +53,7 @@ export function WeekendLanding({
                   </div>
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                     {day.events.map((event) => (
-                      <EventCard key={`${day.key}-${event.slug}`} event={event} displayDate={displayDate} />
+                      <EventCard key={`${day.key}-${event.slug}`} event={{ ...event, date: displayDate }} />
                     ))}
                   </div>
                 </section>
