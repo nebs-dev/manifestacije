@@ -80,10 +80,18 @@ export class PublicFeedService {
 
   async sitemapData() {
     const visibleEventWhere: Prisma.EventWhereInput = { status: EventStatus.PUBLISHED, AND: [this.publicVisibilityWhere(new Date())] };
+    const weekend = currentWeekendRange(new Date());
+    const weekendEventWhere: Prisma.EventWhereInput = {
+      ...visibleEventWhere,
+      AND: [
+        this.publicVisibilityWhere(new Date()),
+        this.periodOverlapWhere(weekend.start, weekend.end),
+      ],
+    };
     // Only list taxonomy pages that currently have at least one visible event —
     // empty listing pages are noindexed (see web app/*/[slug]/page.tsx) and
     // shouldn't be submitted to crawlers via the sitemap either.
-    const [events, regions, cities, categories, comboEvents] = await Promise.all([
+    const [events, regions, cities, categories, comboEvents, weekendCities, weekendRegions] = await Promise.all([
       this.prisma.event.findMany({
         where: visibleEventWhere,
         select: { slug: true, updatedAt: true },
@@ -103,6 +111,8 @@ export class PublicFeedService {
           categories: { select: { category: { select: { slug: true } } } },
         },
       }),
+      this.prisma.city.findMany({ where: { events: { some: weekendEventWhere } }, select: { slug: true } }),
+      this.prisma.region.findMany({ where: { events: { some: weekendEventWhere } }, select: { slug: true } }),
     ]);
     const cityCategoryKeys = new Set<string>();
     const regionCategoryKeys = new Set<string>();
@@ -128,7 +138,7 @@ export class PublicFeedService {
       return { regionSlug, categorySlug };
     });
 
-    return { events, regions, cities, categories, cityCategories, regionCategories };
+    return { events, regions, cities, categories, cityCategories, regionCategories, weekendCities, weekendRegions };
   }
 
   private async publicWhere(query: Record<string, string | undefined>): Promise<Prisma.EventWhereInput> {

@@ -190,5 +190,7 @@ describe("PublicFeedService", () => {
       { regionSlug: "slavonija-i-baranja", categorySlug: "festivali" },
       { regionSlug: "slavonija-i-baranja", categorySlug: "glazba" },
     ]);
+    expect(data.weekendCities).toEqual([{ slug: "osijek" }]);
+    expect(data.weekendRegions).toEqual([{ slug: "slavonija" }]);
   });
 });

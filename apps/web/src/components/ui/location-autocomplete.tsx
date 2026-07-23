@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { MapPin, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { compactLocationLabel, compactLocationParts } from "@/lib/location-display"
 
 export type LocationValue = {
   address: string
@@ -34,9 +35,9 @@ function label(r: NomResult): string {
   const a = r.address
   const road = a.road ? (a.house_number ? `${a.road} ${a.house_number}` : a.road) : null
   const city = a.city ?? a.town ?? a.village ?? a.city_district ?? null
-  const parts = [a.name, road, city].filter(Boolean)
+  const parts = compactLocationParts([a.name, road, city])
   // fallback: take first 3 comma-parts of display_name
-  return parts.length ? parts.join(", ") : r.display_name.split(",").slice(0, 3).join(",").trim()
+  return parts.length ? parts.join(", ") : compactLocationLabel(r.display_name.split(",").slice(0, 3).join(",").trim())
 }
 
 export function LocationAutocomplete({
@@ -63,8 +64,8 @@ export function LocationAutocomplete({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    setQuery(value?.address ?? "")
-  }, [value?.address])
+    setQuery(value?.address ? compactLocationLabel(value.address) : "")
+  }, [value?.address, value?.cityName])
 
   function handleChange(q: string) {
     setQuery(q)
@@ -92,8 +93,9 @@ export function LocationAutocomplete({
   }
 
   function pick(lbl: string, lat: number, lng: number, cityName?: string) {
-    onChange({ address: lbl, lat, lng, cityName })
-    setQuery(lbl)
+    const cleanLabel = compactLocationLabel(lbl)
+    onChange({ address: cleanLabel, lat, lng, cityName })
+    setQuery(cleanLabel)
     setOpen(false)
   }
 
@@ -154,7 +156,7 @@ export function LocationAutocomplete({
                     onClick={() => pick(v.label, v.lat, v.lng, v.cityName)}
                     className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
                     <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    <span className="truncate">{v.label}</span>
+                    <span className="truncate">{compactLocationLabel(v.label)}</span>
                   </button>
                 </li>
               ))}

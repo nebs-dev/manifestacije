@@ -14,6 +14,7 @@ import { formatDateRange, priceLabel, regionName } from "@/lib/data";
 import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { citySlugForEvent } from "@/lib/seo-taxonomy";
+import { publicAddressLine } from "@/lib/location-display";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 const BACK_LINKS = {
@@ -64,6 +65,7 @@ export default async function EventDetailPage({
   const related = await fetchRelatedEvents(event);
   const eventCategories = event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }];
   const citySlug = event.city ? citySlugForEvent(event) : undefined;
+  const addressLine = publicAddressLine(event.address, event.city, event.venue);
   const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
   const jsonLd = eventToJsonLd({ ...event, image: imageUrl }, WEB_URL);
   const breadcrumbCrumbs = [
@@ -104,7 +106,7 @@ export default async function EventDetailPage({
               <MapPin className="size-4 shrink-0" aria-hidden />
               {event.venue && event.venue !== event.city
                 ? event.venue
-                : event.address ?? `${event.city} · ${regionName(event.region)}`}
+                : addressLine ?? `${event.city} · ${regionName(event.region)}`}
             </p>
           </div>
         </section>
@@ -167,8 +169,8 @@ export default async function EventDetailPage({
                     {event.venue && event.venue !== event.city && (
                       <span className="block font-medium">{event.venue}</span>
                     )}
-                    {event.address && (
-                      <span className="block text-sm text-muted-foreground">{event.address}</span>
+                    {addressLine && (
+                      <span className="block text-sm text-muted-foreground">{addressLine}</span>
                     )}
                     <span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span>
                     <MapLink

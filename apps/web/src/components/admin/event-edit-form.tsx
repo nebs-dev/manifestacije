@@ -86,7 +86,7 @@ export function EventEditForm({
   )
   const [location, setLocation] = useState<LocationValue | null>(
     event.lat != null && event.lng != null
-      ? { address: event.address ?? event.venue ?? event.city ?? "", lat: event.lat, lng: event.lng }
+      ? { address: event.address ?? event.venue ?? event.city ?? "", lat: event.lat, lng: event.lng, cityName: event.city ?? undefined }
       : null
   )
   const [allCategories, setAllCategories] = useState<{ id: number; name: string; slug: string }[]>([])
