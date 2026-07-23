@@ -28,7 +28,7 @@ function FlyTo({ event }: { event?: CroEvent }) {
   const map = useMap()
   useEffect(() => {
     if (event) {
-      map.flyTo(coordsFor(event), 11, { duration: 0.8 })
+      map.flyTo(coordsFor(event), Math.max(map.getZoom(), 11), { duration: 0.8 })
     }
   }, [event, map])
   return null

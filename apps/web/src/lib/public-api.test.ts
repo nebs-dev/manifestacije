@@ -73,6 +73,66 @@ describe("public API adapter", () => {
     expect(url).not.toContain("outdoor=true")
   })
 
+  it("ignores event coordinates that are far away from the event city", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{
+        ...apiEvent,
+        lat: 45.1,
+        lng: 15.5,
+        venue: null,
+      }],
+    }))
+
+    const events = await fetchEvents()
+
+    expect(events[0]).toEqual(expect.objectContaining({
+      city: "Osijek",
+      lat: 45.55,
+      lng: 18.69,
+    }))
+  })
+
+  it("uses known city coordinates when cityName contains a venue and city label", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{
+        ...apiEvent,
+        lat: 45.1,
+        lng: 15.5,
+        cityName: "Kopacabana, Osijek",
+        city: null,
+        venue: null,
+      }],
+    }))
+
+    const events = await fetchEvents()
+
+    expect(events[0]).toEqual(expect.objectContaining({
+      city: "Kopacabana, Osijek",
+      lat: 45.555,
+      lng: 18.695,
+    }))
+  })
+
+  it("keeps event coordinates when they are plausible for the event city", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{
+        ...apiEvent,
+        lat: 45.558,
+        lng: 18.693,
+      }],
+    }))
+
+    const events = await fetchEvents()
+
+    expect(events[0]).toEqual(expect.objectContaining({
+      lat: 45.558,
+      lng: 18.693,
+    }))
+  })
+
   it("falls back to mock data if public API fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")))
 

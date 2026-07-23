@@ -1,4 +1,4 @@
-import { cloudinaryImage, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { CITY_COORDS, cloudinaryImage, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 import { eventOccursDuringCurrentWeekend } from "./weekend"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -84,6 +84,61 @@ function slugifyLabel(value: string) {
     .replace(/đ/g, "d")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
+}
+
+function coordPair(lat?: number | null, lng?: number | null) {
+  if (typeof lat !== "number" || typeof lng !== "number") return null
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng }
+}
+
+function coordsForCityLabel(label?: string | null) {
+  if (!label) return null
+  const tokens = [label, ...label.split(",")]
+    .map((part) => slugifyLabel(part))
+    .filter(Boolean)
+  const city = Object.entries(CITY_COORDS).find(([name]) => tokens.includes(slugifyLabel(name)))
+  if (!city) return null
+  const [lat, lng] = city[1]
+  return { lat, lng }
+}
+
+function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const toRad = (value: number) => (value * Math.PI) / 180
+  const earthRadiusKm = 6371
+  const dLat = toRad(bLat - aLat)
+  const dLng = toRad(bLng - aLng)
+  const sinLat = Math.sin(dLat / 2)
+  const sinLng = Math.sin(dLng / 2)
+  const a =
+    sinLat * sinLat +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * sinLng * sinLng
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(a))
+}
+
+function resolveEventCoordinates(event: ApiEvent) {
+  const cityCoords =
+    coordPair(event.city?.lat, event.city?.lng) ??
+    coordsForCityLabel(event.city?.name) ??
+    coordsForCityLabel(event.cityName)
+
+  const plausibleNearCity = (lat?: number | null, lng?: number | null) => {
+    const coords = coordPair(lat, lng)
+    if (!coords) return null
+    if (!cityCoords) return coords
+    return distanceKm(coords.lat, coords.lng, cityCoords.lat, cityCoords.lng) <= 80 ? coords : null
+  }
+
+  const eventCoords = plausibleNearCity(event.lat, event.lng)
+  if (eventCoords) return eventCoords
+
+  const venueCoords = plausibleNearCity(event.venue?.lat, event.venue?.lng)
+  if (venueCoords) return venueCoords
+
+  if (cityCoords) return cityCoords
+  const rawEventCoords = coordPair(event.lat, event.lng)
+  if (rawEventCoords) return rawEventCoords
+  return { lat: undefined, lng: undefined }
 }
 
 export async function fetchCategories(): Promise<PublicCategory[]> {
@@ -218,6 +273,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
   const allCats = Array.from(new Map(rawCats.map((category) => [category.slug, category])).values())
 
   const primarySlug = allCats[0]?.slug || event.category.slug
+  const coords = resolveEventCoordinates(event)
 
   return {
     slug: event.slug,
@@ -254,8 +310,8 @@ function toCroEvent(event: ApiEvent): CroEvent {
     heroImage: cloudinaryImage(event.imageUrl, { w: 1600, h: 900 }) || undefined,
     featured: event.isFeatured === true || (event.extractionConfidence ? event.extractionConfidence >= 0.85 : false),
     address: event.address ?? event.venue?.address ?? undefined,
-    lat: (event.lat ?? event.venue?.lat ?? event.city?.lat) ?? undefined,
-    lng: (event.lng ?? event.venue?.lng ?? event.city?.lng) ?? undefined,
+    lat: coords.lat,
+    lng: coords.lng,
     map: { x: 50, y: 50 },
   }
 }

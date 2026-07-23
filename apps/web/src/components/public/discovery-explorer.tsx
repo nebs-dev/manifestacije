@@ -45,7 +45,6 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
             return (
               <li key={e.slug}>
                 <button
-                  onMouseEnter={() => setSelected(e.slug)}
                   onClick={() => setSelected(e.slug)}
                   className={cn(
                     "flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors",

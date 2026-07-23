@@ -31,16 +31,17 @@ export const metadata: Metadata = {
     // PNG/ICO first for guaranteed browser and Search Console compatibility;
     // SVG last as a progressive-enhancement fallback for browsers that prefer it.
     icon: [
+      { url: "/brand/favicon-v2.ico", sizes: "any" },
+      { url: "/brand/icon-16x16-v2.png", type: "image/png", sizes: "16x16" },
+      { url: "/brand/icon-32x32-v2.png", type: "image/png", sizes: "32x32" },
+      { url: "/brand/icon-48x48-v2.png", type: "image/png", sizes: "48x48" },
+      { url: "/brand/icon-192x192-v2.png", type: "image/png", sizes: "192x192" },
+      { url: "/brand/icon-512x512-v2.png", type: "image/png", sizes: "512x512" },
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-16x16.png", type: "image/png", sizes: "16x16" },
-      { url: "/icon-32x32.png", type: "image/png", sizes: "32x32" },
-      { url: "/icon-48x48.png", type: "image/png", sizes: "48x48" },
-      { url: "/icon-192x192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icon-512x512.png", type: "image/png", sizes: "512x512" },
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
-    shortcut: "/favicon.ico",
-    apple: "/apple-icon.png",
+    shortcut: "/brand/favicon-v2.ico",
+    apple: "/brand/apple-icon-v2.png",
   },
   manifest: "/manifest.webmanifest",
   // No verification meta tag needed — ownership is verified via a DNS TXT
