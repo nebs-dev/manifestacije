@@ -106,7 +106,7 @@ describe("EventsService image fields", () => {
   it("persists image fields on update", async () => {
     const prisma = {
       event: {
-        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
@@ -167,10 +167,82 @@ describe("EventsService image fields", () => {
     });
   });
 
+  it("uses precise location city metadata to set city, county and region", async () => {
+    const city = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3 } };
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, cityName: "Donji Kukuljica" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+      city: {
+        findMany: jest.fn().mockResolvedValue([city]),
+        findFirst: jest.fn().mockResolvedValue(city),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, {
+      cityName: "Osijek",
+      countyName: "Osječko-baranjska",
+      regionSlug: "slavonija-i-baranja",
+      address: 'Dječji kreativni centar "DOKKICA", Osijek',
+      lat: 45.555,
+      lng: 18.695,
+    });
+
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        cityName: "Osijek",
+        cityId: 1,
+        countyId: 2,
+        regionId: 3,
+        address: 'Dječji kreativni centar "DOKKICA", Osijek',
+        lat: 45.555,
+        lng: 18.695,
+      }),
+    });
+  });
+
+  it("overwrites a stale cityId when precise location resolves a different city", async () => {
+    const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3 } };
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 999, cityName: "Stari grad" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+      city: {
+        findMany: jest.fn().mockResolvedValue([osijek]),
+        findFirst: jest.fn().mockResolvedValue(osijek),
+        findUnique: jest.fn(),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, {
+      cityId: 99,
+      cityName: "Osijek",
+      address: 'Dječji kreativni centar "DOKKICA", Osijek',
+      lat: 45.555,
+      lng: 18.695,
+    });
+
+    expect(prisma.city.findUnique).not.toHaveBeenCalledWith({ where: { id: 99 }, include: { county: true } });
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        cityName: "Osijek",
+        cityId: 1,
+        countyId: 2,
+        regionId: 3,
+      }),
+    });
+  });
+
   it("clears endsAt when explicitly set to null (e.g. duplicated event with a stale end date)", async () => {
     const prisma = {
       event: {
-        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
@@ -187,7 +259,7 @@ describe("EventsService image fields", () => {
   it("sets endsAt to the parsed date when a value is supplied", async () => {
     const prisma = {
       event: {
-        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
@@ -220,7 +292,7 @@ describe("EventsService image fields", () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-01T12:00:00.000Z"));
     const prisma = {
       event: {
-        findUnique: jest.fn().mockResolvedValue({ id: 10 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
@@ -236,5 +308,18 @@ describe("EventsService image fields", () => {
       }),
     });
     jest.useRealTimers();
+  });
+
+  it("rejects publishing when location cannot be mapped to city and region", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, regionId: null }),
+        update: jest.fn(),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await expect(service.updateEvent(10, { status: "PUBLISHED" as never })).rejects.toThrow("Lokacija nije mapirana na grad/regiju.");
+    expect(prisma.event.update).not.toHaveBeenCalled();
   });
 });

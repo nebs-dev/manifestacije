@@ -281,7 +281,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
     category: primarySlug as CategorySlug,
     categories: allCats,
     region,
-    city: event.cityName ?? event.city?.name ?? "",
+    city: event.city?.name ?? event.cityName ?? "",
     citySlug: event.city?.slug || (event.cityName ? slugifyLabel(event.cityName) : undefined),
     venue: event.venue?.name || event.cityName || event.city?.name || "",
     date: toZagrebDate(displayStart),

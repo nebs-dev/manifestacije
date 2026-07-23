@@ -10,6 +10,8 @@ export type LocationValue = {
   lat: number
   lng: number
   cityName?: string
+  countyName?: string
+  regionSlug?: string
 }
 
 // Nominatim result shape
@@ -26,10 +28,13 @@ type NomResult = {
     town?: string
     village?: string
     city_district?: string
+    county?: string
+    state?: string
+    regionSlug?: string
   }
 }
 
-type SavedVenue = { label: string; lat: number; lng: number; cityName?: string }
+type SavedVenue = { label: string; lat: number; lng: number; cityName?: string; countyName?: string; regionSlug?: string }
 
 function label(r: NomResult): string {
   const a = r.address
@@ -92,9 +97,9 @@ export function LocationAutocomplete({
     }
   }
 
-  function pick(lbl: string, lat: number, lng: number, cityName?: string) {
+  function pick(lbl: string, lat: number, lng: number, cityName?: string, countyName?: string, regionSlug?: string) {
     const cleanLabel = compactLocationLabel(lbl)
-    onChange({ address: cleanLabel, lat, lng, cityName })
+    onChange({ address: cleanLabel, lat, lng, cityName, countyName, regionSlug })
     setQuery(cleanLabel)
     setOpen(false)
   }
@@ -153,7 +158,7 @@ export function LocationAutocomplete({
               {saved.map((v, i) => (
                 <li key={`s${i}`}>
                   <button type="button" onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pick(v.label, v.lat, v.lng, v.cityName)}
+                    onClick={() => pick(v.label, v.lat, v.lng, v.cityName, v.countyName, v.regionSlug)}
                     className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
                     <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
                     <span className="truncate">{compactLocationLabel(v.label)}</span>
@@ -168,7 +173,14 @@ export function LocationAutocomplete({
           {results.map((r) => (
             <li key={r.place_id}>
               <button type="button" onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(label(r), parseFloat(r.lat), parseFloat(r.lon), r.address.city ?? r.address.town ?? r.address.village)}
+                onClick={() => pick(
+                  label(r),
+                  parseFloat(r.lat),
+                  parseFloat(r.lon),
+                  r.address.city ?? r.address.town ?? r.address.village,
+                  r.address.state ?? r.address.county,
+                  r.address.regionSlug,
+                )}
                 className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
                 <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary/70" />
                 <span className="truncate">{label(r)}</span>

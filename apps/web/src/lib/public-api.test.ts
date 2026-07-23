@@ -133,6 +133,23 @@ describe("public API adapter", () => {
     }))
   })
 
+  it("uses canonical city relation before legacy cityName in public display", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{
+        ...apiEvent,
+        cityName: "Donji Kukuljica",
+      }],
+    }))
+
+    const events = await fetchEvents()
+
+    expect(events[0]).toEqual(expect.objectContaining({
+      city: "Osijek",
+      citySlug: "osijek",
+    }))
+  })
+
   it("falls back to mock data if public API fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")))
 

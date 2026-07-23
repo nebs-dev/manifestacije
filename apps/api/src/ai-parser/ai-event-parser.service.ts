@@ -15,6 +15,8 @@ export type ParsedEventCandidate = {
   city: string;
   county: string;
   region: string;
+  countyName?: string;
+  regionSlug?: string;
   category: string;
   isFree: boolean | null;
   priceText: string;

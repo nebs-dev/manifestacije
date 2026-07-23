@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { EventStatus, EventSourceKind, OrganizerStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
-import { COUNTY_TO_REGION_SLUG, lookupCityGeo, normalizeCountyName } from "../common/croatia-geo";
+import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionNameFromSlug, regionSlugForCounty } from "../common/croatia-geo";
 import { EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
@@ -13,7 +13,8 @@ export class EventsService {
   async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind }) {
     const title = dto.title?.trim() || "Novi događaj";
     const description = dto.description?.trim() || title;
-    const city = (dto.cityId || dto.cityName) ? await this.resolveCity(dto) : null;
+    const city = await this.resolveCityForWrite(dto);
+    this.assertPublishableLocation(opts.status || EventStatus.PENDING_REVIEW, city);
     const category = await this.resolveCategory(dto.categoryId ?? undefined);
     let venueId: number | undefined;
     if (dto.venueName && city) {
@@ -75,11 +76,8 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id } });
     if (!current) throw new NotFoundException("Event not found");
-    const cityLookup = {
-      cityId: dto.cityId,
-      cityName: dto.cityName || (!current.cityId && dto.venueName ? current.cityName ?? undefined : undefined),
-    };
-    const city = cityLookup.cityId || cityLookup.cityName ? await this.resolveCity(cityLookup) : null;
+    const city = await this.resolveCityForWrite(dto, current);
+    this.assertPublishableLocation(dto.status, city, current);
     const data: Record<string, unknown> = {
       title: dto.title,
       description: dto.description,
@@ -109,7 +107,7 @@ export class EventsService {
       }
     }
     if (city) {
-      data.cityName = dto.cityName || city.name;
+      data.cityName = city.name;
       data.cityId = city.id;
       data.countyId = city.countyId;
       data.regionId = city.county.regionId;
@@ -152,7 +150,41 @@ export class EventsService {
     return event;
   }
 
-  private async resolveCity(dto: Pick<EventUpsertDto, "cityId" | "cityName">) {
+  private async resolveCityForWrite(
+    dto: Partial<EventUpsertDto>,
+    current?: { cityId?: number | null; cityName?: string | null; regionId?: number | null; status?: EventStatus },
+  ) {
+    const addressCity = dto.address && (dto.cityName || dto.countyName || dto.regionSlug)
+      ? await this.findKnownCityInText(dto.address)
+      : null;
+    const explicitCityName = dto.cityName?.trim();
+    const hasPreciseLocationChange = "address" in dto || "lat" in dto || "lng" in dto || Boolean(dto.countyName || dto.regionSlug);
+    const preferCityName = Boolean(addressCity || explicitCityName);
+
+    if (!preferCityName && dto.cityId) {
+      return this.resolveCity({ cityId: dto.cityId });
+    }
+
+    const cityName = addressCity?.name ?? explicitCityName ?? (
+      !current?.cityId && dto.venueName ? current?.cityName ?? undefined : undefined
+    );
+
+    if (cityName) {
+      return this.resolveCity({
+        cityName,
+        countyName: dto.countyName,
+        regionSlug: dto.regionSlug,
+      });
+    }
+
+    if (!hasPreciseLocationChange && current?.cityId) {
+      return null;
+    }
+
+    return null;
+  }
+
+  private async resolveCity(dto: Pick<EventUpsertDto, "cityId" | "cityName" | "countyName" | "regionSlug">) {
     if (dto.cityId) {
       const city = await this.prisma.city.findUnique({ where: { id: dto.cityId }, include: { county: true } });
       if (!city) throw new BadRequestException("Unknown cityId");
@@ -163,13 +195,21 @@ export class EventsService {
     if (existing) return existing;
 
     const geo = await lookupCityGeo(name);
-    const county = geo ? await this.resolveCounty(geo.countyName) : await this.ensureFallbackCounty();
+    const county = await this.resolveCountyFromLocationMetadata(dto.countyName, dto.regionSlug, geo?.countyName);
 
     const slug = await uniqueSlug(name, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
     return this.prisma.city.create({
       data: { name, slug, countyId: county.id, lat: geo?.lat, lng: geo?.lng },
       include: { county: true },
     });
+  }
+
+  private async resolveCountyFromLocationMetadata(countyName?: string | null, regionSlug?: string | null, geoCountyName?: string | null) {
+    if (countyName?.trim()) return this.resolveCounty(countyName);
+    if (geoCountyName?.trim()) return this.resolveCounty(geoCountyName);
+    const cleanRegionSlug = this.cleanRegionSlug(regionSlug);
+    if (cleanRegionSlug) return this.ensureFallbackCountyForRegion(cleanRegionSlug);
+    return this.ensureFallbackCounty();
   }
 
   // Finds (or creates) the real county for a geocoded name, attached to the
@@ -181,7 +221,7 @@ export class EventsService {
     const existing = await this.prisma.county.findFirst({ where: { name: { equals: normalizedCountyName, mode: "insensitive" } } });
     if (existing) return existing;
 
-    const regionSlug = COUNTY_TO_REGION_SLUG[normalizedCountyName];
+    const regionSlug = regionSlugForCounty(normalizedCountyName);
     if (!regionSlug) return this.ensureFallbackCounty();
 
     const region = await this.prisma.region.findUnique({ where: { slug: regionSlug } });
@@ -205,15 +245,66 @@ export class EventsService {
   }
 
   private async ensureFallbackCounty() {
-    const region = await this.prisma.region.upsert({
-      where: { slug: "slavonija-i-baranja" },
-      update: {},
-      create: { name: "Slavonija i Baranja", slug: "slavonija-i-baranja", sortOrder: 1 },
-    });
+    const region = await this.ensureKnownRegion("slavonija-i-baranja");
     return this.prisma.county.upsert({
       where: { slug: "nepoznata-zupanija" },
       update: {},
       create: { name: "Nepoznata županija", slug: "nepoznata-zupanija", regionId: region.id },
     });
+  }
+
+  private async ensureFallbackCountyForRegion(regionSlug: string) {
+    const region = await this.ensureKnownRegion(regionSlug);
+    const slug = `nepoznata-zupanija-${regionSlug}`;
+    return this.prisma.county.upsert({
+      where: { slug },
+      update: {},
+      create: { name: "Nepoznata županija", slug, regionId: region.id },
+    });
+  }
+
+  private async ensureKnownRegion(regionSlug: string) {
+    const name = regionNameFromSlug(regionSlug) || "Slavonija i Baranja";
+    return this.prisma.region.upsert({
+      where: { slug: regionSlug },
+      update: {},
+      create: { name, slug: regionSlug, sortOrder: regionSlug === "slavonija-i-baranja" ? 1 : 999 },
+    });
+  }
+
+  private cleanRegionSlug(regionSlug?: string | null) {
+    const clean = regionSlug?.trim();
+    return clean && KNOWN_REGION_SLUGS.has(clean) ? clean : undefined;
+  }
+
+  private async findKnownCityInText(value: string) {
+    const text = this.normalizeKey(value);
+    if (!text) return null;
+    const cities = await this.prisma.city.findMany({ include: { county: true } });
+    return cities
+      .sort((a, b) => b.name.length - a.name.length)
+      .find((city) => text.split(",").map((part) => part.trim()).includes(this.normalizeKey(city.name)) || text.includes(` ${this.normalizeKey(city.name)}`) || text.endsWith(this.normalizeKey(city.name)))
+      ?? null;
+  }
+
+  private normalizeKey(value: string) {
+    return value
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/\s+/g, " ");
+  }
+
+  private assertPublishableLocation(
+    nextStatus?: EventStatus,
+    city?: { id: number; county?: { regionId?: number | null } } | null,
+    current?: { cityId?: number | null; regionId?: number | null; status?: EventStatus },
+  ) {
+    const willBePublished = nextStatus === EventStatus.PUBLISHED || (!nextStatus && current?.status === EventStatus.PUBLISHED);
+    if (!willBePublished) return;
+    if (!city && current?.cityId && current.regionId) return;
+    if (!city?.county?.regionId) throw new BadRequestException("Lokacija nije mapirana na grad/regiju.");
   }
 }

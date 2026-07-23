@@ -89,6 +89,7 @@ export function EventEditForm({
       ? { address: event.address ?? event.venue ?? event.city ?? "", lat: event.lat, lng: event.lng, cityName: event.city ?? undefined }
       : null
   )
+  const [locationChanged, setLocationChanged] = useState(false)
   const [allCategories, setAllCategories] = useState<{ id: number; name: string; slug: string }[]>([])
   const [organizers, setOrganizers] = useState<AdminOrganizer[]>([])
   const [organizersLoading, setOrganizersLoading] = useState(false)
@@ -139,8 +140,10 @@ export function EventEditForm({
         body: JSON.stringify({
           title: form.title,
           description: form.description,
-          cityId: event._cityId,
+          cityId: locationChanged ? undefined : event._cityId,
           cityName: location?.cityName || event.city || undefined,
+          countyName: location?.countyName,
+          regionSlug: location?.regionSlug,
           categoryId: primaryCategoryId,
           categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
           startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
@@ -356,7 +359,10 @@ export function EventEditForm({
                   <FieldDescription>Ulica i broj za Google Maps.</FieldDescription>
                   <LocationAutocomplete
                     value={location}
-                    onChange={setLocation}
+                    onChange={(value) => {
+                      setLocation(value)
+                      setLocationChanged(true)
+                    }}
                     localSuggest={async (q) => {
                       const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}`)
                       return res.ok ? res.json() : []

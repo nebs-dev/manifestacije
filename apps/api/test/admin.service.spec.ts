@@ -151,6 +151,42 @@ describe("AdminService ingestion workflow", () => {
     expect(updatedParsed.candidates[0].warnings).toEqual(["Original warning"]);
   });
 
+  it("does not create a canonical unknown region from parser region text", async () => {
+    const sourceParsed = parsedResult([candidate({ city: "Belišće", region: "Nepoznata regija" })]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      city: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 7 }),
+      },
+      region: {
+        upsert: jest.fn().mockResolvedValue({ id: 3 }),
+      },
+      county: {
+        upsert: jest.fn().mockResolvedValue({ id: 2 }),
+      },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 33 }) },
+    };
+    jest.spyOn(global, "fetch").mockRejectedValueOnce(new Error("offline"));
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.createEventFromSource(1, 0);
+
+    expect(prisma.region.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { slug: "slavonija-i-baranja" },
+    }));
+    expect(prisma.region.upsert).not.toHaveBeenCalledWith(expect.objectContaining({
+      where: { slug: "nepoznata-regija" },
+    }));
+    jest.restoreAllMocks();
+  });
+
   it("passes edited categoryIds from candidate overrides into event creation", async () => {
     const sourceParsed = parsedResult([candidate({ category: "glazba" })]);
     const prisma = {

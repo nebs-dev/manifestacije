@@ -61,6 +61,8 @@ export class CandidateOverrideDto {
   @IsOptional() @IsString() endsAt?: string;
   @IsOptional() @IsBoolean() isAllDay?: boolean;
   @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() countyName?: string;
+  @IsOptional() @IsString() regionSlug?: string;
   @IsOptional() @IsString() venueName?: string;
   @IsOptional() @IsString() address?: string;
   @IsOptional() @IsNumber() lat?: number;

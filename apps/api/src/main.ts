@@ -34,7 +34,17 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
   app.enableCors({ origin: corsOrigin, credentials: true, methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3001);
+  const port = process.env.PORT ? Number(process.env.PORT) : 3001;
+  try {
+    await app.listen(port);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
+      console.error(`[api] Port ${port} is already in use. Stop the old API process or run with PORT=<free-port>.`);
+      console.error(`[api] Check the process with: lsof -nP -iTCP:${port} -sTCP:LISTEN`);
+      process.exit(1);
+    }
+    throw error;
+  }
 }
 
 void bootstrap();

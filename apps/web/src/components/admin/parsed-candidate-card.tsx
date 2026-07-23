@@ -181,6 +181,8 @@ export function ParsedCandidateCard({
               address: location?.address,
               lat: location?.lat,
               lng: location?.lng,
+              countyName: location?.countyName,
+              regionSlug: location?.regionSlug,
               category: allCategories.find((c) => c.id === primaryCategoryId)?.slug || candidate.category,
               categoryIds: selectedCategoryIds,
               isFree: form.isFree,

@@ -19,6 +19,14 @@ export class EventUpsertDto {
   @IsString()
   cityName?: string;
 
+  @IsOptional()
+  @IsString()
+  countyName?: string;
+
+  @IsOptional()
+  @IsString()
+  regionSlug?: string;
+
   @Type(() => Number)
   @IsInt()
   @IsOptional()

@@ -31,6 +31,24 @@ export const COUNTY_TO_REGION_SLUG: Record<string, string> = {
   "Varaždinska": "medimurje-i-zagorje",
 };
 
+export const KNOWN_REGION_SLUGS = new Set(Object.values(COUNTY_TO_REGION_SLUG));
+
+export function regionSlugForCounty(countyName: string): string | undefined {
+  return COUNTY_TO_REGION_SLUG[normalizeCountyName(countyName)];
+}
+
+export function regionNameFromSlug(slug: string) {
+  return {
+    "slavonija-i-baranja": "Slavonija i Baranja",
+    "zagreb-i-okolica": "Zagreb i okolica",
+    "dalmacija": "Dalmacija",
+    "istra-i-kvarner": "Istra i Kvarner",
+    "sredisnja-hrvatska": "Središnja Hrvatska",
+    "lika-i-gorski-kotar": "Lika i Gorski kotar",
+    "medimurje-i-zagorje": "Međimurje i Zagorje",
+  }[slug];
+}
+
 const COUNTY_ALIASES: Record<string, string> = {
   "primorje-gorski kotar county": "Primorsko-goranska",
   "primorje-gorski kotar": "Primorsko-goranska",
