@@ -34,6 +34,34 @@ function parsedResult(candidates: ParsedEventCandidate[]): ParsedSourceResult {
 }
 
 describe("AdminService ingestion workflow", () => {
+  it("orders the full admin events query by startsAt before limiting results", async () => {
+    const prisma = {
+      event: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.allEvents({ sortBy: "startsAt", sortDir: "desc" });
+
+    expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: [{ startsAt: "desc" }, { id: "asc" }],
+      take: 200,
+    }));
+  });
+
+  it("orders pending events by startsAt by default", async () => {
+    const prisma = {
+      event: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+
+    await service.pendingEvents();
+
+    expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { status: EventStatus.PENDING_REVIEW },
+      orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+    }));
+  });
+
   it("stores parsed JSON, confidence and status for manual email sources", async () => {
     const result = parsedResult([candidate({ confidence: 0.8 }), candidate({ confidence: 0.6, missingFields: ["startsAt"] })]);
     const prisma = {

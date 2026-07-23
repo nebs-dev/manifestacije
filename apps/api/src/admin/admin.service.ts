@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { EventStatus, EventSourceType, OrganizerStatus } from "@prisma/client";
+import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
@@ -104,12 +104,16 @@ export class AdminService {
     return { count: events.length };
   }
 
-  pendingEvents() {
-    return this.prisma.event.findMany({ where: { status: EventStatus.PENDING_REVIEW }, include: this.eventInclude(), orderBy: { createdAt: "desc" } });
+  pendingEvents(params?: { sortBy?: string; sortDir?: string }) {
+    return this.prisma.event.findMany({
+      where: { status: EventStatus.PENDING_REVIEW },
+      include: this.eventInclude(),
+      orderBy: this.eventOrderBy(params),
+    });
   }
 
-  allEvents() {
-    return this.prisma.event.findMany({ include: this.eventInclude(), orderBy: { createdAt: "desc" }, take: 200 });
+  allEvents(params?: { sortBy?: string; sortDir?: string }) {
+    return this.prisma.event.findMany({ include: this.eventInclude(), orderBy: this.eventOrderBy(params), take: 200 });
   }
 
   event(id: number) {
@@ -675,6 +679,14 @@ export class AdminService {
 
   private eventInclude() {
     return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } } as const;
+  }
+
+  private eventOrderBy(params?: { sortBy?: string; sortDir?: string }): Prisma.EventOrderByWithRelationInput[] {
+    const direction = params?.sortDir === "desc" ? "desc" : "asc";
+    if (!params?.sortBy || params.sortBy === "startsAt") {
+      return [{ startsAt: direction }, { id: "asc" }];
+    }
+    return [{ startsAt: "asc" }, { id: "asc" }];
   }
 
   private isFacebookUrl(url: string): boolean {

@@ -19,12 +19,18 @@ import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
 import type { AdminEvent } from "@/lib/admin/types"
 
+type DateSortDirection = "asc" | "desc"
+
 export function PendingEventsTable({
   events,
   onAction,
+  dateSort,
+  onDateSortChange,
 }: {
   events: AdminEvent[]
   onAction?: () => void
+  dateSort: DateSortDirection
+  onDateSortChange: (direction: DateSortDirection) => void
 }) {
   async function approve(id: string, title: string) {
     const res = await authedFetch(`/api/admin/events/${id}/approve`, { method: "POST" })
@@ -60,7 +66,16 @@ export function PendingEventsTable({
         <TableHeader>
           <TableRow className="bg-muted/40">
             <TableHead>Naziv</TableHead>
-            <TableHead className="whitespace-nowrap">Početak</TableHead>
+            <TableHead className="whitespace-nowrap">
+              <button
+                type="button"
+                onClick={() => onDateSortChange(dateSort === "asc" ? "desc" : "asc")}
+                className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
+                aria-label={`Sortiraj po datumu ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
+              >
+                Početak <span aria-hidden>{dateSort === "asc" ? "↑" : "↓"}</span>
+              </button>
+            </TableHead>
             <TableHead>Grad</TableHead>
             <TableHead className="text-right">Pouzdanost</TableHead>
             <TableHead className="text-center">Upoz.</TableHead>

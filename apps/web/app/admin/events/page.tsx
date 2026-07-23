@@ -12,15 +12,19 @@ import { authedFetch } from "@/lib/admin/api"
 import { adaptEvent } from "@/lib/admin/adapters"
 import type { AdminEvent } from "@/lib/admin/types"
 
+type DateSortDirection = "asc" | "desc"
+
 export default function EventsPage() {
   const [events, setEvents] = useState<AdminEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [dateSort, setDateSort] = useState<DateSortDirection>("asc")
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await authedFetch("/api/admin/events")
+      const params = new URLSearchParams({ sortBy: "startsAt", sortDir: dateSort })
+      const res = await authedFetch(`/api/admin/events?${params.toString()}`)
       if (!res.ok) { setError("Greška pri učitavanju događaja."); return }
       const data = await res.json()
       setEvents((data as Record<string, unknown>[]).map(adaptEvent))
@@ -29,7 +33,7 @@ export default function EventsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [dateSort])
 
   useEffect(() => { load() }, [load])
 
@@ -46,7 +50,7 @@ export default function EventsPage() {
       ) : error ? (
         <ErrorState description={error} onRetry={load} />
       ) : (
-        <EventsTable events={events} onDelete={load} />
+        <EventsTable events={events} onDelete={load} dateSort={dateSort} onDateSortChange={setDateSort} />
       )}
     </>
   )

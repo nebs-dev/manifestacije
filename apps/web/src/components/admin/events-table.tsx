@@ -31,6 +31,8 @@ import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, EventStatus } from "@/lib/admin/types"
 
+type DateSortDirection = "asc" | "desc"
+
 const statusOptions: { value: EventStatus | "all"; label: string }[] = [
   { value: "all", label: "Svi statusi" },
   ...EVENT_STATUS_OPTIONS,
@@ -263,9 +265,13 @@ function InlineCategoriesCell({
 export function EventsTable({
   events,
   onDelete,
+  dateSort,
+  onDateSortChange,
 }: {
   events: AdminEvent[]
   onDelete?: () => void
+  dateSort: DateSortDirection
+  onDateSortChange: (direction: DateSortDirection) => void
 }) {
   const [status, setStatus] = useState<string>("all")
   const [search, setSearch] = useState("")
@@ -570,7 +576,16 @@ export function EventsTable({
                   />
                 </TableHead>
                 <TableHead>Naziv</TableHead>
-                <TableHead className="whitespace-nowrap">Početak</TableHead>
+                <TableHead className="whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => onDateSortChange(dateSort === "asc" ? "desc" : "asc")}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
+                    aria-label={`Sortiraj po datumu ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
+                  >
+                    Početak <span aria-hidden>{dateSort === "asc" ? "↑" : "↓"}</span>
+                  </button>
+                </TableHead>
                 <TableHead className="whitespace-nowrap">Kraj</TableHead>
                 <TableHead>Grad</TableHead>
                 <TableHead>Kategorija</TableHead>
