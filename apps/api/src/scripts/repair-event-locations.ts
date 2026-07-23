@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { KNOWN_REGION_SLUGS, lookupCityGeo } from "../common/croatia-geo";
-import { findOrCreateCity, resolveCountyAndRegion } from "../common/city-resolver";
+import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionSlugForCounty } from "../common/croatia-geo";
+import { resolveCountyAndRegion } from "../common/city-resolver";
 import { slugify } from "../common/slug";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,6 +56,17 @@ async function repairBrokenCityRegions() {
 
     const geo = await lookupCityGeo(city.name);
     await sleep(1100); // be polite to Nominatim's ~1req/sec usage policy
+    const resolvedRegionSlug = geo?.countyName ? regionSlugForCounty(normalizeCountyName(geo.countyName)) : undefined;
+    if (!resolvedRegionSlug || !KNOWN_REGION_SLUGS.has(resolvedRegionSlug)) {
+      console.log(JSON.stringify({
+        step: "city-region-repair-skipped",
+        cityId: city.id,
+        cityName: city.name,
+        reason: "geocoder-did-not-return-known-county-region",
+        geo,
+      }));
+      continue;
+    }
     const { county } = await resolveCountyAndRegion(prisma, { geo });
     await prisma.city.update({
       where: { id: city.id },
@@ -71,6 +82,11 @@ function duplicateCityKey(city: { name: string; slug: string }) {
   const nameSlug = slugify(city.name);
   const baseSlug = city.slug.replace(/-\d+$/, "");
   return nameSlug && nameSlug === baseSlug ? baseSlug : null;
+}
+
+function isDuplicateCityRow(city?: { name: string; slug: string } | null) {
+  const key = city ? duplicateCityKey(city) : null;
+  return Boolean(key && city?.slug !== key);
 }
 
 async function mergeDuplicateCities() {
@@ -217,30 +233,54 @@ async function main() {
       ? citiesByLongestName.find((city) => cityMentionInText(haystack, city.name))
       : undefined;
     const cityFromAddress = cityFromAddressMatch ? cityResolver.canonicalCity(cityFromAddressMatch) : undefined;
-    const cityFromCityName = cityResolver.cityByName(event.cityName);
+    const cityFromCityNameMatch = cityResolver.cityByName(event.cityName);
+    const cityFromCityName = cityFromCityNameMatch && KNOWN_REGION_SLUGS.has(cityFromCityNameMatch.county.region.slug)
+      ? cityFromCityNameMatch
+      : undefined;
     let targetCity = cityFromAddress ?? cityFromCityName;
     const cityMismatch = Boolean(targetCity && event.cityId !== targetCity.id);
     const cityNameMismatch = Boolean(event.city && event.cityName && normalize(event.cityName) !== normalize(event.city.name));
+    const duplicateCurrentCity = isDuplicateCityRow(event.city);
+    const autoRepairCandidate = Boolean(targetCity && (missingRegion || cityNameMismatch || duplicateCurrentCity));
 
     if (!cityMismatch && !missingRegion && !cityNameMismatch) continue;
-    suggested += 1;
-
-    // No local City row matches at all (e.g. a small village never seeded) —
-    // in --apply mode, resolve it the same way a brand-new event would: live
-    // geocode via findOrCreateCity, which also creates the County/Region if
-    // needed. Skipped in dry-run to avoid burning geocoding API calls/quota
-    // on a preview that might not be applied.
-    let geocoded = false;
-    if (!targetCity && event.cityName && apply) {
-      const created = await findOrCreateCity(prisma, event.cityName);
-      targetCity = await prisma.city.findUniqueOrThrow({
-        where: { id: created.id },
-        include: { county: { include: { region: true } } },
-      });
-      geocoded = true;
-      await sleep(1100); // be polite to Nominatim's ~1req/sec usage policy
+    if (!autoRepairCandidate) {
+      console.log(JSON.stringify({
+        step: "city-manual-review",
+        eventId: event.id,
+        title: event.title,
+        status: event.status,
+        current: {
+          cityName: event.cityName,
+          cityId: event.cityId,
+          city: event.city?.name,
+          county: event.county?.name,
+          region: event.region?.name,
+          regionSlug: event.region?.slug,
+          address: event.address,
+          venue: event.venue?.name,
+          venueCityId: event.venue?.cityId,
+          venueAddress: event.venue?.address,
+        },
+        issues: {
+          cityMismatch,
+          cityNameMismatch,
+          missingRegion,
+        },
+        suggestion: targetCity ? {
+          cityName: targetCity.name,
+          cityId: targetCity.id,
+          countyId: targetCity.countyId,
+          regionId: targetCity.county.regionId,
+          regionSlug: targetCity.county.region.slug,
+        } : null,
+        reason: "valid-region-city-mismatch-needs-human-review",
+        applied: false,
+      }));
+      continue;
     }
-    const needsGeocoding = !targetCity && Boolean(event.cityName) && !apply;
+    suggested += 1;
+    const needsGeocoding = false;
 
     const suggestion = targetCity
       ? {
@@ -272,10 +312,11 @@ async function main() {
         cityMismatch,
         cityNameMismatch,
         missingRegion,
+        duplicateCurrentCity,
         needsGeocoding,
       },
       suggestion,
-      geocoded,
+      geocoded: false,
       applied: apply && Boolean(suggestion),
     }));
 
