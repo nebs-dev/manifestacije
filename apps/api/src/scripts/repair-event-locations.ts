@@ -78,6 +78,40 @@ async function repairBrokenCityRegions() {
   console.log(JSON.stringify({ step: "city-region-repair-summary", fixed, mode: apply ? "apply" : "dry-run" }));
 }
 
+async function repairMissingCityCoordinates() {
+  const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
+  let fixed = 0;
+
+  for (const city of cities) {
+    if (city.lat !== null && city.lng !== null) continue;
+
+    const geo = await lookupCityGeo(city.name);
+    await sleep(1100); // be polite to Nominatim's ~1req/sec usage policy
+    const resolvedRegionSlug = geo?.countyName ? regionSlugForCounty(normalizeCountyName(geo.countyName)) : undefined;
+    const safeGeo = Boolean(geo && resolvedRegionSlug && KNOWN_REGION_SLUGS.has(resolvedRegionSlug));
+
+    console.log(JSON.stringify({
+      step: "city-coordinate-repair",
+      cityId: city.id,
+      cityName: city.name,
+      current: { lat: city.lat, lng: city.lng, county: city.county.name, regionSlug: city.county.region.slug },
+      suggestion: safeGeo ? { lat: geo!.lat, lng: geo!.lng, countyName: geo!.countyName, regionSlug: resolvedRegionSlug } : null,
+      applied: apply && safeGeo,
+    }));
+
+    if (!apply || !safeGeo) continue;
+
+    const { county } = await resolveCountyAndRegion(prisma, { geo });
+    await prisma.city.update({
+      where: { id: city.id },
+      data: { lat: geo!.lat, lng: geo!.lng, countyId: county.id },
+    });
+    fixed += 1;
+  }
+
+  console.log(JSON.stringify({ step: "city-coordinate-repair-summary", fixed, mode: apply ? "apply" : "dry-run" }));
+}
+
 function duplicateCityKey(city: { name: string; slug: string }) {
   const nameSlug = slugify(city.name);
   const baseSlug = city.slug.replace(/-\d+$/, "");
@@ -211,6 +245,7 @@ function buildCanonicalCityResolver<T extends { id: number; name: string; slug: 
 
 async function main() {
   await repairBrokenCityRegions();
+  await repairMissingCityCoordinates();
   await mergeDuplicateCities();
 
   const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
