@@ -70,6 +70,7 @@ function PartnerRow({ partner, onChanged, selected, onToggle }: { partner: Partn
                   uploadPath="/api/admin/uploads/partner-logo"
                   fit="contain"
                   aspectClassName="aspect-[3/1]"
+                  label="Logo"
                   hideUrlField
                 />
               </div>

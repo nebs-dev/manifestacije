@@ -23,6 +23,7 @@ export function EventImagePicker({
   uploadFetch = authedFetch,
   fit = "cover",
   aspectClassName = "aspect-video",
+  label = "Slika događaja",
 }: {
   value: EventImageValue
   onChange: (value: EventImageValue) => void
@@ -33,6 +34,7 @@ export function EventImagePicker({
   uploadFetch?: typeof authedFetch
   fit?: "cover" | "contain"
   aspectClassName?: string
+  label?: string
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -81,7 +83,7 @@ export function EventImagePicker({
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel>Slika događaja</FieldLabel>
+        <FieldLabel>{label}</FieldLabel>
         <div className="overflow-hidden rounded-2xl border border-border bg-muted">
           {value.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element

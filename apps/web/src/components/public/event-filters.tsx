@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useState, useEffect } from "react"
 import { Search, X } from "lucide-react"
+import { startProgress } from "@/lib/route-progress"
 import { categories as staticCategories, categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
 import type { PublicCategory } from "@/lib/public-api"
@@ -50,6 +51,7 @@ export function EventFilters({
       else next.delete("q")
       if (value === null || value === "") next.delete(key)
       else next.set(key, value)
+      startProgress()
       router.push(`${pathname}?${next.toString()}`, { scroll: false })
     },
     [params, pathname, router, q],
@@ -131,7 +133,7 @@ export function EventFilters({
 
       {hasActive && (
         <button
-          onClick={() => router.push(pathname, { scroll: false })}
+          onClick={() => { startProgress(); router.push(pathname, { scroll: false }) }}
           className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary hover:underline"
         >
           <X className="size-4" aria-hidden />

@@ -105,7 +105,7 @@ export default async function EventDetailPage({
             <p className="mt-2 inline-flex items-center gap-1.5 text-ink-foreground/85">
               <MapPin className="size-4 shrink-0" aria-hidden />
               {event.venue && event.venue !== event.city
-                ? event.venue
+                ? `${event.venue} · ${event.city}, ${regionName(event.region)}`
                 : addressLine ?? `${event.city} · ${regionName(event.region)}`}
             </p>
           </div>

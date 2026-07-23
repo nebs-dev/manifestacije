@@ -103,6 +103,55 @@ describe("EventsService image fields", () => {
     await expect(service.updateEvent(10, { organizerId: 999 })).rejects.toThrow("Unknown organizerId");
   });
 
+  it("saves an updated, normalized slug", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ id: 10, cityId: 1, regionId: 3, slug: "old-slug" }) // load current
+          .mockResolvedValueOnce(null), // no event already has the new slug
+        update: jest.fn().mockResolvedValue({ id: 10, slug: "novi-slug" }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, { slug: "  Novi Slug!  " });
+
+    expect(prisma.event.findUnique).toHaveBeenNthCalledWith(2, { where: { slug: "novi-slug" } });
+    expect(prisma.event.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ slug: "novi-slug" }),
+    }));
+  });
+
+  it("rejects a slug already taken by a different event", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ id: 10, cityId: 1, regionId: 3, slug: "old-slug" })
+          .mockResolvedValueOnce({ id: 99, slug: "taken-slug" }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await expect(service.updateEvent(10, { slug: "taken-slug" })).rejects.toThrow("Taj slug je već zauzet.");
+  });
+
+  it("does not check for a collision when the slug is unchanged", async () => {
+    const prisma = {
+      event: {
+        findUnique: jest.fn().mockResolvedValueOnce({ id: 10, cityId: 1, regionId: 3, slug: "same-slug" }),
+        update: jest.fn().mockResolvedValue({ id: 10 }),
+      },
+    };
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+
+    await service.updateEvent(10, { slug: "same-slug" });
+
+    expect(prisma.event.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.event.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ slug: expect.anything() }),
+    }));
+  });
+
   it("persists image fields on update", async () => {
     const prisma = {
       event: {

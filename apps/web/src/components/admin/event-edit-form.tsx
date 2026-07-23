@@ -139,6 +139,7 @@ export function EventEditForm({
         method: "PUT",
         body: JSON.stringify({
           title: form.title,
+          slug: form.slug,
           description: form.description,
           cityId: locationChanged ? undefined : event._cityId,
           cityName: location?.cityName || event.city || undefined,

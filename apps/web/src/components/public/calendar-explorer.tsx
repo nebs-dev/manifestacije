@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, SlidersHorizontal, X } from "lucide-react"
+import { startProgress } from "@/lib/route-progress"
 import {
   buildMonthGrid,
   type CroEvent,
@@ -135,6 +136,7 @@ export function CalendarExplorer({
     const next = new URLSearchParams(params.toString())
     if (checked) next.delete(key)
     else next.set(key, "1")
+    startProgress()
     router.push(`${pathname}?${next.toString()}`, { scroll: false })
   }
 

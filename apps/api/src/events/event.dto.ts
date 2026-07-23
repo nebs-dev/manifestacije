@@ -10,6 +10,10 @@ export class EventUpsertDto {
   @IsOptional()
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
   @Type(() => Number)
   @IsInt()
   @IsOptional()

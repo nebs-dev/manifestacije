@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
+import { Suspense } from "react";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { RouteProgress } from "@/components/route-progress";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_WEB_URL || "https://manifestacije.hr"
@@ -62,7 +64,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {apiUrl && <link rel="preconnect" href={apiUrl} />}
         <link rel="preconnect" href="https://res.cloudinary.com" />
       </head>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <Suspense fallback={null}>
+          <RouteProgress />
+        </Suspense>
+        {children}
+      </body>
       {gaId && <GoogleAnalytics gaId={gaId} />}
     </html>
   );
