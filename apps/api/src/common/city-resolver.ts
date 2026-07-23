@@ -65,6 +65,7 @@ export async function findOrCreateCity(
     return prisma.city.update({
       where: { id: existing.id },
       data: { countyId: county.id, lat: geo?.lat ?? existing.lat, lng: geo?.lng ?? existing.lng },
+      include: { county: { include: { region: true } } },
     });
   }
 
@@ -74,5 +75,8 @@ export async function findOrCreateCity(
   const { county } = await resolveCountyAndRegion(prisma, { countyName, regionName, geo });
 
   const citySlug = await uniqueSlug(cleaned, async (s) => !!(await prisma.city.findUnique({ where: { slug: s } })));
-  return prisma.city.create({ data: { name: cleaned, slug: citySlug, countyId: county.id, lat: geo?.lat, lng: geo?.lng } });
+  return prisma.city.create({
+    data: { name: cleaned, slug: citySlug, countyId: county.id, lat: geo?.lat, lng: geo?.lng },
+    include: { county: { include: { region: true } } },
+  });
 }

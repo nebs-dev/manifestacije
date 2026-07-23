@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { EventStatus, EventSourceKind, OrganizerStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
-import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionNameFromSlug, regionSlugForCounty } from "../common/croatia-geo";
+import { findOrCreateCity } from "../common/city-resolver";
 import { EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
@@ -78,8 +78,21 @@ export class EventsService {
     if (!current) throw new NotFoundException("Event not found");
     const city = await this.resolveCityForWrite(dto, current);
     this.assertPublishableLocation(dto.status, city, current);
+
+    let slug: string | undefined;
+    if (dto.slug !== undefined) {
+      const normalized = slugify(dto.slug);
+      if (!normalized) throw new BadRequestException("Slug ne može biti prazan.");
+      if (normalized !== current.slug) {
+        const taken = await this.prisma.event.findUnique({ where: { slug: normalized } });
+        if (taken && taken.id !== id) throw new BadRequestException("Taj slug je već zauzet.");
+        slug = normalized;
+      }
+    }
+
     const data: Record<string, unknown> = {
       title: dto.title,
+      slug,
       description: dto.description,
       categoryId: dto.categoryId,
       startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
@@ -191,44 +204,7 @@ export class EventsService {
       return city;
     }
     const name = dto.cityName?.trim() || "Nepoznato";
-    const existing = await this.prisma.city.findFirst({ where: { name: { equals: name, mode: "insensitive" } }, include: { county: true } });
-    if (existing) return existing;
-
-    const geo = await lookupCityGeo(name);
-    const county = await this.resolveCountyFromLocationMetadata(dto.countyName, dto.regionSlug, geo?.countyName);
-
-    const slug = await uniqueSlug(name, async (s) => !!(await this.prisma.city.findUnique({ where: { slug: s } })));
-    return this.prisma.city.create({
-      data: { name, slug, countyId: county.id, lat: geo?.lat, lng: geo?.lng },
-      include: { county: true },
-    });
-  }
-
-  private async resolveCountyFromLocationMetadata(countyName?: string | null, regionSlug?: string | null, geoCountyName?: string | null) {
-    if (countyName?.trim()) return this.resolveCounty(countyName);
-    if (geoCountyName?.trim()) return this.resolveCounty(geoCountyName);
-    const cleanRegionSlug = this.cleanRegionSlug(regionSlug);
-    if (cleanRegionSlug) return this.ensureFallbackCountyForRegion(cleanRegionSlug);
-    return this.ensureFallbackCounty();
-  }
-
-  // Finds (or creates) the real county for a geocoded name, attached to the
-  // correct existing region. Falls back to the generic "unknown" county when
-  // the county isn't in our fixed Croatia mapping (e.g. geocoder returned
-  // something unexpected).
-  private async resolveCounty(countyName: string) {
-    const normalizedCountyName = normalizeCountyName(countyName);
-    const existing = await this.prisma.county.findFirst({ where: { name: { equals: normalizedCountyName, mode: "insensitive" } } });
-    if (existing) return existing;
-
-    const regionSlug = regionSlugForCounty(normalizedCountyName);
-    if (!regionSlug) return this.ensureFallbackCounty();
-
-    const region = await this.prisma.region.findUnique({ where: { slug: regionSlug } });
-    if (!region) return this.ensureFallbackCounty();
-
-    const slug = await uniqueSlug(normalizedCountyName, async (s) => !!(await this.prisma.county.findUnique({ where: { slug: s } })));
-    return this.prisma.county.create({ data: { name: normalizedCountyName, slug, regionId: region.id } });
+    return findOrCreateCity(this.prisma, name, dto.countyName, dto.regionSlug);
   }
 
   private async resolveCategory(categoryId?: number) {
@@ -242,39 +218,6 @@ export class EventsService {
       update: {},
       create: { name: "Ostalo", slug: "ostalo", sortOrder: 999 },
     });
-  }
-
-  private async ensureFallbackCounty() {
-    const region = await this.ensureKnownRegion("slavonija-i-baranja");
-    return this.prisma.county.upsert({
-      where: { slug: "nepoznata-zupanija" },
-      update: {},
-      create: { name: "Nepoznata županija", slug: "nepoznata-zupanija", regionId: region.id },
-    });
-  }
-
-  private async ensureFallbackCountyForRegion(regionSlug: string) {
-    const region = await this.ensureKnownRegion(regionSlug);
-    const slug = `nepoznata-zupanija-${regionSlug}`;
-    return this.prisma.county.upsert({
-      where: { slug },
-      update: {},
-      create: { name: "Nepoznata županija", slug, regionId: region.id },
-    });
-  }
-
-  private async ensureKnownRegion(regionSlug: string) {
-    const name = regionNameFromSlug(regionSlug) || "Slavonija i Baranja";
-    return this.prisma.region.upsert({
-      where: { slug: regionSlug },
-      update: {},
-      create: { name, slug: regionSlug, sortOrder: regionSlug === "slavonija-i-baranja" ? 1 : 999 },
-    });
-  }
-
-  private cleanRegionSlug(regionSlug?: string | null) {
-    const clean = regionSlug?.trim();
-    return clean && KNOWN_REGION_SLUGS.has(clean) ? clean : undefined;
   }
 
   private async findKnownCityInText(value: string) {
