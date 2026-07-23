@@ -4,32 +4,31 @@ import type { PublicPartner } from "@/lib/public-api"
 export function PartnersStrip({ partners }: { partners: PublicPartner[] }) {
   if (partners.length === 0) return null
 
-  const loop = [...partners, ...partners]
-
   return (
-    <section className="border-t border-border bg-white py-12 md:py-16">
+    <section className="border-t border-border bg-white py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <p className="mb-6 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Naši partneri</p>
-        <div className="overflow-hidden">
-          <div className="marquee-track flex w-max items-center gap-16">
-            {loop.map((p, i) => (
-              <a
-                key={`${p.id}-${i}`}
-                href={p.websiteUrl ?? undefined}
-                target={p.websiteUrl ? "_blank" : undefined}
-                rel={p.websiteUrl ? "noopener noreferrer" : undefined}
-                className="shrink-0 transition-opacity hover:opacity-75"
-              >
-                <Image
-                  src={p.logoUrl}
-                  alt={p.name}
-                  width={140}
-                  height={48}
-                  className="h-10 w-auto object-contain md:h-12"
-                />
-              </a>
-            ))}
-          </div>
+        <div className="mb-12 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.15em] text-muted-foreground">Partneri</p>
+          <h2 className="mt-2 font-heading text-2xl font-semibold md:text-3xl">Naši partneri</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4">
+          {partners.map((p) => (
+            <a
+              key={p.id}
+              href={p.websiteUrl ?? undefined}
+              target={p.websiteUrl ? "_blank" : undefined}
+              rel={p.websiteUrl ? "noopener noreferrer" : undefined}
+              className="flex items-center justify-center transition-opacity duration-200 hover:opacity-75"
+            >
+              <Image
+                src={p.logoUrl}
+                alt={p.name}
+                width={200}
+                height={80}
+                className="h-16 w-auto object-contain md:h-20"
+              />
+            </a>
+          ))}
         </div>
       </div>
     </section>
