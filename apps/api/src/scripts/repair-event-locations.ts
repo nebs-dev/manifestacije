@@ -84,6 +84,7 @@ async function mergeDuplicateCities() {
     groups.set(key, group);
   }
 
+  let planned = 0;
   let merged = 0;
   for (const [key, group] of groups) {
     if (group.length < 2) continue;
@@ -91,6 +92,7 @@ async function mergeDuplicateCities() {
     const duplicates = group.filter((city) => city.id !== canonical.id);
 
     for (const duplicate of duplicates) {
+      planned += 1;
       const [directEventCount, venueEventCount, venueCount] = await Promise.all([
         prisma.event.count({ where: { cityId: duplicate.id } }),
         prisma.event.count({ where: { venue: { cityId: duplicate.id } } }),
@@ -159,7 +161,36 @@ async function mergeDuplicateCities() {
     }
   }
 
-  console.log(JSON.stringify({ step: "city-duplicate-merge-summary", merged, mode: apply ? "apply" : "dry-run" }));
+  console.log(JSON.stringify({ step: "city-duplicate-merge-summary", planned, merged, mode: apply ? "apply" : "dry-run" }));
+}
+
+function buildCanonicalCityResolver<T extends { id: number; name: string; slug: string; county: { region: { slug: string } } }>(cities: T[]) {
+  const groups = new Map<string, T[]>();
+  for (const city of cities) {
+    const key = slugify(city.name);
+    if (!key) continue;
+    const group = groups.get(key) ?? [];
+    group.push(city);
+    groups.set(key, group);
+  }
+
+  const canonicalByKey = new Map<string, T>();
+  for (const [key, group] of groups) {
+    const canonical = group.find((city) => city.slug === key)
+      ?? group.find((city) => KNOWN_REGION_SLUGS.has(city.county.region.slug))
+      ?? group[0];
+    canonicalByKey.set(key, canonical);
+    for (const city of group) canonicalByKey.set(normalize(city.name), canonical);
+  }
+
+  return {
+    canonicalCity(city: T) {
+      return canonicalByKey.get(slugify(city.name)) ?? canonicalByKey.get(normalize(city.name)) ?? city;
+    },
+    cityByName(name?: string | null) {
+      return name ? canonicalByKey.get(slugify(name)) ?? canonicalByKey.get(normalize(name)) : undefined;
+    },
+  };
 }
 
 async function main() {
@@ -168,7 +199,7 @@ async function main() {
 
   const cities = await prisma.city.findMany({ include: { county: { include: { region: true } } } });
   const citiesByLongestName = [...cities].sort((a, b) => b.name.length - a.name.length);
-  const cityByName = new Map(cities.map((city) => [normalize(city.name), city]));
+  const cityResolver = buildCanonicalCityResolver(cities);
   const events = await prisma.event.findMany({
     include: { city: true, county: true, region: true, venue: true },
     orderBy: { id: "asc" },
@@ -180,14 +211,15 @@ async function main() {
 
   for (const event of events) {
     inspected += 1;
-    const haystack = [event.address, event.cityName].filter(Boolean).join(", ");
-    const cityFromAddress = haystack
+    const missingRegion = !event.regionId || !event.region?.slug || !KNOWN_REGION_SLUGS.has(event.region.slug);
+    const haystack = [event.address, missingRegion ? event.venue?.address : null, event.cityName].filter(Boolean).join(", ");
+    const cityFromAddressMatch = haystack
       ? citiesByLongestName.find((city) => cityMentionInText(haystack, city.name))
       : undefined;
-    const cityFromCityName = event.cityName ? cityByName.get(normalize(event.cityName)) : undefined;
+    const cityFromAddress = cityFromAddressMatch ? cityResolver.canonicalCity(cityFromAddressMatch) : undefined;
+    const cityFromCityName = cityResolver.cityByName(event.cityName);
     let targetCity = cityFromAddress ?? cityFromCityName;
     const cityMismatch = Boolean(targetCity && event.cityId !== targetCity.id);
-    const missingRegion = !event.regionId || !event.region?.slug || !KNOWN_REGION_SLUGS.has(event.region.slug);
     const cityNameMismatch = Boolean(event.city && event.cityName && normalize(event.cityName) !== normalize(event.city.name));
 
     if (!cityMismatch && !missingRegion && !cityNameMismatch) continue;
