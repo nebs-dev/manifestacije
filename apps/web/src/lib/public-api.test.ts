@@ -42,8 +42,8 @@ describe("public API adapter", () => {
 
     expect(events[0]).toEqual(expect.objectContaining({
       slug: "cipelcugom-po-osijeku",
-      // Card-sized transform (800x600) — sized for the listing/card display context.
-      image: "https://res.cloudinary.com/demo/image/upload/c_fill,g_auto,f_auto,q_auto,w_800,h_600/event.jpg",
+      // Card-sized transform (640x480) — smaller listing image for faster mobile loads.
+      image: "https://res.cloudinary.com/demo/image/upload/c_fill,g_auto,f_auto,q_auto,w_640,h_480/event.jpg",
       // Larger transform (1600x900) for the full-bleed event detail page hero.
       heroImage: "https://res.cloudinary.com/demo/image/upload/c_fill,g_auto,f_auto,q_auto,w_1600,h_900/event.jpg",
       category: "na-otvorenom",

@@ -25,6 +25,7 @@ export default async function WeekendPage() {
   const events = await fetchEvents({ when: "ovaj-vikend" });
   const grouped = groupWeekendEvents(events);
   const visibleDays = grouped.days.filter((day) => day.events.length > 0);
+  let priorityImageUsed = false;
   const breadcrumbJsonLd = breadcrumbsToJsonLd(
     [
       { name: "Početna", path: "/" },
@@ -55,9 +56,18 @@ export default async function WeekendPage() {
                     <p className="mt-1 text-sm text-muted-foreground">{parts.day}. {parts.monthLong} · {day.events.length} {day.events.length === 1 ? "događanje" : "događanja"}</p>
                   </div>
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                    {day.events.map((event) => (
-                      <EventCard key={`${day.key}-${event.slug}`} event={{ ...event, date: displayDate }} />
-                    ))}
+                    {day.events.map((event) => {
+                      const priorityImage = !priorityImageUsed;
+                      priorityImageUsed = true;
+                      return (
+                        <EventCard
+                          key={`${day.key}-${event.slug}`}
+                          event={{ ...event, date: displayDate }}
+                          priorityImage={priorityImage}
+                          imageSizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                        />
+                      );
+                    })}
                   </div>
                 </section>
               );

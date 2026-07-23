@@ -157,6 +157,7 @@ export async function fetchPartners(): Promise<PublicPartner[]> {
 
 export async function fetchEvents(filters: PublicFilters = {}) {
   const params = new URLSearchParams()
+  params.set("compact", "true")
   if (filters.q) params.set("search", filters.q)
   // Category: explicit filter takes priority; kids/outdoor map to category slugs
   if (filters.category) {
@@ -355,7 +356,7 @@ function toCroEvent(event: ApiEvent): CroEvent {
     ticketUrl: event.ticketUrl || undefined,
     // Sized for the largest common display context (event card in a 3-column grid,
     // ~350-400px wide) at 2x for retina.
-    image: cloudinaryImage(event.imageUrl, { w: 800, h: 600 }) || undefined,
+    image: cloudinaryImage(event.imageUrl, { w: 640, h: 480 }) || undefined,
     // Full-bleed detail page hero needs more resolution than a card thumbnail.
     heroImage: cloudinaryImage(event.imageUrl, { w: 1600, h: 900 }) || undefined,
     featured: event.isFeatured === true || (event.extractionConfidence ? event.extractionConfidence >= 0.85 : false),

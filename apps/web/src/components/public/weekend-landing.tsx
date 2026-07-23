@@ -25,6 +25,7 @@ export function WeekendLanding({
   const grouped = groupWeekendEvents(events)
   const visibleDays = grouped.days.filter((day) => day.events.length > 0)
   const breadcrumbJsonLd = breadcrumbsToJsonLd(breadcrumbs, WEB_URL)
+  let priorityImageUsed = false
 
   return (
     <>
@@ -52,9 +53,18 @@ export function WeekendLanding({
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                    {day.events.map((event) => (
-                      <EventCard key={`${day.key}-${event.slug}`} event={{ ...event, date: displayDate }} />
-                    ))}
+                    {day.events.map((event) => {
+                      const priorityImage = !priorityImageUsed
+                      priorityImageUsed = true
+                      return (
+                        <EventCard
+                          key={`${day.key}-${event.slug}`}
+                          event={{ ...event, date: displayDate }}
+                          priorityImage={priorityImage}
+                          imageSizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                        />
+                      )
+                    })}
                   </div>
                 </section>
               )

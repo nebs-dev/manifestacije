@@ -16,7 +16,37 @@ const eventInclude = {
   },
 } satisfies Prisma.EventInclude;
 
-type PublicEventRow = Prisma.EventGetPayload<{ include: typeof eventInclude }>;
+const eventListSelect = {
+  slug: true,
+  title: true,
+  description: true,
+  startsAt: true,
+  endsAt: true,
+  isAllDay: true,
+  isFree: true,
+  isFeatured: true,
+  priceText: true,
+  ticketUrl: true,
+  sourceUrl: true,
+  imageUrl: true,
+  extractionConfidence: true,
+  cityName: true,
+  address: true,
+  lat: true,
+  lng: true,
+  organizer: { select: { name: true, slug: true, status: true, websiteUrl: true } },
+  venue: { select: { name: true, address: true, lat: true, lng: true } },
+  city: { select: { name: true, slug: true, lat: true, lng: true } },
+  county: { select: { name: true, slug: true } },
+  region: { select: { name: true, slug: true } },
+  category: { select: { slug: true, name: true } },
+  categories: {
+    select: { category: { select: { slug: true, name: true, sortOrder: true } } },
+    orderBy: [{ category: { sortOrder: "asc" } }],
+  },
+} satisfies Prisma.EventSelect;
+
+type PublicEventRow = Prisma.EventGetPayload<{ select: typeof eventListSelect }>;
 
 @Injectable()
 export class PublicFeedService {
@@ -25,7 +55,7 @@ export class PublicFeedService {
   async events(query: Record<string, string | undefined>) {
     const search = query.search?.trim();
     const where = await this.publicWhere(query, { includeSearch: false });
-    const events = await this.prisma.event.findMany({ where, include: eventInclude, orderBy: { startsAt: "asc" }, take: search ? 1000 : 500 });
+    const events = await this.prisma.event.findMany({ where, select: eventListSelect, orderBy: { startsAt: "asc" }, take: search ? 1000 : 500 });
     if (!search) return events;
     return this.rankSearchResults(events, search).slice(0, 500);
   }

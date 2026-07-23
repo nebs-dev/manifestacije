@@ -11,15 +11,17 @@ interface EventCardProps {
   event: CroEvent
   className?: string
   displayDate?: string
+  priorityImage?: boolean
+  imageSizes?: string
 }
 
-export function EventCard({ event, className, displayDate }: EventCardProps) {
+export function EventCard({ event, className, displayDate, priorityImage, imageSizes }: EventCardProps) {
   const dateForCard = eventCardDateDisplay(event.date, displayDate)
   return (
     <Link
       href={`/eventi/${event.slug}`}
       className={cn(
-        "group flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 [contain-intrinsic-size:420px] [content-visibility:auto] hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >
@@ -30,6 +32,8 @@ export function EventCard({ event, className, displayDate }: EventCardProps) {
             title={event.title}
             alt={event.title}
             category={event.category}
+            priority={priorityImage}
+            sizes={imageSizes}
           />
         </div>
         {event.image && (

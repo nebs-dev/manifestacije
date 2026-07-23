@@ -17,6 +17,25 @@ interface EventPosterProps {
   priority?: boolean
 }
 
+function cloudinaryVariant(url: string, width: number, height: number) {
+  if (!url.includes("res.cloudinary.com")) return url
+  const replacement = `c_fill,g_auto,f_auto,q_auto,w_${width},h_${height}`
+  if (/\/upload\/[^/]*w_\d+[^/]*h_\d+[^/]*\//.test(url)) {
+    return url.replace(/\/upload\/[^/]*\//, `/upload/${replacement}/`)
+  }
+  return url.replace(/\/upload\//, `/upload/${replacement}/`)
+}
+
+function cloudinarySrcSet(url: string) {
+  if (!url.includes("res.cloudinary.com")) return undefined
+  return [
+    `${cloudinaryVariant(url, 360, 270)} 360w`,
+    `${cloudinaryVariant(url, 520, 390)} 520w`,
+    `${cloudinaryVariant(url, 640, 480)} 640w`,
+    `${cloudinaryVariant(url, 800, 600)} 800w`,
+  ].join(", ")
+}
+
 export function EventPoster({
   image,
   title,
@@ -32,7 +51,21 @@ export function EventPoster({
   const fallbackUrl = categoryFallbackImage(category, title)
   const source = resolvePosterSource({ hasImage: !!image, imageFailed, fallbackFailed })
 
-  if (source === "image") {
+  if (source === "image" && image?.startsWith("/")) {
+    return (
+      <Image
+        src={image}
+        alt={alt || title}
+        fill
+        sizes={sizes}
+        className={cn("h-full w-full object-cover", className)}
+        priority={priority}
+        onError={() => setImageFailed(true)}
+      />
+    )
+  }
+
+  if (source === "image" && image) {
     // Event images come from arbitrary external sources (organizer uploads, scraped
     // sources, social CDNs) that can't be enumerated in next.config.js remotePatterns
     // ahead of time, so next/image (which requires an explicit host allowlist) isn't
@@ -41,9 +74,13 @@ export function EventPoster({
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={image}
+        srcSet={cloudinarySrcSet(image)}
+        sizes={sizes}
         alt={alt || title}
         className={cn("h-full w-full object-cover", className)}
         loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        decoding="async"
         onError={() => setImageFailed(true)}
       />
     )
@@ -57,6 +94,7 @@ export function EventPoster({
         fill
         sizes={sizes}
         className={cn("h-full w-full object-cover", className)}
+        priority={priority}
         onError={() => setFallbackFailed(true)}
       />
     )
