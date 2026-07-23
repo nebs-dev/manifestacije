@@ -7,10 +7,7 @@ export function PartnersStrip({ partners }: { partners: PublicPartner[] }) {
   return (
     <section className="border-t border-border bg-white py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4">
-        <div className="mb-12 text-center">
-          <p className="text-sm font-semibold uppercase tracking-[0.15em] text-muted-foreground">Partneri</p>
-          <h2 className="mt-2 font-heading text-2xl font-semibold md:text-3xl">Naši partneri</h2>
-        </div>
+        <h2 className="mb-12 text-center font-heading text-2xl font-semibold md:text-3xl">Naši partneri</h2>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-4">
           {partners.map((p) => (
             <a
