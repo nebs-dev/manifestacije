@@ -72,6 +72,7 @@ export function adaptEvent(event: BE): AdminEvent {
     title: (event.title as string) || "",
     slug: (event.slug as string) || "",
     description: (event.description as string) || "",
+    createdAt: event.createdAt as string,
     startsAt: (event.startsAt as string) || null,
     endsAt: (event.endsAt as string) || null,
     allDay: (event.isAllDay as boolean) ?? false,

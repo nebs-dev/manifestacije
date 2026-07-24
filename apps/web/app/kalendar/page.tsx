@@ -13,6 +13,17 @@ function str(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v
 }
 
+function validDate(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return undefined
+  return value
+}
+
+function validView(value: string | undefined) {
+  return value === "mjesec" || value === "tjedan" ? value : undefined
+}
+
 export default async function CalendarPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   const filters: PublicFilters = {
     q: str(searchParams.q),
@@ -37,6 +48,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
     month = d.getMonth()
     initialDate = earliest.date
   }
+  const selectedDate = validDate(str(searchParams.datum)) ?? initialDate
+  const selectedView = validView(str(searchParams.pogled)) ?? "tjedan"
+  const selectedDateObj = new Date(`${selectedDate}T00:00:00`)
+  year = selectedDateObj.getFullYear()
+  month = selectedDateObj.getMonth()
 
   return (
     <>
@@ -50,7 +66,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
           </p>
         </header>
 
-        <CalendarExplorer events={results} initialYear={year} initialMonth={month} initialDate={initialDate} />
+        <CalendarExplorer events={results} initialYear={year} initialMonth={month} initialDate={selectedDate} initialView={selectedView} />
       </main>
       <SiteFooter />
     </>

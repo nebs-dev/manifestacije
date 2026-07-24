@@ -34,6 +34,12 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
     fetchEvents(filters),
     fetchCategories(),
   ]);
+  const returnParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    const first = str(value);
+    if (first) returnParams.set(key, first);
+  }
+  const returnTo = `/eventi${returnParams.toString() ? `?${returnParams.toString()}` : ""}`;
 
   return (
     <>
@@ -49,7 +55,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
         </header>
         <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr] md:items-start">
           <FiltersPanel categories={categories} />
-          <ResultsGrid events={results} />
+          <ResultsGrid events={results} returnTo={returnTo} />
         </div>
       </main>
       <SiteFooter />

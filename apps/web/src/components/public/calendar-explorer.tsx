@@ -15,6 +15,7 @@ import {
   MONTHS_HR_NOM,
   WEEKDAY_SHORT_HR,
 } from "@/lib/data"
+import { publicAddressLine } from "@/lib/location-display"
 import { cn } from "@/lib/utils"
 import { currentWeekendDisplayRange } from "@/lib/weekend"
 import { CategoryBadge, PriceBadge } from "./badges"
@@ -47,6 +48,17 @@ function weekdayShort(d: Date) {
   return WEEKDAY_SHORT_HR[(d.getDay() + 6) % 7]
 }
 
+function isMultiDay(event: CroEvent) {
+  return Boolean(event.endDate && event.endDate !== event.date)
+}
+
+function sortCalendarEvents(a: CroEvent, b: CroEvent) {
+  const aMulti = isMultiDay(a)
+  const bMulti = isMultiDay(b)
+  if (aMulti !== bMulti) return aMulti ? 1 : -1
+  return a.time.localeCompare(b.time)
+}
+
 type View = "mjesec" | "tjedan"
 
 export function CalendarExplorer({
@@ -54,11 +66,13 @@ export function CalendarExplorer({
   initialYear,
   initialMonth,
   initialDate,
+  initialView = "tjedan",
 }: {
   events: CroEvent[]
   initialYear: number
   initialMonth: number
   initialDate?: string
+  initialView?: View
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -71,9 +85,9 @@ export function CalendarExplorer({
   }, [])
   const todayKey = dateKey(today)
 
-  const [view, setView] = useState<View>("tjedan")
+  const [view, setView] = useState<View>(initialView)
   const [anchor, setAnchor] = useState<Date>(() => initialDate ? new Date(`${initialDate}T00:00:00`) : new Date(initialYear, initialMonth, 1))
-  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [selectedDay, setSelectedDay] = useState<string | null>(() => initialDate ?? null)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const weekend = useMemo(() => currentWeekendDisplayRange(today), [today])
@@ -90,7 +104,7 @@ export function CalendarExplorer({
   const groups = useMemo(() => {
     const m: Record<string, CroEvent[]> = {}
     for (const day of visibleDays) {
-      const list = events.filter((e) => eventOccursOn(e, day)).sort((a, b) => a.time.localeCompare(b.time))
+      const list = events.filter((e) => eventOccursOn(e, day)).sort(sortCalendarEvents)
       if (list.length) m[dateKey(day)] = list
     }
     return m
@@ -105,8 +119,34 @@ export function CalendarExplorer({
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [selectedDay, view, anchor])
 
-  const goPrev = () => setAnchor((a) => (view === "tjedan" ? addDays(a, -7) : new Date(a.getFullYear(), a.getMonth() - 1, 1)))
-  const goNext = () => setAnchor((a) => (view === "tjedan" ? addDays(a, 7) : new Date(a.getFullYear(), a.getMonth() + 1, 1)))
+  const calendarDate = selectedDay ?? dateKey(anchor)
+  const returnTo = useMemo(() => {
+    const next = new URLSearchParams(params.toString())
+    next.set("pogled", view)
+    next.set("datum", calendarDate)
+    return `${pathname}?${next.toString()}`
+  }, [calendarDate, params, pathname, view])
+
+  useEffect(() => {
+    const next = new URLSearchParams(params.toString())
+    next.set("pogled", view)
+    next.set("datum", calendarDate)
+    const nextUrl = `${pathname}?${next.toString()}`
+    if (nextUrl !== `${pathname}?${params.toString()}`) {
+      router.replace(nextUrl, { scroll: false })
+    }
+  }, [calendarDate, params, pathname, router, view])
+
+  const goPrev = () => {
+    const next = view === "tjedan" ? addDays(anchor, -7) : new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)
+    setAnchor(next)
+    setSelectedDay(dateKey(next))
+  }
+  const goNext = () => {
+    const next = view === "tjedan" ? addDays(anchor, 7) : new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)
+    setAnchor(next)
+    setSelectedDay(dateKey(next))
+  }
 
   function preset(kind: "danas" | "vikend" | "mjesec") {
     if (kind === "mjesec") {
@@ -193,7 +233,12 @@ export function CalendarExplorer({
             {(["mjesec", "tjedan"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => setView(v)}
+                onClick={() => {
+                  setView(v)
+                  if (v === "mjesec") {
+                    setAnchor((a) => firstOfMonth(a))
+                  }
+                }}
                 className={cn(
                   "rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors",
                   view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
@@ -268,7 +313,7 @@ export function CalendarExplorer({
                     </div>
                     <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">{list.length} termina</span>
                   </div>
-                  <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={e.slug} event={e} />)}</ul>
+                  <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={e.slug} event={e} returnTo={returnTo} />)}</ul>
                 </section>
               )
             })}
@@ -321,11 +366,12 @@ function Chip({ active, onClick, tone = "primary", children }: { active: boolean
   )
 }
 
-function AgendaRow({ event }: { event: CroEvent }) {
+function AgendaRow({ event, returnTo }: { event: CroEvent; returnTo: string }) {
   const multiDay = event.endDate && event.endDate !== event.date
+  const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   return (
     <li>
-      <Link href={`/eventi/${event.slug}?from=kalendar`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
+      <Link href={`/eventi/${event.slug}?from=kalendar&returnTo=${encodeURIComponent(returnTo)}`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
         <div className="relative aspect-square overflow-hidden rounded-xl">
           <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
             <EventPoster image={event.image} title={event.title} category={event.category} sizes="96px" />
@@ -339,7 +385,7 @@ function AgendaRow({ event }: { event: CroEvent }) {
           <h4 className="truncate font-heading text-lg font-semibold leading-snug transition-colors group-hover:text-primary">{event.title}</h4>
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <MapPin className="size-3.5 shrink-0 text-primary/70" aria-hidden />
-            <span className="truncate">{event.venue}, {event.city}</span>
+            <span className="truncate">{locationLabel}</span>
           </p>
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             {(event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }]).map((category) => (

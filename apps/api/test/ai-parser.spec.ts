@@ -165,6 +165,22 @@ describe("AiEventParserService", () => {
     expect(result.candidates.some((c) => c.city === "Osijek")).toBe(true);
   });
 
+  it("preserves paragraph breaks in parsed descriptions instead of flattening to one line", async () => {
+    const result = await parser.parseBatch({
+      rawText: `
+15.7.2026
+Ljetni koncert
+Osijek
+
+Prvi odlomak opisa događaja.
+
+Drugi odlomak s dodatnim informacijama.
+      `.trim(),
+    });
+
+    expect(result.candidates[0].description).toContain("Prvi odlomak opisa događaja.\n\nDrugi odlomak");
+  });
+
   it("initialises all candidates with _status pending", async () => {
     const result = await parser.parseBatch({ rawText: STRUCTURED_FIXTURE });
     for (const c of result.candidates) {

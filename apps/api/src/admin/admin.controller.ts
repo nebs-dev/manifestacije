@@ -27,8 +27,27 @@ export class AdminController {
   @Post("events/bulk-categories") bulkCategories(@Body() body: { eventIds: number[]; categoryId: number; action: "add" | "remove" }) { return this.admin.bulkAssignCategory(body.eventIds, body.categoryId, body.action); }
   @Post("events/bulk-status") bulkStatus(@Body() dto: BulkStatusDto) { return this.admin.bulkSetStatus(dto.eventIds, dto.status); }
   @Post("events/bulk-shift-dates") bulkShiftDates(@Body() dto: BulkShiftDatesDto) { return this.admin.bulkShiftDates(dto.eventIds, dto.days); }
-  @Get("events/pending") pendingEvents(@Query("sortBy") sortBy?: string, @Query("sortDir") sortDir?: string) { return this.admin.pendingEvents({ sortBy, sortDir }); }
-  @Get("events") events(@Query("sortBy") sortBy?: string, @Query("sortDir") sortDir?: string) { return this.admin.allEvents({ sortBy, sortDir }); }
+  @Get("events/pending") pendingEvents(
+    @Query("sortBy") sortBy?: string,
+    @Query("sortDir") sortDir?: string,
+    @Query("search") search?: string,
+    @Query("organizerId") organizerId?: string,
+    @Query("startsFrom") startsFrom?: string,
+    @Query("startsTo") startsTo?: string,
+    @Query("createdFrom") createdFrom?: string,
+    @Query("createdTo") createdTo?: string,
+  ) { return this.admin.pendingEvents({ sortBy, sortDir, search, organizerId, startsFrom, startsTo, createdFrom, createdTo }); }
+  @Get("events") events(
+    @Query("sortBy") sortBy?: string,
+    @Query("sortDir") sortDir?: string,
+    @Query("search") search?: string,
+    @Query("status") status?: string,
+    @Query("organizerId") organizerId?: string,
+    @Query("startsFrom") startsFrom?: string,
+    @Query("startsTo") startsTo?: string,
+    @Query("createdFrom") createdFrom?: string,
+    @Query("createdTo") createdTo?: string,
+  ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, startsFrom, startsTo, createdFrom, createdTo }); }
   @Post("events") createAdminEvent(@Body() dto: AdminEventDto) { return this.admin.createEvent(dto); }
   @Get("events/:id") event(@Param("id") id: string) { return this.admin.event(Number(id)); }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }

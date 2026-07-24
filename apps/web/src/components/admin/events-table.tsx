@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Pencil, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -32,6 +32,16 @@ import { EVENT_STATUS_OPTIONS, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, EventStatus } from "@/lib/admin/types"
 
 type DateSortDirection = "asc" | "desc"
+type EventSortBy = "startsAt" | "createdAt"
+type EventFilters = {
+  search: string
+  status: string
+  organizerId: string
+  startsFrom: string
+  startsTo: string
+  createdFrom: string
+  createdTo: string
+}
 
 const statusOptions: { value: EventStatus | "all"; label: string }[] = [
   { value: "all", label: "Svi statusi" },
@@ -264,17 +274,25 @@ function InlineCategoriesCell({
 
 export function EventsTable({
   events,
+  loading,
   onDelete,
   dateSort,
   onDateSortChange,
+  sortBy,
+  onSortByChange,
+  filters,
+  onFiltersChange,
 }: {
   events: AdminEvent[]
+  loading?: boolean
   onDelete?: () => void
   dateSort: DateSortDirection
   onDateSortChange: (direction: DateSortDirection) => void
+  sortBy: EventSortBy
+  onSortByChange: (sortBy: EventSortBy) => void
+  filters: EventFilters
+  onFiltersChange: (filters: EventFilters) => void
 }) {
-  const [status, setStatus] = useState<string>("all")
-  const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -283,7 +301,7 @@ export function EventsTable({
   const [bulkStatus, setBulkStatus] = useState<string>("")
   const [bulkShiftDays, setBulkShiftDays] = useState("")
   const [organizers, setOrganizers] = useState<{ id: number; name: string }[]>([])
-  const [organizerFilter, setOrganizerFilter] = useState<string>("all")
+  const [searchDraft, setSearchDraft] = useState(filters.search)
 
   useEffect(() => {
     authedFetch("/api/admin/categories")
@@ -299,24 +317,61 @@ export function EventsTable({
       .catch(() => {})
   }, [])
 
-  const filtered = useMemo(() => {
-    let result = status === "all" ? events : events.filter((e) => e.status === status)
-    if (organizerFilter !== "all") {
-      result = result.filter((e) => e._organizerId === Number(organizerFilter))
-    }
-    const q = search.trim().toLowerCase()
-    if (q) {
-      result = result.filter((e) =>
-        e.title.toLowerCase().includes(q) ||
-        (e.city ?? "").toLowerCase().includes(q) ||
-        (e.categories?.some((c) => c.name.toLowerCase().includes(q)) ?? false) ||
-        (e.organizer ?? "").toLowerCase().includes(q)
-      )
-    }
-    return result
-  }, [events, status, organizerFilter, search])
+  useEffect(() => {
+    setSelected((prev) => new Set([...prev].filter((id) => events.some((event) => event.id === id))))
+  }, [events])
 
-  const allSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id))
+  const updateFilters = useCallback((patch: Partial<EventFilters>) => {
+    onFiltersChange({ ...filters, ...patch })
+    setConfirming(false)
+  }, [filters, onFiltersChange])
+
+  useEffect(() => {
+    setSearchDraft(filters.search)
+  }, [filters.search])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (searchDraft !== filters.search) updateFilters({ search: searchDraft })
+    }, 350)
+    return () => window.clearTimeout(timeout)
+  }, [filters.search, searchDraft, updateFilters])
+
+  const allSelected = events.length > 0 && events.every((e) => selected.has(e.id))
+
+  function toggleSort(nextSortBy: EventSortBy) {
+    if (sortBy === nextSortBy) {
+      onDateSortChange(dateSort === "asc" ? "desc" : "asc")
+      return
+    }
+    onSortByChange(nextSortBy)
+  }
+
+  function sortArrow(column: EventSortBy) {
+    return sortBy === column ? (dateSort === "asc" ? "↑" : "↓") : ""
+  }
+
+  const hasActiveFilters = Boolean(
+    filters.search ||
+    filters.status !== "all" ||
+    filters.organizerId !== "all" ||
+    filters.startsFrom ||
+    filters.startsTo ||
+    filters.createdFrom ||
+    filters.createdTo,
+  )
+
+  const returnTo = (() => {
+    const params = new URLSearchParams({ sortBy, sortDir: dateSort })
+    if (filters.search.trim()) params.set("search", filters.search.trim())
+    if (filters.status !== "all") params.set("status", filters.status)
+    if (filters.organizerId !== "all") params.set("organizerId", filters.organizerId)
+    if (filters.startsFrom) params.set("startsFrom", filters.startsFrom)
+    if (filters.startsTo) params.set("startsTo", filters.startsTo)
+    if (filters.createdFrom) params.set("createdFrom", filters.createdFrom)
+    if (filters.createdTo) params.set("createdTo", filters.createdTo)
+    return `/admin/events?${params.toString()}`
+  })()
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -328,7 +383,7 @@ export function EventsTable({
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(filtered.map((e) => e.id)))
+    setSelected(allSelected ? new Set() : new Set(events.map((e) => e.id)))
     setConfirming(false)
   }
 
@@ -433,14 +488,14 @@ export function EventsTable({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Pretraži naziv, grad, kategoriju…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
             className="w-72 pl-8"
           />
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-sm text-muted-foreground">Status:</span>
-          <Select value={status} onValueChange={(v) => setStatus(v as string)}>
+          <Select value={filters.status} onValueChange={(v) => updateFilters({ status: v as string })}>
             <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
@@ -457,7 +512,7 @@ export function EventsTable({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-sm text-muted-foreground">Organizator:</span>
-          <Select value={organizerFilter} onValueChange={(v) => setOrganizerFilter(v ?? "all")}>
+          <Select value={filters.organizerId} onValueChange={(v) => updateFilters({ organizerId: v ?? "all" })}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Svi organizatori" />
             </SelectTrigger>
@@ -471,9 +526,51 @@ export function EventsTable({
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-muted-foreground">Sort:</span>
+          <Select value={sortBy} onValueChange={(v) => onSortByChange(v as EventSortBy)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="startsAt" className="cursor-pointer">Datum događaja</SelectItem>
+                <SelectItem value="createdAt" className="cursor-pointer">Datum dodavanja</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
         <span className="ml-auto text-sm text-muted-foreground">
-          {filtered.length} događaja
+          {loading ? "Učitavanje…" : `${events.length} događaja`}
         </span>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card/60 p-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Početak od</span>
+          <Input type="date" value={filters.startsFrom} onChange={(e) => updateFilters({ startsFrom: e.target.value })} className="h-8 w-40" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Početak do</span>
+          <Input type="date" value={filters.startsTo} onChange={(e) => updateFilters({ startsTo: e.target.value })} className="h-8 w-40" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Dodano od</span>
+          <Input type="date" value={filters.createdFrom} onChange={(e) => updateFilters({ createdFrom: e.target.value })} className="h-8 w-40" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Dodano do</span>
+          <Input type="date" value={filters.createdTo} onChange={(e) => updateFilters({ createdTo: e.target.value })} className="h-8 w-40" />
+        </div>
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onFiltersChange({ search: "", status: "all", organizerId: "all", startsFrom: "", startsTo: "", createdFrom: "", createdTo: "" })}
+          >
+            Očisti filtere
+          </Button>
+        )}
       </div>
 
       {selected.size > 0 && (
@@ -557,7 +654,7 @@ export function EventsTable({
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {events.length === 0 ? (
         <EmptyState
           title="Nema događaja"
           description="Nijedan događaj ne odgovara odabranom filtru."
@@ -579,14 +676,24 @@ export function EventsTable({
                 <TableHead className="whitespace-nowrap">
                   <button
                     type="button"
-                    onClick={() => onDateSortChange(dateSort === "asc" ? "desc" : "asc")}
+                    onClick={() => toggleSort("startsAt")}
                     className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
                     aria-label={`Sortiraj po datumu ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
                   >
-                    Početak <span aria-hidden>{dateSort === "asc" ? "↑" : "↓"}</span>
+                    Početak <span aria-hidden>{sortArrow("startsAt")}</span>
                   </button>
                 </TableHead>
                 <TableHead className="whitespace-nowrap">Kraj</TableHead>
+                <TableHead className="whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("createdAt")}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
+                    aria-label={`Sortiraj po datumu dodavanja ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
+                  >
+                    Dodano <span aria-hidden>{sortArrow("createdAt")}</span>
+                  </button>
+                </TableHead>
                 <TableHead>Grad</TableHead>
                 <TableHead>Kategorija</TableHead>
                 <TableHead>Organizator</TableHead>
@@ -595,7 +702,7 @@ export function EventsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((e) => (
+              {events.map((e) => (
                 <TableRow key={e.id} className={selected.has(e.id) ? "bg-muted/30" : undefined}>
                   <TableCell>
                     <input
@@ -606,7 +713,7 @@ export function EventsTable({
                     />
                   </TableCell>
                   <TableCell className="max-w-56">
-                    <Link href={`/admin/events/${e.id}`} className="block truncate font-medium text-foreground hover:underline">
+                    <Link href={`/admin/events/${e.id}?returnTo=${encodeURIComponent(returnTo)}`} className="block truncate font-medium text-foreground hover:underline">
                       {e.title}
                     </Link>
                   </TableCell>
@@ -621,6 +728,9 @@ export function EventsTable({
                       value={e.endsAt}
                       onSave={(iso) => patchEvent(e.id, { endsAt: iso })}
                     />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {formatDateTime(e.createdAt)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <InlineTextCell

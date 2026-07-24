@@ -12,6 +12,18 @@ import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, UpdateEventSourceDto } from "./admin.dto";
 import { RevalidateService } from "./revalidate.service";
 
+export type AdminEventListParams = {
+  sortBy?: string;
+  sortDir?: string;
+  search?: string;
+  status?: string;
+  organizerId?: string;
+  startsFrom?: string;
+  startsTo?: string;
+  createdFrom?: string;
+  createdTo?: string;
+};
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -104,16 +116,16 @@ export class AdminService {
     return { count: events.length };
   }
 
-  pendingEvents(params?: { sortBy?: string; sortDir?: string }) {
+  pendingEvents(params?: AdminEventListParams) {
     return this.prisma.event.findMany({
-      where: { status: EventStatus.PENDING_REVIEW },
+      where: { ...this.eventListWhere(params), status: EventStatus.PENDING_REVIEW },
       include: this.eventInclude(),
       orderBy: this.eventOrderBy(params),
     });
   }
 
-  allEvents(params?: { sortBy?: string; sortDir?: string }) {
-    return this.prisma.event.findMany({ include: this.eventInclude(), orderBy: this.eventOrderBy(params), take: 200 });
+  allEvents(params?: AdminEventListParams) {
+    return this.prisma.event.findMany({ where: this.eventListWhere(params), include: this.eventInclude(), orderBy: this.eventOrderBy(params), take: 200 });
   }
 
   event(id: number) {
@@ -733,8 +745,64 @@ export class AdminService {
     return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } } as const;
   }
 
-  private eventOrderBy(params?: { sortBy?: string; sortDir?: string }): Prisma.EventOrderByWithRelationInput[] {
+  private eventListWhere(params?: AdminEventListParams): Prisma.EventWhereInput {
+    const where: Prisma.EventWhereInput = {};
+    const and: Prisma.EventWhereInput[] = [];
+
+    if (params?.status && Object.values(EventStatus).includes(params.status as EventStatus)) {
+      where.status = params.status as EventStatus;
+    }
+
+    const organizerId = params?.organizerId ? Number(params.organizerId) : NaN;
+    if (Number.isFinite(organizerId) && organizerId > 0) {
+      where.organizerId = organizerId;
+    }
+
+    const search = params?.search?.trim();
+    if (search) {
+      and.push({
+        OR: [
+          { title: { contains: search, mode: "insensitive" } },
+          { cityName: { contains: search, mode: "insensitive" } },
+          { city: { name: { contains: search, mode: "insensitive" } } },
+          { organizer: { name: { contains: search, mode: "insensitive" } } },
+          { category: { name: { contains: search, mode: "insensitive" } } },
+          { categories: { some: { category: { name: { contains: search, mode: "insensitive" } } } } },
+        ],
+      });
+    }
+
+    const startsAt = this.dateRangeWhere(params?.startsFrom, params?.startsTo);
+    if (startsAt) where.startsAt = startsAt;
+
+    const createdAt = this.dateRangeWhere(params?.createdFrom, params?.createdTo);
+    if (createdAt) where.createdAt = createdAt;
+
+    if (and.length) where.AND = and;
+    return where;
+  }
+
+  private dateRangeWhere(from?: string, to?: string): Prisma.DateTimeFilter | undefined {
+    const gte = this.parseAdminDate(from, "start");
+    const lte = this.parseAdminDate(to, "end");
+    if (!gte && !lte) return undefined;
+    return { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
+  }
+
+  private parseAdminDate(value: string | undefined, edge: "start" | "end"): Date | undefined {
+    if (!value) return undefined;
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const date = dateOnly
+      ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), edge === "start" ? 0 : 23, edge === "start" ? 0 : 59, edge === "start" ? 0 : 59, edge === "start" ? 0 : 999)
+      : new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  private eventOrderBy(params?: AdminEventListParams): Prisma.EventOrderByWithRelationInput[] {
     const direction = params?.sortDir === "desc" ? "desc" : "asc";
+    if (params?.sortBy === "createdAt") {
+      return [{ createdAt: direction }, { id: direction }];
+    }
     if (!params?.sortBy || params.sortBy === "startsAt") {
       return [{ startsAt: direction }, { id: "asc" }];
     }

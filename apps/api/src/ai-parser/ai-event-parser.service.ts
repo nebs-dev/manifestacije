@@ -177,8 +177,7 @@ export class AiEventParserService {
   }): Promise<ParsedSourceResult> {
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, input.sourceUrl) : "";
     const raw = input.rawHtml ? this.htmlToText(input.rawHtml) : (input.rawText ?? "");
-    // Normalize: trim each line so leading whitespace from HTML conversion doesn't break detection
-    const text = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
+    const text = this.normalizeTextPreservingParagraphs(raw);
     const sourceUrl = input.sourceUrl ?? "";
 
     if (this.isVisitSlavoniaStyle(text)) {
@@ -222,7 +221,7 @@ export class AiEventParserService {
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
     const htmlText = input.rawHtml ? this.htmlToText(input.rawHtml) : "";
     const combined = [htmlText, input.rawText ?? ""].filter(Boolean).join("\n\n---\n\n");
-    const text = combined.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).join("\n");
+    const text = this.normalizeTextPreservingParagraphs(combined);
     const isScreenshot = Boolean(input.screenshotBase64);
     const charLimit = isScreenshot ? 12000 : 24000;
     const truncated = text.length > charLimit ? text.slice(0, charLimit) + "\n[sadržaj skraćen]" : text;
@@ -274,6 +273,7 @@ Ako nešto ne možeš pronaći, koristi prazan string ili null.
 OBAVEZNA polja (jedino ova idu u missingFields): title, startsAt, city, category.
 OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, organizerName.
 Warnings koristi samo za stvarne probleme (datum u prošlosti, nevažeći URL i sl.).
+Description mora zadržati format originala koliko je moguće: odlomke odvoji s "\\n\\n", stavke programa/lista ostavi u zasebnim linijama. Ne vraćaj cijeli opis kao jedan dugi red ako original ima odlomke ili listu.
 
 AKO SADRŽAJ SADRŽI JEDAN DOGAĐAJ — vrati jedan JSON objekt:
 ${eventSchema}
@@ -327,7 +327,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
 
     const normalize = (p: Partial<ParsedEventCandidate>): ParsedEventCandidate => ({
       title: p.title ?? "",
-      description: p.description ?? "",
+      description: this.normalizeDescription(p.description ?? ""),
       startsAt: p.startsAt ?? "",
       endsAt: p.endsAt ?? "",
       isAllDay: p.isAllDay ?? false,
@@ -401,6 +401,23 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       .replace(/[^\S\n]{2,}/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
+  }
+
+  private normalizeTextPreservingParagraphs(text: string): string {
+    return text
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .join("\n")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  private normalizeDescription(description: string): string {
+    return this.normalizeTextPreservingParagraphs(description)
+      .replace(/\n{3,}/g, "\n\n")
+      .slice(0, 2500);
   }
 
   private extractHtmlImage(html: string, sourceUrl?: string): string {
@@ -643,20 +660,24 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const time = this.matchTime(block);
     const startsAt = date ? this.buildDateTime(date, time || "18:00") : "";
 
-    const lines = block.split(/\n/).map((l) => l.trim()).filter(Boolean);
+    const rawLines = block.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
+    const lines = rawLines.filter(Boolean);
     let title = "";
     let titleIdx = -1;
+    let titleRawIdx = -1;
 
     const labeledTitle = this.matchLine(block, /(?:naslov|title)\s*:\s*(.+)/i);
     if (labeledTitle) {
       title = labeledTitle;
       titleIdx = lines.findIndex((l) => /(?:naslov|title)\s*:/i.test(l));
+      titleRawIdx = rawLines.findIndex((l) => /(?:naslov|title)\s*:/i.test(l));
     } else {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!this.isDateLine(line) && !this.isLabelLine(line) && line.length >= 4 && line.length <= 150) {
           title = line;
           titleIdx = i;
+          titleRawIdx = rawLines.findIndex((l) => l === line);
           break;
         }
       }
@@ -682,8 +703,8 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
 
     const description =
       titleIdx >= 0
-        ? lines.slice(titleIdx + 1).join(" ").trim().slice(0, 1000)
-        : block.slice(0, 1000);
+        ? this.normalizeDescription(rawLines.slice(titleRawIdx + 1).join("\n"))
+        : this.normalizeDescription(block);
 
     const missingFields = [
       !title && "title",

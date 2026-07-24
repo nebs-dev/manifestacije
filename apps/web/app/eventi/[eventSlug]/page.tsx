@@ -23,7 +23,20 @@ const BACK_LINKS = {
   eventi: { href: "/eventi", label: "Natrag" },
 } as const;
 
+function safeReturnTo(value: string | undefined) {
+  if (!value) return null;
+  if (value.startsWith("//")) return null;
+  if (value === "/eventi" || value.startsWith("/eventi?")) return value;
+  if (value === "/kalendar" || value.startsWith("/kalendar?")) return value;
+  if (value === "/mapa" || value.startsWith("/mapa?")) return value;
+  return null;
+}
+
 function backLinkFrom(searchParams: Record<string, string | string[] | undefined> | undefined) {
+  const returnTo = safeReturnTo(Array.isArray(searchParams?.returnTo) ? searchParams?.returnTo[0] : searchParams?.returnTo);
+  if (returnTo?.startsWith("/kalendar")) return { href: returnTo, label: "Natrag na kalendar" };
+  if (returnTo?.startsWith("/mapa")) return { href: returnTo, label: "Natrag na kartu" };
+  if (returnTo) return { href: returnTo, label: "Natrag na rezultate" };
   const source = Array.isArray(searchParams?.from) ? searchParams?.from[0] : searchParams?.from;
   if (source === "kalendar" || source === "mapa") return BACK_LINKS[source];
   return BACK_LINKS.eventi;
@@ -138,11 +151,11 @@ export default async function EventDetailPage({
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
               <div className="space-y-4 text-pretty text-lg leading-relaxed text-foreground/90">
-                {event.description.split("\n\n").map((para, index) => <p key={index}>{para}</p>)}
+                {event.description.split("\n\n").map((para, index) => <p key={index} className="whitespace-pre-line">{para}</p>)}
               </div>
               {event.longDescription !== event.description && (
                 <div className="mt-6 space-y-4 text-pretty leading-relaxed text-muted-foreground">
-                  {event.longDescription.split("\n\n").map((para, index) => <p key={index}>{para}</p>)}
+                  {event.longDescription.split("\n\n").map((para, index) => <p key={index} className="whitespace-pre-line">{para}</p>)}
                 </div>
               )}
 

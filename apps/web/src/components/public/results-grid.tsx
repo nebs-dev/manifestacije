@@ -2,7 +2,7 @@ import { EventCard } from "@/components/public/event-card"
 import type { CroEvent } from "@/lib/data"
 import { CalendarX } from "lucide-react"
 
-export function ResultsGrid({ events }: { events: CroEvent[] }) {
+export function ResultsGrid({ events, returnTo }: { events: CroEvent[]; returnTo?: string }) {
   if (events.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card px-6 py-20 text-center">
@@ -23,6 +23,7 @@ export function ResultsGrid({ events }: { events: CroEvent[] }) {
           event={event}
           priorityImage={index === 0}
           imageSizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+          returnTo={returnTo}
         />
       ))}
     </div>

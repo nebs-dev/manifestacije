@@ -74,6 +74,7 @@ export interface AdminEvent {
   title: string
   slug: string
   description: string
+  createdAt: string
   startsAt: string | null
   endsAt: string | null
   allDay: boolean
