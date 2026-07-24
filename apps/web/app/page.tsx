@@ -12,6 +12,12 @@ import { EventCard } from "@/components/public/event-card";
 import { fetchEvents, fetchPartners, WEB_URL } from "@/lib/public-api";
 import { safeJsonLdString } from "@/lib/event-jsonld";
 
+const UPCOMING_VISIBLE_COUNT = 6;
+const UPCOMING_ROTATION_POOL_SIZE = 18;
+const FREE_VISIBLE_COUNT = 3;
+const FREE_ROTATION_POOL_SIZE = 12;
+const ZAGREB_TIME_ZONE = "Europe/Zagreb";
+
 export default async function Home() {
   const [events, partners] = await Promise.all([fetchEvents(), fetchPartners()]);
   const websiteJsonLd = {
@@ -33,10 +39,17 @@ export default async function Home() {
     logo: `${WEB_URL}/logo/logo.svg`,
   };
   const featuredStrict = events.filter((event) => event.featured);
-  const featured = featuredStrict.length > 0 ? featuredStrict : events.slice(0, 3);
+  const featured = featuredStrict.length >= 3
+    ? featuredStrict
+    : [...featuredStrict, ...events.filter((event) => !event.featured)].slice(0, 3);
   const featuredSlugs = new Set(featured.map((event) => event.slug));
-  const upcoming = events.filter((event) => !featuredSlugs.has(event.slug)).slice(0, 6);
-  const free = events.filter((event) => event.free).slice(0, 3);
+  const upcoming = rotateEventsByDay(events.filter((event) => !featuredSlugs.has(event.slug)).slice(0, UPCOMING_ROTATION_POOL_SIZE)).slice(0, UPCOMING_VISIBLE_COUNT);
+  const shownSlugs = new Set([...featured.map((event) => event.slug), ...upcoming.map((event) => event.slug)]);
+  const free = rotateEventsByDay(
+    events
+      .filter((event) => event.free && !shownSlugs.has(event.slug))
+      .slice(0, FREE_ROTATION_POOL_SIZE),
+  ).slice(0, FREE_VISIBLE_COUNT);
 
   return (
     <>
@@ -63,10 +76,12 @@ export default async function Home() {
             <CategoryStrip events={events} />
           </section>
 
-          <section className="py-14 md:py-20">
-            <SectionHeading eyebrow="Bez ulaznice" title="Besplatna događanja" description="Kultura dostupna svima — bez troška." href="/eventi?besplatno=1" hrefLabel="Sva besplatna" />
-            <EventRail events={free.length ? free : upcoming.slice(0, 3)} />
-          </section>
+          {free.length > 0 && (
+            <section className="py-14 md:py-20">
+              <SectionHeading eyebrow="Bez ulaznice" title="Besplatna događanja" description="Kultura dostupna svima — bez troška." href="/eventi?besplatno=1" hrefLabel="Sva besplatna" />
+              <EventRail events={free} />
+            </section>
+          )}
         </div>
 
         <OrganizerCta />
@@ -87,4 +102,26 @@ export default async function Home() {
       <SiteFooter />
     </>
   );
+}
+
+function rotateEventsByDay<T>(items: T[]) {
+  if (items.length <= 1) return items;
+  const offset = dayOfYearInZagreb(new Date()) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}
+
+function dayOfYearInZagreb(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZAGREB_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const year = value("year");
+  const month = value("month");
+  const day = value("day");
+  const start = Date.UTC(year, 0, 1);
+  const current = Date.UTC(year, month - 1, day);
+  return Math.floor((current - start) / 86_400_000);
 }
