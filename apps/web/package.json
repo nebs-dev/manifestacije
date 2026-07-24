@@ -17,6 +17,7 @@
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.22.0",
+    "motion": "^12.42.2",
     "next": "^14.2.18",
     "nprogress": "^0.2.0",
     "react": "^18.3.1",

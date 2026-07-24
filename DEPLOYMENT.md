@@ -12,6 +12,8 @@ PORT=3001
 DATABASE_URL=<Railway Postgres connection string>
 JWT_SECRET=<long random secret>
 PUBLIC_WEB_URL=https://manifestacije.hr
+WEB_URL=https://manifestacije.hr
+REVALIDATE_SECRET=<long random secret, must match web service>
 CORS_ALLOWED_ORIGINS=https://<vercel-preview>.vercel.app
 SEED_ADMIN_EMAIL=admin@manifestacije.test
 SEED_ADMIN_PASSWORD=<staging admin password>
@@ -40,9 +42,15 @@ Web service:
 ```text
 NEXT_PUBLIC_API_URL=https://<railway-api-domain>
 NEXT_PUBLIC_WEB_URL=https://manifestacije.hr
+REVALIDATE_SECRET=<long random secret, must match API service>
 ```
 
 `NEXT_PUBLIC_API_URL` must be API origin only, without `/api`.
+
+`REVALIDATE_SECRET` guards `POST /api/revalidate`, which the API calls after
+event/partner writes to bust the ISR cache immediately. Without it set on
+both services (same value), admin changes silently sit stale until the
+tag's cache TTL expires (up to 1 hour).
 
 ## Railway Postgres And API
 
