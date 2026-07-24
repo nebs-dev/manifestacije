@@ -33,10 +33,9 @@ export default async function Home() {
     logo: `${WEB_URL}/logo/logo.svg`,
   };
   const featuredStrict = events.filter((event) => event.featured);
-  const upcoming = events.slice(0, 6);
-  const featured = featuredStrict.length >= 3
-    ? featuredStrict.slice(0, 3)
-    : [...featuredStrict, ...events.filter((e) => !e.featured)].slice(0, 3);
+  const featured = featuredStrict.length > 0 ? featuredStrict : events.slice(0, 3);
+  const featuredSlugs = new Set(featured.map((event) => event.slug));
+  const upcoming = events.filter((event) => !featuredSlugs.has(event.slug)).slice(0, 6);
   const free = events.filter((event) => event.free).slice(0, 3);
 
   return (
@@ -49,7 +48,7 @@ export default async function Home() {
         <div className="mx-auto max-w-6xl px-4">
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Izdvojeno" title="Događanja koja ne želiš propustiti" description="Ručno odabrani vrhunci sezone diljem Slavonije i Baranje." href="/eventi" hrefLabel="Sva događanja" />
-            <EventRail events={featured} />
+            <EventRail events={featured} carousel />
           </section>
 
           <section className="py-14 md:py-20">
