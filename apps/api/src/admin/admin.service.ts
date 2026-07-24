@@ -22,6 +22,15 @@ export type AdminEventListParams = {
   startsTo?: string;
   createdFrom?: string;
   createdTo?: string;
+  page?: string;
+  pageSize?: string;
+  fieldFilters?: string;
+};
+
+type AdminEventFieldFilter = {
+  field: string;
+  op?: string;
+  value?: string;
 };
 
 @Injectable()
@@ -116,16 +125,13 @@ export class AdminService {
     return { count: events.length };
   }
 
-  pendingEvents(params?: AdminEventListParams) {
-    return this.prisma.event.findMany({
-      where: { ...this.eventListWhere(params), status: EventStatus.PENDING_REVIEW },
-      include: this.eventInclude(),
-      orderBy: this.eventOrderBy(params),
-    });
+  async pendingEvents(params?: AdminEventListParams) {
+    const where = { ...this.eventListWhere(params), status: EventStatus.PENDING_REVIEW };
+    return this.paginatedEvents(where, params);
   }
 
   allEvents(params?: AdminEventListParams) {
-    return this.prisma.event.findMany({ where: this.eventListWhere(params), include: this.eventInclude(), orderBy: this.eventOrderBy(params), take: 200 });
+    return this.paginatedEvents(this.eventListWhere(params), params);
   }
 
   event(id: number) {
@@ -745,6 +751,28 @@ export class AdminService {
     return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } } as const;
   }
 
+  private async paginatedEvents(where: Prisma.EventWhereInput, params?: AdminEventListParams) {
+    const page = this.parsePositiveInt(params?.page, 1, 1, 10_000);
+    const pageSize = this.parsePositiveInt(params?.pageSize, 25, 10, 100);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.event.findMany({
+        where,
+        include: this.eventInclude(),
+        orderBy: this.eventOrderBy(params),
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.event.count({ where }),
+    ]);
+    return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  private parsePositiveInt(value: string | undefined, fallback: number, min: number, max: number) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) return fallback;
+    return Math.max(min, Math.min(max, parsed));
+  }
+
   private eventListWhere(params?: AdminEventListParams): Prisma.EventWhereInput {
     const where: Prisma.EventWhereInput = {};
     const and: Prisma.EventWhereInput[] = [];
@@ -778,8 +806,160 @@ export class AdminService {
     const createdAt = this.dateRangeWhere(params?.createdFrom, params?.createdTo);
     if (createdAt) where.createdAt = createdAt;
 
+    const fieldFilters = this.parseFieldFilters(params?.fieldFilters);
+    for (const filter of fieldFilters) {
+      const condition = this.eventFieldFilterWhere(filter);
+      if (condition) and.push(condition);
+    }
+
     if (and.length) where.AND = and;
     return where;
+  }
+
+  private parseFieldFilters(value: string | undefined): AdminEventFieldFilter[] {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((item) => item && typeof item === "object" ? item as Record<string, unknown> : null)
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => ({
+          field: String(item.field ?? ""),
+          op: typeof item.op === "string" ? item.op : undefined,
+          value: typeof item.value === "string" ? item.value : undefined,
+        }))
+        .filter((item) => item.field);
+    } catch {
+      return [];
+    }
+  }
+
+  private eventFieldFilterWhere(filter: AdminEventFieldFilter): Prisma.EventWhereInput | undefined {
+    const field = filter.field;
+    const op = filter.op ?? "contains";
+    const rawValue = filter.value?.trim() ?? "";
+
+    if (op === "empty" || op === "notEmpty") {
+      return this.emptyFieldWhere(field, op === "notEmpty");
+    }
+
+    if (!rawValue) return undefined;
+
+    const text = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput => ({
+      [path]: op === "equals"
+        ? { equals: rawValue, mode: "insensitive" }
+        : { contains: rawValue, mode: "insensitive" },
+    } as Prisma.EventWhereInput);
+    const nullableText = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput => text(path);
+    const relationText = (relation: "organizer" | "venue" | "city" | "county" | "region" | "category"): Prisma.EventWhereInput => ({
+      [relation]: { name: op === "equals" ? { equals: rawValue, mode: "insensitive" } : { contains: rawValue, mode: "insensitive" } },
+    } as Prisma.EventWhereInput);
+    const date = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput | undefined => {
+      const parsed = this.parseAdminDate(rawValue, op === "lte" || op === "before" ? "end" : "start");
+      if (!parsed) return undefined;
+      if (op === "before" || op === "lte") return { [path]: { lte: parsed } } as Prisma.EventWhereInput;
+      if (op === "after" || op === "gte") return { [path]: { gte: parsed } } as Prisma.EventWhereInput;
+      return { [path]: this.dateRangeWhere(rawValue, rawValue) } as Prisma.EventWhereInput;
+    };
+    const number = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput | undefined => {
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) return undefined;
+      if (op === "gte") return { [path]: { gte: parsed } } as Prisma.EventWhereInput;
+      if (op === "lte") return { [path]: { lte: parsed } } as Prisma.EventWhereInput;
+      return { [path]: parsed } as Prisma.EventWhereInput;
+    };
+    const bool = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput | undefined => {
+      const normalized = rawValue.toLowerCase();
+      const parsed = normalized === "true" || normalized === "1" || normalized === "da"
+        ? true
+        : normalized === "false" || normalized === "0" || normalized === "ne"
+          ? false
+          : undefined;
+      return typeof parsed === "boolean" ? { [path]: parsed } as Prisma.EventWhereInput : undefined;
+    };
+
+    switch (field) {
+      case "id": return number("id");
+      case "title": return text("title");
+      case "slug": return text("slug");
+      case "description": return text("description");
+      case "status": {
+        const normalizedStatus = rawValue.toUpperCase();
+        return Object.values(EventStatus).includes(normalizedStatus as EventStatus) ? { status: normalizedStatus as EventStatus } : undefined;
+      }
+      case "organizerId": return number("organizerId");
+      case "organizer": return relationText("organizer");
+      case "venueId": return number("venueId");
+      case "venue": return relationText("venue");
+      case "cityName": return nullableText("cityName");
+      case "cityId": return number("cityId");
+      case "city": return relationText("city");
+      case "countyId": return number("countyId");
+      case "county": return relationText("county");
+      case "regionId": return number("regionId");
+      case "region": return relationText("region");
+      case "categoryId": return number("categoryId");
+      case "category":
+      case "categories": return {
+        OR: [
+          relationText("category"),
+          { categories: { some: { category: { name: op === "equals" ? { equals: rawValue, mode: "insensitive" } : { contains: rawValue, mode: "insensitive" } } } } },
+        ],
+      };
+      case "startsAt": return date("startsAt");
+      case "endsAt": return date("endsAt");
+      case "allDay":
+      case "isAllDay": return bool("isAllDay");
+      case "isFree": return bool("isFree");
+      case "priceText": return nullableText("priceText");
+      case "ticketUrl": return nullableText("ticketUrl");
+      case "sourceUrl": return nullableText("sourceUrl");
+      case "imageUrl": return nullableText("imageUrl");
+      case "address": return nullableText("address");
+      case "lat": return number("lat");
+      case "lng": return number("lng");
+      case "sourceType": return { sourceType: rawValue.toUpperCase() as Prisma.EnumEventSourceKindFilter["equals"] };
+      case "confidence":
+      case "extractionConfidence": return number("extractionConfidence");
+      case "isFeatured": return bool("isFeatured");
+      case "publishedAt": return date("publishedAt");
+      case "createdAt": return date("createdAt");
+      case "updatedAt": return date("updatedAt");
+      default: return undefined;
+    }
+  }
+
+  private emptyFieldWhere(field: string, notEmpty: boolean): Prisma.EventWhereInput | undefined {
+    const isNull = notEmpty ? { not: null } : null;
+    const nullableScalar = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput => ({ [path]: isNull } as Prisma.EventWhereInput);
+    const nullableText = (path: keyof Prisma.EventWhereInput): Prisma.EventWhereInput => notEmpty
+      ? { [path]: { not: null } } as Prisma.EventWhereInput
+      : { OR: [{ [path]: null } as Prisma.EventWhereInput, { [path]: "" } as Prisma.EventWhereInput] };
+    switch (field) {
+      case "organizerId": return nullableScalar("organizerId");
+      case "organizer": return { organizerId: isNull };
+      case "venueId": return nullableScalar("venueId");
+      case "venue": return { venueId: isNull };
+      case "cityName": return nullableText("cityName");
+      case "cityId": return nullableScalar("cityId");
+      case "city": return { cityId: isNull };
+      case "countyId": return nullableScalar("countyId");
+      case "county": return { countyId: isNull };
+      case "regionId": return nullableScalar("regionId");
+      case "region": return { regionId: isNull };
+      case "endsAt": return nullableScalar("endsAt");
+      case "priceText": return nullableText("priceText");
+      case "ticketUrl": return nullableText("ticketUrl");
+      case "sourceUrl": return nullableText("sourceUrl");
+      case "imageUrl": return nullableText("imageUrl");
+      case "address": return nullableText("address");
+      case "lat": return nullableScalar("lat");
+      case "lng": return nullableScalar("lng");
+      case "extractionConfidence": return nullableScalar("extractionConfidence");
+      case "publishedAt": return nullableScalar("publishedAt");
+      default: return undefined;
+    }
   }
 
   private dateRangeWhere(from?: string, to?: string): Prisma.DateTimeFilter | undefined {

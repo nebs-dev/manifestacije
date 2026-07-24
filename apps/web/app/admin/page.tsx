@@ -30,6 +30,20 @@ import { adaptEventSource, adaptEvent } from "@/lib/admin/adapters"
 import { formatDate, formatRelative } from "@/lib/admin/format"
 import type { EventSource, AdminEvent } from "@/lib/admin/types"
 
+function responseItems(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data as Record<string, unknown>[]
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: Record<string, unknown>[] }).items
+  }
+  return []
+}
+
+function responseTotal(data: unknown, fallback: number) {
+  return data && typeof data === "object" && typeof (data as { total?: unknown }).total === "number"
+    ? (data as { total: number }).total
+    : fallback
+}
+
 export default function DashboardPage() {
   const [sources, setSources] = useState<EventSource[]>([])
   const [pending, setPending] = useState<AdminEvent[]>([])
@@ -44,7 +58,7 @@ export default function DashboardPage() {
           authedFetch("/api/admin/event-sources"),
           authedFetch("/api/admin/events/pending"),
           authedFetch("/api/admin/duplicates"),
-          authedFetch("/api/admin/events"),
+          authedFetch("/api/admin/events?status=PUBLISHED&pageSize=10"),
         ])
         if (!srcRes.ok || !pendRes.ok) {
           setError("Greška pri učitavanju. Provjerite jeste li prijavljeni.")
@@ -57,17 +71,17 @@ export default function DashboardPage() {
           evRes.ok ? evRes.json() : [],
         ])
         const adaptedSrc = (srcData as Record<string, unknown>[]).map(adaptEventSource)
-        const adaptedPend = (pendData as Record<string, unknown>[]).map(adaptEvent)
-        const adaptedAll = (evData as Record<string, unknown>[]).map(adaptEvent)
+        const adaptedPend = responseItems(pendData).map(adaptEvent)
+        const adaptedAll = responseItems(evData).map(adaptEvent)
         setSources(adaptedSrc.slice(0, 5))
         setPending(adaptedPend.slice(0, 5))
         setCounts({
           sources: adaptedSrc.filter((s) => s.status === "needs_review" || s.status === "parsed").length,
-          pending: adaptedPend.length,
+          pending: responseTotal(pendData, adaptedPend.length),
           duplicates: Array.isArray(dupData)
             ? dupData.filter((d: Record<string, unknown>) => d.status === "OPEN").length
             : 0,
-          published: adaptedAll.filter((e) => e.status === "published").length,
+          published: responseTotal(evData, adaptedAll.length),
         })
       } catch {
         setError("Greška pri dohvaćanju podataka.")

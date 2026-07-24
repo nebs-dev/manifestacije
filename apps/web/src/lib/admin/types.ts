@@ -75,10 +75,15 @@ export interface AdminEvent {
   slug: string
   description: string
   createdAt: string
+  updatedAt: string
+  publishedAt: string | null
   startsAt: string | null
   endsAt: string | null
   allDay: boolean
   city: string | null
+  cityName: string | null
+  county: string | null
+  region: string | null
   venue: string | null
   address: string | null
   lat: number | null
@@ -91,14 +96,26 @@ export interface AdminEvent {
   priceText: string | null
   ticketUrl: string | null
   sourceUrl: string | null
+  sourceType: string | null
   imageUrl: string | null
   status: EventStatus
   confidence: number
   warnings: string[]
+  _venueId?: number
   _cityId?: number
+  _countyId?: number
+  _regionId?: number
   _categoryId?: number
   _categoryIds?: number[]
   _organizerId?: number
+}
+
+export interface PaginatedAdminEvents {
+  items: AdminEvent[]
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
 }
 
 export interface DuplicateCandidate {

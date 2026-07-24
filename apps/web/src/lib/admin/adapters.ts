@@ -57,6 +57,8 @@ export function adaptEventSourceCandidates(src: BE): ParsedCandidate[] {
 
 export function adaptEvent(event: BE): AdminEvent {
   const city = event.city as BE | null
+  const county = event.county as BE | null
+  const region = event.region as BE | null
   const venue = event.venue as BE | null
   const category = event.category as BE | null
   const organizer = event.organizer as BE | null
@@ -73,10 +75,15 @@ export function adaptEvent(event: BE): AdminEvent {
     slug: (event.slug as string) || "",
     description: (event.description as string) || "",
     createdAt: event.createdAt as string,
+    updatedAt: event.updatedAt as string,
+    publishedAt: (event.publishedAt as string) || null,
     startsAt: (event.startsAt as string) || null,
     endsAt: (event.endsAt as string) || null,
     allDay: (event.isAllDay as boolean) ?? false,
     city: (city?.name as string) ?? null,
+    cityName: (event.cityName as string) ?? null,
+    county: (county?.name as string) ?? null,
+    region: (region?.name as string) ?? null,
     venue: (venue?.name as string) ?? null,
     address: (event.address as string) ?? null,
     lat: (event.lat as number) ?? null,
@@ -89,11 +96,15 @@ export function adaptEvent(event: BE): AdminEvent {
     priceText: (event.priceText as string) ?? null,
     ticketUrl: (event.ticketUrl as string) ?? null,
     sourceUrl: (event.sourceUrl as string) ?? null,
+    sourceType: (event.sourceType as string) ?? null,
     imageUrl: (event.imageUrl as string) ?? null,
     status: toUiEventStatus(event.status as string),
     confidence: (event.extractionConfidence as number) ?? 0.5,
     warnings: [],
+    _venueId: event.venueId as number | undefined,
     _cityId: event.cityId as number | undefined,
+    _countyId: event.countyId as number | undefined,
+    _regionId: event.regionId as number | undefined,
     _categoryId: event.categoryId as number | undefined,
     _categoryIds: categories.length ? categories.map((c) => c.id) : primaryCategoryId ? [primaryCategoryId] : [],
     _organizerId: event.organizerId as number | undefined,

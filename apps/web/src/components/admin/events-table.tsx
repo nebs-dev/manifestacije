@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Pencil, Search, Trash2 } from "lucide-react"
+import { Columns3, Pencil, Plus, Search, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -35,18 +35,89 @@ type DateSortDirection = "asc" | "desc"
 type EventSortBy = "startsAt" | "createdAt"
 type EventFilters = {
   search: string
-  status: string
-  organizerId: string
-  startsFrom: string
-  startsTo: string
-  createdFrom: string
-  createdTo: string
+  fieldFilters: FieldFilter[]
+}
+type FieldFilter = { id: string; field: string; op: string; value: string }
+type EventColumnKey =
+  | "title"
+  | "slug"
+  | "description"
+  | "startsAt"
+  | "endsAt"
+  | "createdAt"
+  | "publishedAt"
+  | "allDay"
+  | "city"
+  | "county"
+  | "region"
+  | "venue"
+  | "address"
+  | "category"
+  | "categories"
+  | "organizer"
+  | "isFree"
+  | "isFeatured"
+  | "priceText"
+  | "sourceType"
+  | "status"
+
+type FieldKind = "text" | "date" | "number" | "boolean" | "enum"
+
+const EVENT_COLUMNS: Array<{ key: EventColumnKey; label: string; kind: FieldKind; defaultVisible?: boolean }> = [
+  { key: "title", label: "Naziv", kind: "text", defaultVisible: true },
+  { key: "slug", label: "Slug", kind: "text" },
+  { key: "description", label: "Opis", kind: "text" },
+  { key: "startsAt", label: "Početak", kind: "date", defaultVisible: true },
+  { key: "endsAt", label: "Kraj", kind: "date", defaultVisible: true },
+  { key: "createdAt", label: "Dodano", kind: "date", defaultVisible: true },
+  { key: "publishedAt", label: "Objavljeno", kind: "date" },
+  { key: "allDay", label: "Cijeli dan", kind: "boolean" },
+  { key: "city", label: "Grad", kind: "text", defaultVisible: true },
+  { key: "county", label: "Županija", kind: "text" },
+  { key: "region", label: "Regija", kind: "text" },
+  { key: "venue", label: "Mjesto", kind: "text" },
+  { key: "address", label: "Adresa", kind: "text" },
+  { key: "category", label: "Primarna kategorija", kind: "text" },
+  { key: "categories", label: "Kategorije", kind: "text", defaultVisible: true },
+  { key: "organizer", label: "Organizator", kind: "text", defaultVisible: true },
+  { key: "isFree", label: "Besplatno", kind: "boolean" },
+  { key: "isFeatured", label: "Izdvojeno", kind: "boolean" },
+  { key: "priceText", label: "Cijena", kind: "text" },
+  { key: "sourceType", label: "Tip izvora", kind: "enum" },
+  { key: "status", label: "Status", kind: "enum", defaultVisible: true },
+]
+
+const DEFAULT_VISIBLE_COLUMNS = EVENT_COLUMNS.filter((column) => column.defaultVisible).map((column) => column.key)
+
+function fieldKind(field: string): FieldKind {
+  return EVENT_COLUMNS.find((column) => column.key === field)?.kind ?? "text"
 }
 
-const statusOptions: { value: EventStatus | "all"; label: string }[] = [
-  { value: "all", label: "Svi statusi" },
-  ...EVENT_STATUS_OPTIONS,
-]
+function filterOps(kind: FieldKind) {
+  if (kind === "date") return [
+    { value: "on", label: "na datum" },
+    { value: "gte", label: "nakon/od" },
+    { value: "lte", label: "prije/do" },
+    { value: "empty", label: "prazno" },
+    { value: "notEmpty", label: "nije prazno" },
+  ]
+  if (kind === "number") return [
+    { value: "equals", label: "=" },
+    { value: "gte", label: "≥" },
+    { value: "lte", label: "≤" },
+    { value: "empty", label: "prazno" },
+    { value: "notEmpty", label: "nije prazno" },
+  ]
+  if (kind === "boolean") return [
+    { value: "equals", label: "je" },
+  ]
+  return [
+    { value: "contains", label: "sadrži" },
+    { value: "equals", label: "jednako" },
+    { value: "empty", label: "prazno" },
+    { value: "notEmpty", label: "nije prazno" },
+  ]
+}
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return ""
@@ -282,6 +353,9 @@ export function EventsTable({
   onSortByChange,
   filters,
   onFiltersChange,
+  pagination,
+  onPageChange,
+  onPageSizeChange,
 }: {
   events: AdminEvent[]
   loading?: boolean
@@ -292,6 +366,9 @@ export function EventsTable({
   onSortByChange: (sortBy: EventSortBy) => void
   filters: EventFilters
   onFiltersChange: (filters: EventFilters) => void
+  pagination: { page: number; pageSize: number; total: number }
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
@@ -300,20 +377,35 @@ export function EventsTable({
   const [bulkCategoryId, setBulkCategoryId] = useState("")
   const [bulkStatus, setBulkStatus] = useState<string>("")
   const [bulkShiftDays, setBulkShiftDays] = useState("")
-  const [organizers, setOrganizers] = useState<{ id: number; name: string }[]>([])
   const [searchDraft, setSearchDraft] = useState(filters.search)
+  const [visibleColumns, setVisibleColumns] = useState<EventColumnKey[]>(DEFAULT_VISIBLE_COLUMNS)
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("admin-events-visible-columns")
+      if (!raw) return
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return
+      const allowed = new Set(EVENT_COLUMNS.map((column) => column.key))
+      const next = parsed.filter((key): key is EventColumnKey => typeof key === "string" && allowed.has(key as EventColumnKey))
+      if (next.length) setVisibleColumns(next)
+    } catch {
+      // Ignore corrupted local UI preferences.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("admin-events-visible-columns", JSON.stringify(visibleColumns))
+    } catch {
+      // Ignore unavailable localStorage.
+    }
+  }, [visibleColumns])
 
   useEffect(() => {
     authedFetch("/api/admin/categories")
       .then((r) => r.ok ? r.json() : [])
       .then((data: { id: number; name: string }[]) => setCategories(data))
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    authedFetch("/api/admin/organizers")
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: { id: number; name: string }[]) => setOrganizers(data))
       .catch(() => {})
   }, [])
 
@@ -351,25 +443,53 @@ export function EventsTable({
     return sortBy === column ? (dateSort === "asc" ? "↑" : "↓") : ""
   }
 
+  function toggleColumn(column: EventColumnKey) {
+    setVisibleColumns((prev) => {
+      if (prev.includes(column)) {
+        if (prev.length === 1) return prev
+        return prev.filter((key) => key !== column)
+      }
+      return [...prev, column]
+    })
+  }
+
+  function updateFieldFilter(id: string, patch: Partial<FieldFilter>) {
+    updateFilters({
+      fieldFilters: filters.fieldFilters.map((filter) => {
+        if (filter.id !== id) return filter
+        const next = { ...filter, ...patch }
+        if (patch.field && patch.field !== filter.field) {
+          const kind = fieldKind(patch.field)
+          next.op = filterOps(kind)[0]?.value ?? "contains"
+          next.value = ""
+        }
+        return next
+      }),
+    })
+  }
+
+  function addFieldFilter() {
+    updateFilters({
+      fieldFilters: [
+        ...filters.fieldFilters,
+        { id: `filter-${Date.now()}`, field: "title", op: "contains", value: "" },
+      ],
+    })
+  }
+
+  function removeFieldFilter(id: string) {
+    updateFilters({ fieldFilters: filters.fieldFilters.filter((filter) => filter.id !== id) })
+  }
+
   const hasActiveFilters = Boolean(
     filters.search ||
-    filters.status !== "all" ||
-    filters.organizerId !== "all" ||
-    filters.startsFrom ||
-    filters.startsTo ||
-    filters.createdFrom ||
-    filters.createdTo,
+    filters.fieldFilters.length,
   )
 
   const returnTo = (() => {
-    const params = new URLSearchParams({ sortBy, sortDir: dateSort })
+    const params = new URLSearchParams({ sortBy, sortDir: dateSort, page: String(pagination.page), pageSize: String(pagination.pageSize) })
     if (filters.search.trim()) params.set("search", filters.search.trim())
-    if (filters.status !== "all") params.set("status", filters.status)
-    if (filters.organizerId !== "all") params.set("organizerId", filters.organizerId)
-    if (filters.startsFrom) params.set("startsFrom", filters.startsFrom)
-    if (filters.startsTo) params.set("startsTo", filters.startsTo)
-    if (filters.createdFrom) params.set("createdFrom", filters.createdFrom)
-    if (filters.createdTo) params.set("createdTo", filters.createdTo)
+    if (filters.fieldFilters.length) params.set("fieldFilters", JSON.stringify(filters.fieldFilters))
     return `/admin/events?${params.toString()}`
   })()
 
@@ -481,6 +601,96 @@ export function EventsTable({
     }
   }
 
+  function categoryNames(event: AdminEvent) {
+    return (event.categories?.length ? event.categories : event.category ? [{ slug: event.category, name: event.category }] : [])
+      .map((c) => c.name)
+      .join(", ")
+  }
+
+  function displayValue(event: AdminEvent, column: EventColumnKey) {
+    switch (column) {
+      case "title": return event.title
+      case "slug": return event.slug
+      case "description": return event.description
+      case "startsAt": return formatDateTime(event.startsAt)
+      case "endsAt": return formatDateTime(event.endsAt)
+      case "createdAt": return formatDateTime(event.createdAt)
+      case "publishedAt": return formatDateTime(event.publishedAt)
+      case "allDay": return event.allDay ? "Da" : "Ne"
+      case "city": return event.city ?? "—"
+      case "county": return event.county ?? "—"
+      case "region": return event.region ?? "—"
+      case "venue": return event.venue ?? "—"
+      case "address": return event.address ?? "—"
+      case "category": return event.category ?? "—"
+      case "categories": return categoryNames(event) || "—"
+      case "organizer": return event.organizer ?? "—"
+      case "isFree": return event.isFree ? "Da" : "Ne"
+      case "isFeatured": return event.isFeatured ? "Da" : "Ne"
+      case "priceText": return event.priceText ?? "—"
+      case "sourceType": return event.sourceType ?? "—"
+      case "status": return event.status
+      default: return "—"
+    }
+  }
+
+  function renderCell(event: AdminEvent, column: EventColumnKey) {
+    if (column === "title") {
+      return (
+        <Link href={`/admin/events/${event.id}?returnTo=${encodeURIComponent(returnTo)}`} className="block truncate font-medium text-foreground hover:underline">
+          {event.title}
+        </Link>
+      )
+    }
+    if (column === "startsAt") {
+      return <InlineDateCell value={event.startsAt} onSave={(iso) => patchEvent(event.id, { startsAt: iso })} />
+    }
+    if (column === "endsAt") {
+      return <InlineDateCell value={event.endsAt} onSave={(iso) => patchEvent(event.id, { endsAt: iso })} />
+    }
+    if (column === "city") {
+      return <InlineTextCell value={event.city} onSave={(cityName) => patchEvent(event.id, { cityName })} />
+    }
+    if (column === "categories") {
+      return (
+        <InlineCategoriesCell
+          categoryIds={event._categoryIds ?? []}
+          categoryNames={categoryNames(event)}
+          allCategories={categories}
+          onSave={(ids) => patchEvent(event.id, { categoryIds: ids })}
+        />
+      )
+    }
+    if (column === "status") {
+      return <InlineStatusCell status={event.status} onSave={(next) => patchEvent(event.id, { status: toApiEventStatus(next) })} />
+    }
+    const value = displayValue(event, column)
+    const text = String(value)
+    const isLong = ["description", "address", "ticketUrl", "sourceUrl", "imageUrl", "slug"].includes(column)
+    return <span className={isLong ? "block max-w-64 truncate text-sm text-muted-foreground" : "whitespace-nowrap text-sm text-muted-foreground"}>{text}</span>
+  }
+
+  function renderHead(column: EventColumnKey) {
+    if (column === "startsAt" || column === "createdAt") {
+      const sortColumn = column
+      return (
+        <button
+          type="button"
+          onClick={() => toggleSort(sortColumn)}
+          className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
+          aria-label={`Sortiraj po datumu ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
+        >
+          {EVENT_COLUMNS.find((item) => item.key === column)?.label} <span aria-hidden>{sortArrow(sortColumn)}</span>
+        </button>
+      )
+    }
+    return EVENT_COLUMNS.find((item) => item.key === column)?.label ?? column
+  }
+
+  const pageCount = Math.max(1, Math.ceil(pagination.total / pagination.pageSize))
+  const pageStart = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1
+  const pageEnd = Math.min(pagination.total, pagination.page * pagination.pageSize)
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -494,41 +704,8 @@ export function EventsTable({
           />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <Select value={filters.status} onValueChange={(v) => updateFilters({ status: v as string })}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {statusOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="cursor-pointer">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm text-muted-foreground">Organizator:</span>
-          <Select value={filters.organizerId} onValueChange={(v) => updateFilters({ organizerId: v ?? "all" })}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Svi organizatori" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="all" className="cursor-pointer">Svi organizatori</SelectItem>
-                {organizers.map((o) => (
-                  <SelectItem key={o.id} value={String(o.id)} className="cursor-pointer">{o.name}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-1.5">
           <span className="text-sm text-muted-foreground">Sort:</span>
-          <Select value={sortBy} onValueChange={(v) => onSortByChange(v as EventSortBy)}>
+          <Select value={sortBy} onValueChange={(v) => { if (v) onSortByChange(v as EventSortBy) }}>
             <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
@@ -540,36 +717,130 @@ export function EventsTable({
             </SelectContent>
           </Select>
         </div>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium whitespace-nowrap transition-all outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            }
+          >
+            <Columns3 data-icon="inline-start" />
+            Kolone
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">Prikaži polja</span>
+              <Button variant="ghost" size="xs" onClick={() => setVisibleColumns(DEFAULT_VISIBLE_COLUMNS)}>
+                Reset
+              </Button>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {EVENT_COLUMNS.map((column) => (
+                <label key={column.key} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-muted">
+                  <input
+                    type="checkbox"
+                    checked={visibleColumns.includes(column.key)}
+                    onChange={() => toggleColumn(column.key)}
+                    className="size-3.5 rounded border-input accent-primary"
+                  />
+                  {column.label}
+                </label>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
         <span className="ml-auto text-sm text-muted-foreground">
-          {loading ? "Učitavanje…" : `${events.length} događaja`}
+          {loading ? "Učitavanje…" : `${pagination.total} događaja`}
         </span>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card/60 p-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Početak od</span>
-          <Input type="date" value={filters.startsFrom} onChange={(e) => updateFilters({ startsFrom: e.target.value })} className="h-8 w-40" />
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card/60 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Filter po bilo kojem polju</span>
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onFiltersChange({ search: "", fieldFilters: [] })}
+              >
+                Očisti filtere
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={addFieldFilter}>
+              <Plus data-icon="inline-start" />
+              Dodaj filter
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Početak do</span>
-          <Input type="date" value={filters.startsTo} onChange={(e) => updateFilters({ startsTo: e.target.value })} className="h-8 w-40" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Dodano od</span>
-          <Input type="date" value={filters.createdFrom} onChange={(e) => updateFilters({ createdFrom: e.target.value })} className="h-8 w-40" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Dodano do</span>
-          <Input type="date" value={filters.createdTo} onChange={(e) => updateFilters({ createdTo: e.target.value })} className="h-8 w-40" />
-        </div>
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onFiltersChange({ search: "", status: "all", organizerId: "all", startsFrom: "", startsTo: "", createdFrom: "", createdTo: "" })}
-          >
-            Očisti filtere
-          </Button>
+        {filters.fieldFilters.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {filters.fieldFilters.map((filter) => {
+              const kind = fieldKind(filter.field)
+              const ops = filterOps(kind)
+              const opNeedsValue = filter.op !== "empty" && filter.op !== "notEmpty"
+              return (
+                <div key={filter.id} className="flex flex-wrap items-center gap-2">
+                  <Select value={filter.field} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { field: v }) }}>
+                    <SelectTrigger className="w-52">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {EVENT_COLUMNS.map((column) => (
+                          <SelectItem key={column.key} value={column.key} className="cursor-pointer">
+                            {column.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <Select value={filter.op} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { op: v }) }}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {ops.map((op) => (
+                          <SelectItem key={op.value} value={op.value} className="cursor-pointer">
+                            {op.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {opNeedsValue && kind === "boolean" ? (
+                    <Select value={filter.value || "true"} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { value: v }) }}>
+                      <SelectTrigger className="w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="true">Da</SelectItem>
+                          <SelectItem value="false">Ne</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : opNeedsValue ? (
+                    <Input
+                      type={kind === "date" ? "date" : kind === "number" ? "number" : "text"}
+                      value={filter.value}
+                      onChange={(e) => updateFieldFilter(filter.id, { value: e.target.value })}
+                      placeholder="Vrijednost"
+                      className="w-56"
+                    />
+                  ) : null}
+                  <Button variant="ghost" size="icon-sm" onClick={() => removeFieldFilter(filter.id)} aria-label="Ukloni filter">
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Dodaj filter za title, slug, opis, datum, cijenu, status, lokaciju, ID-eve i ostala event polja.</p>
         )}
       </div>
 
@@ -672,32 +943,9 @@ export function EventsTable({
                     className="size-4 cursor-pointer rounded border-border accent-primary"
                   />
                 </TableHead>
-                <TableHead>Naziv</TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("startsAt")}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
-                    aria-label={`Sortiraj po datumu ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
-                  >
-                    Početak <span aria-hidden>{sortArrow("startsAt")}</span>
-                  </button>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">Kraj</TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("createdAt")}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
-                    aria-label={`Sortiraj po datumu dodavanja ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
-                  >
-                    Dodano <span aria-hidden>{sortArrow("createdAt")}</span>
-                  </button>
-                </TableHead>
-                <TableHead>Grad</TableHead>
-                <TableHead>Kategorija</TableHead>
-                <TableHead>Organizator</TableHead>
-                <TableHead>Status</TableHead>
+                {visibleColumns.map((column) => (
+                  <TableHead key={column} className="whitespace-nowrap">{renderHead(column)}</TableHead>
+                ))}
                 <TableHead className="text-right">Akcije</TableHead>
               </TableRow>
             </TableHeader>
@@ -712,55 +960,14 @@ export function EventsTable({
                       className="size-4 cursor-pointer rounded border-border accent-primary"
                     />
                   </TableCell>
-                  <TableCell className="max-w-56">
-                    <Link href={`/admin/events/${e.id}?returnTo=${encodeURIComponent(returnTo)}`} className="block truncate font-medium text-foreground hover:underline">
-                      {e.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm">
-                    <InlineDateCell
-                      value={e.startsAt}
-                      onSave={(iso) => patchEvent(e.id, { startsAt: iso })}
-                    />
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm">
-                    <InlineDateCell
-                      value={e.endsAt}
-                      onSave={(iso) => patchEvent(e.id, { endsAt: iso })}
-                    />
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {formatDateTime(e.createdAt)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <InlineTextCell
-                      value={e.city}
-                      onSave={(cityName) => patchEvent(e.id, { cityName })}
-                    />
-                  </TableCell>
-                  <TableCell className="max-w-40">
-                    <InlineCategoriesCell
-                      categoryIds={e._categoryIds ?? []}
-                      categoryNames={(e.categories?.length ? e.categories : e.category ? [{ slug: e.category, name: e.category }] : [])
-                        .slice(0, 2)
-                        .map((c) => c.name)
-                        .join(", ")}
-                      allCategories={categories}
-                      onSave={(ids) => patchEvent(e.id, { categoryIds: ids })}
-                    />
-                  </TableCell>
-                  <TableCell className="max-w-36">
-                    <span className="block truncate text-sm text-muted-foreground">{e.organizer ?? "—"}</span>
-                  </TableCell>
-                  <TableCell>
-                    <InlineStatusCell
-                      status={e.status}
-                      onSave={(next) => patchEvent(e.id, { status: toApiEventStatus(next) })}
-                    />
-                  </TableCell>
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column} className={column === "title" ? "max-w-56" : column === "categories" ? "max-w-44" : undefined}>
+                      {renderCell(e, column)}
+                    </TableCell>
+                  ))}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/admin/events/${e.id}`} />}>
+                      <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/admin/events/${e.id}?returnTo=${encodeURIComponent(returnTo)}`} />}>
                         <Pencil data-icon="inline-start" />
                         Uredi
                       </Button>
@@ -773,6 +980,34 @@ export function EventsTable({
           </Table>
         </div>
       )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground">
+          {pagination.total === 0 ? "Nema rezultata" : `Prikaz ${pageStart}–${pageEnd} od ${pagination.total}`}
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={String(pagination.pageSize)} onValueChange={(v) => { if (v) onPageSizeChange(Number(v)) }}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {[10, 25, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>{size} / str.</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" disabled={pagination.page <= 1 || loading} onClick={() => onPageChange(pagination.page - 1)}>
+            Prethodna
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {pagination.page} / {pageCount}
+          </span>
+          <Button variant="outline" disabled={pagination.page >= pageCount || loading} onClick={() => onPageChange(pagination.page + 1)}>
+            Sljedeća
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

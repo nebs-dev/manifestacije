@@ -36,7 +36,10 @@ export class AdminController {
     @Query("startsTo") startsTo?: string,
     @Query("createdFrom") createdFrom?: string,
     @Query("createdTo") createdTo?: string,
-  ) { return this.admin.pendingEvents({ sortBy, sortDir, search, organizerId, startsFrom, startsTo, createdFrom, createdTo }); }
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("fieldFilters") fieldFilters?: string,
+  ) { return this.admin.pendingEvents({ sortBy, sortDir, search, organizerId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
   @Get("events") events(
     @Query("sortBy") sortBy?: string,
     @Query("sortDir") sortDir?: string,
@@ -47,7 +50,10 @@ export class AdminController {
     @Query("startsTo") startsTo?: string,
     @Query("createdFrom") createdFrom?: string,
     @Query("createdTo") createdTo?: string,
-  ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, startsFrom, startsTo, createdFrom, createdTo }); }
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("fieldFilters") fieldFilters?: string,
+  ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
   @Post("events") createAdminEvent(@Body() dto: AdminEventDto) { return this.admin.createEvent(dto); }
   @Get("events/:id") event(@Param("id") id: string) { return this.admin.event(Number(id)); }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }

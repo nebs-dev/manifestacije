@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 
 import { PageHeader } from "@/components/admin/page-header"
@@ -10,19 +11,42 @@ import { TableLoadingState, ErrorState } from "@/components/admin/states"
 import { Button } from "@/components/ui/button"
 import { authedFetch } from "@/lib/admin/api"
 import { adaptEvent } from "@/lib/admin/adapters"
-import { toApiEventStatus } from "@/lib/admin/status"
-import type { AdminEvent, EventStatus } from "@/lib/admin/types"
+import type { AdminEvent } from "@/lib/admin/types"
 
 type DateSortDirection = "asc" | "desc"
 type EventSortBy = "startsAt" | "createdAt"
 type EventFilters = {
   search: string
-  status: string
-  organizerId: string
-  startsFrom: string
-  startsTo: string
-  createdFrom: string
-  createdTo: string
+  fieldFilters: FieldFilter[]
+}
+type FieldFilter = { id: string; field: string; op: string; value: string }
+
+function parsePositiveInt(value: string | string[] | undefined, fallback: number) {
+  const parsed = Number(str(value))
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function parseFieldFilters(value: string | string[] | undefined): FieldFilter[] {
+  const raw = str(value)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((item, index) => {
+      if (!item || typeof item !== "object") return []
+      const record = item as Record<string, unknown>
+      const field = typeof record.field === "string" ? record.field : ""
+      if (!field) return []
+      return [{
+        id: typeof record.id === "string" ? record.id : `filter-${index}`,
+        field,
+        op: typeof record.op === "string" ? record.op : "contains",
+        value: typeof record.value === "string" ? record.value : "",
+      }]
+    })
+  } catch {
+    return []
+  }
 }
 
 function str(v: string | string[] | undefined) {
@@ -34,7 +58,12 @@ export default function EventsPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [events, setEvents] = useState<AdminEvent[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(() => parsePositiveInt(searchParams?.page, 1))
+  const [pageSize, setPageSize] = useState(() => parsePositiveInt(searchParams?.pageSize, 25))
   const [loading, setLoading] = useState(true)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState("")
@@ -42,29 +71,22 @@ export default function EventsPage({
   const [sortBy, setSortBy] = useState<EventSortBy>(str(searchParams?.sortBy) === "createdAt" ? "createdAt" : "startsAt")
   const [filters, setFilters] = useState<EventFilters>({
     search: str(searchParams?.search) ?? "",
-    status: str(searchParams?.status) ?? "all",
-    organizerId: str(searchParams?.organizerId) ?? "all",
-    startsFrom: str(searchParams?.startsFrom) ?? "",
-    startsTo: str(searchParams?.startsTo) ?? "",
-    createdFrom: str(searchParams?.createdFrom) ?? "",
-    createdTo: str(searchParams?.createdTo) ?? "",
+    fieldFilters: parseFieldFilters(searchParams?.fieldFilters),
   })
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ sortBy, sortDir: dateSort })
+      const params = new URLSearchParams({ sortBy, sortDir: dateSort, page: String(page), pageSize: String(pageSize) })
       if (filters.search.trim()) params.set("search", filters.search.trim())
-      if (filters.status !== "all") params.set("status", toApiEventStatus(filters.status as EventStatus))
-      if (filters.organizerId !== "all") params.set("organizerId", filters.organizerId)
-      if (filters.startsFrom) params.set("startsFrom", filters.startsFrom)
-      if (filters.startsTo) params.set("startsTo", filters.startsTo)
-      if (filters.createdFrom) params.set("createdFrom", filters.createdFrom)
-      if (filters.createdTo) params.set("createdTo", filters.createdTo)
+      if (filters.fieldFilters.length) params.set("fieldFilters", JSON.stringify(filters.fieldFilters.map(({ field, op, value }) => ({ field, op, value }))))
       const res = await authedFetch(`/api/admin/events?${params.toString()}`)
       if (!res.ok) { setError("Greška pri učitavanju događaja."); return }
       const data = await res.json()
-      setEvents((data as Record<string, unknown>[]).map(adaptEvent))
+      const paginated = data as { items?: Record<string, unknown>[]; total?: number; page?: number; pageSize?: number; pageCount?: number }
+      const items = Array.isArray(paginated.items) ? paginated.items : Array.isArray(data) ? data as Record<string, unknown>[] : []
+      setEvents(items.map(adaptEvent))
+      setTotal(typeof paginated.total === "number" ? paginated.total : items.length)
       setError("")
     } catch {
       setError("Greška pri dohvaćanju događaja.")
@@ -72,9 +94,31 @@ export default function EventsPage({
       setLoading(false)
       setHasLoaded(true)
     }
-  }, [dateSort, filters, sortBy])
+  }, [dateSort, filters, page, pageSize, sortBy])
+
+  const setFiltersAndResetPage = useCallback((next: EventFilters) => {
+    setPage(1)
+    setFilters(next)
+  }, [])
+
+  const setSortByAndResetPage = useCallback((next: EventSortBy) => {
+    setPage(1)
+    setSortBy(next)
+  }, [])
+
+  const setDateSortAndResetPage = useCallback((next: DateSortDirection) => {
+    setPage(1)
+    setDateSort(next)
+  }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const params = new URLSearchParams({ sortBy, sortDir: dateSort, page: String(page), pageSize: String(pageSize) })
+    if (filters.search.trim()) params.set("search", filters.search.trim())
+    if (filters.fieldFilters.length) params.set("fieldFilters", JSON.stringify(filters.fieldFilters))
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }, [dateSort, filters, page, pageSize, pathname, router, sortBy])
 
   return (
     <>
@@ -94,11 +138,14 @@ export default function EventsPage({
           loading={loading}
           onDelete={load}
           dateSort={dateSort}
-          onDateSortChange={setDateSort}
+          onDateSortChange={setDateSortAndResetPage}
           sortBy={sortBy}
-          onSortByChange={setSortBy}
+          onSortByChange={setSortByAndResetPage}
           filters={filters}
-          onFiltersChange={setFilters}
+          onFiltersChange={setFiltersAndResetPage}
+          pagination={{ page, pageSize, total }}
+          onPageChange={setPage}
+          onPageSizeChange={(next) => { setPage(1); setPageSize(next) }}
         />
       )}
     </>

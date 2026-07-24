@@ -24,7 +24,8 @@ export default function PendingEventsPage() {
       const res = await authedFetch(`/api/admin/events/pending?${params.toString()}`)
       if (!res.ok) { setError("Greška pri učitavanju."); return }
       const data = await res.json()
-      setEvents((data as Record<string, unknown>[]).map(adaptEvent))
+      const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
+      setEvents((items as Record<string, unknown>[]).map(adaptEvent))
     } catch {
       setError("Greška pri dohvaćanju događaja.")
     } finally {
