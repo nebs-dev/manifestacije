@@ -4,6 +4,7 @@ import type { CroEvent } from "@/lib/data"
 import { EventPoster } from "@/components/public/event-poster"
 import { DateBadge } from "@/components/public/date-badge"
 import { CategoryBadge, PriceBadge } from "@/components/public/badges"
+import { publicAddressLine } from "@/lib/location-display"
 import { cn } from "@/lib/utils"
 import { eventCardDateDisplay } from "./event-card-display"
 
@@ -17,6 +18,7 @@ interface EventCardProps {
 
 export function EventCard({ event, className, displayDate, priorityImage, imageSizes }: EventCardProps) {
   const dateForCard = eventCardDateDisplay(event.date, displayDate)
+  const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   return (
     <Link
       href={`/eventi/${event.slug}`}
@@ -67,7 +69,7 @@ export function EventCard({ event, className, displayDate, priorityImage, imageS
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="size-4 shrink-0 text-primary/70" />
           <span className="truncate">
-            {event.address ?? (event.venue !== event.city ? `${event.venue}, ${event.city}` : event.city)}
+            {locationLabel}
           </span>
         </div>
 
