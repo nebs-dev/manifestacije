@@ -400,7 +400,12 @@ model DiscoveredSourceItem {
   sourceUrl           String
   firstSeenAt         DateTime  @default(now())
   lastSeenAt          DateTime  @default(now())
+  /// Hash of the detail page the last time it was parsed, with the parse
+  /// result beside it. Checks are daily and event pages almost never change,
+  /// so an unchanged hash lets enrichment reuse the result instead of paying
+  /// for another model call.
   contentHash         String?
+  parsedDetail        Json?
   linkedEventSourceId Int?
   linkedEventSource   EventSource? @relation(fields: [linkedEventSourceId], references: [id])
   status              DiscoveredItemStatus @default(NEW)

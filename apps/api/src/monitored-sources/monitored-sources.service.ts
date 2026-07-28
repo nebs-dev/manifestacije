@@ -343,7 +343,7 @@ export class MonitoredSourcesService {
     // word overlap and re-parse that page to fill in the gaps, capped like
     // crawlListingSubPages so this stays a bounded, polite number of extra
     // fetches per check rather than one per candidate.
-    parsed = await this.enrichThinCandidates(parsed, allPageLinks);
+    parsed = await this.enrichThinCandidates(source.id, parsed, allPageLinks);
     parsed = this.dropPastCandidates(parsed);
     parsed = this.stripGenericImages(parsed);
     parsed = await this.verifyImages(parsed, source.url);
@@ -407,7 +407,45 @@ export class MonitoredSourcesService {
     return { ...parsed, candidates };
   }
 
-  private async enrichThinCandidates(parsed: ParsedSourceResult, links: string[]): Promise<ParsedSourceResult> {
+  /**
+   * Parses a detail page, reusing the previous result when the page has not
+   * changed.
+   *
+   * Sources are checked daily but event pages are written once and then sit
+   * still, so re-parsing every one of them each day pays for the same answer
+   * over and over. The page hash decides: identical bytes mean the stored
+   * parse is still correct, and the model is never called.
+   */
+  private async parseDetailCached(sourceId: number, detailUrl: string, body: string): Promise<ParsedEventCandidate | undefined> {
+    const normalizedUrl = normalizeUrl(detailUrl, detailUrl) ?? detailUrl;
+    const hash = sha256(body);
+
+    const existing = await this.prisma.discoveredSourceItem.findUnique({
+      where: { monitoredSourceId_normalizedUrl: { monitoredSourceId: sourceId, normalizedUrl } },
+    });
+    if (existing?.contentHash === hash && existing.parsedDetail) {
+      return existing.parsedDetail as unknown as ParsedEventCandidate;
+    }
+
+    const detail = (await this.parser.parseBatchWithLlm({ rawHtml: body, sourceUrl: detailUrl })).candidates[0];
+    if (!detail) return undefined;
+
+    await this.prisma.discoveredSourceItem.upsert({
+      where: { monitoredSourceId_normalizedUrl: { monitoredSourceId: sourceId, normalizedUrl } },
+      update: { contentHash: hash, parsedDetail: detail as unknown as object, lastSeenAt: new Date() },
+      create: {
+        monitoredSourceId: sourceId,
+        normalizedUrl,
+        sourceUrl: detailUrl,
+        contentHash: hash,
+        parsedDetail: detail as unknown as object,
+        status: DiscoveredItemStatus.PROCESSED,
+      },
+    });
+    return detail;
+  }
+
+  private async enrichThinCandidates(sourceId: number, parsed: ParsedSourceResult, links: string[]): Promise<ParsedSourceResult> {
     const candidates = [...parsed.candidates];
     let fetched = 0;
 
@@ -449,7 +487,7 @@ export class MonitoredSourcesService {
       // listing already yielded.
       let detail: ParsedEventCandidate | undefined;
       try {
-        detail = (await this.parser.parseBatchWithLlm({ rawHtml: detailResult.body, sourceUrl: match })).candidates[0];
+        detail = await this.parseDetailCached(sourceId, match, detailResult.body);
       } catch {
         continue;
       }

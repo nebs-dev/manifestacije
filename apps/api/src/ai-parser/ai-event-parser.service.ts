@@ -427,7 +427,7 @@ export class AiEventParserService {
     }
 
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
-    const htmlText = input.rawHtml ? this.htmlToText(input.rawHtml) : "";
+    const htmlText = input.rawHtml ? this.htmlToText(this.stripNavAndFooter(input.rawHtml)) : "";
     const combined = [htmlText, input.rawText ?? ""].filter(Boolean).join("\n\n---\n\n");
     const text = this.normalizeTextPreservingParagraphs(combined);
     const isScreenshot = Boolean(input.screenshotBase64);
@@ -520,7 +520,13 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 16384,
-      system: systemPrompt,
+      // The instructions are byte-identical on every call while the page text
+      // differs, so they are the natural cache prefix. Measured at ~1.9k total
+      // input tokens this currently reports no cache write or read — the
+      // prompt sits under the model's minimum cacheable length — so it buys
+      // nothing today and costs nothing either; it starts paying off by
+      // itself if the instructions grow.
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{
         role: "user",
         content: userContent,
@@ -670,6 +676,16 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   }
 
   // ── HTML normalisation ────────────────────────────────────────────────────────
+
+  /** Site-wide menus repeat on every page and hold no event data, so they are
+   *  pure cost on each model call. Unlike stripChrome this leaves <header>
+   *  alone: article markup often puts the event's own title inside one, and
+   *  losing the title costs far more than the tokens it saves. */
+  private stripNavAndFooter(html: string): string {
+    return html
+      .replace(/<nav\b[\s\S]*?<\/nav>/gi, "")
+      .replace(/<footer\b[\s\S]*?<\/footer>/gi, "");
+  }
 
   private stripChrome(html: string): string {
     return html
