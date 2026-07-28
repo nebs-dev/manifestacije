@@ -204,6 +204,17 @@ export const regions: Region[] = [
   },
 ]
 
+// Demo/fallback events need dates that stay in the future no matter when the
+// app runs — hardcoded literals here go stale and silently vanish from search
+// results (notPast() in public-api.ts filters them out). Offsets below
+// preserve the original relative spacing between events, just anchored to
+// today instead of a fixed calendar date.
+function relativeDate(daysFromNow: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + daysFromNow)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
 export const events: CroEvent[] = [
   {
     slug: "noci-stare-jezgre",
@@ -213,8 +224,8 @@ export const events: CroEvent[] = [
     region: "dalmacija",
     city: "Split",
     venue: "Dioklecijanova palača",
-    date: "2026-07-11",
-    endDate: "2026-07-13",
+    date: relativeDate(16),
+    endDate: relativeDate(18),
     time: "20:00",
     free: true,
     forKids: true,
@@ -238,7 +249,7 @@ export const events: CroEvent[] = [
     region: "dalmacija",
     city: "Zadar",
     venue: "Pozdrav suncu, Riva",
-    date: "2026-07-04",
+    date: relativeDate(9),
     time: "21:00",
     free: false,
     price: "od 18 €",
@@ -263,7 +274,7 @@ export const events: CroEvent[] = [
     region: "istra",
     city: "Motovun",
     venue: "Trg Andrea Antico",
-    date: "2026-07-05",
+    date: relativeDate(10),
     time: "11:00",
     free: false,
     price: "12 €",
@@ -288,7 +299,7 @@ export const events: CroEvent[] = [
     region: "istra",
     city: "Rovinj",
     venue: "Atelier Mali Sv. Križ",
-    date: "2026-07-08",
+    date: relativeDate(13),
     time: "17:30",
     free: false,
     price: "35 €",
@@ -311,7 +322,7 @@ export const events: CroEvent[] = [
     region: "zagreb",
     city: "Zagreb",
     venue: "Park Maksimir",
-    date: "2026-06-28",
+    date: relativeDate(3),
     time: "10:00",
     free: true,
     forKids: true,
@@ -334,7 +345,7 @@ export const events: CroEvent[] = [
     region: "lika",
     city: "Starigrad",
     venue: "Premužićeva staza",
-    date: "2026-07-12",
+    date: relativeDate(17),
     time: "04:30",
     free: false,
     price: "25 €",
@@ -358,8 +369,8 @@ export const events: CroEvent[] = [
     region: "zagreb",
     city: "Zagreb",
     venue: "Galerija Klovićevi dvori",
-    date: "2026-06-30",
-    endDate: "2026-08-15",
+    date: relativeDate(5),
+    endDate: relativeDate(51),
     time: "10:00 – 20:00",
     free: false,
     price: "8 €",
@@ -383,7 +394,7 @@ export const events: CroEvent[] = [
     region: "slavonija",
     city: "Đakovo",
     venue: "Trg J. J. Strossmayera",
-    date: "2026-07-19",
+    date: relativeDate(24),
     time: "18:00",
     free: true,
     forKids: true,
@@ -405,7 +416,7 @@ export const events: CroEvent[] = [
     region: "istra",
     city: "Pula",
     venue: "Pulska Arena",
-    date: "2026-07-25",
+    date: relativeDate(30),
     time: "21:30",
     free: false,
     price: "od 32 €",
@@ -429,7 +440,7 @@ export const events: CroEvent[] = [
     region: "kvarner",
     city: "Opatija",
     venue: "Villa Angiolina",
-    date: "2026-07-02",
+    date: relativeDate(7),
     time: "16:00",
     free: false,
     price: "20 €",
@@ -451,8 +462,8 @@ export const events: CroEvent[] = [
     region: "zagreb",
     city: "Samobor",
     venue: "Glavni trg",
-    date: "2026-07-15",
-    endDate: "2026-07-18",
+    date: relativeDate(20),
+    endDate: relativeDate(23),
     time: "21:00",
     free: true,
     forKids: true,
@@ -474,7 +485,7 @@ export const events: CroEvent[] = [
     region: "kvarner",
     city: "Rijeka",
     venue: "Korzo",
-    date: "2026-07-09",
+    date: relativeDate(14),
     time: "19:00",
     free: false,
     price: "15 €",
