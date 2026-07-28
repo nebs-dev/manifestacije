@@ -82,7 +82,7 @@ export default function LoginPage() {
         <CardTitle>Prijava</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={submit} className="flex flex-col gap-3">
+        <form id="organizer-login-form" onSubmit={submit} className="flex flex-col gap-3">
           <Input name="email" type="email" placeholder="Email" required autoComplete="email" />
           <PasswordInput name="password" placeholder="Lozinka" required autoComplete="current-password" />
           {error && <p className="text-sm text-destructive">{error}</p>}

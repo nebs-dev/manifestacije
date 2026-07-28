@@ -80,7 +80,7 @@ export function RegisterForm({ initialEmail = "" }: { initialEmail?: string }) {
         <CardDescription>Kreirajte organizatorski račun i dodajte svoje događaje besplatno.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={submit} className="flex flex-col gap-3">
+        <form id="organizer-register-form" onSubmit={submit} className="flex flex-col gap-3">
           <Input name="name" placeholder="Vaše ime i prezime" required />
           <Input name="organizerName" placeholder="Naziv organizatora / udruge" required />
           <Input name="email" type="email" placeholder="Email" required autoComplete="email" defaultValue={initialEmail} />

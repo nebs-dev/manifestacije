@@ -220,6 +220,7 @@ export function EventEditForm({
 
   return (
     <form
+      id="admin-event-edit-form"
       onSubmit={(e) => {
         e.preventDefault()
         save()

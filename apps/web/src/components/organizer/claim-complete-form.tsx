@@ -163,7 +163,7 @@ export function ClaimCompleteForm() {
       )}
 
       {(status === "form" || status === "loading" || status === "error") && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="organizer-claim-complete-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {status === "error" && (
             <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
               Greška pri preuzimanju profila. Pokušajte ponovo.

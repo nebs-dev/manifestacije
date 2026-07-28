@@ -81,7 +81,7 @@ export default function AdminLoginPage() {
           <p className="mt-1 text-sm text-muted-foreground">Prijavite se kao administrator.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="admin-login-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {error && (
             <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}

@@ -88,7 +88,7 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
         <CardDescription>Automatski izvuci događaje s web stranice.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit}>
+        <form id="admin-source-parse-url-form" onSubmit={handleSubmit}>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="parse-url">URL izvora</FieldLabel>
@@ -231,7 +231,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} onPaste={handlePaste}>
+        <form id="admin-source-screenshot-form" onSubmit={handleSubmit} onPaste={handlePaste}>
           <FieldGroup>
             {/* Screenshot — primary */}
             <Field>

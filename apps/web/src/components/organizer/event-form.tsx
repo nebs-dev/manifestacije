@@ -116,7 +116,7 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-6">
+    <form id="event-form" onSubmit={submit} className="flex flex-col gap-6">
       <Card>
         <CardHeader>
           <CardTitle>Osnovni podaci</CardTitle>

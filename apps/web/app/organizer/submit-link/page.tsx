@@ -157,7 +157,7 @@ export default function SubmitLinkPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} onPaste={onPaste} className="flex flex-col gap-4">
+          <form id="organizer-submit-link-form" onSubmit={submit} onPaste={onPaste} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label>Link na web stranicu događaja</Label>
               <Input name="sourceUrl" type="url" placeholder="https://…" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />

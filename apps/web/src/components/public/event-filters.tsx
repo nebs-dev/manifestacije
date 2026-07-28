@@ -69,7 +69,7 @@ export function EventFilters({
 
   return (
     <div className="flex flex-col gap-7">
-      <form onSubmit={onSearch} className="relative">
+      <form id="event-filters-search-form" onSubmit={onSearch} className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <input
           value={q}

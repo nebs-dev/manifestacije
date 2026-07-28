@@ -70,7 +70,7 @@ export function JoinForm() {
       )}
 
       {choice === "existing" && status !== "done" && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="organizer-join-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {status === "error" && (
             <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
               Greška pri slanju zahtjeva. Pokušajte ponovo.

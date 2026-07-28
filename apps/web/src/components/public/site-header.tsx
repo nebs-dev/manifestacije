@@ -50,6 +50,7 @@ export function SiteHeader({
 
         {/* Search */}
         <form
+          id="site-header-search-form-desktop"
           onSubmit={onSearch}
           className={cn(
             "hidden flex-1 items-center gap-2 rounded-full border px-4 py-2 lg:flex",
@@ -109,6 +110,7 @@ export function SiteHeader({
       {menuOpen && (
         <div className="border-t border-border bg-background px-4 py-4 text-foreground md:hidden">
           <form
+            id="site-header-search-form-mobile"
             onSubmit={onSearch}
             className="mb-4 flex items-center gap-2 rounded-full border border-border bg-muted/60 px-4 py-2.5"
           >
