@@ -8,6 +8,7 @@ import { EventPoster } from "@/components/public/event-poster";
 import { EventCard } from "@/components/public/event-card";
 import { CategoryBadge, PriceBadge } from "@/components/public/badges";
 import { ShareButton } from "@/components/public/share-button";
+import { AddToCalendarButton } from "@/components/public/add-to-calendar-button";
 import { EventDetailTracking } from "@/components/public/event-detail-tracking";
 import { TicketLink, MapLink } from "@/components/public/tracked-links";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
@@ -178,7 +179,10 @@ export default async function EventDetailPage({
             <aside>
               <div className="sticky top-24 rounded-2xl border border-border bg-card p-6 shadow-poster">
                 <dl className="space-y-5">
-                  <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">{formatDateRange(event.date, event.endDate)}</InfoRow>
+                  <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">
+                    {formatDateRange(event.date, event.endDate)}
+                    <AddToCalendarButton event={event} compact />
+                  </InfoRow>
                   {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
                   <InfoRow icon={<MapPin className="size-5" aria-hidden />} label="Lokacija">
                     {event.venue && event.venue !== event.city && (

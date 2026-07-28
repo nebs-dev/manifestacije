@@ -10,6 +10,8 @@ type AnalyticsEvent =
   | { name: "click_ticket_or_source"; params: { event_slug: string; event_title: string; url: string } }
   | { name: "click_map_or_directions"; params: { event_slug: string; event_title: string } }
   | { name: "share_event"; params: { event_slug: string; event_title: string; method: "native_share" | "copy_link" } }
+  | { name: "calendar_clicked"; params: { event_slug: string; event_title: string } }
+  | { name: "calendar_provider_selected"; params: { event_slug: string; event_title: string; provider: "google" | "ics" } }
   | { name: "newsletter_signup"; params: { location: string } }
   | { name: "submit_event_started"; params: { method: "manual" | "url" } }
   | { name: "submit_event_completed"; params: { method: "manual" | "url" } }
