@@ -44,11 +44,11 @@ export default async function Home() {
     : [...featuredStrict, ...events.filter((event) => !event.featured)].slice(0, 3);
   const featuredSlugs = new Set(featured.map((event) => event.slug));
   const upcoming = rotateEventsByDay(
-    diversifyByImage(events.filter((event) => !featuredSlugs.has(event.slug))).slice(0, UPCOMING_ROTATION_POOL_SIZE),
+    interleaveByImage(events.filter((event) => !featuredSlugs.has(event.slug))).slice(0, UPCOMING_ROTATION_POOL_SIZE),
   ).slice(0, UPCOMING_VISIBLE_COUNT);
   const shownSlugs = new Set([...featured.map((event) => event.slug), ...upcoming.map((event) => event.slug)]);
   const free = rotateEventsByDay(
-    diversifyByImage(events.filter((event) => event.free && !shownSlugs.has(event.slug))).slice(0, FREE_ROTATION_POOL_SIZE),
+    interleaveByImage(events.filter((event) => event.free && !shownSlugs.has(event.slug))).slice(0, FREE_ROTATION_POOL_SIZE),
   ).slice(0, FREE_VISIBLE_COUNT);
 
   return (
@@ -106,22 +106,29 @@ export default async function Home() {
 
 // Multi-day festivals often reuse the same poster across every daily programme
 // entry (e.g. a concert and a football tournament under one festival banner) —
-// sorted purely by date, those entries cluster together and crowd out everything
-// else. Cap same-poster events to one apiece, pushing the rest to the end as a
-// backfill so the section still fills up when few distinct posters exist.
-function diversifyByImage<T extends { image?: string }>(items: T[]) {
-  const seen = new Set<string>();
-  const primary: T[] = [];
-  const overflow: T[] = [];
+// sorted purely by date, those entries cluster together into a wall of
+// identical cards. Group by poster, then round-robin one card per group per
+// pass, so repeats of the same poster land spread out instead of adjacent —
+// the grid still fills up even when few distinct posters exist.
+function interleaveByImage<T extends { image?: string }>(items: T[]) {
+  const groups: T[][] = [];
+  const groupIndexByImage = new Map<string, number>();
   for (const item of items) {
-    if (!item.image || !seen.has(item.image)) {
-      primary.push(item);
-      if (item.image) seen.add(item.image);
+    const existingIndex = item.image ? groupIndexByImage.get(item.image) : undefined;
+    if (existingIndex !== undefined) {
+      groups[existingIndex].push(item);
     } else {
-      overflow.push(item);
+      if (item.image) groupIndexByImage.set(item.image, groups.length);
+      groups.push([item]);
     }
   }
-  return [...primary, ...overflow];
+  const result: T[] = [];
+  for (let round = 0; result.length < items.length; round++) {
+    for (const group of groups) {
+      if (round < group.length) result.push(group[round]);
+    }
+  }
+  return result;
 }
 
 function rotateEventsByDay<T>(items: T[]) {
