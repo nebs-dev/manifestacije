@@ -119,7 +119,9 @@ export default async function EventDetailPage({
               <MapPin className="size-4 shrink-0" aria-hidden />
               {event.venue && event.venue !== event.city
                 ? `${event.venue} · ${event.city}, ${regionName(event.region)}`
-                : addressLine ?? `${event.city} · ${regionName(event.region)}`}
+                : addressLine
+                  ? `${addressLine} · ${event.city}, ${regionName(event.region)}`
+                  : `${event.city} · ${regionName(event.region)}`}
             </p>
           </div>
         </section>
