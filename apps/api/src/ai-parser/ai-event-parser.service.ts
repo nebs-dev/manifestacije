@@ -79,19 +79,22 @@ export class AiEventParserService {
   };
 
   // Values are backend slugs. More specific categories listed before catch-alls.
+  // Stems, not full words: matching is anchored at a word start and open at
+  // the tail, so "izlozb" covers izložba/izložbe/izložbi while a full form
+  // would only ever match one case.
   private readonly CATEGORY_KEYWORDS: Record<string, string[]> = {
-    "tradicija-i-folklor": ["folklor", "tradicija", "etno", "narodni", "folklorni", "vez", "vezovi", "advent", "dani grada", "dani op"],
+    "tradicija-i-folklor": ["folklor", "tradicij", "etno", "narodni", "advent", "dani grada", "dani op"],
     "festivali":           ["festival", "fest"],
-    "manifestacije":       ["manifestacij", "priredba", "doček", "svečanost"],
-    "glazba":              ["koncert", "glazba", "music", "zbor", "orkestar", "pjevanje", "nastup", "tambur", "klapa", "dj set"],
-    "hrana-i-vino":        ["hrana", "vino", "wine", "kulinarstvo", "gastronomija", "pivnica", "kuhanje", "gastro", "degustacij", "specijalitet", "fišijada", "kulen", "craft beer"],
-    "izlozbe":             ["izložba", "galerija", "muzej", "kazalište", "predstava", "film", "kulturni", "kino"],
+    "manifestacije":       ["manifestacij", "priredb", "doček", "svečanost"],
+    "glazba":              ["koncert", "glazb", "music", "zbor", "orkestar", "pjevanje", "nastup", "tambur", "klap", "dj set"],
+    "hrana-i-vino":        ["hrana", "vino", "wine", "kulinarstvo", "gastronomij", "pivnic", "kuhanje", "gastro", "degustacij", "specijalitet", "fišijad", "kulen", "craft beer"],
+    "izlozbe":             ["izložb", "galerij", "muzej", "kazališt", "predstav", "film", "kulturni", "kino"],
     "djeca-i-obitelj":     ["djeca", "obitelj", "kids", "family", "dječji", "za djecu"],
-    "sport":               ["sport", "trčanje", "maraton", "natjecanje", "turnir", "liga", "utrka", "bike", "bicikl", "trail", "plivanje"],
-    "na-otvorenom":        ["outdoor", "hiking", "planina", "šetnja", "rafting", "priroda", "na otvorenom"],
-    "radionice":           ["radionica", "workshop", "tečaj"],
+    "sport":               ["sport", "trčanje", "maraton", "natjecanje", "turnir", "liga", "utrk", "bike", "bicikl", "trail", "plivanje"],
+    "na-otvorenom":        ["outdoor", "hiking", "planin", "šetnj", "rafting", "priroda", "na otvorenom"],
+    "radionice":           ["radionic", "workshop", "tečaj"],
     "edukacija":           ["seminar", "predavanje", "edukacij"],
-    "sajmovi":             ["sajam", "market", "tržnica", "vašar"],
+    "sajmovi":             ["sajam", "market", "tržnic", "vašar"],
     "humanitarno":         ["humanitarn", "dobrotvorn", "donacij"],
     "nocni-zivot":         ["party", "klub", "noćni život", "night"],
     "ostalo":              [],
