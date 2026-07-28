@@ -43,12 +43,12 @@ export default async function Home() {
     ? featuredStrict
     : [...featuredStrict, ...events.filter((event) => !event.featured)].slice(0, 3);
   const featuredSlugs = new Set(featured.map((event) => event.slug));
-  const upcoming = rotateEventsByDay(events.filter((event) => !featuredSlugs.has(event.slug)).slice(0, UPCOMING_ROTATION_POOL_SIZE)).slice(0, UPCOMING_VISIBLE_COUNT);
+  const upcoming = rotateEventsByDay(
+    diversifyByImage(events.filter((event) => !featuredSlugs.has(event.slug))).slice(0, UPCOMING_ROTATION_POOL_SIZE),
+  ).slice(0, UPCOMING_VISIBLE_COUNT);
   const shownSlugs = new Set([...featured.map((event) => event.slug), ...upcoming.map((event) => event.slug)]);
   const free = rotateEventsByDay(
-    events
-      .filter((event) => event.free && !shownSlugs.has(event.slug))
-      .slice(0, FREE_ROTATION_POOL_SIZE),
+    diversifyByImage(events.filter((event) => event.free && !shownSlugs.has(event.slug))).slice(0, FREE_ROTATION_POOL_SIZE),
   ).slice(0, FREE_VISIBLE_COUNT);
 
   return (
@@ -102,6 +102,26 @@ export default async function Home() {
       <SiteFooter />
     </>
   );
+}
+
+// Multi-day festivals often reuse the same poster across every daily programme
+// entry (e.g. a concert and a football tournament under one festival banner) —
+// sorted purely by date, those entries cluster together and crowd out everything
+// else. Cap same-poster events to one apiece, pushing the rest to the end as a
+// backfill so the section still fills up when few distinct posters exist.
+function diversifyByImage<T extends { image?: string }>(items: T[]) {
+  const seen = new Set<string>();
+  const primary: T[] = [];
+  const overflow: T[] = [];
+  for (const item of items) {
+    if (!item.image || !seen.has(item.image)) {
+      primary.push(item);
+      if (item.image) seen.add(item.image);
+    } else {
+      overflow.push(item);
+    }
+  }
+  return [...primary, ...overflow];
 }
 
 function rotateEventsByDay<T>(items: T[]) {
