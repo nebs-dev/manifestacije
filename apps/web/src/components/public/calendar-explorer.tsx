@@ -90,6 +90,19 @@ export function CalendarExplorer({
   const [selectedDay, setSelectedDay] = useState<string | null>(() => initialDate ?? null)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
+  // Re-sync from server-provided props when they actually change (e.g. landing back
+  // on /kalendar?datum=... via the event page's "back" link after browsing forward
+  // within the page navigated away and the client router reused this component
+  // instance instead of a fresh mount — the useState initializers above only run
+  // once, so without this the calendar would silently stay on whatever month/day
+  // was showing when the user navigated away instead of the URL's saved date).
+  useEffect(() => {
+    setView(initialView)
+    setAnchor(initialDate ? new Date(`${initialDate}T00:00:00`) : new Date(initialYear, initialMonth, 1))
+    setSelectedDay(initialDate ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDate, initialView, initialYear, initialMonth])
+
   const weekend = useMemo(() => currentWeekendDisplayRange(today), [today])
 
   const visibleDays = useMemo(() => {
