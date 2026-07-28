@@ -27,6 +27,47 @@ export class UploadsService {
     return this.uploadToCloudinary(file!, folder);
   }
 
+  /**
+   * Re-hosts a scraped image on our own CDN.
+   *
+   * Aggregators delete and rotate their storage — an event we imported today
+   * can lose its poster next week, and a URL we merely point at is theirs to
+   * break. Copying the bytes once, at approval time, is what makes the image
+   * ours. Returns null instead of throwing: a failed copy must never block
+   * publishing an otherwise good event, it just leaves the original URL.
+   */
+  async uploadEventImageFromUrl(imageUrl: string): Promise<UploadedEventImage | null> {
+    try {
+      const response = await fetch(imageUrl, {
+        headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) return null;
+
+      const mimetype = (response.headers.get("content-type") ?? "").split(";")[0].trim();
+      if (!ALLOWED_IMAGE_TYPES.has(mimetype)) return null;
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.byteLength === 0 || buffer.byteLength > MAX_IMAGE_SIZE_BYTES) return null;
+
+      const folder = process.env.CLOUDINARY_UPLOAD_FOLDER || "manifestacije/events";
+      return await this.uploadToCloudinary(
+        { buffer, mimetype, size: buffer.byteLength, originalname: this.fileNameFromUrl(imageUrl) },
+        folder,
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private fileNameFromUrl(imageUrl: string): string {
+    try {
+      return new URL(imageUrl).pathname.split("/").filter(Boolean).pop() || "image";
+    } catch {
+      return "image";
+    }
+  }
+
   async uploadPartnerLogo(file?: UploadedFile): Promise<UploadedEventImage> {
     this.validateEventImage(file);
     const folder = process.env.CLOUDINARY_PARTNER_FOLDER || "manifestacije/partners";

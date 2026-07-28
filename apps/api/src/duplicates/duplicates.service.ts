@@ -12,7 +12,13 @@ export class DuplicatesService {
     const created = [];
     for (const other of others) {
       const score = this.score(event, other);
-      if (score >= 0.72) {
+      // Title similarity alone caps at 0.55, so this threshold is only ever
+      // reachable together with a same-day match (+0.25) or shared
+      // organizer/sourceUrl — lowering it doesn't risk flagging same-titled
+      // events on different days as duplicates. Was 0.72, which missed
+      // same-day near-duplicates differing by one filler word (e.g. "DJ
+      // Beach Session..." vs "Beach Session...") by a hair.
+      if (score >= 0.65) {
         const a = Math.min(event.id, other.id);
         const b = Math.max(event.id, other.id);
         created.push(

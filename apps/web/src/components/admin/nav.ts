@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Link2,
+  Radar,
   Clock,
   CalendarDays,
   Users,
@@ -23,6 +24,7 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Sources", href: "/admin/sources", icon: Link2 },
+  { label: "Monitored sources", href: "/admin/monitored-sources", icon: Radar },
   { label: "Pending events", href: "/admin/events/pending", icon: Clock },
   { label: "Events", href: "/admin/events", icon: CalendarDays, exact: true },
   { label: "Organizers", href: "/admin/organizers", icon: Users },

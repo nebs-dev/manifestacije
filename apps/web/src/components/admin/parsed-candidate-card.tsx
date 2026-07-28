@@ -41,6 +41,7 @@ type CandidateForm = {
   isAllDay: boolean
   city: string
   venueName: string
+  address: string
   isFree: boolean
   priceText: string
   ticketUrl: string
@@ -102,6 +103,7 @@ export function ParsedCandidateCard({
     isAllDay: candidate.isAllDay ?? false,
     city: candidate.city || "",
     venueName: candidate.venueName || "",
+    address: candidate.address || "",
     isFree: candidate.isFree,
     priceText: candidate.priceText || "",
     ticketUrl: candidate.ticketUrl || "",
@@ -178,7 +180,10 @@ export function ParsedCandidateCard({
               isAllDay: form.isAllDay,
               city: location?.cityName || form.city,
               venueName: form.venueName,
-              address: location?.address,
+              // Picking a location on the map is optional; without that the
+              // parsed street address is still the best one we have and must
+              // not be dropped on the floor.
+              address: location?.address || form.address || undefined,
               lat: location?.lat,
               lng: location?.lng,
               countyName: location?.countyName,
@@ -298,6 +303,17 @@ export function ParsedCandidateCard({
           <Field label="Lokacija / venue">
             <Input value={form.venueName} disabled={!isPending} onChange={(e) => setField("venueName", e.target.value)} />
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="Adresa">
+              <Input
+                id={`address-${candidate.id}`}
+                value={form.address}
+                disabled={!isPending}
+                onChange={(e) => setField("address", e.target.value)}
+                placeholder="npr. Kapucinska ulica 41"
+              />
+            </Field>
+          </div>
           <div className="sm:col-span-2">
             <Field label="Precizna lokacija (koordinate)">
               <LocationAutocomplete

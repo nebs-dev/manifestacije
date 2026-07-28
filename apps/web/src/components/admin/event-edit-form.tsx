@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   Save,
   Check,
@@ -12,6 +13,15 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { toast } from "sonner"
+import { formatRelative } from "@/lib/admin/format"
+
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  MANUAL: "Ručno kreirao admin",
+  ORGANIZER_FORM: "Organizator (putem panela)",
+  EMAIL: "Email prijava",
+  URL_SUBMISSION: "Automatski (URL / nadzor izvora)",
+  IMPORTED: "Uvezeno",
+}
 
 import { Button } from "@/components/ui/button"
 import {
@@ -242,6 +252,30 @@ export function EventEditForm({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 text-sm text-muted-foreground">
+          <span>Dodano {formatRelative(event.createdAt)}</span>
+          <span className="opacity-40">·</span>
+          <span>{SOURCE_KIND_LABELS[event.sourceType ?? ""] ?? "Nepoznat izvor"}</span>
+          {event.organizer && (
+            <>
+              <span className="opacity-40">·</span>
+              <span>Organizator: {event.organizer}</span>
+            </>
+          )}
+          {event.sources.length > 0 && (
+            <>
+              <span className="opacity-40">·</span>
+              {event.sources.map((s) => (
+                <Link key={s.id} href={`/admin/sources/${s.id}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+                  Pregled izvora <ExternalLink className="size-3" />
+                </Link>
+              ))}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">

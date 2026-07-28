@@ -11,6 +11,7 @@ import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, UpdateEventSourceDto } from "./admin.dto";
 import { RevalidateService } from "./revalidate.service";
+import { UploadsService } from "./uploads.service";
 
 export type AdminEventListParams = {
   sortBy?: string;
@@ -42,6 +43,7 @@ export class AdminService {
     private readonly duplicates: DuplicatesService,
     private readonly revalidate: RevalidateService,
     private readonly email: EmailService,
+    private readonly uploads: UploadsService,
   ) {}
 
   async pendingCounts(params?: { sourcesSince?: string; eventsSince?: string }) {
@@ -513,6 +515,7 @@ export class AdminService {
     if (categoryIds?.[0] && !category) throw new BadRequestException(`Category '${categoryIds[0]}' not found in taxonomy`);
 
     const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName);
+    const imageUrl = await this.rehostCandidateImage(candidate.imageUrl);
 
     const event = await this.events.createFromDto(
       {
@@ -539,7 +542,7 @@ export class AdminService {
         address: candidate.address || undefined,
         lat: candidate.lat ?? undefined,
         lng: candidate.lng ?? undefined,
-        imageUrl: candidate.imageUrl || undefined,
+        imageUrl: imageUrl || undefined,
       },
       { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
     );
@@ -1007,14 +1010,75 @@ export class AdminService {
     ) as Partial<ParsedEventCandidate>;
   }
 
+  /** Copies a scraped image onto our own CDN at approval time, so the event
+   *  keeps its poster even after the source rotates or deletes the file.
+   *  Anything already hosted by us is left alone, and a failed copy silently
+   *  keeps the original URL rather than losing the image entirely. */
+  private async rehostCandidateImage(imageUrl?: string): Promise<string | undefined> {
+    const url = imageUrl?.trim();
+    if (!url || url.includes("res.cloudinary.com")) return url || undefined;
+    const uploaded = await this.uploads.uploadEventImageFromUrl(url);
+    return uploaded?.imageUrl ?? url;
+  }
+
   private async findOrCreateOrganizerId(name?: string): Promise<number | undefined> {
     const cleaned = name?.trim();
     if (!cleaned) return undefined;
-    const existing = await this.prisma.organizer.findFirst({ where: { name: { equals: cleaned, mode: "insensitive" } } });
-    if (existing) return existing.id;
-    const slug = await uniqueSlug(cleaned, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
-    const organizer = await this.prisma.organizer.create({ data: { name: cleaned, slug, status: OrganizerStatus.UNCLAIMED } });
+
+    const names = this.splitOrganizerNames(cleaned);
+    const isCreditLine = names.length > 1;
+    const primary = names[0];
+
+    const existing = await this.findOrganizerByName(primary);
+    if (existing) return existing;
+
+    // A credit line ("A, B & C") names several parties, not one organiser.
+    // Minting a row from the whole string is how entries like "Incognito
+    // Agency, Entrio i Centar za kulturu Đakovo" ended up in the table
+    // alongside a separate "Incognito Agency". If the lead name isn't
+    // already known, leave it empty for the admin to resolve.
+    if (isCreditLine) return undefined;
+
+    const slug = await uniqueSlug(primary, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
+    const organizer = await this.prisma.organizer.create({ data: { name: primary, slug, status: OrganizerStatus.UNCLAIMED } });
     return organizer.id;
+  }
+
+  /** Matches on a normalised form so casing, diacritics, punctuation and a
+   *  trailing legal suffix don't fork one organiser into several rows
+   *  ("Centar za kulturu Đakovo" vs "Centar za kulturu Dakovo"). The table is
+   *  small enough to compare in memory, and Postgres can't apply this
+   *  normalisation in a query without an expression index. */
+  private async findOrganizerByName(name: string): Promise<number | undefined> {
+    const target = this.normalizeOrganizerName(name);
+    if (!target) return undefined;
+    const all = await this.prisma.organizer.findMany({ select: { id: true, name: true } });
+    return all.find((o) => this.normalizeOrganizerName(o.name) === target)?.id;
+  }
+
+  private normalizeOrganizerName(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/\s*\b(j\.?\s*d\.?\s*o\.?\s*o\.?|d\.?\s*o\.?\s*o\.?|d\.?\s*d\.?)\s*$/, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  /** Splits a credit line into the parties it names. Only strong separators
+   *  count: Croatian organiser names routinely contain " i " ("Sport i
+   *  rekreacija Slavonija"), so splitting on it would break real names.
+   *  Parenthesised asides are dropped first — they list people, not
+   *  co-organisers ("Kazalište Grupa (Žijah Sokolović, Dražen Šivak)"). */
+  private splitOrganizerNames(value: string): string[] {
+    const withoutAsides = value.replace(/\([^)]*\)/g, " ").trim();
+    const parts = withoutAsides
+      .split(/\s*[,&/+]\s*/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 1);
+    return parts.length > 1 ? parts : [withoutAsides || value.trim()];
   }
 
   private findOrCreateCity(name: string, countyName?: string, regionName?: string) {

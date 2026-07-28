@@ -40,6 +40,15 @@ const statusMap: Record<string, { tone: Tone; label: string }> = {
   open: { tone: "warning", label: "Otvoreno" },
   merged: { tone: "success", label: "Spojeno" },
   dismissed: { tone: "neutral", label: "Odbačeno" },
+  // monitored source check statuses
+  OK: { tone: "success", label: "OK" },
+  UNCHANGED: { tone: "neutral", label: "Bez promjena" },
+  ERROR: { tone: "danger", label: "Greška" },
+  // ingestion job (run log) statuses
+  QUEUED: { tone: "neutral", label: "U redu" },
+  RUNNING: { tone: "info", label: "U tijeku" },
+  DONE: { tone: "success", label: "Gotovo" },
+  FAILED: { tone: "danger", label: "Neuspjelo" },
   // organizer claim statuses
   PENDING: { tone: "neutral", label: "Na čekanju" },
   EMAIL_VERIFICATION_SENT: { tone: "info", label: "Poslana poveznica" },

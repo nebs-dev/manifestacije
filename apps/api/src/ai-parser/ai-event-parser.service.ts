@@ -100,37 +100,22 @@ export class AiEventParserService {
   // ── Public API ────────────────────────────────────────────────────────────────
 
   extractEventSubLinks(html: string, baseUrl: string): string[] {
-    let base: URL;
-    try { base = new URL(baseUrl); } catch { return []; }
+    const allLinks = this.extractAllPageLinks(html, baseUrl);
 
-    const seen = new Set<string>();
-    const allLinks: string[] = [];
-    const hrefRe = /href=["']([^"'#][^"']*?)["']/gi;
-    let m: RegExpExecArray | null;
-    while ((m = hrefRe.exec(html)) !== null) {
-      try {
-        const url = new URL(m[1].trim(), baseUrl);
-        if (url.hostname !== base.hostname) continue;
-        const path = url.pathname;
-        if (path === "/" || path === base.pathname || path.length < 5) continue;
-        if (/\/(kontakt|o-nama|naslovnica|pocetna|home|about|contact|admin|login|prijava|registracija|search|tag|kategorija|rss|sitemap)\/?$/i.test(path)) continue;
-        if (/\.(pdf|doc|docx|xls|jpg|jpeg|png|gif|zip|mp3|mp4)\b/i.test(path)) continue;
-        const full = url.origin + path;
-        if (!seen.has(full)) { seen.add(full); allLinks.push(full); }
-      } catch { /* skip */ }
-    }
-
-    // Only return links that share a parent path with 3+ siblings (structured listing)
+    // Only return links that share a parent path with 3+ siblings (structured listing).
+    // Flat sites publish articles directly under root (/event-slug-1234, one path
+    // segment) rather than nested (/dogadaji/event-slug) — those still belong in
+    // the same "root" bucket, or they'd never group with anything and the whole
+    // page would silently fall back to homepage-teaser text instead of visiting
+    // each article for its real date/image/description.
     const byParent = new Map<string, string[]>();
     for (const link of allLinks) {
       try {
         const parts = new URL(link).pathname.split("/").filter(Boolean);
-        if (parts.length >= 2) {
-          const parent = parts.slice(0, -1).join("/");
-          const arr = byParent.get(parent) ?? [];
-          arr.push(link);
-          byParent.set(parent, arr);
-        }
+        const parent = parts.length >= 2 ? parts.slice(0, -1).join("/") : "";
+        const arr = byParent.get(parent) ?? [];
+        arr.push(link);
+        byParent.set(parent, arr);
       } catch { /* skip */ }
     }
 
@@ -139,6 +124,226 @@ export class AiEventParserService {
       if (siblings.length >= 3) result.push(...siblings);
     }
     return [...new Set(result)];
+  }
+
+  /** Every same-hostname content link on the page, filtered but NOT grouped
+   *  by "3+ siblings" — that grouping is a *discovery* heuristic (is this
+   *  page a structured listing worth crawling wholesale) and wrongly
+   *  excludes the common case of matching one specific already-known
+   *  candidate to its one detail-page link on a page that otherwise has no
+   *  repeated listing structure (e.g. a calendar page where only one entry
+   *  happens to be a clickable card and the rest are plain text). */
+  extractAllPageLinks(html: string, baseUrl: string): string[] {
+    let base: URL;
+    try { base = new URL(baseUrl); } catch { return []; }
+
+    // Site-wide header/nav/footer menus repeat identically on every page and
+    // are usually the largest same-parent-path link cluster on the page —
+    // without stripping them first they crowd out real content links (a
+    // listing page's actual entries) within the later crawl-count cap.
+    const bodyHtml = this.stripChrome(html);
+
+    const seen = new Set<string>();
+    const allLinks: string[] = [];
+    // Anchored to <a> tags only — a plain `href=` scan also matches
+    // <link rel="stylesheet" href="..."> and similar, which on some sites
+    // (many stylesheet files under one /css/ path) outnumber real event
+    // links and pass the "3+ siblings" listing heuristic as false positives.
+    const hrefRe = /<a\b[^>]*\bhref=["']([^"'#][^"']*?)["']/gi;
+    let m: RegExpExecArray | null;
+    while ((m = hrefRe.exec(bodyHtml)) !== null) {
+      try {
+        const url = new URL(m[1].trim(), baseUrl);
+        if (url.hostname !== base.hostname) continue;
+        const path = url.pathname;
+        if (path === "/" || path === base.pathname || path.length < 5) continue;
+        if (/\/(kontakt|o-nama|naslovnica|pocetna|home|about|contact|admin|login|prijava|registracija|search|tag|kategorija|rss|sitemap)\/?$/i.test(path)) continue;
+        if (/\.(pdf|doc|docx|xls|jpg|jpeg|png|gif|zip|mp3|mp4|css|js|svg|ico|woff|woff2|ttf)\b/i.test(path)) continue;
+        const full = url.origin + path;
+        if (!seen.has(full)) { seen.add(full); allLinks.push(full); }
+      } catch { /* skip */ }
+    }
+    return allLinks;
+  }
+
+  /** Some Next.js sites (e.g. kuda.hr) stream all page data as JSON inside
+   *  `self.__next_f.push(...)` React Server Components chunks and render
+   *  nothing but nav chrome into the actual HTML — a plain-text/link scrape
+   *  or an LLM read of the rendered page finds little or nothing (or gets it
+   *  inconsistently, event by event, whenever the raw escaped JSON happens to
+   *  fall inside the LLM's attention). When one of those chunks holds a
+   *  recognisable event-array, decode it directly instead of guessing. */
+  extractEmbeddedEvents(html: string, sourceUrl: string): ParsedSourceResult | null {
+    const decoded = this.decodeNextFlightChunks(html);
+    if (!decoded) return null;
+
+    for (const key of ["initialEvents", "events", "listings", "items"]) {
+      const arr = this.extractJsonArrayAfterKey(decoded, key);
+      if (!arr) continue;
+      const candidates = arr
+        .filter((raw): raw is Record<string, unknown> => !!raw && typeof raw === "object")
+        .map((raw) => this.embeddedEventToCandidate(raw, sourceUrl))
+        .filter((c): c is ParsedEventCandidate => c !== null);
+      if (candidates.length > 0) {
+        return { sourceUrl, sourceType: "batch", candidates: candidates.map((c) => ({ ...c, _status: "pending" as const })) };
+      }
+    }
+    return null;
+  }
+
+  /** Croatia is CET/CEST, so the offset depends on the date itself — derive
+   *  it from the zone rather than hardcoding +01:00 or +02:00. */
+  private withZagrebOffset(date: string, time: string): string {
+    const naive = `${date}T${time}`;
+    const asUtc = new Date(`${naive}Z`);
+    if (Number.isNaN(asUtc.getTime())) return naive;
+
+    // Round-trip the instant through the zone: the gap between how Zagreb
+    // renders it and the UTC value it was built from is that date's offset.
+    const zoned = new Date(asUtc.toLocaleString("en-US", { timeZone: "Europe/Zagreb" }));
+    const utcRef = new Date(asUtc.toLocaleString("en-US", { timeZone: "UTC" }));
+    const offsetMinutes = Math.round((zoned.getTime() - utcRef.getTime()) / 60000);
+
+    const sign = offsetMinutes < 0 ? "-" : "+";
+    const abs = Math.abs(offsetMinutes);
+    const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+    const mm = String(abs % 60).padStart(2, "0");
+    return `${naive}${sign}${hh}:${mm}`;
+  }
+
+  /** Site taxonomies are small and stable; anything unmapped falls through
+   *  to the keyword guess rather than being forced into a wrong bucket. */
+  private mapSourceCategory(raw: string): string {
+    const map: Record<string, string> = {
+      workshop: "radionice",
+      radionica: "radionice",
+      concert: "glazba",
+      koncert: "glazba",
+      music: "glazba",
+      glazba: "glazba",
+      culture: "izlozbe",
+      kultura: "izlozbe",
+      exhibition: "izlozbe",
+      izlozba: "izlozbe",
+      theatre: "izlozbe",
+      sport: "sport",
+      fair: "sajmovi",
+      sajam: "sajmovi",
+      festival: "festivali",
+      family: "djeca-i-obitelj",
+      kids: "djeca-i-obitelj",
+      nightlife: "nocni-zivot",
+      party: "nocni-zivot",
+      food: "hrana-i-vino",
+      gastro: "hrana-i-vino",
+      education: "edukacija",
+      outdoor: "na-otvorenom",
+    };
+    return map[raw.trim().toLowerCase()] ?? "";
+  }
+
+  private decodeNextFlightChunks(html: string): string | null {
+    const re = /self\.__next_f\.push\(\[\d+,\s*"((?:\\.|[^"\\])*)"\]\)/g;
+    let out = "";
+    let found = false;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      found = true;
+      try {
+        // The chunk is a JS string literal; JSON string-escaping is a
+        // compatible subset of it, so re-quoting and JSON.parse-ing decodes
+        // it to the underlying flight text in one step.
+        out += JSON.parse(`"${m[1]}"`);
+      } catch {
+        // malformed/binary chunk — skip it, keep the rest
+      }
+    }
+    return found ? out : null;
+  }
+
+  private extractJsonArrayAfterKey(text: string, key: string): unknown[] | null {
+    const marker = `"${key}":[`;
+    const start = text.indexOf(marker);
+    if (start === -1) return null;
+    const arrStart = start + marker.length - 1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = arrStart; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') { inString = true; continue; }
+      if (ch === "[") depth++;
+      else if (ch === "]") {
+        depth--;
+        if (depth === 0) {
+          try {
+            const parsed = JSON.parse(text.slice(arrStart, i + 1));
+            return Array.isArray(parsed) ? parsed : null;
+          } catch {
+            return null;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private embeddedEventToCandidate(raw: Record<string, unknown>, sourceUrl: string): ParsedEventCandidate | null {
+    const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+    const title = str(raw.name) || str(raw.title);
+    if (!title) return null;
+
+    const date = str(raw.date);
+    const time = str(raw.time);
+    const endDate = str(raw.end_date);
+    const endTime = str(raw.end_time);
+    // These are wall-clock times at a Croatian venue. Emitted without an
+    // offset, `new Date()` downstream would read them in the server's own
+    // zone — correct on a local machine, two hours off on a UTC host.
+    const startsAt = date ? this.withZagrebOffset(date, time || "00:00:00") : "";
+    const endsAt = endDate || endTime ? this.withZagrebOffset(endDate || date, endTime || "23:59:59") : "";
+
+    const description = this.normalizeDescription(str(raw.description));
+    const city = str(raw.city);
+    const isFreeRaw = raw.is_free ?? raw.isFree;
+
+    const missingFields: string[] = [];
+    if (!title) missingFields.push("title");
+    if (!startsAt) missingFields.push("startsAt");
+    if (!city) missingFields.push("city");
+
+    return {
+      title,
+      description,
+      startsAt,
+      endsAt,
+      venueName: str(raw.venue_name) || str(raw.venueName),
+      address: str(raw.venue_address) || str(raw.address),
+      city: city ? city.charAt(0).toUpperCase() + city.slice(1) : "",
+      county: "",
+      region: "",
+      // The site's own category is a stated fact; the keyword guess is a
+      // guess that trips over substrings (a "radionica vezenja" matching
+      // "vez" → folklore). Prefer the fact when the site states one.
+      category: this.mapSourceCategory(str(raw.category))
+        || this.guessCategory(`${title} ${description}`)
+        || "ostalo",
+      isFree: typeof isFreeRaw === "boolean" ? isFreeRaw : null,
+      priceText: str(raw.price_info) || str(raw.priceText),
+      ticketUrl: str(raw.ticket_url) || str(raw.ticketUrl),
+      sourceUrl: str(raw.original_url) || str(raw.source_url) || sourceUrl,
+      organizerName: "",
+      imageUrl: str(raw.image_url) || str(raw.imageUrl),
+      confidence: 0.9,
+      missingFields,
+      warnings: [],
+    };
   }
 
   async crawlListingSubPages(html: string, baseUrl: string): Promise<{
@@ -233,6 +438,7 @@ export class AiEventParserService {
   "endsAt": "2026-07-15T23:00:00+02:00 ili null",
   "isAllDay": false,
   "venueName": "string",
+  "address": "string (ulica i kućni broj) ili ''",
   "city": "string (ime grada na hrvatskom)",
   "category": "jedna-od-16-kategorija",
   "isFree": true/false/null,
@@ -271,7 +477,11 @@ Ako grad nije eksplicitno napisan uz svaki događaj, zaključi iz konteksta: naz
 
 Ako nešto ne možeš pronaći, koristi prazan string ili null.
 OBAVEZNA polja (jedino ova idu u missingFields): title, startsAt, city, category.
-OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, organizerName.
+OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, address, organizerName.
+
+address je ULICA I KUĆNI BROJ, ne naziv prostora i ne grad. "Dvorac Prandau - Mailath" je venueName, "Vukovarska 1" je address, "Donji Miholjac" je city.
+Adresu često nađeš izvan glavnog opisa — u bloku "Informacije"/"Lokacija"/"Kontakt", uz vrijeme održavanja, ili ispod naslova. Pretraži cijeli sadržaj, ne samo opis događaja.
+Ne izmišljaj adresu i ne prepisuj adresu organizatora ili izdavača stranice (npr. adresa turističke zajednice u podnožju) ako nije adresa održavanja — u tom slučaju vrati ''.
 Warnings koristi samo za stvarne probleme (datum u prošlosti, nevažeći URL i sl.).
 Description mora zadržati format originala koliko je moguće: odlomke odvoji s "\\n\\n", stavke programa/lista ostavi u zasebnim linijama. Ne vraćaj cijeli opis kao jedan dugi red ako original ima odlomke ili listu.
 
@@ -306,7 +516,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: systemPrompt,
       messages: [{
         role: "user",
@@ -318,11 +528,21 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     if (content.type !== "text") throw new Error("Neočekivani odgovor od Claude API-ja");
 
     let rawParsed: unknown;
+    // Claude sometimes appends prose after the closing fence (e.g. explaining
+    // why it found nothing) despite the "ISKLJUČIVO JSON" instruction — anchor
+    // on the fenced block itself rather than assuming it's the whole response.
+    // An unterminated fence means the response hit max_tokens mid-JSON, so
+    // fall back to everything after the opening fence and let the salvage
+    // path below recover the candidates that did come through intact.
+    const closed = content.text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const open = content.text.match(/```(?:json)?\s*([\s\S]*)$/);
+    const jsonText = (closed?.[1] ?? open?.[1] ?? content.text).trim();
     try {
-      const jsonText = content.text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
       rawParsed = JSON.parse(jsonText);
     } catch {
-      throw new Error(`Claude nije vratio validan JSON: ${content.text.slice(0, 200)}`);
+      const salvaged = this.salvageTruncatedCandidates(jsonText);
+      if (!salvaged) throw new Error(`Claude nije vratio validan JSON: ${content.text.slice(0, 200)}`);
+      rawParsed = salvaged;
     }
 
     const normalize = (p: Partial<ParsedEventCandidate>): ParsedEventCandidate => ({
@@ -366,6 +586,78 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     };
   }
 
+  /** A listing with many events can run the model out of output tokens
+   *  mid-array, and throwing away a whole page of good candidates because the
+   *  last one was cut in half loses far more than it protects. Walk the
+   *  candidates array and keep every object that closed cleanly. */
+  private salvageTruncatedCandidates(text: string): { candidates: unknown[] } | null {
+    const marker = text.indexOf('"candidates"');
+    if (marker === -1) {
+      const single = this.salvageTruncatedObject(text);
+      return single ? { candidates: [single] } : null;
+    }
+    const arrStart = text.indexOf("[", marker);
+    if (arrStart === -1) return null;
+
+    const candidates: unknown[] = [];
+    let depth = 0;
+    let objStart = -1;
+    let inString = false;
+    let escaped = false;
+    for (let i = arrStart + 1; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') { inString = true; continue; }
+      if (ch === "{") { if (depth === 0) objStart = i; depth++; }
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0 && objStart !== -1) {
+          try { candidates.push(JSON.parse(text.slice(objStart, i + 1))); } catch { /* skip */ }
+          objStart = -1;
+        }
+      } else if (ch === "]" && depth === 0) break;
+    }
+    return candidates.length > 0 ? { candidates } : null;
+  }
+
+  /** Single-event pages come back as a bare object rather than a candidates
+   *  array, so the array walk above has nothing to anchor on. Rewind to the
+   *  last top-level key/value pair that completed and close the object there
+   *  — a candidate missing its trailing fields still beats no candidate. */
+  private salvageTruncatedObject(text: string): unknown | null {
+    const objStart = text.indexOf("{");
+    if (objStart === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let lastComplete = -1;
+    for (let i = objStart; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') { inString = true; continue; }
+      if (ch === "{" || ch === "[") depth++;
+      else if (ch === "}" || ch === "]") depth--;
+      else if (ch === "," && depth === 1) lastComplete = i;
+    }
+    if (lastComplete === -1) return null;
+    try {
+      return JSON.parse(text.slice(objStart, lastComplete) + "}");
+    } catch {
+      return null;
+    }
+  }
+
   private isFacebookUrl(url: string): boolean {
     try {
       const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
@@ -375,6 +667,13 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   }
 
   // ── HTML normalisation ────────────────────────────────────────────────────────
+
+  private stripChrome(html: string): string {
+    return html
+      .replace(/<header\b[\s\S]*?<\/header>/gi, "")
+      .replace(/<nav\b[\s\S]*?<\/nav>/gi, "")
+      .replace(/<footer\b[\s\S]*?<\/footer>/gi, "");
+  }
 
   private htmlToText(html: string): string {
     return html
@@ -818,9 +1117,18 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const lower = text.toLowerCase();
     for (const [category, keywords] of Object.entries(this.CATEGORY_KEYWORDS)) {
       if (category === "Ostalo") continue;
-      if (keywords.some((k) => lower.includes(k))) return category;
+      if (keywords.some((k) => this.containsKeyword(lower, k))) return category;
     }
     return "";
+  }
+
+  /** Anchored at a word start but open-ended at the tail, so Croatian
+   *  inflections still match ("izložba" → "izložbe/izložbi") while a keyword
+   *  buried inside an unrelated word does not ("Passport" is not sport,
+   *  "vezenja" is not folklore). */
+  private containsKeyword(lowerText: string, keyword: string): boolean {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}`, "u").test(lowerText);
   }
 
   private emptyCandidate(sourceUrl: string): ParsedEventCandidate {

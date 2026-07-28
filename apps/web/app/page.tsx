@@ -43,13 +43,16 @@ export default async function Home() {
     ? featuredStrict
     : [...featuredStrict, ...events.filter((event) => !event.featured)].slice(0, 3);
   const featuredSlugs = new Set(featured.map((event) => event.slug));
-  const upcoming = rotateEventsByDay(
-    interleaveByImage(events.filter((event) => !featuredSlugs.has(event.slug))).slice(0, UPCOMING_ROTATION_POOL_SIZE),
-  ).slice(0, UPCOMING_VISIBLE_COUNT);
+  // Rotate first to pick which chronological window is "today's pool", then
+  // interleave *that* pool by poster — interleaving before rotating doesn't
+  // work, because the cyclic rotation can start the visible window anywhere,
+  // including mid-run through a block of same-poster entries the interleave
+  // had carefully spread out.
+  const upcomingPool = rotateEventsByDay(events.filter((event) => !featuredSlugs.has(event.slug)).slice(0, UPCOMING_ROTATION_POOL_SIZE));
+  const upcoming = interleaveByImage(upcomingPool).slice(0, UPCOMING_VISIBLE_COUNT);
   const shownSlugs = new Set([...featured.map((event) => event.slug), ...upcoming.map((event) => event.slug)]);
-  const free = rotateEventsByDay(
-    interleaveByImage(events.filter((event) => event.free && !shownSlugs.has(event.slug))).slice(0, FREE_ROTATION_POOL_SIZE),
-  ).slice(0, FREE_VISIBLE_COUNT);
+  const freePool = rotateEventsByDay(events.filter((event) => event.free && !shownSlugs.has(event.slug)).slice(0, FREE_ROTATION_POOL_SIZE));
+  const free = interleaveByImage(freePool).slice(0, FREE_VISIBLE_COUNT);
 
   return (
     <>

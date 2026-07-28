@@ -3,6 +3,7 @@ import { EventStatus, EventSourceKind, OrganizerStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { findOrCreateCity } from "../common/city-resolver";
+import { lookupVenueGeo } from "../common/croatia-geo";
 import { EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
@@ -17,12 +18,15 @@ export class EventsService {
     this.assertPublishableLocation(opts.status || EventStatus.PENDING_REVIEW, city);
     const category = await this.resolveCategory(dto.categoryId ?? undefined);
     let venueId: number | undefined;
+    let point: { lat?: number; lng?: number; address?: string } = { lat: dto.lat, lng: dto.lng, address: dto.address };
     if (dto.venueName && city) {
       const venueSlug = slugify(dto.venueName);
+      const existing = await this.prisma.venue.findUnique({ where: { slug_cityId: { slug: venueSlug, cityId: city.id } } });
+      point = await this.resolvePoint(dto, city, existing);
       const venue = await this.prisma.venue.upsert({
         where: { slug_cityId: { slug: venueSlug, cityId: city.id } },
-        update: { address: dto.address, lat: dto.lat, lng: dto.lng },
-        create: { name: dto.venueName, slug: venueSlug, cityId: city.id, address: dto.address, lat: dto.lat, lng: dto.lng }
+        update: { address: point.address, lat: point.lat, lng: point.lng },
+        create: { name: dto.venueName, slug: venueSlug, cityId: city.id, address: point.address, lat: point.lat, lng: point.lng }
       });
       venueId = venue.id;
     }
@@ -49,9 +53,9 @@ export class EventsService {
         ticketUrl: dto.ticketUrl,
         sourceUrl: dto.sourceUrl,
         imageUrl: dto.imageUrl,
-        address: dto.address,
-        lat: dto.lat,
-        lng: dto.lng,
+        address: point.address,
+        lat: point.lat,
+        lng: point.lng,
         sourceType: opts.sourceType || EventSourceKind.MANUAL,
         publishedAt: opts.status === EventStatus.PUBLISHED ? new Date() : undefined
       }
@@ -161,6 +165,41 @@ export class EventsService {
 
     await this.duplicates.detectForEvent(id);
     return event;
+  }
+
+  /**
+   * Fills in a precise point for events that arrive with a street address but
+   * no coordinates — parsed candidates never carry any, so without this they
+   * all land on the city centre.
+   *
+   * Explicit coordinates always win: if a human picked a spot in the location
+   * autocomplete, that is the answer. Otherwise the venue is the cache — once
+   * "Grejp, Osijek" has been resolved, every later event there reuses it and
+   * costs no lookup, which is what keeps this within Nominatim's 1 req/s.
+   */
+  private async resolvePoint(
+    dto: Pick<EventUpsertDto, "lat" | "lng" | "address" | "venueName">,
+    city: { name: string; lat: number | null; lng: number | null },
+    existingVenue?: { lat: number | null; lng: number | null; address?: string | null } | null,
+  ): Promise<{ lat?: number; lng?: number; address?: string }> {
+    if (dto.lat != null && dto.lng != null) return { lat: dto.lat, lng: dto.lng, address: dto.address };
+    if (existingVenue?.lat != null && existingVenue.lng != null) {
+      return { lat: existingVenue.lat, lng: existingVenue.lng, address: dto.address || existingVenue.address || undefined };
+    }
+    if (!dto.address && !dto.venueName) return { lat: dto.lat, lng: dto.lng, address: dto.address };
+
+    const centre = city.lat != null && city.lng != null ? { lat: city.lat, lng: city.lng } : null;
+    // Geocoding is an optional improvement, never a reason to fail a save.
+    const found = await lookupVenueGeo(
+      { address: dto.address, venueName: dto.venueName, cityName: city.name },
+      centre,
+    ).catch(() => null);
+
+    if (!found) return { lat: dto.lat, lng: dto.lng, address: dto.address };
+    // A venue given only by name still deserves a street address — the
+    // geocoder had to resolve one to place the pin, so keep it rather than
+    // leaving the admin to look it up by hand.
+    return { lat: found.lat, lng: found.lng, address: dto.address || found.formattedAddress };
   }
 
   private async resolveCityForWrite(

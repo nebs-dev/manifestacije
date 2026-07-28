@@ -1,5 +1,6 @@
 import { Controller, Get, Module } from "@nestjs/common";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { ScheduleModule } from "@nestjs/schedule";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "./prisma/prisma.service";
 import { AuthController } from "./auth/auth.controller";
@@ -20,6 +21,8 @@ import { ResendContactsService } from "./contacts/resend-contacts.service";
 import { OrganizerClaimController } from "./organizer-claims/organizer-claim.controller";
 import { OrganizerClaimService } from "./organizer-claims/organizer-claim.service";
 import { ResendWebhookController } from "./webhooks/resend-webhook.controller";
+import { MonitoredSourcesController } from "./monitored-sources/monitored-sources.controller";
+import { MonitoredSourcesService } from "./monitored-sources/monitored-sources.service";
 
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
@@ -51,13 +54,14 @@ export class HealthController {
 @Module({
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
+    ScheduleModule.forRoot(),
     JwtModule.register({
       global: true,
       secret: jwtSecret,
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController],
+  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController],
   providers: [
     PrismaService,
     AuthService,
@@ -71,7 +75,8 @@ export class HealthController {
     EventsService,
     EmailService,
     ResendContactsService,
-    OrganizerClaimService
+    OrganizerClaimService,
+    MonitoredSourcesService
   ]
 })
 export class AppModule {}

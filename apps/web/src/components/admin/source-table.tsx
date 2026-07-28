@@ -24,6 +24,22 @@ import type { EventSource } from "@/lib/admin/types"
 function sourceDisplayName(s: EventSource): { primary: string; secondary: string } {
   const isGeneric = /^Source #\d+$/i.test(s.subject ?? "")
 
+  const context = !isGeneric && s.subject ? s.subject : s.sourceUrl ? hostname(s.sourceUrl) : s.from || "Ručni unos"
+
+  // A batch (many candidates from one listing page) showing just the first
+  // event's title as the primary label reads as "this row is about one
+  // event" — lead with the source itself and the count instead. A single
+  // parsed candidate is a different case: the event title *is* the useful
+  // "what is this about" answer, more so than "Ručni unos" / a generic subject.
+  if (s.candidateCount > 1) {
+    const preview = s.firstCandidateTitle ? ` — npr. "${s.firstCandidateTitle}"` : ""
+    return { primary: context, secondary: `${s.candidateCount} kandidata${preview}` }
+  }
+
+  if (s.firstCandidateTitle) {
+    return { primary: s.firstCandidateTitle, secondary: context }
+  }
+
   if (!isGeneric && s.subject) {
     const secondary = s.sourceUrl ? hostname(s.sourceUrl) : ""
     return { primary: s.subject, secondary }

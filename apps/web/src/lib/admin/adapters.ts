@@ -1,11 +1,12 @@
-import type { EventSource, ParsedCandidate, AdminEvent, DuplicateCandidate } from "./types"
+import type { EventSource, ParsedCandidate, AdminEvent, DuplicateCandidate, MonitoredSource, MonitoredSourceRun } from "./types"
 import { toUiEventStatus } from "./status"
 
 type BE = Record<string, unknown>
 
 export function adaptEventSource(src: BE): EventSource {
-  const parsedJson = src.parsedJson as { candidates?: unknown[]; sourceImageUrl?: string } | null
+  const parsedJson = src.parsedJson as { candidates?: BE[]; title?: string; sourceImageUrl?: string } | null
   const organizer = src.organizer as BE | null
+  const firstCandidateTitle = (parsedJson?.candidates?.[0]?.title as string) || parsedJson?.title || undefined
   return {
     id: String(src.id),
     sourceUrl: (src.sourceUrl as string) ?? "",
@@ -21,6 +22,7 @@ export function adaptEventSource(src: BE): EventSource {
     sourceImageUrl: parsedJson?.sourceImageUrl,
     organizerName: (organizer?.name as string) ?? null,
     organizerEmail: (organizer?.email as string) ?? null,
+    firstCandidateTitle,
   }
 }
 
@@ -97,6 +99,11 @@ export function adaptEvent(event: BE): AdminEvent {
     ticketUrl: (event.ticketUrl as string) ?? null,
     sourceUrl: (event.sourceUrl as string) ?? null,
     sourceType: (event.sourceType as string) ?? null,
+    sources: ((event.sources as BE[] | undefined) ?? []).map((s) => ({
+      id: String(s.id),
+      type: adaptSourceType(s.type as string),
+      sourceUrl: (s.sourceUrl as string) ?? null,
+    })),
     imageUrl: (event.imageUrl as string) ?? null,
     status: toUiEventStatus(event.status as string),
     confidence: (event.extractionConfidence as number) ?? 0.5,
@@ -131,6 +138,34 @@ export function adaptDuplicate(dup: BE): DuplicateCandidate {
     score: (dup.score as number) ?? 0,
     reason: (dup.reason as string) ?? "",
     status: adaptDuplicateStatus(dup.status as string),
+  }
+}
+
+export function adaptMonitoredSource(src: BE): MonitoredSource {
+  const organizer = src.organizer as BE | null
+  return {
+    id: String(src.id),
+    name: (src.name as string) ?? "",
+    url: (src.url as string) ?? "",
+    sourceType: (src.sourceType as MonitoredSource["sourceType"]) ?? "LISTING_PAGE",
+    organizerName: (organizer?.name as string) ?? null,
+    isActive: (src.isActive as boolean) ?? true,
+    checkIntervalMinutes: (src.checkIntervalMinutes as number) ?? 720,
+    nextCheckAt: src.nextCheckAt as string,
+    lastCheckedAt: (src.lastCheckedAt as string | null) ?? null,
+    lastStatus: (src.lastStatus as MonitoredSource["lastStatus"]) ?? null,
+    consecutiveFailures: (src.consecutiveFailures as number) ?? 0,
+    lastError: (src.lastError as string | null) ?? null,
+  }
+}
+
+export function adaptMonitoredSourceRun(src: BE): MonitoredSourceRun {
+  return {
+    id: String(src.id),
+    status: (src.status as MonitoredSourceRun["status"]) ?? "QUEUED",
+    createdAt: src.createdAt as string,
+    error: (src.error as string | null) ?? null,
+    result: (src.result as MonitoredSourceRun["result"]) ?? null,
   }
 }
 

@@ -39,6 +39,7 @@ export interface EventSource {
   sourceImageUrl?: string
   organizerName: string | null
   organizerEmail: string | null
+  firstCandidateTitle?: string
 }
 
 export interface ParsedCandidate {
@@ -97,6 +98,7 @@ export interface AdminEvent {
   ticketUrl: string | null
   sourceUrl: string | null
   sourceType: string | null
+  sources: { id: string; type: string; sourceUrl: string | null }[]
   imageUrl: string | null
   status: EventStatus
   confidence: number
@@ -116,6 +118,32 @@ export interface PaginatedAdminEvents {
   page: number
   pageSize: number
   pageCount: number
+}
+
+export type MonitoredSourceType = "LISTING_PAGE" | "EVENT_PAGE"
+export type MonitoredSourceCheckStatus = "OK" | "UNCHANGED" | "ERROR" | null
+
+export interface MonitoredSource {
+  id: string
+  name: string
+  url: string
+  sourceType: MonitoredSourceType
+  organizerName: string | null
+  isActive: boolean
+  checkIntervalMinutes: number
+  nextCheckAt: string
+  lastCheckedAt: string | null
+  lastStatus: MonitoredSourceCheckStatus
+  consecutiveFailures: number
+  lastError: string | null
+}
+
+export interface MonitoredSourceRun {
+  id: string
+  status: "QUEUED" | "RUNNING" | "DONE" | "FAILED"
+  createdAt: string
+  error: string | null
+  result: { outcome?: string; itemsFound?: number; itemsNew?: number; candidatesCreated?: number; eventSourceId?: number } | null
 }
 
 export interface DuplicateCandidate {

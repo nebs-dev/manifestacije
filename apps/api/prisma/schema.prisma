@@ -61,6 +61,25 @@ enum IngestionJobType {
   URL_PARSE
   DUPLICATE_CHECK
   GEOCODE
+  SOURCE_CHECK
+}
+
+enum MonitoredSourceType {
+  LISTING_PAGE
+  EVENT_PAGE
+}
+
+enum MonitoredSourceCheckStatus {
+  OK
+  UNCHANGED
+  ERROR
+}
+
+enum DiscoveredItemStatus {
+  NEW
+  PROCESSED
+  UNCHANGED
+  GONE
 }
 
 enum IngestionJobStatus {
@@ -140,6 +159,7 @@ model Organizer {
   users        User[]
   events       Event[]
   sources      EventSource[]
+  monitoredSources MonitoredSource[]
   emailContacts EmailContact[]
   claims       OrganizerClaim[]
   adminViewedAt DateTime?
@@ -335,8 +355,60 @@ model EventSource {
   confidence      Float?
   status          EventSourceStatus @default(NEW)
   adminViewedAt   DateTime?
+  discoveredItems DiscoveredSourceItem[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model MonitoredSource {
+  id                   Int       @id @default(autoincrement())
+  name                 String
+  url                  String
+  sourceType           MonitoredSourceType @default(LISTING_PAGE)
+  organizerId          Int?
+  organizer            Organizer? @relation(fields: [organizerId], references: [id])
+  isActive             Boolean   @default(true)
+  checkIntervalMinutes Int       @default(1440)
+  nextCheckAt          DateTime  @default(now())
+  lastCheckedAt        DateTime?
+  lastSuccessAt        DateTime?
+  lastStatus           MonitoredSourceCheckStatus?
+  lastHttpStatus       Int?
+  etag                 String?
+  lastModified         String?
+  contentHash          String?
+  consecutiveFailures  Int       @default(0)
+  lastError            String?
+  /// Overlap-prevention lock — set when a check claims this row, cleared when
+  /// it finishes. A stale value (older than a few check intervals) is treated
+  /// as a crashed run and reclaimed on the next due-scan.
+  checkingSince        DateTime?
+  discoveredItems      DiscoveredSourceItem[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([nextCheckAt])
+}
+
+model DiscoveredSourceItem {
+  id                  Int       @id @default(autoincrement())
+  monitoredSourceId   Int
+  monitoredSource     MonitoredSource @relation(fields: [monitoredSourceId], references: [id], onDelete: Cascade)
+  /// Deduplication key — see url-normalize.ts. Raw `sourceUrl` is kept
+  /// alongside for display/debugging.
+  normalizedUrl       String
+  sourceUrl           String
+  firstSeenAt         DateTime  @default(now())
+  lastSeenAt          DateTime  @default(now())
+  contentHash         String?
+  linkedEventSourceId Int?
+  linkedEventSource   EventSource? @relation(fields: [linkedEventSourceId], references: [id])
+  status              DiscoveredItemStatus @default(NEW)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([monitoredSourceId, normalizedUrl])
+  @@index([status])
 }
 
 model EventDuplicateCandidate {

@@ -108,6 +108,118 @@ export function fallbackCityGeo(cityName: string): GeoLookupResult | null {
   return CITY_FALLBACKS[normalizeKey(cityName)] ?? null;
 }
 
+export type PointGeo = {
+  lat: number;
+  lng: number;
+  /** Street address as the provider knows it — lets a venue that was only
+   *  ever given by name ("Gradsko kazalište Joza Ivakić") still end up with
+   *  a real address on the event. */
+  formattedAddress?: string;
+};
+
+/** Anything further than this from the city centre is treated as the geocoder
+ *  having matched a same-named street in another town (or another country)
+ *  rather than the venue we asked about. Mirrors the public site's own
+ *  plausibility rule so the map and the stored point never disagree. */
+const MAX_KM_FROM_CITY = 80;
+
+/**
+ * Resolves a venue's precise point from its street address, falling back to
+ * the venue name (bars, halls and theatres are usually mapped by name even
+ * when no street address is known). Unlike lookupCityGeo this does not
+ * require the provider to report a county — a house number rarely needs one,
+ * and demanding it would throw away otherwise good hits.
+ *
+ * Returns null rather than a guess when nothing plausible is found; callers
+ * keep whatever coarser location they already had.
+ */
+export async function lookupVenueGeo(
+  parts: { address?: string | null; venueName?: string | null; cityName?: string | null },
+  cityCentre?: PointGeo | null,
+): Promise<PointGeo | null> {
+  const city = parts.cityName?.trim();
+  const queries = [parts.address?.trim(), parts.venueName?.trim()]
+    .filter((v): v is string => Boolean(v))
+    .map((v) => [v, city, "Hrvatska"].filter(Boolean).join(", "));
+
+  const centre = cityCentre ?? (city ? fallbackCityGeo(city) : null);
+
+  for (const query of queries) {
+    const point = await lookupPointGeo(query);
+    if (!point) continue;
+    if (centre && distanceKm(point, centre) > MAX_KM_FROM_CITY) continue;
+    return point;
+  }
+  return null;
+}
+
+async function lookupPointGeo(query: string): Promise<PointGeo | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (apiKey) {
+    const viaGoogle = await lookupPointViaGooglePlaces(query, apiKey).catch(() => null);
+    if (viaGoogle) return viaGoogle;
+  }
+  return lookupPointViaNominatim(query).catch(() => null);
+}
+
+async function lookupPointViaGooglePlaces(query: string, apiKey: string): Promise<PointGeo | null> {
+  const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": "places.location,places.addressComponents",
+    },
+    body: JSON.stringify({ textQuery: query, languageCode: "hr" }),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as PlacesTextSearchResponse;
+  const place = data.places?.[0];
+  if (!place?.location) return null;
+  const component = (type: string) => place.addressComponents?.find((c) => c.types?.includes(type))?.longText;
+  const route = component("route");
+  const streetNumber = component("street_number");
+  return {
+    lat: place.location.latitude,
+    lng: place.location.longitude,
+    formattedAddress: route ? [route, streetNumber].filter(Boolean).join(" ") : undefined,
+  };
+}
+
+async function lookupPointViaNominatim(query: string): Promise<PointGeo | null> {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("accept-language", "hr");
+
+  const res = await fetch(url.toString(), {
+    headers: { "User-Agent": "Manifestacije/1.0 (contact@manifestacije.hr)" },
+  });
+  if (!res.ok) return null;
+  const row = ((await res.json()) as NominatimResult[])[0];
+  if (!row) return null;
+  const lat = parseFloat(row.lat);
+  const lng = parseFloat(row.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const road = row.address?.road;
+  return {
+    lat,
+    lng,
+    formattedAddress: road ? [road, row.address?.house_number].filter(Boolean).join(" ") : undefined,
+  };
+}
+
+function distanceKm(a: PointGeo, b: PointGeo): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const sinLat = Math.sin(toRad(b.lat - a.lat) / 2);
+  const sinLng = Math.sin(toRad(b.lng - a.lng) / 2);
+  const h = sinLat * sinLat + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinLng * sinLng;
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(h));
+}
+
 export function normalizeCountyName(countyName: string): string {
   const trimmed = countyName.trim().replace(/\s+County$/i, "").replace(/\s+županija$/i, "");
   return COUNTY_ALIASES[normalizeKey(trimmed)] ?? trimmed;
@@ -140,7 +252,7 @@ async function lookupViaGooglePlaces(cityName: string, apiKey: string): Promise<
 type NominatimResult = {
   lat: string;
   lon: string;
-  address?: { state?: string; county?: string };
+  address?: { state?: string; county?: string; road?: string; house_number?: string };
 };
 
 async function lookupViaNominatim(cityName: string): Promise<GeoLookupResult | null> {
