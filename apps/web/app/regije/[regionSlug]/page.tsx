@@ -16,8 +16,9 @@ export async function generateMetadata({ params }: { params: { regionSlug: strin
     fetchRegions(),
   ]);
   const name = regionName(params.regionSlug, regions);
-  const title = `Događanja ${name}`;
-  const description = `Pregled događanja, manifestacija i evenata u regiji ${name}. Pronađi aktualne termine, lokacije i programe.`;
+  const location = regionLocationPhrase(params.regionSlug, name);
+  const title = `Digitalni kalendar događanja u ${location}`;
+  const description = `Digitalni kalendar događanja za ${location}: koncerti, festivali, manifestacije i eventi. Pronađi aktualne termine, lokacije i programe.`;
   return {
     title,
     description,
@@ -68,7 +69,7 @@ export default async function RegionPage({ params }: { params: { regionSlug: str
             <Link href="/regije" className="inline-flex items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm hover:bg-ink-foreground/15">
               <ArrowLeft className="size-4" /> Regije
             </Link>
-            <h1 className="mt-6 max-w-2xl font-heading text-4xl font-semibold md:text-6xl">Događanja u regiji {name}</h1>
+            <h1 className="mt-6 max-w-2xl font-heading text-4xl font-semibold md:text-6xl">Digitalni kalendar događanja u {location}</h1>
             <p className="mt-4 max-w-2xl text-pretty text-ink-foreground/80">
               Manifestacije, eventi i događaji u {location}.
             </p>

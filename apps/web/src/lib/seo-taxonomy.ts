@@ -130,7 +130,7 @@ export function citySeoFields(slug: string, events: CroEvent[], webUrl: string) 
   const name = cityName(slug, events)
   const location = cityLocationPhrase(slug, name)
   const title = `Događanja u ${location} – danas, ovaj vikend i uskoro | Manifestacije`
-  const description = `Pregled koncerata, festivala, kazališta, radionica, događanja za djecu i besplatnih događanja u ${location}. Pronađi aktualne termine, lokacije i programe.`
+  const description = `Digitalni kalendar događanja za ${location}: pregled koncerata, festivala, kazališta, radionica, događanja za djecu i besplatnih događanja u ${location}. Pronađi aktualne termine, lokacije i programe.`
   const canonical = `${webUrl}/gradovi/${slug}`
 
   return { name, location, title, description, canonical }

@@ -13,20 +13,20 @@ export const metadata: Metadata = {
     default: "Manifestacije — Što se događa oko tebe?",
     template: "%s | Manifestacije",
   },
-  description: "Pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
+  description: "Digitalni kalendar događanja za Slavoniju i Baranju — pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
   openGraph: {
     type: "website",
     locale: "hr_HR",
     url: siteUrl,
     siteName: "Manifestacije",
     title: "Manifestacije — Što se događa oko tebe?",
-    description: "Pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
+    description: "Digitalni kalendar događanja za Slavoniju i Baranju — pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
     images: [{ url: "/logo/logo.svg", width: 1024, height: 1024, alt: "Manifestacije" }],
   },
   twitter: {
     card: "summary",
     title: "Manifestacije — Što se događa oko tebe?",
-    description: "Pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
+    description: "Digitalni kalendar događanja za Slavoniju i Baranju — pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
     images: ["/logo/logo.svg"],
   },
   icons: {

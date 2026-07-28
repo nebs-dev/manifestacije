@@ -29,11 +29,12 @@ export function HomeHero() {
           Što se događa oko tebe?
         </h1>
         <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-ink-foreground/75 sm:text-lg">
-          Pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.
+          Digitalni kalendar događanja za Slavoniju i Baranju — pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.
         </p>
 
         {/* Search bar */}
         <form
+          id="home-hero-search-form"
           action="/eventi"
           onSubmit={() => setSearching(true)}
           className="mt-9 flex w-full max-w-2xl flex-col gap-2 rounded-2xl bg-background p-2 text-foreground shadow-poster-lg sm:flex-row sm:items-center sm:rounded-full"
