@@ -68,6 +68,10 @@ export interface ParsedCandidate {
   sourceUrl: string
   _status?: "pending" | "created" | "ignored"
   _eventId?: number
+  /** A published event that looks like this candidate. Advisory only — the
+   *  candidate stays fully importable, since a wrong guess must not stop a
+   *  genuinely new event from being added. */
+  _existingEventId?: number
 }
 
 export interface AdminEvent {

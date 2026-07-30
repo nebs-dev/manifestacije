@@ -54,6 +54,7 @@ export function adaptEventSourceCandidates(src: BE): ParsedCandidate[] {
     sourceUrl: (c.sourceUrl as string) || (src.sourceUrl as string) || "",
     _status: c._status as "pending" | "created" | "ignored" | undefined,
     _eventId: c._eventId as number | undefined,
+    _existingEventId: c._existingEventId as number | undefined,
   }))
 }
 

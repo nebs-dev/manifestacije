@@ -34,7 +34,14 @@ export type ParsedEventCandidate = {
 export type ParsedSourceResult = {
   sourceUrl: string;
   sourceType: "batch" | "single";
-  candidates: (ParsedEventCandidate & { _status?: "pending" | "created" | "ignored"; _eventId?: number })[];
+  /**
+   * `_existingEventId` is advisory only: it says "an event that looks like
+   * this one is already published", and nothing in the pipeline branches on
+   * it. It deliberately does not touch `_status`, because a "created" status
+   * makes a candidate un-importable — mislabelling one event would then hide
+   * a genuinely new event instead of merely warning about it.
+   */
+  candidates: (ParsedEventCandidate & { _status?: "pending" | "created" | "ignored"; _eventId?: number; _existingEventId?: number })[];
 };
 
 // Backward-compatible alias

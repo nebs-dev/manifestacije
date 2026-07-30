@@ -1,5 +1,6 @@
 import { AiEventParserService } from "../src/ai-parser/ai-event-parser.service";
 import { AdminService } from "../src/admin/admin.service";
+import { DuplicatesService } from "../src/duplicates/duplicates.service";
 import { MonitoredSourcesService } from "../src/monitored-sources/monitored-sources.service";
 import { normalizeUrl } from "../src/monitored-sources/url-normalize";
 
@@ -122,7 +123,7 @@ describe("truncated model output", () => {
 });
 
 describe("scraped image classification", () => {
-  const service = new MonitoredSourcesService(null as never, null as never);
+  const service = new MonitoredSourcesService(null as never, null as never, null as never);
   const isGeneric = (url: string) => (service as never as { isGenericImage(u: string): boolean }).isGenericImage(url);
 
   it("rejects site-wide fallbacks and generated social cards", () => {
@@ -169,5 +170,70 @@ describe("organizer matching", () => {
 
   it("drops a parenthesised list of people rather than reading it as co-organizers", () => {
     expect(internals.splitOrganizerNames("Kazalište Grupa (Žijah Sokolović, Dražen Šivak)")).toEqual(["Kazalište Grupa"]);
+  });
+});
+
+describe("already-imported flagging", () => {
+  // Real similarity metric, stub prisma: the query is not what needs proving,
+  // the match rule is.
+  const duplicates = new DuplicatesService(null as never);
+  const existing = [{ id: 244, title: "Twisti Club powered by BIC: Plaža iz mašte", startsAt: new Date("2026-08-15T20:00:00+02:00"), cityName: "Osijek" }];
+  // Captures the where clause so the status exclusion is asserted, not assumed.
+  let lastWhere: Record<string, unknown> | undefined;
+  const prisma = { event: { findMany: async (args: { where: Record<string, unknown> }) => { lastWhere = args.where; return existing } } };
+  const service = new MonitoredSourcesService(prisma as never, null as never, duplicates);
+
+  const candidate = (over: Partial<{ title: string; startsAt: string; city: string }>) => ({
+    title: "Twisti Club powered by BIC: Plaža iz mašte",
+    startsAt: "2026-08-15T20:00:00+02:00",
+    city: "Osijek",
+    description: "", endsAt: "", venueName: "", address: "", county: "", region: "",
+    category: "ostalo", isFree: null, priceText: "", ticketUrl: "", sourceUrl: "",
+    organizerName: "", imageUrl: "", confidence: 0.9, missingFields: [], warnings: [],
+    _status: "pending" as const,
+    ...over,
+  });
+
+  const flagOf = async (over: Parameters<typeof candidate>[0]) => {
+    const result = await (service as never as {
+      flagAlreadyImported(p: { sourceUrl: string; sourceType: string; candidates: unknown[] }): Promise<{ candidates: { _existingEventId?: number; _status?: string }[] }>;
+    }).flagAlreadyImported({ sourceUrl: "x", sourceType: "batch", candidates: [candidate(over)] });
+    return result.candidates[0];
+  };
+
+  it("flags a candidate matching a published event on title, day and city", async () => {
+    expect((await flagOf({}))._existingEventId).toBe(244);
+  });
+
+  it("leaves the candidate importable — the flag must never block a new event", async () => {
+    const flagged = await flagOf({});
+    expect(flagged._status).toBe("pending");
+  });
+
+  it("does not flag the same title on another day, which is how recurring events look", async () => {
+    expect((await flagOf({ startsAt: "2026-08-22T20:00:00+02:00" }))._existingEventId).toBeUndefined();
+  });
+
+  it("does not flag the same title in another city", async () => {
+    expect((await flagOf({ city: "Vinkovci" }))._existingEventId).toBeUndefined();
+  });
+
+  it("does not flag a merely similar title", async () => {
+    // 0.75 overlap — under the threshold, so treated as a different event.
+    expect((await flagOf({ title: "Twisti Club powered by BIC: Plaza" }))._existingEventId).toBeUndefined();
+  });
+
+  it("does not flag a candidate with no date, since there is nothing to compare", async () => {
+    expect((await flagOf({ startsAt: "" }))._existingEventId).toBeUndefined();
+  });
+
+  it("still flags when the candidate's city is unknown, as that is not evidence of a different event", async () => {
+    expect((await flagOf({ city: "" }))._existingEventId).toBe(244);
+  });
+
+  it("ignores rejected and archived events, which the admin already turned down", async () => {
+    await flagOf({});
+
+    expect(lastWhere?.status).toEqual({ notIn: ["REJECTED", "ARCHIVED"] });
   });
 });

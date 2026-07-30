@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { DiscoveredItemStatus, EventSourceType, MonitoredSourceCheckStatus, MonitoredSourceType } from "@prisma/client";
+import { DiscoveredItemStatus, EventSourceType, EventStatus, MonitoredSourceCheckStatus, MonitoredSourceType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { DuplicatesService } from "../duplicates/duplicates.service";
 import { imageIsReachable, politeFetch } from "./source-fetch";
 import { lookupVenueGeo } from "../common/croatia-geo";
 import { normalizeUrl } from "./url-normalize";
@@ -25,9 +26,15 @@ const MAX_ENRICH_FETCHES = 20;
 // Caps AJAX-paginated listing fetches per check — same politeness reasoning
 // as the other MAX_* caps, applied to a source's own "page=N" pagination.
 const MAX_AJAX_PAGES = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
 // Caps geocoder lookups per check. Distinct venues per listing are far fewer
 // than candidates (the same hall hosts many events), so this is generous.
 const MAX_GEOCODE_LOOKUPS = 25;
+// How alike two titles must read before a candidate is flagged as already
+// imported. Set high on purpose: the flag is only a warning, but a wrong one
+// invites the admin to skip a genuinely new event, while a missed one just
+// means a duplicate the Duplicates screen already catches.
+const ALREADY_IMPORTED_TITLE_SIMILARITY = 0.8;
 
 const STOPWORDS = new Set([
   "za", "od", "do", "na", "sa", "iz", "kod", "pod", "nad", "pri", "bez",
@@ -45,6 +52,7 @@ export class MonitoredSourcesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly parser: AiEventParserService,
+    private readonly duplicates: DuplicatesService,
   ) {}
 
   list() {
@@ -348,6 +356,7 @@ export class MonitoredSourcesService {
     parsed = this.stripGenericImages(parsed);
     parsed = await this.verifyImages(parsed, source.url);
     parsed = await this.fillMissingAddresses(parsed);
+    parsed = await this.flagAlreadyImported(parsed);
 
     // Only create a review-queue row when there's actually something to
     // review — a zero-candidate result just means "checked, nothing found"
@@ -369,11 +378,13 @@ export class MonitoredSourcesService {
       include: { linkedEventSource: true },
     });
 
-    const parsed = await this.verifyImages(
-      this.stripGenericImages(
-        this.dropPastCandidates(await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url }))
+    const parsed = await this.flagAlreadyImported(
+      await this.verifyImages(
+        this.stripGenericImages(
+          this.dropPastCandidates(await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url }))
+        ),
+        source.url,
       ),
-      source.url,
     );
     // If this page was already linked to a published Event, carry the eventId
     // forward so the admin review screen can flag it as a possible update
@@ -642,6 +653,66 @@ export class MonitoredSourcesService {
    * have to look up by hand. Coordinates are kept too, so approval doesn't
    * repeat the lookup.
    */
+  /**
+   * Marks candidates that look like an event we already published.
+   *
+   * Advisory only — nothing downstream reads the flag, and `_status` is left
+   * untouched so every candidate stays importable. The matching is
+   * deliberately strict (same calendar day, near-identical title, same city
+   * when both are known): the expensive mistake is claiming something is a
+   * duplicate when it is not, because that invites the admin to skip a real
+   * new event. Anything uncertain is left unflagged and simply looks new.
+   */
+  private async flagAlreadyImported(parsed: ParsedSourceResult): Promise<ParsedSourceResult> {
+    const dated = parsed.candidates
+      .map((candidate, index) => ({ index, at: new Date(candidate.startsAt) }))
+      .filter((entry) => !Number.isNaN(entry.at.getTime()));
+    if (dated.length === 0) return parsed;
+
+    const times = dated.map((entry) => entry.at.getTime());
+    // One query spanning every candidate date, then compare in memory —
+    // a per-candidate query would mean 20 round trips per check.
+    const existing = await this.prisma.event.findMany({
+      where: {
+        startsAt: {
+          gte: new Date(Math.min(...times) - DAY_MS),
+          lte: new Date(Math.max(...times) + DAY_MS),
+        },
+        // A rejected or archived event is not a reason to wave the admin off
+        // this candidate — they turned that one down, so the listing offering
+        // it again is a decision to make afresh, not a duplicate to skip.
+        status: { notIn: [EventStatus.REJECTED, EventStatus.ARCHIVED] },
+      },
+      select: { id: true, title: true, startsAt: true, cityName: true },
+    });
+    if (existing.length === 0) return parsed;
+
+    const candidates = [...parsed.candidates];
+    for (const { index, at } of dated) {
+      const candidate = candidates[index];
+      const match = existing.find((event) =>
+        this.sameCalendarDay(event.startsAt, at)
+        && this.sameCityWhenKnown(event.cityName, candidate.city)
+        && this.duplicates.titleSimilarity(event.title, candidate.title) >= ALREADY_IMPORTED_TITLE_SIMILARITY);
+      if (match) candidates[index] = { ...candidate, _existingEventId: match.id };
+    }
+
+    return { ...parsed, candidates };
+  }
+
+  private sameCalendarDay(a: Date, b: Date): boolean {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  /** An unknown city on either side is not evidence of a different event, so
+   *  it must not veto an otherwise convincing match. */
+  private sameCityWhenKnown(a: string | null, b: string): boolean {
+    const left = a?.trim().toLowerCase();
+    const right = b?.trim().toLowerCase();
+    if (!left || !right) return true;
+    return left === right;
+  }
+
   private async fillMissingAddresses(parsed: ParsedSourceResult): Promise<ParsedSourceResult> {
     const resolved = new Map<string, { lat: number; lng: number; formattedAddress?: string } | null>();
     const candidates = [...parsed.candidates];

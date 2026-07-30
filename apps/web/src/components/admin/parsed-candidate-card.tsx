@@ -258,6 +258,12 @@ export function ParsedCandidateCard({
               <span className="text-xs text-success">✓ Event #{candidate._eventId}</span>
             )}
             {isIgnored && <span className="text-xs text-muted-foreground">Ignorirano</span>}
+            {!isCreated && candidate._existingEventId && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
+                <TriangleAlert className="size-3" aria-hidden />
+                Vjerojatno već uvezen
+              </span>
+            )}
             {liveMissingFields.length > 0 && (
               <span className="text-xs text-warning">nedostaje: {liveMissingFields.join(", ")}</span>
             )}
@@ -297,6 +303,26 @@ export function ParsedCandidateCard({
             />
             <Label htmlFor={`allday-${candidate.id}`} className="text-sm">Cjelodnevni događaj</Label>
           </div>
+          {!isCreated && candidate._existingEventId && (
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">
+              <TriangleAlert className="size-4 shrink-0 text-warning" aria-hidden />
+              <span className="font-semibold text-warning">Vjerojatno već uvezen</span>
+              <span className="text-muted-foreground">
+                Postoji event istog naslova i datuma.
+              </span>
+              <Link
+                href={`/admin/events/${candidate._existingEventId}`}
+                target="_blank"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                Event #{candidate._existingEventId}
+                <ExternalLink className="size-3" aria-hidden />
+              </Link>
+              <span className="text-muted-foreground">
+                Provjeri prije kreiranja — ako je ovo ipak drugi event, kreiraj ga normalno.
+              </span>
+            </div>
+          )}
           <Field label="Grad">
             <Input value={form.city} disabled={!isPending} onChange={(e) => setField("city", e.target.value)} placeholder="npr. Osijek" />
           </Field>

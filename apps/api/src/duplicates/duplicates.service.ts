@@ -54,7 +54,10 @@ export class DuplicatesService {
     return Math.min(score, 1);
   }
 
-  private titleSimilarity(a: string, b: string) {
+  /** Public so the source-monitoring flag uses the same notion of "same
+   *  title" the Duplicates screen does, rather than a second definition
+   *  that could disagree with it. */
+  titleSimilarity(a: string, b: string) {
     const aw = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
     const bw = new Set(b.toLowerCase().split(/\W+/).filter(Boolean));
     const overlap = [...aw].filter((w) => bw.has(w)).length;
