@@ -338,8 +338,22 @@ export class AdminService {
     return this.prisma.eventSource.delete({ where: { id } });
   }
 
-  eventSources() {
-    return this.prisma.eventSource.findMany({ include: { event: true, organizer: true }, orderBy: { createdAt: "desc" }, take: 200 });
+  /** Paginated because the list only grows: every parsed URL, screenshot and
+   *  monitored-source check adds a row, and the flat take: 200 it replaces
+   *  both truncated silently and shipped 200 rows to the browser at once. */
+  async eventSources(params?: { page?: string; pageSize?: string }) {
+    const page = this.parsePositiveInt(params?.page, 1, 1, 10_000);
+    const pageSize = this.parsePositiveInt(params?.pageSize, 25, 10, 100);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.eventSource.findMany({
+        include: { event: true, organizer: true },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.eventSource.count(),
+    ]);
+    return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   async getSource(id: number) {

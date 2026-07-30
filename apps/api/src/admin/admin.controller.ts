@@ -94,7 +94,7 @@ export class AdminController {
   }
 
   // Literal routes must be declared before parametric :id routes
-  @Get("event-sources") eventSources() { return this.admin.eventSources(); }
+  @Get("event-sources") eventSources(@Query("page") page?: string, @Query("pageSize") pageSize?: string) { return this.admin.eventSources({ page, pageSize }); }
   @Post("event-sources/manual-email") manualEmail(@Body() dto: ManualEmailDto) { return this.admin.createManualEmail(dto); }
   @Post("event-sources/parse-url") parseUrl(@Body() dto: ParseUrlDto) { return this.admin.parseUrl(dto); }
   @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }

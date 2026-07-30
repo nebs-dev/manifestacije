@@ -7,6 +7,14 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -73,10 +81,16 @@ export function SourceTable({
   sources,
   onReparse,
   onDelete,
+  pagination,
+  onPageChange,
+  onPageSizeChange,
 }: {
   sources: EventSource[]
   onReparse?: () => void
   onDelete?: () => void
+  pagination?: { page: number; pageSize: number; total: number }
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (pageSize: number) => void
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
@@ -136,7 +150,11 @@ export function SourceTable({
     }
   }
 
-  if (sources.length === 0) {
+  const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1
+  const pageStart = !pagination || pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1
+  const pageEnd = pagination ? Math.min(pagination.total, pagination.page * pagination.pageSize) : 0
+
+  if (sources.length === 0 && (!pagination || pagination.total === 0)) {
     return (
       <EmptyState
         title="Još nema izvora"
@@ -260,6 +278,36 @@ export function SourceTable({
           </TableBody>
         </Table>
       </div>
+      {pagination && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            {pagination.total === 0 ? "Nema rezultata" : `Prikaz ${pageStart}–${pageEnd} od ${pagination.total}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={String(pagination.pageSize)} onValueChange={(v) => { if (v) onPageSizeChange?.(Number(v)) }}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {[10, 25, 50, 100].map((size) => (
+                    <SelectItem key={size} value={String(size)}>{size} / str.</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" disabled={pagination.page <= 1} onClick={() => onPageChange?.(pagination.page - 1)}>
+              Prethodna
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {pagination.page} / {pageCount}
+            </span>
+            <Button variant="outline" disabled={pagination.page >= pageCount} onClick={() => onPageChange?.(pagination.page + 1)}>
+              Sljedeća
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

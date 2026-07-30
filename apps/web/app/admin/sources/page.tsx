@@ -14,23 +14,32 @@ export default function SourcesPage() {
   const [sources, setSources] = useState<EventSource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await authedFetch("/api/admin/event-sources")
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+      const res = await authedFetch(`/api/admin/event-sources?${params}`)
       if (!res.ok) { setError("Greška pri učitavanju izvora."); return }
-      const data = await res.json()
-      setSources((data as Record<string, unknown>[]).map(adaptEventSource))
+      const data = await res.json() as { items?: Record<string, unknown>[]; total?: number }
+      setSources((data.items ?? []).map(adaptEventSource))
+      setTotal(data.total ?? 0)
+      setError("")
     } catch {
       setError("Greška pri dohvaćanju izvora.")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, pageSize])
 
   useEffect(() => {
     localStorage.setItem("adminLastSeenSourcesAt", new Date().toISOString())
+  }, [])
+
+  useEffect(() => {
     load()
   }, [load])
 
@@ -54,7 +63,14 @@ export default function SourcesPage() {
         ) : error ? (
           <ErrorState description={error} onRetry={load} />
         ) : (
-          <SourceTable sources={sources} onReparse={load} onDelete={load} />
+          <SourceTable
+            sources={sources}
+            onReparse={load}
+            onDelete={load}
+            pagination={{ page, pageSize, total }}
+            onPageChange={setPage}
+            onPageSizeChange={(next) => { setPageSize(next); setPage(1) }}
+          />
         )}
       </section>
     </>

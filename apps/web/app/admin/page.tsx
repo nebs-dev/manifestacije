@@ -55,7 +55,9 @@ export default function DashboardPage() {
     async function load() {
       try {
         const [srcRes, pendRes, dupRes, evRes] = await Promise.all([
-          authedFetch("/api/admin/event-sources"),
+          // Sources are paginated; ask for a wide page since the tile counts
+          // review-needing rows client-side.
+          authedFetch("/api/admin/event-sources?pageSize=100"),
           authedFetch("/api/admin/events/pending"),
           authedFetch("/api/admin/duplicates"),
           authedFetch("/api/admin/events?status=PUBLISHED&pageSize=10"),
@@ -70,7 +72,7 @@ export default function DashboardPage() {
           dupRes.ok ? dupRes.json() : [],
           evRes.ok ? evRes.json() : [],
         ])
-        const adaptedSrc = (srcData as Record<string, unknown>[]).map(adaptEventSource)
+        const adaptedSrc = responseItems(srcData).map(adaptEventSource)
         const adaptedPend = responseItems(pendData).map(adaptEvent)
         const adaptedAll = responseItems(evData).map(adaptEvent)
         setSources(adaptedSrc.slice(0, 5))
