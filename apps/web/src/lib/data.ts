@@ -5,7 +5,7 @@ export type CategorySlug =
   | "radionice"
   | "djeca-i-obitelj"
   | "na-otvorenom"
-  | "hrana-i-vino"
+  | "gastro"
   | "sajmovi"
   | "sport"
   | "tradicija-i-folklor"
@@ -14,10 +14,23 @@ export type CategorySlug =
   | "edukacija"
   | "humanitarno"
   | "udruge"
-  | "ostalo"
-  // legacy slugs kept for backward compat
-  | "outdoor"
   | "kultura"
+  | "predstava"
+  | "film"
+  | "kviz"
+  | "buvljak"
+  | "projekcija-filma"
+  | "knjizevni-susret"
+  | "predavanje"
+  | "ostalo"
+  // legacy slugs kept for backward compat — "hrana-i-vino" never existed as
+  // a real backend category (the real slug is "gastro"); the homepage strip
+  // filtered against it and always showed 0. "outdoor" is a genuine
+  // duplicate of "na-otvorenom" still sitting on a handful of production
+  // events; both map to the same Croatian label until those rows are
+  // reassigned to "na-otvorenom" and the duplicate category is retired.
+  | "hrana-i-vino"
+  | "outdoor"
 
 export type RegionSlug =
   | "dalmacija"
@@ -98,7 +111,7 @@ export const CATEGORY_DISPLAY: Record<string, string> = {
   "radionice":           "Radionice",
   "djeca-i-obitelj":     "Za djecu",
   "na-otvorenom":        "Na otvorenom",
-  "hrana-i-vino":        "Gastro & vino",
+  "gastro":              "Gastro & vino",
   "sajmovi":             "Sajmovi",
   "sport":               "Sport",
   "tradicija-i-folklor": "Tradicija i folklor",
@@ -107,10 +120,21 @@ export const CATEGORY_DISPLAY: Record<string, string> = {
   "edukacija":           "Edukacija",
   "humanitarno":         "Humanitarno",
   "udruge":              "Udruge",
-  "ostalo":              "Ostalo",
-  // legacy slugs
-  "outdoor":             "Na otvorenom",
   "kultura":             "Kultura",
+  "predstava":           "Predstava",
+  "film":                "Film",
+  "kviz":                "Kviz",
+  "buvljak":             "Buvljak",
+  "projekcija-filma":    "Projekcija filma",
+  "knjizevni-susret":    "Književni susret",
+  "predavanje":          "Predavanje",
+  "ostalo":              "Ostalo",
+  // legacy slugs — "hrana-i-vino" never existed as a real category (a
+  // pre-existing bug: the homepage tile filtered against it and always
+  // showed 0 events); "outdoor" is a real but duplicate row of
+  // "na-otvorenom" still sitting on a few production events.
+  "hrana-i-vino":        "Gastro & vino",
+  "outdoor":             "Na otvorenom",
 }
 
 // Category strip shown on homepage — curated subset using backend slugs.
@@ -146,7 +170,7 @@ export const categories: Category[] = [
     gradient: ["oklch(0.45 0.1 160)", "oklch(0.6 0.11 220)"],
   },
   {
-    slug: "hrana-i-vino",
+    slug: "gastro",
     name: "Gastro & vino",
     tagline: "Okusi regije, vino i delicije",
     gradient: ["oklch(0.5 0.13 40)", "oklch(0.58 0.12 90)"],
@@ -553,6 +577,9 @@ const CATEGORY_FALLBACK_IMAGES: Record<string, string[]> = {
   "izlozbe":             [I("izlozbe-1"), I("izlozbe-2")],
   "radionice":           [I("radionice-1")],
   "djeca-i-obitelj":    [I("djeca-i-obitelj-1"), I("djeca-i-obitelj-2")],
+  // Real image files are still named hrana-i-vino-*.jpg; "gastro" is the
+  // real backend slug and just points at the same files.
+  "gastro":              [I("hrana-i-vino-1"), I("hrana-i-vino-2")],
   "hrana-i-vino":        [I("hrana-i-vino-1"), I("hrana-i-vino-2")],
   "sajmovi":             [I("sajmovi-1"), I("sajmovi-2"), I("sajmovi-3")],
   "sport":               [I("sport-1"), I("sport-2"), I("sport-3")],
