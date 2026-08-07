@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { EventStatus } from "@prisma/client";
 import { EventUpsertDto } from "../events/event.dto";
@@ -7,6 +7,13 @@ export class AdminEventDto extends EventUpsertDto {
   @IsOptional()
   @IsEnum(EventStatus)
   status?: EventStatus;
+
+  /** Creates one event per week on startsAt's weekday, up to and including
+   *  this date, instead of a single event spanning the whole range — see
+   *  AdminService.createEvent. */
+  @IsOptional()
+  @IsDateString()
+  repeatWeeklyUntil?: string;
 }
 
 export class BulkStatusDto {

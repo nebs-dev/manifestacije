@@ -94,7 +94,9 @@ export class AiEventParserService {
     "festivali":           ["festival", "fest"],
     "manifestacije":       ["manifestacij", "priredb", "doček", "svečanost"],
     "glazba":              ["koncert", "glazb", "music", "zbor", "orkestar", "pjevanje", "nastup", "tambur", "klap", "dj set"],
-    "hrana-i-vino":        ["hrana", "vino", "wine", "kulinarstvo", "gastronomij", "pivnic", "kuhanje", "gastro", "degustacij", "specijalitet", "fišijad", "kulen", "craft beer"],
+    // Taxonomy slug is "gastro" — "hrana-i-vino" was never a real category,
+    // so anything guessed under it silently fell through to "ostalo".
+    "gastro":              ["hrana", "vino", "wine", "kulinarstvo", "gastronomij", "pivnic", "kuhanje", "gastro", "degustacij", "specijalitet", "fišijad", "kulen", "craft beer"],
     "izlozbe":             ["izložb", "galerij", "muzej", "kazališt", "predstav", "film", "kulturni", "kino"],
     "djeca-i-obitelj":     ["djeca", "obitelj", "kids", "family", "dječji", "za djecu"],
     "sport":               ["sport", "trčanje", "maraton", "natjecanje", "turnir", "liga", "utrk", "bike", "bicikl", "trail", "plivanje"],
@@ -244,9 +246,11 @@ export class AiEventParserService {
       kids: "djeca-i-obitelj",
       nightlife: "nocni-zivot",
       party: "nocni-zivot",
-      food: "hrana-i-vino",
-      gastro: "hrana-i-vino",
+      food: "gastro",
+      gastro: "gastro",
       education: "edukacija",
+      // "na-otvorenom" — the taxonomy also has a separate "outdoor" row
+      // (an existing duplicate, not something to resolve here).
       outdoor: "na-otvorenom",
     };
     return map[raw.trim().toLowerCase()] ?? "";
@@ -450,7 +454,7 @@ export class AiEventParserService {
   "venueName": "string",
   "address": "string (ulica i kućni broj) ili ''",
   "city": "string (ime grada na hrvatskom)",
-  "category": "jedna-od-16-kategorija",
+  "category": "jedna od dozvoljenih kategorija (vidi popis niže)",
   "isFree": true/false/null,
   "priceText": "string ili ''",
   "ticketUrl": "string ili ''",
@@ -464,20 +468,22 @@ export class AiEventParserService {
     const systemPrompt = `Ti si ekstraktor podataka o događanjima za hrvatsku platformu Manifestacije.hr.
 Vrati ISKLJUČIVO validan JSON bez markdown formatiranja.
 
-Kategorija mora biti TOČNO jedna od: glazba, festivali, izlozbe, radionice, djeca-i-obitelj, hrana-i-vino, sajmovi, sport, tradicija-i-folklor, manifestacije, nocni-zivot, edukacija, humanitarno, udruge, na-otvorenom, ostalo
+Kategorija mora biti TOČNO jedna od: glazba, festivali, izlozbe, radionice, djeca-i-obitelj, gastro, sajmovi, sport, tradicija-i-folklor, manifestacije, nocni-zivot, edukacija, humanitarno, udruge, na-otvorenom, outdoor, kultura, predstava, film, kviz, buvljak, projekcija-filma, knjizevni-susret, predavanje, ostalo
 
 Mapiranje Facebook kategorija u naše:
 - "Music & audio", "Concerts & Live Music" → glazba
 - "Nightlife" → nocni-zivot
 - "Festivals" → festivali
-- "Arts", "Visual Arts", "Film", "Exhibition" → izlozbe
+- "Arts", "Visual Arts", "Exhibition" → izlozbe
+- "Film" → film
+- "Theater" → predstava
 - "Workshops", "Classes" → radionice
-- "Food & Drink", "Food" → hrana-i-vino
+- "Food & Drink", "Food" → gastro
 - "Sports & Fitness" → sport
 - "Family", "Children" → djeca-i-obitelj
 - "Education", "Science" → edukacija
 - "Community", "Causes", "Fundraiser" → humanitarno
-- "Outdoor" → na-otvorenom
+- "Outdoor" → outdoor
 
 Datumi i vremena u ISO 8601 formatu, vremenska zona Europe/Zagreb (UTC+2).
 Hrvatsko pisanje vremena: "21.00", "20.00", "19.00", "18.00" su sati i minute (ne decimalni brojevi) — mapirati u T21:00:00+02:00, T20:00:00+02:00 itd.

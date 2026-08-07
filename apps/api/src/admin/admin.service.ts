@@ -147,12 +147,70 @@ export class AdminService {
   }
 
   async createEvent(dto: AdminEventDto) {
+    if (dto.repeatWeeklyUntil) return this.createWeeklySeries(dto);
+
     const result = await this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
     if (dto.status === EventStatus.PUBLISHED) {
       void this.revalidate.revalidate("events");
       if (result.organizerId) await this.notifyOrganizerOfStatusChange(result.id, EventStatus.PUBLISHED);
     }
     return result;
+  }
+
+  /**
+   * "Every Friday until 28.8." was previously entered as one event spanning
+   * the whole range with isAllDay set, because there was nowhere else to put
+   * a repeat rule. That single event then satisfied "occurs on Saturday" for
+   * every Saturday inside the range too — a real data bug on the weekend
+   * page, traced back to this being the only way to express a weekly repeat.
+   *
+   * Rather than add a recurrence rule that every date-range query in the
+   * codebase (weekend grouping, calendar, "this weekend") would need to
+   * learn to expand, each occurrence becomes its own real, single-day Event
+   * row — the shape every existing query already assumes.
+   */
+  private async createWeeklySeries(dto: AdminEventDto) {
+    if (!dto.startsAt) throw new BadRequestException("startsAt je obavezan za ponavljajući događaj");
+    const start = new Date(dto.startsAt);
+    const until = new Date(dto.repeatWeeklyUntil!);
+    if (Number.isNaN(start.getTime())) throw new BadRequestException("Neispravan datum početka");
+    if (Number.isNaN(until.getTime())) throw new BadRequestException("Neispravan datum ponavljanja");
+    if (until < start) throw new BadRequestException("Datum ponavljanja mora biti nakon početka");
+
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const MAX_OCCURRENCES = 52; // one year of weekly repeats — a generous ceiling against a mistyped end date
+    const durationMs = dto.endsAt ? new Date(dto.endsAt).getTime() - start.getTime() : null;
+
+    const occurrences: { startsAt: string; endsAt?: string }[] = [];
+    for (let occurrenceStart = start.getTime(); occurrenceStart <= until.getTime(); occurrenceStart += WEEK_MS) {
+      if (occurrences.length >= MAX_OCCURRENCES) break;
+      occurrences.push({
+        startsAt: new Date(occurrenceStart).toISOString(),
+        endsAt: durationMs != null ? new Date(occurrenceStart + durationMs).toISOString() : undefined,
+      });
+    }
+    if (occurrences.length === 0) throw new BadRequestException("Nijedan termin ne pada u zadani raspon");
+
+    const { repeatWeeklyUntil: _repeatWeeklyUntil, ...base } = dto;
+    void _repeatWeeklyUntil;
+    const created: Awaited<ReturnType<EventsService["createFromDto"]>>[] = [];
+    for (const occurrence of occurrences) {
+      created.push(await this.events.createFromDto(
+        { ...base, startsAt: occurrence.startsAt, endsAt: occurrence.endsAt },
+        { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT },
+      ));
+    }
+
+    if (dto.status === EventStatus.PUBLISHED) {
+      void this.revalidate.revalidate("events");
+      for (const event of created) {
+        if (event.organizerId) await this.notifyOrganizerOfStatusChange(event.id, EventStatus.PUBLISHED);
+      }
+    }
+
+    // The frontend expects one event back to redirect to; the first
+    // occurrence is the natural one to land on, with the rest linked from it.
+    return { ...created[0], _seriesCount: created.length, _seriesEventIds: created.map((e) => e.id) };
   }
 
   async setEventStatus(id: number, status: EventStatus) {

@@ -94,6 +94,26 @@ describe("category guessing", () => {
     expect(guess("Sajam antikviteta")).toBe("sajmovi");
   });
 
+  // The real Category taxonomy (confirmed against production on 2026-08-07)
+  // has no "hrana-i-vino" row — it's "gastro". Every parsing path that
+  // guessed "hrana-i-vino" was silently landing every gastro event in
+  // "Ostalo", invisibly, since findOrCreateCategory falls back rather than
+  // erroring on an unmatched slug.
+  const REAL_TAXONOMY_SLUGS = new Set([
+    "buvljak", "djeca-i-obitelj", "edukacija", "festivali", "film", "gastro",
+    "glazba", "humanitarno", "izlozbe", "knjizevni-susret", "kultura", "kviz",
+    "manifestacije", "na-otvorenom", "nocni-zivot", "ostalo", "outdoor",
+    "predavanje", "predstava", "projekcija-filma", "radionice", "sajmovi",
+    "sport", "tradicija-i-folklor", "udruge",
+  ]);
+
+  it("never guesses a category slug that doesn't exist in the real taxonomy", () => {
+    const keys = Object.keys((parser as never as { CATEGORY_KEYWORDS: Record<string, unknown> }).CATEGORY_KEYWORDS);
+    const dead = keys.filter((k) => !REAL_TAXONOMY_SLUGS.has(k));
+
+    expect(dead).toEqual([]);
+  });
+
   it("still matches Croatian inflections of a keyword", () => {
     expect(guess("Izložbe fotografija")).toBe("izlozbe");
     expect(guess("Radionice keramike")).toBe("radionice");

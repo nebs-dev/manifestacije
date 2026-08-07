@@ -38,6 +38,8 @@ export function EventCreateForm() {
     organizerId: "",
     venueName: "",
     address: "",
+    repeatWeekly: false,
+    repeatWeeklyUntil: "",
     isFree: true,
     priceText: "",
     ticketUrl: "",
@@ -81,6 +83,7 @@ export function EventCreateForm() {
           organizerId: form.organizerId ? Number(form.organizerId) : null,
           startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
           endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : undefined,
+          repeatWeeklyUntil: form.repeatWeekly && form.repeatWeeklyUntil ? new Date(form.repeatWeeklyUntil).toISOString() : undefined,
           venueName: form.venueName || undefined,
           address: form.address || undefined,
           isFree: form.isFree,
@@ -92,8 +95,11 @@ export function EventCreateForm() {
         }),
       })
       if (!res.ok) throw new Error(await res.text())
-      const event = await res.json() as { id: number }
-      toast.success("Događaj kreiran", { action: { label: "Otvori", onClick: () => router.push(`/admin/events/${event.id}`) } })
+      const event = await res.json() as { id: number; _seriesCount?: number }
+      const message = event._seriesCount && event._seriesCount > 1
+        ? `Kreirano ${event._seriesCount} termina`
+        : "Događaj kreiran"
+      toast.success(message, { action: { label: "Otvori", onClick: () => router.push(`/admin/events/${event.id}`) } })
     } catch (err) {
       toast.error("Greška pri kreiranju", { description: err instanceof Error ? err.message : String(err) })
     } finally {
@@ -117,6 +123,21 @@ export function EventCreateForm() {
                 <Field><FieldLabel>Početak</FieldLabel><Input type="datetime-local" value={form.startsAt} onChange={(e) => update("startsAt", e.target.value)} /></Field>
                 <Field><FieldLabel>Završetak</FieldLabel><Input type="datetime-local" value={form.endsAt} onChange={(e) => update("endsAt", e.target.value)} /></Field>
               </div>
+              <Field>
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.repeatWeekly} onCheckedChange={(v) => update("repeatWeekly", v)} id="repeat-weekly" />
+                  <FieldLabel htmlFor="repeat-weekly" className="mb-0">Ponavlja se svaki tjedan</FieldLabel>
+                </div>
+                {form.repeatWeekly && (
+                  <div className="mt-2">
+                    <FieldLabel>Ponavlja se do (uključivo)</FieldLabel>
+                    <Input type="date" value={form.repeatWeeklyUntil} onChange={(e) => update("repeatWeeklyUntil", e.target.value)} required={form.repeatWeekly} />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Kreira zaseban događaj svaki tjedan na isti dan i vrijeme kao Početak, do ovog datuma. Svaki termin se posebno uređuje i briše.
+                    </p>
+                  </div>
+                )}
+              </Field>
               <Field>
                 <FieldLabel>Grad</FieldLabel>
                 <Select value={form.cityId || "none"} onValueChange={(v) => update("cityId", v === "none" ? "" : String(v ?? ""))}>

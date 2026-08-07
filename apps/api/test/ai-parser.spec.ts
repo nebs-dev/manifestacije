@@ -374,11 +374,13 @@ Drugi odlomak s dodatnim informacijama.
     expect(result.candidates[0].category).toBe("tradicija-i-folklor");
   });
 
-  it("assigns hrana-i-vino to gastro events", async () => {
+  it("assigns gastro to gastro events", async () => {
+    // The taxonomy's real slug is "gastro" — "hrana-i-vino" doesn't exist as
+    // a category, so guessing it silently fell through to "ostalo".
     const result = await parser.parseBatch({
       rawText: "Naslov: Gastro sajam specijaliteta\nDatum: 2026-08-10\nGrad: Našice",
     });
-    expect(result.candidates[0].category).toBe("hrana-i-vino");
+    expect(result.candidates[0].category).toBe("gastro");
   });
 
   it("assigns sport to maraton events", async () => {
