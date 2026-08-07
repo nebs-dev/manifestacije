@@ -9,8 +9,9 @@ import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
-import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
 import { RevalidateService } from "./revalidate.service";
+import { zagrebLocalToUtc } from "../common/weekend";
 import { UploadsService } from "./uploads.service";
 
 export type AdminEventListParams = {
@@ -211,6 +212,103 @@ export class AdminService {
     // The frontend expects one event back to redirect to; the first
     // occurrence is the natural one to land on, with the rest linked from it.
     return { ...created[0], _seriesCount: created.length, _seriesEventIds: created.map((e) => e.id) };
+  }
+
+  /**
+   * Converts an existing event — typically one wrongly modeled as a single
+   * all-day range spanning several weeks, because there was previously no
+   * other way to express "every Friday" — into a real weekly series.
+   *
+   * The event's own weekday and calendar data (title, description, venue,
+   * price, image, organizer, category…) are read straight off the row, so
+   * the admin only supplies what genuinely can't be inferred: a real
+   * time-of-day (an all-day event has none) and how far the repeat runs.
+   *
+   * The first occurrence updates the existing row in place rather than being
+   * recreated, so its id and slug — and anything already linking to or
+   * indexing that URL — keep working.
+   */
+  async splitIntoWeeklySeries(id: number, dto: SplitWeeklySeriesDto) {
+    const event = await this.prisma.event.findUnique({ where: { id }, include: this.eventInclude() });
+    if (!event) throw new NotFoundException("Event not found");
+
+    const [startHour, startMinute] = this.parseHm(dto.startTime, "startTime");
+    const endHm = dto.endTime ? this.parseHm(dto.endTime, "endTime") : null;
+
+    const firstDay = this.parseIsoDate(dto.firstDate);
+    const firstStart = zagrebLocalToUtc(firstDay.year, firstDay.month, firstDay.day, startHour, startMinute);
+    const firstEnd = endHm ? zagrebLocalToUtc(firstDay.year, firstDay.month, firstDay.day, endHm[0], endHm[1]) : null;
+    if (firstEnd && firstEnd <= firstStart) throw new BadRequestException("Vrijeme završetka mora biti nakon početka");
+
+    const until = new Date(`${dto.repeatWeeklyUntil}T23:59:59`);
+    if (Number.isNaN(until.getTime())) throw new BadRequestException("Neispravan datum ponavljanja");
+    if (until < firstStart) throw new BadRequestException("Datum ponavljanja mora biti nakon prvog termina");
+
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const MAX_OCCURRENCES = 52; // one year of weekly repeats — a generous ceiling against a mistyped end date
+    const durationMs = firstEnd ? firstEnd.getTime() - firstStart.getTime() : null;
+
+    const occurrenceStarts: number[] = [];
+    for (let t = firstStart.getTime(); t <= until.getTime() && occurrenceStarts.length < MAX_OCCURRENCES; t += WEEK_MS) {
+      occurrenceStarts.push(t);
+    }
+    if (occurrenceStarts.length === 0) throw new BadRequestException("Nijedan termin ne pada u zadani raspon");
+
+    const updatedFirst = await this.prisma.event.update({
+      where: { id },
+      data: {
+        startsAt: new Date(occurrenceStarts[0]),
+        endsAt: durationMs != null ? new Date(occurrenceStarts[0] + durationMs) : null,
+        isAllDay: false,
+      },
+    });
+
+    const createdIds = [updatedFirst.id];
+    for (const t of occurrenceStarts.slice(1)) {
+      const clone = await this.events.createFromDto(
+        {
+          title: event.title,
+          description: event.description,
+          cityId: event.cityId ?? undefined,
+          cityName: event.cityName ?? undefined,
+          categoryId: event.categoryId,
+          categoryIds: event.categories.map((c) => c.categoryId),
+          startsAt: new Date(t).toISOString(),
+          endsAt: durationMs != null ? new Date(t + durationMs).toISOString() : undefined,
+          isAllDay: false,
+          isFree: event.isFree ?? undefined,
+          priceText: event.priceText ?? undefined,
+          ticketUrl: event.ticketUrl ?? undefined,
+          sourceUrl: event.sourceUrl ?? undefined,
+          venueName: event.venue?.name,
+          address: event.venue?.address ?? event.address ?? undefined,
+          lat: event.venue?.lat ?? event.lat ?? undefined,
+          lng: event.venue?.lng ?? event.lng ?? undefined,
+          imageUrl: event.imageUrl ?? undefined,
+        },
+        { organizerId: event.organizerId, status: event.status, sourceType: event.sourceType },
+      );
+      createdIds.push(clone.id);
+    }
+
+    if (event.status === EventStatus.PUBLISHED) void this.revalidate.revalidate("events");
+
+    return { ...updatedFirst, _seriesCount: createdIds.length, _seriesEventIds: createdIds };
+  }
+
+  private parseHm(value: string, field: string): [number, number] {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+    if (!match) throw new BadRequestException(`${field} mora biti u obliku SS:MM`);
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour > 23 || minute > 59) throw new BadRequestException(`${field} nije valjano vrijeme`);
+    return [hour, minute];
+  }
+
+  private parseIsoDate(value: string): { year: number; month: number; day: number } {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!match) throw new BadRequestException("Datum mora biti u obliku GGGG-MM-DD");
+    return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
   }
 
   async setEventStatus(id: number, status: EventStatus) {

@@ -5,7 +5,7 @@ import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser } from "../auth/auth.types";
 import { AdminService } from "./admin.service";
-import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
 import { RejectOrganizerClaimDto, BulkInviteUnclaimedDto } from "../organizer-claims/organizer-claim.dto";
@@ -62,6 +62,7 @@ export class AdminController {
   @Post("events/:id/publish") publish(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
   @Post("events/:id/archive") archive(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.ARCHIVED); }
   @Post("events/:id/duplicate") duplicateEvent(@Param("id") id: string) { return this.admin.duplicateEvent(Number(id)); }
+  @Post("events/:id/split-weekly") splitWeekly(@Param("id") id: string, @Body() dto: SplitWeeklySeriesDto) { return this.admin.splitIntoWeeklySeries(Number(id), dto); }
   @Delete("events/:id") deleteEvent(@Param("id") id: string) { return this.admin.deleteEvent(Number(id)); }
 
   @Get("organizers") organizers() { return this.admin.organizers(); }

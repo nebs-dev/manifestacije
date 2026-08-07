@@ -11,6 +11,8 @@ import {
   Copy,
   TriangleAlert,
   ExternalLink,
+  Repeat,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { formatRelative } from "@/lib/admin/format"
@@ -210,6 +212,37 @@ export function EventEditForm({
     }
   }
 
+  const [splitOpen, setSplitOpen] = useState(false)
+  const [splitting, setSplitting] = useState(false)
+  const [splitForm, setSplitForm] = useState({ firstDate: "", repeatWeeklyUntil: "", startTime: "18:00", endTime: "" })
+
+  async function splitIntoWeeklySeries() {
+    if (!splitForm.firstDate || !splitForm.repeatWeeklyUntil || !splitForm.startTime) {
+      toast.error("Popuni datum prvog termina, vrijeme i datum do kojeg se ponavlja")
+      return
+    }
+    setSplitting(true)
+    try {
+      const res = await authedFetch(`/api/admin/events/${event.id}/split-weekly`, {
+        method: "POST",
+        body: JSON.stringify({
+          firstDate: splitForm.firstDate,
+          repeatWeeklyUntil: splitForm.repeatWeeklyUntil,
+          startTime: splitForm.startTime,
+          endTime: splitForm.endTime || undefined,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const result = await res.json() as { _seriesCount: number }
+      toast.success(`Kreirano ${result._seriesCount} termina`, { description: "Prvi termin je ovaj isti događaj — ostali su novi." })
+      window.location.reload()
+    } catch (err) {
+      toast.error("Greška pri razdvajanju", { description: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setSplitting(false)
+    }
+  }
+
   async function duplicateEvent() {
     setSaving(true)
     try {
@@ -381,6 +414,53 @@ export function EventEditForm({
                     onCheckedChange={(v) => update("allDay", v)}
                   />
                 </Field>
+                {form.allDay && (
+                  <Field className="rounded-lg border border-border p-3">
+                    {!splitOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => setSplitOpen(true)}
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        <Repeat className="size-4" />
+                        Ovo se zapravo ponavlja svaki tjedan (npr. &ldquo;svakog petka&rdquo;)? Pretvori u seriju termina.
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <FieldDescription>
+                          Prvi termin postaje ovaj isti događaj (zadržava link), za svaki sljedeći tjedan kreira se novi zaseban događaj.
+                        </FieldDescription>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field>
+                            <FieldLabel>Datum prvog termina</FieldLabel>
+                            <Input type="date" value={splitForm.firstDate} onChange={(e) => setSplitForm((p) => ({ ...p, firstDate: e.target.value }))} />
+                          </Field>
+                          <Field>
+                            <FieldLabel>Ponavlja se do (uključivo)</FieldLabel>
+                            <Input type="date" value={splitForm.repeatWeeklyUntil} onChange={(e) => setSplitForm((p) => ({ ...p, repeatWeeklyUntil: e.target.value }))} />
+                          </Field>
+                          <Field>
+                            <FieldLabel>Vrijeme početka</FieldLabel>
+                            <Input type="time" value={splitForm.startTime} onChange={(e) => setSplitForm((p) => ({ ...p, startTime: e.target.value }))} />
+                          </Field>
+                          <Field>
+                            <FieldLabel>Vrijeme završetka (opcionalno)</FieldLabel>
+                            <Input type="time" value={splitForm.endTime} onChange={(e) => setSplitForm((p) => ({ ...p, endTime: e.target.value }))} />
+                          </Field>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button type="button" size="sm" disabled={splitting} onClick={() => void splitIntoWeeklySeries()}>
+                            {splitting ? <Loader2 className="size-4 animate-spin" /> : <Repeat className="size-4" />}
+                            Podijeli u tjednu seriju
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" disabled={splitting} onClick={() => setSplitOpen(false)}>
+                            Odustani
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </Field>
+                )}
                 <Field>
                   <FieldLabel>Naziv mjesta / dvorane</FieldLabel>
                   <FieldDescription>Kratki naziv lokacije (npr. &ldquo;Galerija Waldinger&rdquo;, &ldquo;HNK Osijek&rdquo;).</FieldDescription>

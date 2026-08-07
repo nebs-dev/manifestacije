@@ -16,6 +16,29 @@ export class AdminEventDto extends EventUpsertDto {
   repeatWeeklyUntil?: string;
 }
 
+/** Splits an existing event — typically one wrongly modeled as a single
+ *  all-day range spanning several weeks — into a real weekly series. See
+ *  AdminService.splitIntoWeeklySeries. */
+export class SplitWeeklySeriesDto {
+  /** Explicit rather than inferred from the event's existing startsAt: an
+   *  all-day event's stored instant straddles local midnight depending on
+   *  how it was entered, so which calendar day it "really" means is
+   *  ambiguous — the admin, who can read the event's own description, is
+   *  the reliable source for this. */
+  @IsString()
+  firstDate!: string; // "YYYY-MM-DD", Europe/Zagreb calendar date
+
+  @IsString()
+  repeatWeeklyUntil!: string; // "YYYY-MM-DD"
+
+  @IsString()
+  startTime!: string; // "HH:mm", Europe/Zagreb wall-clock
+
+  @IsOptional()
+  @IsString()
+  endTime?: string; // "HH:mm", same day as startTime
+}
+
 export class BulkStatusDto {
   @IsArray() @IsInt({ each: true }) @Type(() => Number) eventIds!: number[];
   @IsEnum(EventStatus) status!: EventStatus;

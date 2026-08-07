@@ -257,3 +257,118 @@ describe("already-imported flagging", () => {
     expect(lastWhere?.status).toEqual({ notIn: ["REJECTED", "ARCHIVED"] });
   });
 });
+
+describe("splitIntoWeeklySeries", () => {
+  // Regression case: the source event's stored startsAt was
+  // "2026-07-03T22:00:00.000Z" — 22:00 UTC is already past midnight in
+  // Zagreb (UTC+2), so deriving "which calendar day" from that instant gave
+  // Saturday for an event described as "every Friday". firstDate is now
+  // explicit input instead, so the ambiguous stored instant is never
+  // consulted for that decision.
+  const baseEvent: {
+    id: number; title: string; description: string; startsAt: Date;
+    cityId: number | null; cityName: string | null; categoryId: number;
+    categories: { categoryId: number }[]; organizerId: number | null;
+    status: string; sourceType: string; isFree: boolean | null;
+    priceText: string | null; ticketUrl: string | null; sourceUrl: string | null;
+    imageUrl: string | null; address: string | null; lat: number | null;
+    lng: number | null; venue: { name: string; address: string | null; lat: number | null; lng: number | null } | null;
+  } = {
+    id: 86,
+    title: "Ljetna Vrtna bajka",
+    description: "Svakog petka...",
+    startsAt: new Date("2026-07-03T22:00:00.000Z"),
+    cityId: 1,
+    cityName: "Čepin",
+    categoryId: 5,
+    categories: [{ categoryId: 5 }],
+    organizerId: null,
+    status: "PUBLISHED",
+    sourceType: "MANUAL",
+    isFree: null,
+    priceText: null,
+    ticketUrl: null,
+    sourceUrl: null,
+    imageUrl: null,
+    address: null,
+    lat: null,
+    lng: null,
+    venue: null,
+  };
+
+  function buildService(eventOverrides: Partial<typeof baseEvent> = {}) {
+    const event = { ...baseEvent, ...eventOverrides };
+    const updateCalls: unknown[] = [];
+    let nextId = 1000;
+    const prisma = {
+      event: {
+        findUnique: async () => event,
+        update: async (args: { data: Record<string, unknown> }) => {
+          updateCalls.push(args.data);
+          return { ...event, ...args.data };
+        },
+      },
+    };
+    const createCalls: unknown[] = [];
+    const events = {
+      createFromDto: async (dto: Record<string, unknown>) => {
+        createCalls.push(dto);
+        return { id: ++nextId, organizerId: null };
+      },
+    };
+    const stub = new Proxy({}, { get: () => async () => undefined });
+    const service = new AdminService(prisma as never, events as never, stub as never, stub as never, stub as never, stub as never, stub as never);
+    return { service, updateCalls, createCalls };
+  }
+
+  it("puts the first occurrence on the admin-specified date, not the stored (ambiguous) one", async () => {
+    const { service, updateCalls } = buildService();
+
+    const result = await service.splitIntoWeeklySeries(86, {
+      firstDate: "2026-07-03",
+      repeatWeeklyUntil: "2026-07-17",
+      startTime: "20:00",
+      endTime: "22:00",
+    });
+
+    expect(result._seriesCount).toBe(3); // 3.7, 10.7, 17.7
+    const firstUpdate = updateCalls[0] as { startsAt: Date };
+    // 20:00 Zagreb (CEST, UTC+2) on 3.7. == 18:00 UTC.
+    expect(firstUpdate.startsAt.toISOString()).toBe("2026-07-03T18:00:00.000Z");
+  });
+
+  it("keeps the original event's id for the first occurrence — existing links keep working", async () => {
+    const { service } = buildService();
+
+    const result = await service.splitIntoWeeklySeries(86, {
+      firstDate: "2026-07-03", repeatWeeklyUntil: "2026-07-10", startTime: "20:00",
+    });
+
+    expect(result.id).toBe(86);
+    expect(result._seriesEventIds[0]).toBe(86);
+  });
+
+  it("clones the event's own fields onto later occurrences instead of requiring the admin to retype them", async () => {
+    const { service, createCalls } = buildService({ cityName: "Čepin", priceText: "Besplatno" });
+
+    await service.splitIntoWeeklySeries(86, {
+      firstDate: "2026-07-03", repeatWeeklyUntil: "2026-07-10", startTime: "20:00",
+    });
+
+    expect(createCalls).toHaveLength(1); // one extra occurrence beyond the first
+    expect(createCalls[0]).toEqual(expect.objectContaining({
+      title: "Ljetna Vrtna bajka",
+      cityName: "Čepin",
+      priceText: "Besplatno",
+      isAllDay: false,
+    }));
+  });
+
+  it("rejects a malformed time instead of silently producing a wrong instant", async () => {
+    const { service } = buildService();
+
+    await expect(service.splitIntoWeeklySeries(86, {
+      firstDate: "2026-07-03", repeatWeeklyUntil: "2026-07-10", startTime: "8pm",
+    })).rejects.toThrow();
+  });
+});
