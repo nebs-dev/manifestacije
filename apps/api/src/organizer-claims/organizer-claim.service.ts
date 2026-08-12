@@ -380,6 +380,7 @@ export class OrganizerClaimService {
     try {
       await this.email.sendAdminNewSubmission({
         titleOrSource: organizerName,
+        entityLabel: "profil",
         sourceTypeLabel: "Zahtjev za preuzimanje profila organizatora",
         adminReviewUrl: `${this.email.webUrl}/admin/organizer-claims`,
         webUrl: this.email.webUrl,

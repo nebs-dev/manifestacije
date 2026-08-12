@@ -2,6 +2,7 @@ import { renderLayout, renderButton, escapeHtml } from "./email-layout";
 
 export interface AdminNewSubmissionData {
   titleOrSource: string;
+  entityLabel: string;
   organizerLabel?: string;
   sourceTypeLabel: string;
   adminReviewUrl: string;
@@ -9,8 +10,8 @@ export interface AdminNewSubmissionData {
   webUrl: string;
 }
 
-export function adminNewSubmissionSubject(data: Pick<AdminNewSubmissionData, "titleOrSource">): string {
-  return `Novi događaj čeka pregled: ${data.titleOrSource}`;
+export function adminNewSubmissionSubject(data: Pick<AdminNewSubmissionData, "titleOrSource" | "entityLabel">): string {
+  return `Novi ${data.entityLabel} čeka pregled: ${data.titleOrSource}`;
 }
 
 export function adminNewSubmissionHtml(data: AdminNewSubmissionData): string {
@@ -23,7 +24,7 @@ export function adminNewSubmissionHtml(data: AdminNewSubmissionData): string {
   ].filter(Boolean).join("<br/>");
 
   const body = `
-    <p style="margin:0 0 16px;">Novi unos čeka pregled: <strong>${escapeHtml(data.titleOrSource)}</strong></p>
+    <p style="margin:0 0 16px;">Novi ${escapeHtml(data.entityLabel)} čeka pregled: <strong>${escapeHtml(data.titleOrSource)}</strong></p>
     <p style="margin:0 0 16px;">${rows}</p>
     ${renderButton("Pregledaj u adminu", data.adminReviewUrl)}
   `;
@@ -32,7 +33,7 @@ export function adminNewSubmissionHtml(data: AdminNewSubmissionData): string {
 
 export function adminNewSubmissionText(data: AdminNewSubmissionData): string {
   const lines = [
-    `Novi događaj čeka pregled: ${data.titleOrSource}`,
+    `Novi ${data.entityLabel} čeka pregled: ${data.titleOrSource}`,
     "",
     `Izvor: ${data.sourceTypeLabel}`,
   ];

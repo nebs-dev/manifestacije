@@ -88,6 +88,7 @@ export class OrganizerService {
         await this.email.sendAdminNewSubmission(
           {
             titleOrSource: event.title,
+            entityLabel: "događaj",
             organizerLabel: organizerName,
             sourceTypeLabel: "Organizator — ručni unos",
             adminReviewUrl: `${this.email.webUrl}/admin/events/${event.id}`,
@@ -245,6 +246,7 @@ export class OrganizerService {
       await this.email.sendAdminNewSubmission(
         {
           titleOrSource,
+          entityLabel: "događaj",
           organizerLabel: organizer?.name,
           sourceTypeLabel: sourceUrl ? "Organizator — poveznica" : "Organizator — sadržaj",
           adminReviewUrl: `${this.email.webUrl}/admin/sources/${sourceId}`,
