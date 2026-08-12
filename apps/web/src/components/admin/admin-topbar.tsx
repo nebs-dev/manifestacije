@@ -1,16 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { LogOut, Search, Bell } from "lucide-react"
+import { LogOut, Bell } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group"
 import { clearToken, authedFetch } from "@/lib/admin/api"
 import type { AdminUser } from "@/components/admin/admin-shell"
 
@@ -49,19 +44,6 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-6">
-      <div className="hidden max-w-sm flex-1 md:block">
-        <InputGroup>
-          <InputGroupAddon>
-            <Search />
-          </InputGroupAddon>
-          <InputGroupInput
-            type="search"
-            placeholder="Pretraži događaje, izvore, organizatore…"
-            aria-label="Pretraga"
-          />
-        </InputGroup>
-      </div>
-
       <div className="ml-auto flex items-center gap-2">
         <Link
           href={notificationsHref}

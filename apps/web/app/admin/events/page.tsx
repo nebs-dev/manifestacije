@@ -67,8 +67,8 @@ export default function EventsPage({
   const [loading, setLoading] = useState(true)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState("")
-  const [dateSort, setDateSort] = useState<DateSortDirection>(str(searchParams?.sortDir) === "desc" ? "desc" : "asc")
-  const [sortBy, setSortBy] = useState<EventSortBy>(str(searchParams?.sortBy) === "createdAt" ? "createdAt" : "startsAt")
+  const [dateSort, setDateSort] = useState<DateSortDirection>(str(searchParams?.sortDir) === "asc" ? "asc" : "desc")
+  const [sortBy, setSortBy] = useState<EventSortBy>(str(searchParams?.sortBy) === "startsAt" ? "startsAt" : "createdAt")
   const [filters, setFilters] = useState<EventFilters>({
     search: str(searchParams?.search) ?? "",
     fieldFilters: parseFieldFilters(searchParams?.fieldFilters),

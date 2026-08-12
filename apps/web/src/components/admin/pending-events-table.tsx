@@ -1,36 +1,43 @@
 "use client"
 
 import Link from "next/link"
-import { Eye, Check, X, TriangleAlert } from "lucide-react"
+import { Check, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { ConfidenceBadge } from "@/components/admin/confidence-badge"
-import { EmptyState, DeleteButton } from "@/components/admin/states"
-import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
+import { EventsTable } from "@/components/admin/events-table"
+import type { DateSortDirection, EventSortBy, EventFilters, EventColumnKey } from "@/components/admin/events-table"
 import type { AdminEvent } from "@/lib/admin/types"
 
-type DateSortDirection = "asc" | "desc"
+const PENDING_DEFAULT_COLUMNS: EventColumnKey[] = ["title", "startsAt", "createdAt", "city", "confidence", "warnings"]
 
 export function PendingEventsTable({
   events,
+  loading,
   onAction,
   dateSort,
   onDateSortChange,
+  sortBy,
+  onSortByChange,
+  filters,
+  onFiltersChange,
+  pagination,
+  onPageChange,
+  onPageSizeChange,
 }: {
   events: AdminEvent[]
+  loading?: boolean
   onAction?: () => void
   dateSort: DateSortDirection
   onDateSortChange: (direction: DateSortDirection) => void
+  sortBy: EventSortBy
+  onSortByChange: (sortBy: EventSortBy) => void
+  filters: EventFilters
+  onFiltersChange: (filters: EventFilters) => void
+  pagination: { page: number; pageSize: number; total: number }
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
 }) {
   async function approve(id: string, title: string) {
     const res = await authedFetch(`/api/admin/events/${id}/approve`, { method: "POST" })
@@ -44,108 +51,47 @@ export function PendingEventsTable({
     else toast.error("Greška pri odbijanju")
   }
 
-  async function deleteEvent(id: string, title: string) {
-    const res = await authedFetch(`/api/admin/events/${id}`, { method: "DELETE" })
-    if (res.ok) { toast.success(`Obrisano: ${title}`); onAction?.() }
-    else toast.error("Greška pri brisanju")
-  }
-
-  if (events.length === 0) {
-    return (
-      <EmptyState
-        title="Nema događaja na čekanju"
-        description="Svi prikupljeni događaji su pregledani. Dobar posao!"
-        icon={<Check />}
-      />
-    )
-  }
-
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/40">
-            <TableHead>Naziv</TableHead>
-            <TableHead className="whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => onDateSortChange(dateSort === "asc" ? "desc" : "asc")}
-                className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted"
-                aria-label={`Sortiraj po datumu ${dateSort === "asc" ? "silazno" : "uzlazno"}`}
-              >
-                Početak <span aria-hidden>{dateSort === "asc" ? "↑" : "↓"}</span>
-              </button>
-            </TableHead>
-            <TableHead>Grad</TableHead>
-            <TableHead className="text-right">Pouzdanost</TableHead>
-            <TableHead className="text-center">Upoz.</TableHead>
-            <TableHead className="text-right">Akcije</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {events.map((e) => (
-            <TableRow key={e.id}>
-              <TableCell className="max-w-[240px]">
-                <Link
-                  href={`/admin/events/${e.id}`}
-                  className="font-medium text-foreground hover:underline"
-                >
-                  {e.title}
-                </Link>
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-muted-foreground">
-                {formatDateTime(e.startsAt)}
-              </TableCell>
-              <TableCell>{e.city ?? "—"}</TableCell>
-              <TableCell className="text-right">
-                <ConfidenceBadge value={e.confidence} />
-              </TableCell>
-              <TableCell className="text-center">
-                {e.warnings.length > 0 ? (
-                  <span className="inline-flex items-center gap-1 text-sm text-warning">
-                    <TriangleAlert className="size-3.5" />
-                    {e.warnings.length}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">0</span>
-                )}
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    nativeButton={false}
-                    render={<Link href={`/admin/events/${e.id}`} />}
-                  >
-                    <Eye data-icon="inline-start" />
-                    Pregled
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Odobri"
-                    className="text-success"
-                    onClick={() => approve(e.id, e.title)}
-                  >
-                    <Check />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Odbij"
-                    className="text-destructive"
-                    onClick={() => reject(e.id, e.title)}
-                  >
-                    <X />
-                  </Button>
-                  <DeleteButton onDelete={() => deleteEvent(e.id, e.title)} />
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <EventsTable
+      events={events}
+      loading={loading}
+      onDelete={onAction}
+      dateSort={dateSort}
+      onDateSortChange={onDateSortChange}
+      sortBy={sortBy}
+      onSortByChange={onSortByChange}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      pagination={pagination}
+      onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
+      basePath="/admin/events/pending"
+      storageKey="admin-pending-events-visible-columns"
+      defaultVisibleColumns={PENDING_DEFAULT_COLUMNS}
+      emptyTitle="Nema događaja na čekanju"
+      emptyDescription="Svi prikupljeni događaji su pregledani. Dobar posao!"
+      renderRowActions={(event) => (
+        <>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Odobri"
+            className="text-success"
+            onClick={() => approve(event.id, event.title)}
+          >
+            <Check />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Odbij"
+            className="text-destructive"
+            onClick={() => reject(event.id, event.title)}
+          >
+            <X />
+          </Button>
+        </>
+      )}
+    />
   )
 }

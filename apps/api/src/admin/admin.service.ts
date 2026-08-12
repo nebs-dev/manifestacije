@@ -1152,14 +1152,17 @@ export class AdminService {
   }
 
   private eventOrderBy(params?: AdminEventListParams): Prisma.EventOrderByWithRelationInput[] {
-    const direction = params?.sortDir === "desc" ? "desc" : "asc";
-    if (params?.sortBy === "createdAt") {
+    if (!params?.sortBy) {
+      return [{ createdAt: "desc" }, { id: "desc" }];
+    }
+    const direction = params.sortDir === "desc" ? "desc" : "asc";
+    if (params.sortBy === "createdAt") {
       return [{ createdAt: direction }, { id: direction }];
     }
-    if (!params?.sortBy || params.sortBy === "startsAt") {
+    if (params.sortBy === "startsAt") {
       return [{ startsAt: direction }, { id: "asc" }];
     }
-    return [{ startsAt: "asc" }, { id: "asc" }];
+    return [{ createdAt: "desc" }, { id: "desc" }];
   }
 
   private isFacebookUrl(url: string): boolean {

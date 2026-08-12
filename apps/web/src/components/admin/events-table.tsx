@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { Columns3, Pencil, Plus, Search, Trash2, X } from "lucide-react"
+import { Columns3, Pencil, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -25,20 +25,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { StatusBadge } from "@/components/admin/status-badge"
+import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { EmptyState, DeleteButton } from "@/components/admin/states"
 import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, EventStatus } from "@/lib/admin/types"
 
-type DateSortDirection = "asc" | "desc"
-type EventSortBy = "startsAt" | "createdAt"
-type EventFilters = {
+export type DateSortDirection = "asc" | "desc"
+export type EventSortBy = "startsAt" | "createdAt"
+export type EventFilters = {
   search: string
   fieldFilters: FieldFilter[]
 }
-type FieldFilter = { id: string; field: string; op: string; value: string }
-type EventColumnKey =
+export type FieldFilter = { id: string; field: string; op: string; value: string }
+export type EventColumnKey =
   | "title"
   | "slug"
   | "description"
@@ -60,6 +61,8 @@ type EventColumnKey =
   | "priceText"
   | "sourceType"
   | "status"
+  | "confidence"
+  | "warnings"
 
 type FieldKind = "text" | "date" | "number" | "boolean" | "enum"
 
@@ -85,6 +88,8 @@ const EVENT_COLUMNS: Array<{ key: EventColumnKey; label: string; kind: FieldKind
   { key: "priceText", label: "Cijena", kind: "text" },
   { key: "sourceType", label: "Tip izvora", kind: "enum" },
   { key: "status", label: "Status", kind: "enum", defaultVisible: true },
+  { key: "confidence", label: "Pouzdanost", kind: "number" },
+  { key: "warnings", label: "Upozorenja", kind: "number" },
 ]
 
 const DEFAULT_VISIBLE_COLUMNS = EVENT_COLUMNS.filter((column) => column.defaultVisible).map((column) => column.key)
@@ -356,6 +361,12 @@ export function EventsTable({
   pagination,
   onPageChange,
   onPageSizeChange,
+  basePath = "/admin/events",
+  storageKey = "admin-events-visible-columns",
+  defaultVisibleColumns = DEFAULT_VISIBLE_COLUMNS,
+  emptyTitle = "Nema događaja",
+  emptyDescription = "Nijedan događaj ne odgovara odabranom filtru.",
+  renderRowActions,
 }: {
   events: AdminEvent[]
   loading?: boolean
@@ -369,6 +380,12 @@ export function EventsTable({
   pagination: { page: number; pageSize: number; total: number }
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
+  basePath?: string
+  storageKey?: string
+  defaultVisibleColumns?: EventColumnKey[]
+  emptyTitle?: string
+  emptyDescription?: string
+  renderRowActions?: (event: AdminEvent) => ReactNode
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
@@ -378,11 +395,11 @@ export function EventsTable({
   const [bulkStatus, setBulkStatus] = useState<string>("")
   const [bulkShiftDays, setBulkShiftDays] = useState("")
   const [searchDraft, setSearchDraft] = useState(filters.search)
-  const [visibleColumns, setVisibleColumns] = useState<EventColumnKey[]>(DEFAULT_VISIBLE_COLUMNS)
+  const [visibleColumns, setVisibleColumns] = useState<EventColumnKey[]>(defaultVisibleColumns)
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem("admin-events-visible-columns")
+      const raw = window.localStorage.getItem(storageKey)
       if (!raw) return
       const parsed = JSON.parse(raw) as unknown
       if (!Array.isArray(parsed)) return
@@ -392,15 +409,16 @@ export function EventsTable({
     } catch {
       // Ignore corrupted local UI preferences.
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey])
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("admin-events-visible-columns", JSON.stringify(visibleColumns))
+      window.localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
     } catch {
       // Ignore unavailable localStorage.
     }
-  }, [visibleColumns])
+  }, [storageKey, visibleColumns])
 
   useEffect(() => {
     authedFetch("/api/admin/categories")
@@ -490,7 +508,7 @@ export function EventsTable({
     const params = new URLSearchParams({ sortBy, sortDir: dateSort, page: String(pagination.page), pageSize: String(pagination.pageSize) })
     if (filters.search.trim()) params.set("search", filters.search.trim())
     if (filters.fieldFilters.length) params.set("fieldFilters", JSON.stringify(filters.fieldFilters))
-    return `/admin/events?${params.toString()}`
+    return `${basePath}?${params.toString()}`
   })()
 
   function toggle(id: string) {
@@ -630,6 +648,8 @@ export function EventsTable({
       case "priceText": return event.priceText ?? "—"
       case "sourceType": return event.sourceType ?? "—"
       case "status": return event.status
+      case "confidence": return event.confidence
+      case "warnings": return event.warnings.length
       default: return "—"
     }
   }
@@ -663,6 +683,19 @@ export function EventsTable({
     }
     if (column === "status") {
       return <InlineStatusCell status={event.status} onSave={(next) => patchEvent(event.id, { status: toApiEventStatus(next) })} />
+    }
+    if (column === "confidence") {
+      return <ConfidenceBadge value={event.confidence} />
+    }
+    if (column === "warnings") {
+      return event.warnings.length > 0 ? (
+        <span className="inline-flex items-center gap-1 text-sm text-warning">
+          <TriangleAlert className="size-3.5" />
+          {event.warnings.length}
+        </span>
+      ) : (
+        <span className="text-sm text-muted-foreground">0</span>
+      )
     }
     const value = displayValue(event, column)
     const text = String(value)
@@ -927,8 +960,8 @@ export function EventsTable({
 
       {events.length === 0 ? (
         <EmptyState
-          title="Nema događaja"
-          description="Nijedan događaj ne odgovara odabranom filtru."
+          title={emptyTitle}
+          description={emptyDescription}
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -967,6 +1000,7 @@ export function EventsTable({
                   ))}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {renderRowActions?.(e)}
                       <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/admin/events/${e.id}?returnTo=${encodeURIComponent(returnTo)}`} />}>
                         <Pencil data-icon="inline-start" />
                         Uredi
