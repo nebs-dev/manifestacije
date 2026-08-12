@@ -740,7 +740,7 @@ export function EventsTable({
           <span className="text-sm text-muted-foreground">Sort:</span>
           <Select value={sortBy} onValueChange={(v) => { if (v) onSortByChange(v as EventSortBy) }}>
             <SelectTrigger className="w-44">
-              <SelectValue />
+              <SelectValue>{sortBy === "createdAt" ? "Datum dodavanja" : "Datum događaja"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -818,7 +818,7 @@ export function EventsTable({
                 <div key={filter.id} className="flex flex-wrap items-center gap-2">
                   <Select value={filter.field} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { field: v }) }}>
                     <SelectTrigger className="w-52">
-                      <SelectValue />
+                      <SelectValue>{EVENT_COLUMNS.find((column) => column.key === filter.field)?.label ?? filter.field}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -832,7 +832,7 @@ export function EventsTable({
                   </Select>
                   <Select value={filter.op} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { op: v }) }}>
                     <SelectTrigger className="w-32">
-                      <SelectValue />
+                      <SelectValue>{ops.find((op) => op.value === filter.op)?.label ?? filter.op}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -847,7 +847,7 @@ export function EventsTable({
                   {opNeedsValue && kind === "boolean" ? (
                     <Select value={filter.value || "true"} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { value: v }) }}>
                       <SelectTrigger className="w-28">
-                        <SelectValue />
+                        <SelectValue>{filter.value === "false" ? "Ne" : "Da"}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
@@ -1021,7 +1021,7 @@ export function EventsTable({
         <div className="flex items-center gap-2">
           <Select value={String(pagination.pageSize)} onValueChange={(v) => { if (v) onPageSizeChange(Number(v)) }}>
             <SelectTrigger className="w-28">
-              <SelectValue />
+              <SelectValue>{pagination.pageSize} / str.</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
