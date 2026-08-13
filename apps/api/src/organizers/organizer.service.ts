@@ -166,16 +166,17 @@ export class OrganizerService {
     }
 
     const useLlm = Boolean(dto.useLlm || hasScreenshot || isFacebook);
-    const result = useLlm
-      ? await this.parser.parseBatchWithLlm({
-          rawText,
-          rawHtml,
-          sourceUrl,
-          screenshotBase64: dto.screenshotBase64,
-          screenshotMediaType: dto.screenshotMediaType,
-          contextHint: dto.contextHint,
-        })
-      : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl });
+    const result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+      || (useLlm
+        ? await this.parser.parseBatchWithLlm({
+            rawText,
+            rawHtml,
+            sourceUrl,
+            screenshotBase64: dto.screenshotBase64,
+            screenshotMediaType: dto.screenshotMediaType,
+            contextHint: dto.contextHint,
+          })
+        : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl }));
 
     if (fetchWarnings.length) {
       result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));

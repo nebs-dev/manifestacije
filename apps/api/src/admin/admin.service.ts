@@ -588,9 +588,10 @@ export class AdminService {
     }
 
     const effectiveHtml = subPageRawText ? undefined : rawHtml || undefined;
-    const result = dto.useLlm
-      ? await this.parser.parseBatchWithLlm({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl })
-      : await this.parser.parseBatch({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl });
+    const result = (effectiveHtml && this.parser.extractJsonLdEvents(effectiveHtml, dto.sourceUrl))
+      || (dto.useLlm
+        ? await this.parser.parseBatchWithLlm({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl })
+        : await this.parser.parseBatch({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl }));
 
     if (fetchWarnings.length) {
       result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
@@ -642,7 +643,8 @@ export class AdminService {
       }
     }
 
-    const result = await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl });
+    const result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+      || await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl });
     const { confidence, status } = this.sourceMetaFromResult(result);
     return this.prisma.eventSource.update({
       where: { id },

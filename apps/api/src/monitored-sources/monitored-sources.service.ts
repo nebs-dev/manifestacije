@@ -334,9 +334,11 @@ export class MonitoredSourcesService {
     // and a second LLM call when the page itself turns out to be a thin
     // directory of teasers with nothing real on it.
     // JS-rendered sites embed their full event data as JSON in the page and
-    // render nothing scrapeable — when that data is there, it beats anything
-    // an LLM can recover from the rendered shell, and costs no LLM call.
+    // render nothing scrapeable, and schema.org markup states the same facts
+    // structurally — either beats anything an LLM can recover from the
+    // rendered shell, and costs no LLM call.
     let parsed = this.parser.extractEmbeddedEvents(html, source.url)
+      ?? this.parser.extractJsonLdEvents(html, source.url)
       ?? await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url });
     if (parsed.candidates.length === 0 && normalized.length >= 3) {
       const crawl = await this.parser.crawlListingSubPages(html, source.url);
@@ -378,10 +380,12 @@ export class MonitoredSourcesService {
       include: { linkedEventSource: true },
     });
 
+    const detailParsed = this.parser.extractJsonLdEvents(html, source.url)
+      ?? await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url });
     const parsed = await this.flagAlreadyImported(
       await this.verifyImages(
         this.stripGenericImages(
-          this.dropPastCandidates(await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url }))
+          this.dropPastCandidates(detailParsed)
         ),
         source.url,
       ),
@@ -438,7 +442,8 @@ export class MonitoredSourcesService {
       return existing.parsedDetail as unknown as ParsedEventCandidate;
     }
 
-    const detail = (await this.parser.parseBatchWithLlm({ rawHtml: body, sourceUrl: detailUrl })).candidates[0];
+    const detail = (this.parser.extractJsonLdEvents(body, detailUrl)
+      ?? await this.parser.parseBatchWithLlm({ rawHtml: body, sourceUrl: detailUrl })).candidates[0];
     if (!detail) return undefined;
 
     await this.prisma.discoveredSourceItem.upsert({

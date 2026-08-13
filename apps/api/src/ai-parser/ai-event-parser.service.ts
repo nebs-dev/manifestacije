@@ -203,6 +203,116 @@ export class AiEventParserService {
     return null;
   }
 
+  /** Many WordPress event plugins (and other CMSes) embed a schema.org
+   *  `Event` block in a `<script type="application/ld+json">` tag, with
+   *  structured startDate/endDate/location fields straight from the site's
+   *  own event-editing form. That beats asking an LLM to re-derive the same
+   *  facts from rendered text — a page whose visible copy read "13. do 16.
+   *  kolovoza" (13–16 August) was once misread as October despite carrying
+   *  `"startDate":"2026-08-13 17:00:00"` in its own markup the whole time. */
+  extractJsonLdEvents(html: string, sourceUrl: string): ParsedSourceResult | null {
+    const events: Record<string, unknown>[] = [];
+    const scriptRe = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = scriptRe.exec(html)) !== null) {
+      let parsed: unknown;
+      try { parsed = JSON.parse(m[1].trim()); } catch { continue; }
+      for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+        if (!item || typeof item !== "object") continue;
+        const graph = (item as Record<string, unknown>)["@graph"];
+        for (const entry of Array.isArray(graph) ? graph : [item]) {
+          if (entry && typeof entry === "object" && this.isJsonLdEventType((entry as Record<string, unknown>)["@type"])) {
+            events.push(entry as Record<string, unknown>);
+          }
+        }
+      }
+    }
+    if (events.length === 0) return null;
+
+    const candidates = events
+      .map((raw) => this.jsonLdEventToCandidate(raw, sourceUrl))
+      .filter((c): c is ParsedEventCandidate => c !== null);
+    if (candidates.length === 0) return null;
+
+    return {
+      sourceUrl,
+      sourceType: candidates.length > 1 ? "batch" : "single",
+      candidates: candidates.map((c) => ({ ...c, _status: "pending" as const })),
+    };
+  }
+
+  private isJsonLdEventType(type: unknown): boolean {
+    return (Array.isArray(type) ? type : [type]).some((t) => typeof t === "string" && t.toLowerCase().includes("event"));
+  }
+
+  private jsonLdEventToCandidate(raw: Record<string, unknown>, sourceUrl: string): ParsedEventCandidate | null {
+    const str = (v: unknown): string => (typeof v === "string" ? this.htmlToText(v).trim() : "");
+    const title = str(raw.name);
+    if (!title) return null;
+
+    const startsAt = this.normalizeJsonLdDateTime(str(raw.startDate));
+    const endsAt = this.normalizeJsonLdDateTime(str(raw.endDate));
+    const description = this.normalizeDescription(str(raw.description));
+
+    const locationRaw = raw.location;
+    const location = (Array.isArray(locationRaw) ? locationRaw[0] : locationRaw) as Record<string, unknown> | undefined;
+    const addressRaw = location?.address;
+    const addressObj = addressRaw && typeof addressRaw === "object" ? addressRaw as Record<string, unknown> : undefined;
+    const venueName = str(location?.name);
+    const city = str(addressObj?.addressLocality);
+    const address = str(addressObj?.streetAddress) || (typeof addressRaw === "string" ? this.htmlToText(addressRaw).trim() : "");
+
+    const image = raw.image;
+    const imageUrl = typeof image === "string" ? image
+      : Array.isArray(image) ? str(image[0])
+      : str((image as Record<string, unknown> | undefined)?.url);
+
+    const offersRaw = raw.offers;
+    const offers = (Array.isArray(offersRaw) ? offersRaw[0] : offersRaw) as Record<string, unknown> | undefined;
+    const price = offers?.price;
+    const priceNumber = typeof price === "number" ? price : typeof price === "string" ? Number(price) : NaN;
+    const priceText = str(offers?.price) ? `${str(offers?.price)}${str(offers?.priceCurrency) ? ` ${str(offers?.priceCurrency)}` : ""}` : "";
+
+    const missingFields: string[] = [];
+    if (!title) missingFields.push("title");
+    if (!startsAt) missingFields.push("startsAt");
+    if (!city) missingFields.push("city");
+
+    return {
+      title,
+      description,
+      startsAt,
+      endsAt,
+      venueName,
+      address,
+      city: city ? city.charAt(0).toUpperCase() + city.slice(1) : "",
+      county: "",
+      region: "",
+      category: this.guessCategory(`${title} ${description}`) || "ostalo",
+      isFree: Number.isFinite(priceNumber) ? priceNumber === 0 : null,
+      priceText,
+      ticketUrl: str(offers?.url),
+      sourceUrl: str(raw.url) || sourceUrl,
+      organizerName: str((raw.organizer as Record<string, unknown> | undefined)?.name),
+      imageUrl,
+      confidence: 0.9,
+      missingFields,
+      warnings: [],
+    };
+  }
+
+  /** schema.org datetimes are usually naive local wall-clock strings like
+   *  "2026-08-13 17:00:00" with no offset — treat those as Zagreb time
+   *  rather than letting `new Date()` read them in the server's own zone.
+   *  A value that already carries an offset or "Z" is left as-is. */
+  private normalizeJsonLdDateTime(raw: string): string {
+    if (!raw) return "";
+    if (/([+-]\d{2}:\d{2}|Z)$/.test(raw)) return raw.includes("T") ? raw : raw.replace(" ", "T");
+    const [datePart, timePart] = raw.split(/[T ]/);
+    if (!datePart) return "";
+    return this.withZagrebOffset(datePart, timePart || "00:00:00");
+  }
+
   /** Croatia is CET/CEST, so the offset depends on the date itself — derive
    *  it from the zone rather than hardcoding +01:00 or +02:00. */
   private withZagrebOffset(date: string, time: string): string {
