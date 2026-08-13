@@ -7,6 +7,7 @@ import { findOrCreateCity } from "../common/city-resolver";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
+import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
@@ -588,10 +589,12 @@ export class AdminService {
     }
 
     const effectiveHtml = subPageRawText ? undefined : rawHtml || undefined;
-    const result = (effectiveHtml && this.parser.extractJsonLdEvents(effectiveHtml, dto.sourceUrl))
+    let result = (effectiveHtml && this.parser.extractJsonLdEvents(effectiveHtml, dto.sourceUrl))
       || (dto.useLlm
         ? await this.parser.parseBatchWithLlm({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl })
         : await this.parser.parseBatch({ rawText: subPageRawText, rawHtml: effectiveHtml, sourceUrl: dto.sourceUrl }));
+    result = dropPastCandidates(result);
+    result = await flagAlreadyImported(this.prisma, this.duplicates, result);
 
     if (fetchWarnings.length) {
       result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
@@ -643,8 +646,10 @@ export class AdminService {
       }
     }
 
-    const result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+    let result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
       || await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl });
+    result = dropPastCandidates(result);
+    result = await flagAlreadyImported(this.prisma, this.duplicates, result);
     const { confidence, status } = this.sourceMetaFromResult(result);
     return this.prisma.eventSource.update({
       where: { id },

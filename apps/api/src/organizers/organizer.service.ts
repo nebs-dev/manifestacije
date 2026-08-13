@@ -4,6 +4,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EventUpsertDto } from "../events/event.dto";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
+import { DuplicatesService } from "../duplicates/duplicates.service";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
@@ -15,6 +17,7 @@ export class OrganizerService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly parser: AiEventParserService,
+    private readonly duplicates: DuplicatesService,
     private readonly email: EmailService,
     private readonly contacts: ResendContactsService
   ) {}
@@ -166,7 +169,7 @@ export class OrganizerService {
     }
 
     const useLlm = Boolean(dto.useLlm || hasScreenshot || isFacebook);
-    const result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+    let result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
       || (useLlm
         ? await this.parser.parseBatchWithLlm({
             rawText,
@@ -177,6 +180,8 @@ export class OrganizerService {
             contextHint: dto.contextHint,
           })
         : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl }));
+    result = dropPastCandidates(result);
+    result = await flagAlreadyImported(this.prisma, this.duplicates, result);
 
     if (fetchWarnings.length) {
       result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
