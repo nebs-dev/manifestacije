@@ -58,7 +58,7 @@ export function WeekendLanding({
                       priorityImageUsed = true
                       return (
                         <EventCard
-                          key={`${day.key}-${event.slug}`}
+                          key={`${day.key}-${event.slug}-${event.displayOccurrenceId ?? "legacy"}`}
                           event={{ ...event, date: displayDate }}
                           priorityImage={priorityImage}
                           imageSizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"

@@ -316,6 +316,7 @@ model Event {
   categoryId           Int
   category             Category  @relation(fields: [categoryId], references: [id])
   categories           EventCategory[]
+  occurrences          EventOccurrence[]
   startsAt             DateTime
   endsAt               DateTime?
   isAllDay             Boolean   @default(false)
@@ -336,6 +337,20 @@ model Event {
   duplicatesB          EventDuplicateCandidate[] @relation("DuplicateB")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+}
+
+model EventOccurrence {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  startsAt  DateTime
+  endsAt    DateTime?
+  isAllDay  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId, startsAt])
+  @@index([eventId, endsAt])
 }
 
 model EventSource {

@@ -33,7 +33,13 @@ export class OrganizerService {
   listEvents(organizerId: number) {
     return this.prisma.event.findMany({
       where: { organizerId },
-      include: { city: true, category: true, venue: true, categories: { include: { category: true } } },
+      include: {
+        city: true,
+        category: true,
+        venue: true,
+        categories: { include: { category: true } },
+        occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] },
+      },
       orderBy: { startsAt: "asc" },
     });
   }

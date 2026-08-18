@@ -51,6 +51,7 @@ export interface ParsedCandidate {
   startsAt: string | null
   endsAt: string | null
   isAllDay?: boolean
+  occurrences?: EventOccurrenceInput[]
   venueName: string | null
   address: string | null
   city: string | null
@@ -85,6 +86,7 @@ export interface AdminEvent {
   startsAt: string | null
   endsAt: string | null
   allDay: boolean
+  occurrences: EventOccurrenceInput[]
   city: string | null
   cityName: string | null
   county: string | null
@@ -114,6 +116,13 @@ export interface AdminEvent {
   _categoryId?: number
   _categoryIds?: number[]
   _organizerId?: number
+}
+
+export interface EventOccurrenceInput {
+  id?: number
+  startsAt: string
+  endsAt?: string | null
+  isAllDay?: boolean
 }
 
 export interface PaginatedAdminEvents {

@@ -1,5 +1,19 @@
 import { sendGAEvent } from "@next/third-parties/google"
 
+export type DiscoveryDestination = "/kalendar" | "/mapa" | "/ovaj-vikend"
+export type DiscoverySourceComponent =
+  | "hero_quick_link"
+  | "calendar_teaser"
+  | "map_teaser"
+  | "quick_filter"
+  | "navigation"
+
+type DiscoveryParams = {
+  source_page: string
+  source_component: DiscoverySourceComponent
+  destination: DiscoveryDestination
+}
+
 // GA4 event names and params used across the monetization plan's measurement
 // checklist. Keeping them here (instead of inline sendGAEvent calls scattered
 // through components) means every call site sends the same param shape, so
@@ -16,8 +30,29 @@ type AnalyticsEvent =
   | { name: "submit_event_started"; params: { method: "manual" | "url" } }
   | { name: "submit_event_completed"; params: { method: "manual" | "url" } }
   | { name: "organizer_registered"; params: Record<string, never> }
+  | { name: "calendar_click"; params: DiscoveryParams }
+  | { name: "map_click"; params: DiscoveryParams }
+  | { name: "weekend_click"; params: DiscoveryParams }
 
 export function trackEvent(event: AnalyticsEvent): void {
   if (typeof window === "undefined") return
-  sendGAEvent("event", event.name, event.params)
+  try {
+    sendGAEvent("event", event.name, event.params)
+  } catch {
+    // Analytics must never block navigation or another primary user action.
+  }
+}
+
+export function trackDiscoveryNavigation(params: DiscoveryParams): void {
+  if (params.destination === "/kalendar") {
+    trackEvent({ name: "calendar_click", params })
+  } else if (params.destination === "/mapa") {
+    trackEvent({ name: "map_click", params })
+  } else {
+    trackEvent({ name: "weekend_click", params })
+  }
+}
+
+export function analyticsSourcePage(pathname: string | null): string {
+  return pathname === "/" ? "home" : pathname || "unknown"
 }

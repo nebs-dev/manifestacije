@@ -3,16 +3,18 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Search, Plus, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { analyticsSourcePage, type DiscoveryDestination } from "@/lib/analytics";
+import { TrackedDiscoveryLink } from "@/components/public/tracked-discovery-link";
 
 const navLinks = [
   { href: "/eventi", label: "Događaji" },
-  { href: "/ovaj-vikend", label: "Ovaj vikend" },
-  { href: "/kalendar", label: "Kalendar" },
-  { href: "/mapa", label: "Karta" },
-];
+  { href: "/ovaj-vikend", label: "Ovaj vikend", trackedDestination: "/ovaj-vikend" },
+  { href: "/kalendar", label: "Kalendar", trackedDestination: "/kalendar" },
+  { href: "/mapa", label: "Karta", trackedDestination: "/mapa" },
+] satisfies Array<{ href: string; label: string; trackedDestination?: DiscoveryDestination }>;
 
 export function SiteHeader({
   variant = "light",
@@ -20,6 +22,7 @@ export function SiteHeader({
   variant?: "light" | "ink";
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -69,18 +72,25 @@ export function SiteHeader({
 
         {/* Nav links */}
         <nav className="hidden items-center gap-1 xl:flex">
-          {navLinks.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={cn(
-                "rounded-full px-3 py-2 text-sm font-medium transition-colors",
-                isInk ? "hover:bg-white/10" : "hover:bg-muted",
-              )}
-            >
-              {l.label}
-            </Link>
-          ))}
+          {navLinks.map((l) => {
+            const className = cn(
+              "rounded-full px-3 py-2 text-sm font-medium transition-colors",
+              isInk ? "hover:bg-white/10" : "hover:bg-muted",
+            );
+            return l.trackedDestination ? (
+              <TrackedDiscoveryLink
+                key={l.href}
+                href={l.trackedDestination}
+                sourcePage={analyticsSourcePage(pathname)}
+                sourceComponent="navigation"
+                className={className}
+              >
+                {l.label}
+              </TrackedDiscoveryLink>
+            ) : (
+              <Link key={l.href} href={l.href} className={className}>{l.label}</Link>
+            );
+          })}
         </nav>
 
         {/* CTA */}
@@ -124,7 +134,18 @@ export function SiteHeader({
             />
           </form>
           <nav className="flex flex-col">
-            {navLinks.map((l) => (
+            {navLinks.map((l) => l.trackedDestination ? (
+              <TrackedDiscoveryLink
+                key={l.href}
+                href={l.trackedDestination}
+                sourcePage={analyticsSourcePage(pathname)}
+                sourceComponent="navigation"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-xl px-3 py-3 text-sm font-medium hover:bg-muted"
+              >
+                {l.label}
+              </TrackedDiscoveryLink>
+            ) : (
               <Link
                 key={l.href}
                 href={l.href}

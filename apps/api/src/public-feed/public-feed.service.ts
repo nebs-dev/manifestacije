@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma, EventStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { currentWeekendRange } from "../common/weekend";
+import { zagrebLocalToUtc } from "../common/weekend";
 
 const eventInclude = {
   organizer: true,
@@ -14,6 +15,7 @@ const eventInclude = {
     include: { category: true },
     orderBy: [{ category: { sortOrder: "asc" } }],
   },
+  occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] },
 } satisfies Prisma.EventInclude;
 
 const eventListSelect = {
@@ -43,6 +45,10 @@ const eventListSelect = {
   categories: {
     select: { category: { select: { slug: true, name: true, sortOrder: true } } },
     orderBy: [{ category: { sortOrder: "asc" } }],
+  },
+  occurrences: {
+    select: { id: true, startsAt: true, endsAt: true, isAllDay: true },
+    orderBy: [{ startsAt: "asc" }, { id: "asc" }],
   },
 } satisfies Prisma.EventSelect;
 
@@ -231,23 +237,21 @@ export class PublicFeedService {
     }
 
     if (query.today === "true") {
-      const start = new Date(now);
-      const end = new Date(now);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
+      const { start, end } = this.zagrebDayRange(now);
       this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.weekend === "true") {
       const { start, end } = currentWeekendRange(now);
       this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.month === "true") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const parts = this.zagrebParts(now);
+      const start = zagrebLocalToUtc(parts.year, parts.month, 1);
+      const lastDay = new Date(Date.UTC(parts.year, parts.month, 0)).getUTCDate();
+      const end = zagrebLocalToUtc(parts.year, parts.month, lastDay, 23, 59, 59, 999);
       this.addAnd(where, this.periodOverlapWhere(start, end));
     } else if (query.dateFrom || query.dateTo) {
-      where.startsAt = {
-        gte: query.dateFrom ? new Date(query.dateFrom) : undefined,
-        lte: query.dateTo ? new Date(query.dateTo) : undefined
-      };
+      const start = query.dateFrom ? this.zagrebDateBoundary(query.dateFrom, "start") : new Date(0);
+      const end = query.dateTo ? this.zagrebDateBoundary(query.dateTo, "end") : new Date("9999-12-31T23:59:59.999Z");
+      this.addAnd(where, this.periodOverlapWhere(start, end));
     }
     return where;
   }
@@ -255,11 +259,28 @@ export class PublicFeedService {
   // Event overlaps with [periodStart, periodEnd] if it starts before period ends
   // AND (ends after period starts, or is a single-day event starting within the period).
   private periodOverlapWhere(periodStart: Date, periodEnd: Date): Prisma.EventWhereInput {
-    return {
+    const overlap = {
       startsAt: { lte: periodEnd },
       OR: [
         { endsAt: { gte: periodStart } },
         { endsAt: null, startsAt: { gte: periodStart } },
+      ],
+    } satisfies Prisma.EventOccurrenceWhereInput;
+    return {
+      OR: [
+        { occurrences: { some: overlap } },
+        {
+          AND: [
+            { occurrences: { none: {} } },
+            {
+              startsAt: { lte: periodEnd },
+              OR: [
+                { endsAt: { gte: periodStart } },
+                { endsAt: null, startsAt: { gte: periodStart } },
+              ],
+            },
+          ],
+        },
       ],
     };
   }
@@ -267,10 +288,62 @@ export class PublicFeedService {
   private publicVisibilityWhere(now: Date): Prisma.EventWhereInput {
     return {
       OR: [
-        { endsAt: { gte: now } },
-        { endsAt: null, startsAt: { gte: now } },
+        {
+          occurrences: {
+            some: {
+              OR: [
+                { endsAt: { gte: now } },
+                { endsAt: null, startsAt: { gte: now } },
+              ],
+            },
+          },
+        },
+        {
+          AND: [
+            { occurrences: { none: {} } },
+            {
+              OR: [
+                { endsAt: { gte: now } },
+                { endsAt: null, startsAt: { gte: now } },
+              ],
+            },
+          ],
+        },
       ],
     };
+  }
+
+  private zagrebParts(date: Date) {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Zagreb",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+    return { year: value("year"), month: value("month"), day: value("day") };
+  }
+
+  private zagrebDayRange(date: Date) {
+    const parts = this.zagrebParts(date);
+    return {
+      start: zagrebLocalToUtc(parts.year, parts.month, parts.day),
+      end: zagrebLocalToUtc(parts.year, parts.month, parts.day, 23, 59, 59, 999),
+    };
+  }
+
+  private zagrebDateBoundary(value: string, boundary: "start" | "end") {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return new Date(value);
+    return zagrebLocalToUtc(
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      boundary === "start" ? 0 : 23,
+      boundary === "start" ? 0 : 59,
+      boundary === "start" ? 0 : 59,
+      boundary === "start" ? 0 : 999,
+    );
   }
 
   private addAnd(where: Prisma.EventWhereInput, clause: Prisma.EventWhereInput) {

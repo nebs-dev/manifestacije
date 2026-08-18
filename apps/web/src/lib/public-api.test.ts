@@ -56,6 +56,29 @@ describe("public API adapter", () => {
     }))
   })
 
+  it("maps explicit occurrences and selects next upcoming slot for generic cards", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2099-07-04T12:00:00.000Z"))
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{
+        ...apiEvent,
+        startsAt: "2099-07-04T06:00:00.000Z",
+        endsAt: "2099-07-06T20:00:00.000Z",
+        occurrences: [
+          { id: 1, startsAt: "2099-07-04T06:00:00.000Z", endsAt: "2099-07-04T10:00:00.000Z", isAllDay: false },
+          { id: 2, startsAt: "2099-07-06T16:00:00.000Z", endsAt: "2099-07-06T20:00:00.000Z", isAllDay: false },
+        ],
+      }],
+    }))
+
+    const [event] = await fetchEvents()
+    expect(event.date).toBe("2099-07-06")
+    expect(event.displayOccurrenceId).toBe("2")
+    expect(event.occurrences).toHaveLength(2)
+    vi.useRealTimers()
+  })
+
   it("builds public event query params for filters", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
     vi.stubGlobal("fetch", fetchMock)

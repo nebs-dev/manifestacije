@@ -12,12 +12,15 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
+import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 
 type EventData = {
   title?: string
   description?: string
   startsAt?: string
   endsAt?: string
+  isAllDay?: boolean
+  occurrences?: Array<{ id?: number; startsAt: string; endsAt?: string | null; isAllDay?: boolean }>
   cityId?: number
   cityName?: string
   categoryId?: number
@@ -31,13 +34,6 @@ type EventData = {
   ticketUrl?: string
   sourceUrl?: string
   imageUrl?: string
-}
-
-function toLocal(iso?: string) {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ""
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -62,6 +58,13 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
     imageUrl: initial?.imageUrl ?? "",
   })
   const [loading, setLoading] = useState(false)
+  const occurrenceBacked = Boolean(initial?.occurrences?.length)
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>(() => scheduleRowsFromEvent({
+    startsAt: initial?.startsAt,
+    endsAt: initial?.endsAt,
+    isAllDay: initial?.isAllDay,
+    occurrences: initial?.occurrences,
+  }))
 
   useEffect(() => {
     fetch(`${API_URL}/api/public/categories`)
@@ -78,14 +81,23 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
     e.preventDefault()
     setLoading(true)
     const form = new FormData(e.currentTarget)
-    const startsAt = String(form.get("startsAt") || "")
-    const endsAt = String(form.get("endsAt") || "")
     const primaryCategoryId = categoryIds[0]
+    let schedule
+    try {
+      schedule = scheduleRowsToApi(scheduleRows)
+    } catch (error) {
+      toast.error("Neispravan raspored", { description: error instanceof Error ? error.message : String(error) })
+      setLoading(false)
+      return
+    }
+    const first = schedule[0]
     const body = {
       title: String(form.get("title") || ""),
       description: String(form.get("description") || ""),
-      startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
-      endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
+      startsAt: first.startsAt,
+      endsAt: first.endsAt,
+      isAllDay: first.isAllDay,
+      occurrences: occurrenceBacked || scheduleRows.length > 1 ? schedule : undefined,
       cityName: location?.cityName || undefined,
       categoryId: primaryCategoryId,
       categoryIds: categoryIds.length ? categoryIds : undefined,
@@ -135,12 +147,11 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       <Card>
         <CardHeader><CardTitle>Vrijeme i lokacija</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Početak">
-            <Input name="startsAt" type="datetime-local" defaultValue={toLocal(initial?.startsAt)} />
-          </Field>
-          <Field label="Završetak">
-            <Input name="endsAt" type="datetime-local" defaultValue={toLocal(initial?.endsAt)} />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Raspored">
+              <EventScheduleEditor rows={scheduleRows} onChange={setScheduleRows} />
+            </Field>
+          </div>
           <Field label="Naziv mjesta / dvorane">
             <Input name="venueName" defaultValue={initial?.venueName} placeholder="npr. Galerija Waldinger" />
           </Field>

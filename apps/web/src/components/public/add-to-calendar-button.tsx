@@ -5,9 +5,11 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { trackEvent } from "@/lib/analytics"
 import { canAddToCalendar, googleCalendarUrl } from "@/lib/calendar"
 import type { CroEvent } from "@/lib/data"
+import { effectiveOccurrences, formatOccurrenceLabel } from "@/lib/event-schedule"
 
 export function AddToCalendarButton({ event, compact = false }: { event: CroEvent; compact?: boolean }) {
   if (!canAddToCalendar(event)) return null
+  const occurrences = effectiveOccurrences(event)
 
   const track = (provider: "google" | "ics") =>
     trackEvent({ name: "calendar_provider_selected", params: { event_slug: event.slug, event_title: event.title, provider } })
@@ -37,15 +39,18 @@ export function AddToCalendarButton({ event, compact = false }: { event: CroEven
       </PopoverTrigger>
       <PopoverContent className="w-56">
         <div className="flex flex-col gap-1">
-          <a
-            href={googleCalendarUrl(event)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => track("google")}
-            className="rounded px-2 py-1.5 text-sm hover:bg-muted"
-          >
-            Google Calendar
-          </a>
+          {occurrences.map((occurrence) => (
+            <a
+              key={occurrence.id}
+              href={googleCalendarUrl(event, occurrence.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => track("google")}
+              className="rounded px-2 py-1.5 text-sm hover:bg-muted"
+            >
+              {occurrences.length === 1 ? "Google Calendar" : `Google · ${formatOccurrenceLabel(occurrence)}`}
+            </a>
+          ))}
           <a
             href={`/eventi/${event.slug}/calendar.ics`}
             onClick={() => track("ics")}

@@ -10,6 +10,7 @@ import {
   type CroEvent,
   dateKey,
   dateParts,
+  eventEntriesOn,
   eventOccursOn,
   MONTHS_HR_LONG,
   MONTHS_HR_NOM,
@@ -117,7 +118,7 @@ export function CalendarExplorer({
   const groups = useMemo(() => {
     const m: Record<string, CroEvent[]> = {}
     for (const day of visibleDays) {
-      const list = events.filter((e) => eventOccursOn(e, day)).sort(sortCalendarEvents)
+      const list = events.flatMap((event) => eventEntriesOn(event, day)).sort(sortCalendarEvents)
       if (list.length) m[dateKey(day)] = list
     }
     return m
@@ -326,7 +327,7 @@ export function CalendarExplorer({
                     </div>
                     <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">{list.length} termina</span>
                   </div>
-                  <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={e.slug} event={e} returnTo={returnTo} />)}</ul>
+                  <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={`${e.slug}-${e.displayOccurrenceId ?? "legacy"}`} event={e} returnTo={returnTo} />)}</ul>
                 </section>
               )
             })}

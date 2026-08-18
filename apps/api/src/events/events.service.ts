@@ -4,8 +4,16 @@ import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { findOrCreateCity } from "../common/city-resolver";
 import { lookupVenueGeo } from "../common/croatia-geo";
-import { EventUpsertDto } from "./event.dto";
+import { zagrebLocalToUtc } from "../common/weekend";
+import { EventOccurrenceDto, EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
+
+type NormalizedOccurrence = {
+  id?: number;
+  startsAt: Date;
+  endsAt: Date | null;
+  isAllDay: boolean;
+};
 
 @Injectable()
 export class EventsService {
@@ -31,6 +39,8 @@ export class EventsService {
       venueId = venue.id;
     }
     const slug = await uniqueSlug(title, async (s) => !!(await this.prisma.event.findUnique({ where: { slug: s } })));
+    const occurrences = dto.occurrences ? this.normalizeOccurrences(dto.occurrences) : undefined;
+    const schedule = occurrences ? this.summarizeOccurrences(occurrences) : null;
     const event = await this.prisma.event.create({
       data: {
         title,
@@ -44,9 +54,9 @@ export class EventsService {
         countyId: city?.countyId,
         regionId: city?.county.regionId,
         categoryId: category.id,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : new Date(),
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
-        isAllDay: dto.isAllDay || false,
+        startsAt: schedule?.startsAt ?? (dto.startsAt ? new Date(dto.startsAt) : new Date()),
+        endsAt: schedule?.endsAt ?? (dto.endsAt ? new Date(dto.endsAt) : undefined),
+        isAllDay: schedule?.isAllDay ?? dto.isAllDay ?? false,
         isFree: dto.isFree,
         isFeatured: dto.isFeatured ?? false,
         priceText: dto.priceText,
@@ -57,8 +67,12 @@ export class EventsService {
         lat: point.lat,
         lng: point.lng,
         sourceType: opts.sourceType || EventSourceKind.MANUAL,
-        publishedAt: opts.status === EventStatus.PUBLISHED ? new Date() : undefined
-      }
+        publishedAt: opts.status === EventStatus.PUBLISHED ? new Date() : undefined,
+        occurrences: occurrences ? {
+          create: occurrences.map(({ startsAt, endsAt, isAllDay }) => ({ startsAt, endsAt, isAllDay })),
+        } : undefined,
+      },
+      include: { occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] } },
     });
 
     // Build EventCategory rows: primary from categoryId, extras from categoryIds
@@ -78,8 +92,16 @@ export class EventsService {
   }
 
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
-    const current = await this.prisma.event.findUnique({ where: { id } });
+    const current = await this.prisma.event.findUnique({ where: { id }, include: { occurrences: true } });
     if (!current) throw new NotFoundException("Event not found");
+    const hasScheduleInput = "startsAt" in dto || "endsAt" in dto || "isAllDay" in dto;
+    const currentOccurrences = current.occurrences ?? [];
+    if (currentOccurrences.length > 0 && dto.occurrences === undefined && hasScheduleInput) {
+      throw new BadRequestException("Događaj koristi raspored termina; pošaljite occurrences za promjenu rasporeda.");
+    }
+    const occurrences = dto.occurrences ? this.normalizeOccurrences(dto.occurrences) : undefined;
+    if (occurrences) this.assertOccurrenceOwnership(currentOccurrences.map((item) => item.id), occurrences);
+    const schedule = occurrences ? this.summarizeOccurrences(occurrences) : null;
     const city = await this.resolveCityForWrite(dto, current);
     this.assertPublishableLocation(dto.status, city, current);
 
@@ -99,9 +121,9 @@ export class EventsService {
       slug,
       description: dto.description,
       categoryId: dto.categoryId,
-      startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-      endsAt: dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : undefined,
-      isAllDay: dto.isAllDay,
+      startsAt: schedule?.startsAt ?? (dto.startsAt ? new Date(dto.startsAt) : undefined),
+      endsAt: schedule ? schedule.endsAt : dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : undefined,
+      isAllDay: schedule?.isAllDay ?? dto.isAllDay,
       isFree: dto.isFree,
       isFeatured: dto.isFeatured,
       priceText: dto.priceText,
@@ -149,7 +171,34 @@ export class EventsService {
       }
     }
     Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
-    const event = await this.prisma.event.update({ where: { id }, data });
+    let event;
+    if (occurrences) {
+      event = await this.prisma.$transaction(async (tx) => {
+        const retainedIds = occurrences.flatMap((item) => item.id ? [item.id] : []);
+        await tx.eventOccurrence.deleteMany({
+          where: { eventId: id, ...(retainedIds.length ? { id: { notIn: retainedIds } } : {}) },
+        });
+        for (const occurrence of occurrences) {
+          const occurrenceData = {
+            startsAt: occurrence.startsAt,
+            endsAt: occurrence.endsAt,
+            isAllDay: occurrence.isAllDay,
+          };
+          if (occurrence.id) {
+            await tx.eventOccurrence.update({ where: { id: occurrence.id }, data: occurrenceData });
+          } else {
+            await tx.eventOccurrence.create({ data: { eventId: id, ...occurrenceData } });
+          }
+        }
+        return tx.event.update({
+          where: { id },
+          data,
+          include: { occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] } },
+        });
+      });
+    } else {
+      event = await this.prisma.event.update({ where: { id }, data });
+    }
 
     // If categoryIds supplied, replace EventCategory rows
     if (dto.categoryIds?.length) {
@@ -165,6 +214,69 @@ export class EventsService {
 
     await this.duplicates.detectForEvent(id);
     return event;
+  }
+
+  private normalizeOccurrences(input: EventOccurrenceDto[]): NormalizedOccurrence[] {
+    if (input.length === 0) throw new BadRequestException("Raspored mora sadržavati barem jedan termin.");
+    return input
+      .map((item) => {
+        const rawStart = new Date(item.startsAt);
+        const rawEnd = item.endsAt ? new Date(item.endsAt) : null;
+        if (Number.isNaN(rawStart.getTime()) || (rawEnd && Number.isNaN(rawEnd.getTime()))) {
+          throw new BadRequestException("Neispravan datum termina.");
+        }
+        if (item.isAllDay) {
+          const start = this.zagrebDayBoundary(rawStart, "start");
+          const end = this.zagrebDayBoundary(rawEnd ?? rawStart, "end");
+          if (end < start) throw new BadRequestException("Završetak termina mora biti nakon početka.");
+          return { id: item.id, startsAt: start, endsAt: end, isAllDay: true };
+        }
+        if (rawEnd && rawEnd <= rawStart) {
+          throw new BadRequestException("Vrijeme završetka mora biti nakon početka.");
+        }
+        return { id: item.id, startsAt: rawStart, endsAt: rawEnd, isAllDay: false };
+      })
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || (a.id ?? Number.MAX_SAFE_INTEGER) - (b.id ?? Number.MAX_SAFE_INTEGER));
+  }
+
+  private summarizeOccurrences(occurrences: NormalizedOccurrence[]) {
+    const startsAt = occurrences[0].startsAt;
+    const endpoint = occurrences.reduce((latest, item) => {
+      const candidate = item.endsAt ?? item.startsAt;
+      return candidate > latest ? candidate : latest;
+    }, occurrences[0].endsAt ?? occurrences[0].startsAt);
+    return {
+      startsAt,
+      endsAt: occurrences.length === 1 && occurrences[0].endsAt === null ? null : endpoint,
+      isAllDay: occurrences.every((item) => item.isAllDay),
+    };
+  }
+
+  private assertOccurrenceOwnership(existingIds: number[], occurrences: NormalizedOccurrence[]) {
+    const existing = new Set(existingIds);
+    const supplied = occurrences.flatMap((item) => item.id ? [item.id] : []);
+    if (new Set(supplied).size !== supplied.length || supplied.some((id) => !existing.has(id))) {
+      throw new BadRequestException("Termin ne pripada ovom događaju.");
+    }
+  }
+
+  private zagrebDayBoundary(date: Date, boundary: "start" | "end") {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Zagreb",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+    return zagrebLocalToUtc(
+      value("year"),
+      value("month"),
+      value("day"),
+      boundary === "start" ? 0 : 23,
+      boundary === "start" ? 0 : 59,
+      boundary === "start" ? 0 : 59,
+      boundary === "start" ? 0 : 999,
+    );
   }
 
   /**

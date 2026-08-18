@@ -18,7 +18,10 @@ const ALREADY_IMPORTED_TITLE_SIMILARITY = 0.8;
 export function dropPastCandidates(parsed: ParsedSourceResult): ParsedSourceResult {
   const now = Date.now();
   const candidates = parsed.candidates.filter((c) => {
-    const relevantDate = c.endsAt || c.startsAt;
+    const relevantDate = c.occurrences?.reduce<string | undefined>((latest, occurrence) => {
+      const endpoint = occurrence.endsAt || occurrence.startsAt;
+      return !latest || new Date(endpoint) > new Date(latest) ? endpoint : latest;
+    }, undefined) || c.endsAt || c.startsAt;
     if (!relevantDate) return true;
     const t = new Date(relevantDate).getTime();
     return Number.isNaN(t) || t >= now;

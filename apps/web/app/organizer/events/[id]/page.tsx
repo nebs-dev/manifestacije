@@ -39,6 +39,8 @@ export default function EditEventPage() {
           description: event.description as string,
           startsAt: event.startsAt as string,
           endsAt: event.endsAt as string | undefined,
+          isAllDay: event.isAllDay as boolean | undefined,
+          occurrences: event.occurrences as Array<{ id?: number; startsAt: string; endsAt?: string | null; isAllDay?: boolean }> | undefined,
           cityName: event.cityName as string | undefined ?? (event.city as { name?: string } | null)?.name,
           categoryId: (event.category as { id: number })?.id,
           categoryIds: ((event.categories as Array<{ categoryId?: number; category?: { id: number } }> | undefined) ?? [])

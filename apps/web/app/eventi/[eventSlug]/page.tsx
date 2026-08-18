@@ -16,6 +16,7 @@ import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { citySlugForEvent } from "@/lib/seo-taxonomy";
 import { publicAddressLine } from "@/lib/location-display";
+import { effectiveOccurrences, formatOccurrenceLabel } from "@/lib/event-schedule";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 const BACK_LINKS = {
@@ -82,6 +83,8 @@ export default async function EventDetailPage({
   const addressLine = publicAddressLine(event.address, event.city, event.venue);
   const imageUrl = event.image?.startsWith("http") ? event.image : event.image ? `${WEB_URL}${event.image}` : undefined;
   const jsonLd = eventToJsonLd({ ...event, image: imageUrl }, WEB_URL);
+  const schedule = effectiveOccurrences(event);
+  const hasExplicitSchedule = (event.occurrences?.length ?? 0) > 1;
   const breadcrumbCrumbs = [
     { name: "Početna", path: "/" },
     { name: "Događanja", path: "/eventi" },
@@ -179,11 +182,22 @@ export default async function EventDetailPage({
             <aside>
               <div className="sticky top-24 rounded-2xl border border-border bg-card p-6 shadow-poster">
                 <dl className="space-y-5">
-                  <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">
-                    {formatDateRange(event.date, event.endDate)}
-                    <AddToCalendarButton event={event} compact />
-                  </InfoRow>
-                  {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
+                  {hasExplicitSchedule ? (
+                    <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Raspored">
+                      <ul className="space-y-1.5">
+                        {schedule.map((occurrence) => <li key={occurrence.id}>{formatOccurrenceLabel(occurrence, true)}</li>)}
+                      </ul>
+                      <AddToCalendarButton event={event} compact />
+                    </InfoRow>
+                  ) : (
+                    <>
+                      <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">
+                        {formatDateRange(event.date, event.endDate)}
+                        <AddToCalendarButton event={event} compact />
+                      </InfoRow>
+                      {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
+                    </>
+                  )}
                   <InfoRow icon={<MapPin className="size-5" aria-hidden />} label="Lokacija">
                     {event.venue && event.venue !== event.city && (
                       <span className="block font-medium">{event.venue}</span>

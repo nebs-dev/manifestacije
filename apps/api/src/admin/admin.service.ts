@@ -12,7 +12,7 @@ import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
 import { RevalidateService } from "./revalidate.service";
-import { zagrebLocalToUtc } from "../common/weekend";
+import { shiftZagrebCalendarDays, zagrebLocalToUtc } from "../common/weekend";
 import { UploadsService } from "./uploads.service";
 
 export type AdminEventListParams = {
@@ -111,19 +111,25 @@ export class AdminService {
   async bulkShiftDates(eventIds: number[], days: number) {
     const events = await this.prisma.event.findMany({
       where: { id: { in: eventIds } },
-      select: { id: true, startsAt: true, endsAt: true },
+      select: { id: true, startsAt: true, endsAt: true, occurrences: true },
     });
-    const shiftMs = days * 24 * 60 * 60 * 1000;
     await this.prisma.$transaction(
-      events.map((e) =>
+      events.flatMap((e) => [
         this.prisma.event.update({
           where: { id: e.id },
           data: {
-            startsAt: new Date(e.startsAt.getTime() + shiftMs),
-            endsAt: e.endsAt ? new Date(e.endsAt.getTime() + shiftMs) : undefined,
+            startsAt: shiftZagrebCalendarDays(e.startsAt, days),
+            endsAt: e.endsAt ? shiftZagrebCalendarDays(e.endsAt, days) : undefined,
           },
-        })
-      )
+        }),
+        ...(e.occurrences ?? []).map((occurrence) => this.prisma.eventOccurrence.update({
+          where: { id: occurrence.id },
+          data: {
+            startsAt: shiftZagrebCalendarDays(occurrence.startsAt, days),
+            endsAt: occurrence.endsAt ? shiftZagrebCalendarDays(occurrence.endsAt, days) : null,
+          },
+        })),
+      ])
     );
     void this.revalidate.revalidate("events");
     return { count: events.length };
@@ -131,7 +137,7 @@ export class AdminService {
 
   async pendingEvents(params?: AdminEventListParams) {
     const where = { ...this.eventListWhere(params), status: EventStatus.PENDING_REVIEW };
-    return this.paginatedEvents(where, params);
+    return this.paginatedEvents(where, params ?? { sortBy: "startsAt", sortDir: "asc" });
   }
 
   allEvents(params?: AdminEventListParams) {
@@ -172,6 +178,7 @@ export class AdminService {
    * row — the shape every existing query already assumes.
    */
   private async createWeeklySeries(dto: AdminEventDto) {
+    if (dto.occurrences) throw new BadRequestException("Tjedno ponavljanje podržava jedan početni termin bez occurrences rasporeda");
     if (!dto.startsAt) throw new BadRequestException("startsAt je obavezan za ponavljajući događaj");
     const start = new Date(dto.startsAt);
     const until = new Date(dto.repeatWeeklyUntil!);
@@ -232,6 +239,7 @@ export class AdminService {
   async splitIntoWeeklySeries(id: number, dto: SplitWeeklySeriesDto) {
     const event = await this.prisma.event.findUnique({ where: { id }, include: this.eventInclude() });
     if (!event) throw new NotFoundException("Event not found");
+    if ((event.occurrences ?? []).length > 0) throw new BadRequestException("Događaj s rasporedom termina nije moguće pretvoriti u tjednu seriju");
 
     const [startHour, startMinute] = this.parseHm(dto.startTime, "startTime");
     const endHm = dto.endTime ? this.parseHm(dto.endTime, "endTime") : null;
@@ -361,7 +369,7 @@ export class AdminService {
   async duplicateEvent(id: number) {
     const current = await this.prisma.event.findUnique({
       where: { id },
-      include: { categories: true },
+      include: { categories: true, occurrences: true },
     });
     if (!current) throw new NotFoundException("Event not found");
 
@@ -393,6 +401,13 @@ export class AdminService {
         lng: current.lng,
         sourceType: current.sourceType,
         extractionConfidence: current.extractionConfidence,
+        occurrences: current.occurrences?.length ? {
+          create: current.occurrences.map((occurrence) => ({
+            startsAt: occurrence.startsAt,
+            endsAt: occurrence.endsAt,
+            isAllDay: occurrence.isAllDay,
+          })),
+        } : undefined,
       },
     });
 
@@ -707,6 +722,7 @@ export class AdminService {
         startsAt: candidate.startsAt || undefined,
         endsAt: candidate.endsAt || undefined,
         isAllDay: candidate.isAllDay ?? undefined,
+        occurrences: candidate.occurrences,
         isFree: candidate.isFree ?? undefined,
         priceText: candidate.priceText || undefined,
         ticketUrl: candidate.ticketUrl || undefined,
@@ -928,7 +944,16 @@ export class AdminService {
   }
 
   private eventInclude() {
-    return { organizer: true, venue: true, city: true, county: true, region: true, category: true, categories: { include: { category: true } } } as const;
+    return {
+      organizer: true,
+      venue: true,
+      city: true,
+      county: true,
+      region: true,
+      category: true,
+      categories: { include: { category: true } },
+      occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] },
+    } satisfies Prisma.EventInclude;
   }
 
   private async paginatedEvents(where: Prisma.EventWhereInput, params?: AdminEventListParams) {

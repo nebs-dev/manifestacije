@@ -439,4 +439,36 @@ Drugi odlomak s dodatnim informacijama.
 
     expect(result.candidates[0].imageUrl).toBe("https://example.hr/events/poster.jpg");
   });
+
+  it("reads explicit schema.org subEvent schedules", () => {
+    const result = parser.extractJsonLdEvents(`
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "name": "Festival",
+        "startDate": "2026-08-14",
+        "endDate": "2026-08-16",
+        "location": { "@type": "Place", "address": { "addressLocality": "Osijek" } },
+        "subEvent": [
+          { "@type": "Event", "startDate": "2026-08-14 08:00:00", "endDate": "2026-08-14 22:00:00" },
+          { "@type": "Event", "startDate": "2026-08-15 10:00:00", "endDate": "2026-08-15 14:00:00" }
+        ]
+      }
+      </script>
+    `, "https://example.hr/festival");
+    expect(result?.candidates[0].occurrences).toEqual([
+      { startsAt: "2026-08-14T08:00:00+02:00", endsAt: "2026-08-14T22:00:00+02:00", isAllDay: false },
+      { startsAt: "2026-08-15T10:00:00+02:00", endsAt: "2026-08-15T14:00:00+02:00", isAllDay: false },
+    ]);
+  });
+
+  it("does not manufacture occurrences from a schema.org date range", () => {
+    const result = parser.extractJsonLdEvents(`
+      <script type="application/ld+json">
+      { "@context": "https://schema.org", "@type": "Event", "name": "Festival", "startDate": "2026-08-14", "endDate": "2026-08-16" }
+      </script>
+    `, "https://example.hr/festival");
+    expect(result?.candidates[0].occurrences).toBeUndefined();
+  });
 });

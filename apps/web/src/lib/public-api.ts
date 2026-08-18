@@ -38,6 +38,12 @@ type ApiEvent = {
   region?: ApiTaxonomy
   category: ApiTaxonomy
   categories?: ApiEventCategory[]
+  occurrences?: Array<{
+    id: number
+    startsAt: string
+    endsAt?: string | null
+    isAllDay?: boolean | null
+  }>
 }
 
 export type PublicCategory = { id: number; name: string; slug: string; sortOrder: number }
@@ -205,10 +211,14 @@ export async function fetchMapEvents() {
 const TZ = "Europe/Zagreb"
 
 function toZagrebDate(d: Date): string {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d)
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ""
+  return `${part("year")}-${part("month")}-${part("day")}`
 }
 
 function notPast(e: CroEvent): boolean {
@@ -312,8 +322,34 @@ function toCroEvent(event: ApiEvent): CroEvent {
   const starts = new Date(event.startsAt)
   const ends = event.endsAt ? new Date(event.endsAt) : null
   const now = new Date()
-  // For ongoing multi-day events, advance display date to today so past start dates don't show
-  const displayStart = ends && starts < now ? now : starts
+  const timeLabel = (value: Date) => new Intl.DateTimeFormat("hr-HR", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value)
+  const occurrences = (event.occurrences ?? []).map((occurrence) => {
+    const occurrenceStart = new Date(occurrence.startsAt)
+    const occurrenceEnd = occurrence.endsAt ? new Date(occurrence.endsAt) : null
+    return {
+      id: String(occurrence.id),
+      date: toZagrebDate(occurrenceStart),
+      endDate: occurrenceEnd ? toZagrebDate(occurrenceEnd) : undefined,
+      startsAtISO: toZagrebISOString(occurrenceStart),
+      endsAtISO: occurrenceEnd ? toZagrebISOString(occurrenceEnd) : undefined,
+      time: timeLabel(occurrenceStart),
+      allDay: occurrence.isAllDay === true,
+    }
+  })
+  const selectedOccurrence = occurrences.find((occurrence) => {
+    const endpoint = new Date(occurrence.endsAtISO ?? occurrence.startsAtISO)
+    return endpoint >= now
+  }) ?? occurrences[occurrences.length - 1]
+  // Legacy ongoing ranges keep their existing display behavior. Occurrence-backed
+  // events instead show the next active/upcoming real slot.
+  const displayStart = selectedOccurrence
+    ? new Date(selectedOccurrence.startsAtISO)
+    : ends && starts < now ? now : starts
+  const displayEnd = selectedOccurrence?.endsAtISO ? new Date(selectedOccurrence.endsAtISO) : ends
   const region = regionMap[event.region?.slug || ""] || "nepoznato"
 
   // Build categories list from EventCategory join; fall back to singular category
@@ -335,12 +371,14 @@ function toCroEvent(event: ApiEvent): CroEvent {
     city: event.city?.name ?? event.cityName ?? "",
     citySlug: event.city?.slug || (event.cityName ? slugifyLabel(event.cityName) : undefined),
     venue: event.venue?.name || event.cityName || event.city?.name || "",
-    date: toZagrebDate(displayStart),
-    endDate: ends ? toZagrebDate(ends) : undefined,
-    startsAtISO: toZagrebISOString(starts),
-    endsAtISO: ends ? toZagrebISOString(ends) : undefined,
-    time: new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(starts),
-    allDay: event.isAllDay === true,
+    date: selectedOccurrence?.date ?? toZagrebDate(displayStart),
+    endDate: selectedOccurrence?.endDate ?? (displayEnd ? toZagrebDate(displayEnd) : undefined),
+    startsAtISO: selectedOccurrence?.startsAtISO ?? toZagrebISOString(starts),
+    endsAtISO: selectedOccurrence?.endsAtISO ?? (ends ? toZagrebISOString(ends) : undefined),
+    occurrences: occurrences.length ? occurrences : undefined,
+    displayOccurrenceId: selectedOccurrence?.id,
+    time: selectedOccurrence?.time ?? timeLabel(starts),
+    allDay: selectedOccurrence?.allDay ?? event.isAllDay === true,
     free: event.isFree === true,
     price: event.priceText || undefined,
     forKids: primarySlug === "djeca-i-obitelj" || allCats.some((c) => c.slug === "djeca-i-obitelj"),

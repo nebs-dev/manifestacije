@@ -1,7 +1,7 @@
 import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { EventStatus } from "@prisma/client";
-import { EventUpsertDto } from "../events/event.dto";
+import { EventOccurrenceDto, EventUpsertDto } from "../events/event.dto";
 
 export class AdminEventDto extends EventUpsertDto {
   @IsOptional()
@@ -90,6 +90,7 @@ export class CandidateOverrideDto {
   @IsOptional() @IsString() startsAt?: string;
   @IsOptional() @IsString() endsAt?: string;
   @IsOptional() @IsBoolean() isAllDay?: boolean;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => EventOccurrenceDto) occurrences?: EventOccurrenceDto[];
   @IsOptional() @IsString() city?: string;
   @IsOptional() @IsString() countyName?: string;
   @IsOptional() @IsString() regionSlug?: string;

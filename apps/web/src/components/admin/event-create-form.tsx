@@ -16,6 +16,7 @@ import { EventImagePicker, type EventImageValue } from "@/components/admin/event
 import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminOrganizer, EventStatus } from "@/lib/admin/types"
+import { EventScheduleEditor, emptyScheduleRow, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 
 type Category = { id: number; name: string; slug: string }
 type City = { id: number; name: string }
@@ -28,11 +29,10 @@ export function EventCreateForm() {
   const [organizers, setOrganizers] = useState<AdminOrganizer[]>([])
   const [categoryIds, setCategoryIds] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([emptyScheduleRow()])
   const [form, setForm] = useState({
     title: "",
     description: "",
-    startsAt: "",
-    endsAt: "",
     cityId: "",
     cityName: "",
     organizerId: "",
@@ -71,6 +71,9 @@ export function EventCreateForm() {
     const primaryCategoryId = categoryIds[0]
     setSaving(true)
     try {
+      if (form.repeatWeekly && scheduleRows.length !== 1) throw new Error("Tjedno ponavljanje podržava samo jedan početni termin.")
+      const schedule = scheduleRowsToApi(scheduleRows)
+      const first = schedule[0]
       const res = await authedFetch("/api/admin/events", {
         method: "POST",
         body: JSON.stringify({
@@ -81,8 +84,10 @@ export function EventCreateForm() {
           categoryId: primaryCategoryId,
           categoryIds: categoryIds.length ? categoryIds : undefined,
           organizerId: form.organizerId ? Number(form.organizerId) : null,
-          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
-          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : undefined,
+          startsAt: first.startsAt,
+          endsAt: first.endsAt,
+          isAllDay: first.isAllDay,
+          occurrences: scheduleRows.length > 1 ? schedule : undefined,
           repeatWeeklyUntil: form.repeatWeekly && form.repeatWeeklyUntil ? new Date(form.repeatWeeklyUntil).toISOString() : undefined,
           venueName: form.venueName || undefined,
           address: form.address || undefined,
@@ -119,10 +124,10 @@ export function EventCreateForm() {
             <FieldGroup>
               <Field><FieldLabel>Naziv</FieldLabel><Input value={form.title} onChange={(e) => update("title", e.target.value)} /></Field>
               <Field><FieldLabel>Opis</FieldLabel><Textarea rows={5} value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field><FieldLabel>Početak</FieldLabel><Input type="datetime-local" value={form.startsAt} onChange={(e) => update("startsAt", e.target.value)} /></Field>
-                <Field><FieldLabel>Završetak</FieldLabel><Input type="datetime-local" value={form.endsAt} onChange={(e) => update("endsAt", e.target.value)} /></Field>
-              </div>
+              <Field>
+                <FieldLabel>Raspored</FieldLabel>
+                <EventScheduleEditor rows={scheduleRows} onChange={setScheduleRows} />
+              </Field>
               <Field>
                 <div className="flex items-center gap-2">
                   <Switch checked={form.repeatWeekly} onCheckedChange={(v) => update("repeatWeekly", v)} id="repeat-weekly" />

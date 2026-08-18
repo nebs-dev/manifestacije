@@ -2,6 +2,30 @@ import { EventStatus } from "@prisma/client";
 import { currentWeekendRange } from "../src/common/weekend";
 import { PublicFeedService } from "../src/public-feed/public-feed.service";
 
+const legacyVisibility = (now: Date) => ({
+  OR: [{ endsAt: { gte: now } }, { endsAt: null, startsAt: { gte: now } }],
+});
+
+const visibility = (now: Date) => ({
+  OR: [
+    { occurrences: { some: legacyVisibility(now) } },
+    { AND: [{ occurrences: { none: {} } }, legacyVisibility(now)] },
+  ],
+});
+
+const occurrenceOverlap = (start: Date, end: Date) => {
+  const overlap = {
+    startsAt: { lte: end },
+    OR: [{ endsAt: { gte: start } }, { endsAt: null, startsAt: { gte: start } }],
+  };
+  return {
+    OR: [
+      { occurrences: { some: overlap } },
+      { AND: [{ occurrences: { none: {} } }, overlap] },
+    ],
+  };
+};
+
 describe("PublicFeedService", () => {
   afterEach(() => {
     jest.useRealTimers();
@@ -17,12 +41,7 @@ describe("PublicFeedService", () => {
     expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         status: EventStatus.PUBLISHED,
-        AND: [{
-          OR: [
-            { endsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
-            { endsAt: null, startsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
-          ],
-        }],
+        AND: [visibility(new Date("2026-07-03T12:00:00.000Z"))],
       },
     }));
   });
@@ -126,18 +145,13 @@ describe("PublicFeedService", () => {
     await service.mapEvents();
     await service.sitemapData();
 
-    const visibility = {
-      OR: [
-        { endsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
-        { endsAt: null, startsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
-      ],
-    };
+    const visible = visibility(new Date("2026-07-03T12:00:00.000Z"));
     expect(prisma.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ slug: "event-slug", status: EventStatus.PUBLISHED, AND: [visibility] }),
+      where: expect.objectContaining({ slug: "event-slug", status: EventStatus.PUBLISHED, AND: [visible] }),
     }));
-    expect(prisma.event.findMany.mock.calls[0][0].where).toEqual({ status: EventStatus.PUBLISHED, AND: [visibility] });
+    expect(prisma.event.findMany.mock.calls[0][0].where).toEqual({ status: EventStatus.PUBLISHED, AND: [visible] });
     expect(prisma.event.findMany.mock.calls[1][0]).toEqual({
-      where: { status: EventStatus.PUBLISHED, AND: [visibility] },
+      where: { status: EventStatus.PUBLISHED, AND: [visible] },
       select: { slug: true, updatedAt: true },
     });
   });
@@ -148,32 +162,26 @@ describe("PublicFeedService", () => {
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) } };
     const service = new PublicFeedService(prisma as never);
 
-    const overlap = (start: Date, end: Date) => ({
-      startsAt: { lte: end },
-      OR: [{ endsAt: { gte: start } }, { endsAt: null, startsAt: { gte: start } }],
-    });
-
     await service.events({ today: "true" });
     expect(prisma.event.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([
-      overlap(new Date(2026, 6, 1, 0, 0, 0, 0), new Date(2026, 6, 1, 23, 59, 59, 999)),
+      occurrenceOverlap(new Date("2026-06-30T22:00:00.000Z"), new Date("2026-07-01T21:59:59.999Z")),
     ]));
 
     await service.events({ weekend: "true" });
     const weekend = currentWeekendRange(now);
     expect(prisma.event.findMany.mock.calls[1][0].where.AND).toEqual(expect.arrayContaining([
-      overlap(weekend.start, weekend.end),
+      occurrenceOverlap(weekend.start, weekend.end),
     ]));
 
     await service.events({ month: "true" });
     expect(prisma.event.findMany.mock.calls[2][0].where.AND).toEqual(expect.arrayContaining([
-      overlap(new Date(2026, 6, 1, 0, 0, 0, 0), new Date(2026, 6, 31, 23, 59, 59, 999)),
+      occurrenceOverlap(new Date("2026-06-30T22:00:00.000Z"), new Date("2026-07-31T21:59:59.999Z")),
     ]));
 
     await service.events({ dateFrom: "2026-08-01", dateTo: "2026-08-31" });
-    expect(prisma.event.findMany.mock.calls[3][0].where.startsAt).toEqual({
-      gte: new Date("2026-08-01"),
-      lte: new Date("2026-08-31"),
-    });
+    expect(prisma.event.findMany.mock.calls[3][0].where.AND).toEqual(expect.arrayContaining([
+      occurrenceOverlap(new Date("2026-07-31T22:00:00.000Z"), new Date("2026-08-31T21:59:59.999Z")),
+    ]));
   });
 
   it("returns sitemap data for published events and taxonomy", async () => {
@@ -202,12 +210,7 @@ describe("PublicFeedService", () => {
     expect(prisma.event.findMany).toHaveBeenCalledWith({
       where: {
         status: EventStatus.PUBLISHED,
-        AND: [{
-          OR: [
-            { endsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
-            { endsAt: null, startsAt: { gte: new Date("2026-07-03T12:00:00.000Z") } },
-          ],
-        }],
+        AND: [visibility(new Date("2026-07-03T12:00:00.000Z"))],
       },
       select: { slug: true, updatedAt: true },
     });

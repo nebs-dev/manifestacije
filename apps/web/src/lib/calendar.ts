@@ -1,4 +1,5 @@
 import type { CroEvent } from "./data"
+import { effectiveOccurrences, eventForOccurrence } from "./event-schedule"
 
 const DEFAULT_DURATION_MS = 2 * 60 * 60 * 1000
 const MAX_DESCRIPTION_LENGTH = 500
@@ -70,73 +71,74 @@ function calendarLocation(event: CroEvent) {
 }
 
 export function canAddToCalendar(event: CroEvent) {
-  return Boolean(event.startsAtISO)
+  return effectiveOccurrences(event).length > 0
 }
 
 // Pure ICS (RFC 5545) generator — one VEVENT per event page, no recurrence,
 // no calendar-API auth. `endsAt` fallback mirrors the product spec: 2h for
 // timed events, 1 day for all-day, when the source data has no explicit end.
 export function eventToICS(event: CroEvent): string {
-  const start = event.startsAtISO
-  if (!start) throw new Error(`eventToICS: event "${event.slug}" has no startsAtISO`)
-
-  const uid = `${event.slug}@manifestacije.hr`
+  const occurrences = effectiveOccurrences(event)
+  if (!occurrences.length) throw new Error(`eventToICS: event "${event.slug}" has no startsAtISO`)
   const now = formatICSDateTime(new Date().toISOString())
-  const summary = escapeICSText(event.title)
-  const description = escapeICSText(calendarDescription(event))
-  const location = escapeICSText(calendarLocation(event))
-
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Manifestacije.hr//Add to Calendar//HR",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:${uid}`,
-    `DTSTAMP:${now}`,
   ]
-
-  if (event.allDay) {
-    const range = allDayRange(event, start)
-    lines.push(`DTSTART;VALUE=DATE:${range.start}`, `DTEND;VALUE=DATE:${range.end}`)
-  } else {
-    const endIso = event.endsAtISO ?? new Date(new Date(start).getTime() + DEFAULT_DURATION_MS).toISOString()
-    lines.push(`DTSTART:${formatICSDateTime(start)}`, `DTEND:${formatICSDateTime(endIso)}`)
+  for (const occurrence of occurrences) {
+    const item = eventForOccurrence(event, occurrence)
+    const start = item.startsAtISO!
+    const uid = occurrence.id === "legacy"
+      ? `${event.slug}@manifestacije.hr`
+      : `${event.slug}-${occurrence.id}@manifestacije.hr`
+    lines.push("BEGIN:VEVENT", `UID:${uid}`, `DTSTAMP:${now}`)
+    if (item.allDay) {
+      const range = allDayRange(item, start)
+      lines.push(`DTSTART;VALUE=DATE:${range.start}`, `DTEND;VALUE=DATE:${range.end}`)
+    } else {
+      const endIso = item.endsAtISO ?? new Date(new Date(start).getTime() + DEFAULT_DURATION_MS).toISOString()
+      lines.push(`DTSTART:${formatICSDateTime(start)}`, `DTEND:${formatICSDateTime(endIso)}`)
+    }
+    lines.push(
+      `SUMMARY:${foldICSLine(escapeICSText(item.title))}`,
+      `DESCRIPTION:${foldICSLine(escapeICSText(calendarDescription(item)))}`,
+      `LOCATION:${foldICSLine(escapeICSText(calendarLocation(item)))}`,
+      `URL:${item.source}`,
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Podsjetnik",
+      "TRIGGER:-PT1H",
+      "END:VALARM",
+      "END:VEVENT",
+    )
   }
-
-  lines.push(
-    `SUMMARY:${foldICSLine(summary)}`,
-    `DESCRIPTION:${foldICSLine(description)}`,
-    `LOCATION:${foldICSLine(location)}`,
-    `URL:${event.source}`,
-    "BEGIN:VALARM",
-    "ACTION:DISPLAY",
-    "DESCRIPTION:Podsjetnik",
-    "TRIGGER:-PT1H",
-    "END:VALARM",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  )
+  lines.push("END:VCALENDAR")
 
   return lines.join("\r\n")
 }
 
-export function googleCalendarUrl(event: CroEvent): string {
-  const start = event.startsAtISO
+export function googleCalendarUrl(event: CroEvent, occurrenceId?: string): string {
+  const occurrence = occurrenceId
+    ? effectiveOccurrences(event).find((item) => item.id === occurrenceId)
+    : effectiveOccurrences(event)[0]
+  const item = occurrence ? eventForOccurrence(event, occurrence) : event
+  const start = item.startsAtISO
   if (!start) throw new Error(`googleCalendarUrl: event "${event.slug}" has no startsAtISO`)
 
   const url = new URL("https://calendar.google.com/calendar/render")
   url.searchParams.set("action", "TEMPLATE")
-  url.searchParams.set("text", event.title)
-  url.searchParams.set("details", calendarDescription(event))
-  url.searchParams.set("location", calendarLocation(event))
+  url.searchParams.set("text", item.title)
+  url.searchParams.set("details", calendarDescription(item))
+  url.searchParams.set("location", calendarLocation(item))
 
-  if (event.allDay) {
-    const range = allDayRange(event, start)
+  if (item.allDay) {
+    const range = allDayRange(item, start)
     url.searchParams.set("dates", `${range.start}/${range.end}`)
   } else {
-    const endIso = event.endsAtISO ?? new Date(new Date(start).getTime() + DEFAULT_DURATION_MS).toISOString()
+    const endIso = item.endsAtISO ?? new Date(new Date(start).getTime() + DEFAULT_DURATION_MS).toISOString()
     url.searchParams.set("dates", `${formatICSDateTime(start)}/${formatICSDateTime(endIso)}`)
   }
 

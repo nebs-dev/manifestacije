@@ -1,4 +1,4 @@
-import { currentWeekendRange, eventOverlapsRange, eventOverlapsDay, zagrebLocalToUtc } from "../src/common/weekend";
+import { currentWeekendRange, eventOverlapsRange, eventOverlapsDay, shiftZagrebCalendarDays, zagrebLocalToUtc } from "../src/common/weekend";
 
 describe("Europe/Zagreb weekend range", () => {
   it("starts on Friday 00:00 and ends Sunday 23:59:59.999 for a normal weekend", () => {
@@ -30,6 +30,14 @@ describe("Europe/Zagreb weekend range", () => {
     expect(range.end.toISOString()).toBe("2026-03-29T21:59:59.999Z");
   });
 
+  it("shifts calendar days without changing Zagreb-local time across DST", () => {
+    const beforeSpringChange = zagrebLocalToUtc(2026, 3, 28, 18, 30);
+    expect(shiftZagrebCalendarDays(beforeSpringChange, 1).toISOString()).toBe("2026-03-29T16:30:00.000Z");
+
+    const beforeAutumnChange = zagrebLocalToUtc(2026, 10, 24, 18, 30);
+    expect(shiftZagrebCalendarDays(beforeAutumnChange, 1).toISOString()).toBe("2026-10-25T17:30:00.000Z");
+  });
+
   it("preserves overlap behavior for single and multi-day events", () => {
     const range = currentWeekendRange(new Date("2026-07-01T10:00:00.000Z"));
 
@@ -51,4 +59,3 @@ describe("Europe/Zagreb weekend range", () => {
     expect(eventOverlapsDay(start, end, range.sunday)).toBe(true);
   });
 });
-

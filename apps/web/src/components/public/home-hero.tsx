@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
 import { Search, MapPin, CalendarDays, Loader2 } from "lucide-react"
 import { QuickFilters } from "@/components/public/quick-filters"
+import { TrackedDiscoveryLink } from "@/components/public/tracked-discovery-link"
 
 export function HomeHero() {
   const [searching, setSearching] = useState(false)
@@ -71,14 +71,24 @@ export function HomeHero() {
         </form>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-ink-foreground/70">
-          <Link href="/mapa" className="inline-flex items-center gap-1.5 hover:text-ink-foreground">
+          <TrackedDiscoveryLink
+            href="/kalendar"
+            sourcePage="home"
+            sourceComponent="hero_quick_link"
+            className="inline-flex items-center gap-1.5 hover:text-ink-foreground"
+          >
+            <CalendarDays className="size-4" aria-hidden />
+            Kalendar događanja
+          </TrackedDiscoveryLink>
+          <TrackedDiscoveryLink
+            href="/mapa"
+            sourcePage="home"
+            sourceComponent="hero_quick_link"
+            className="inline-flex items-center gap-1.5 hover:text-ink-foreground"
+          >
             <MapPin className="size-4" aria-hidden />
             Istraži na karti
-          </Link>
-          <Link href="/eventi?kada=ovaj-vikend" className="inline-flex items-center gap-1.5 hover:text-ink-foreground">
-            <CalendarDays className="size-4" aria-hidden />
-            Ovaj vikend
-          </Link>
+          </TrackedDiscoveryLink>
         </div>
 
         <div className="mt-10 w-full">

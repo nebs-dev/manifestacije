@@ -101,8 +101,19 @@ export function safeJsonLdString(value: unknown): string {
  * static demo dataset, which has no raw ISO timestamps.
  */
 export function eventToJsonLd(event: CroEvent, webUrl: string): EventJsonLd {
-  const startDate = event.startsAtISO ?? `${event.date}T${event.time}`
-  const endDate = event.endsAtISO
+  const occurrences = event.occurrences ?? []
+  const allOccurrencesAllDay = occurrences.length > 0 && occurrences.every((occurrence) => occurrence.allDay)
+  const startDate = occurrences.length
+    ? allOccurrencesAllDay ? occurrences[0].date : occurrences[0].startsAtISO
+    : event.allDay ? event.date : event.startsAtISO ?? `${event.date}T${event.time}`
+  const endDate = occurrences.length
+    ? allOccurrencesAllDay
+      ? occurrences.reduce((latest, occurrence) => (occurrence.endDate || occurrence.date) > latest ? occurrence.endDate || occurrence.date : latest, occurrences[0].endDate || occurrences[0].date)
+      : occurrences.reduce((latest, occurrence) => {
+          const endpoint = occurrence.endsAtISO ?? occurrence.startsAtISO
+          return endpoint > latest ? endpoint : latest
+        }, occurrences[0].endsAtISO ?? occurrences[0].startsAtISO)
+    : event.allDay ? event.endDate ?? event.date : event.endsAtISO
 
   const address: PostalAddress | undefined =
     event.address || event.city

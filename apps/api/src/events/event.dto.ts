@@ -1,5 +1,23 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString } from "class-validator";
+import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+
+export class EventOccurrenceDto {
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  id?: number;
+
+  @IsDateString()
+  startsAt!: string;
+
+  @IsDateString()
+  @IsOptional()
+  endsAt?: string | null;
+
+  @IsBoolean()
+  @IsOptional()
+  isAllDay?: boolean;
+}
 
 export class EventUpsertDto {
   @IsString()
@@ -52,11 +70,19 @@ export class EventUpsertDto {
   startsAt?: string;
 
   @IsOptional()
+  @IsDateString()
   endsAt?: string | null;
 
   @IsOptional()
   @IsBoolean()
   isAllDay?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => EventOccurrenceDto)
+  occurrences?: EventOccurrenceDto[];
 
   @IsOptional()
   @IsBoolean()

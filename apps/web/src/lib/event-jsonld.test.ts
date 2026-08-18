@@ -190,6 +190,40 @@ describe("eventToJsonLd", () => {
     const jsonLd = eventToJsonLd(baseEvent({ slug: "neki-event" }), "https://manifestacije.hr")
     expect(jsonLd.url).toBe("https://manifestacije.hr/eventi/neki-event")
   })
+
+  it("uses occurrence bounds without emitting invented subEvent markup", () => {
+    const jsonLd = eventToJsonLd(baseEvent({
+      occurrences: [
+        { id: "1", date: "2026-08-14", startsAtISO: "2026-08-14T08:00:00+02:00", endsAtISO: "2026-08-14T22:00:00+02:00", time: "08:00", allDay: false },
+        { id: "2", date: "2026-08-16", startsAtISO: "2026-08-16T09:00:00+02:00", endsAtISO: "2026-08-16T17:00:00+02:00", time: "09:00", allDay: false },
+      ],
+    }), WEB_URL)
+    expect(jsonLd.startDate).toBe("2026-08-14T08:00:00+02:00")
+    expect(jsonLd.endDate).toBe("2026-08-16T17:00:00+02:00")
+    expect("subEvent" in jsonLd).toBe(false)
+  })
+
+  it("emits date-only bounds for an all-day occurrence schedule", () => {
+    const jsonLd = eventToJsonLd(baseEvent({
+      occurrences: [
+        { id: "1", date: "2026-08-14", startsAtISO: "2026-08-14T00:00:00+02:00", endDate: "2026-08-14", endsAtISO: "2026-08-14T23:59:59+02:00", time: "00:00", allDay: true },
+        { id: "2", date: "2026-08-16", startsAtISO: "2026-08-16T00:00:00+02:00", endDate: "2026-08-16", endsAtISO: "2026-08-16T23:59:59+02:00", time: "00:00", allDay: true },
+      ],
+    }), WEB_URL)
+    expect(jsonLd.startDate).toBe("2026-08-14")
+    expect(jsonLd.endDate).toBe("2026-08-16")
+  })
+
+  it("uses real boundary values for a mixed all-day and timed schedule", () => {
+    const jsonLd = eventToJsonLd(baseEvent({
+      occurrences: [
+        { id: "1", date: "2026-08-14", endDate: "2026-08-14", startsAtISO: "2026-08-14T00:00:00+02:00", endsAtISO: "2026-08-14T23:59:59+02:00", time: "00:00", allDay: true },
+        { id: "2", date: "2026-08-16", startsAtISO: "2026-08-16T09:00:00+02:00", endsAtISO: "2026-08-16T17:00:00+02:00", time: "09:00", allDay: false },
+      ],
+    }), WEB_URL)
+    expect(jsonLd.startDate).toBe("2026-08-14T00:00:00+02:00")
+    expect(jsonLd.endDate).toBe("2026-08-16T17:00:00+02:00")
+  })
 })
 
 describe("normalizeOfferPrice", () => {

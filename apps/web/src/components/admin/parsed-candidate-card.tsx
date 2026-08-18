@@ -30,15 +30,13 @@ import { authedFetch } from "@/lib/admin/api"
 import type { ParsedCandidate } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
+import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 
 type BackendCategory = { id: number; name: string; slug: string }
 
 type CandidateForm = {
   title: string
   description: string
-  startsAt: string
-  endsAt: string
-  isAllDay: boolean
   city: string
   venueName: string
   address: string
@@ -47,20 +45,6 @@ type CandidateForm = {
   ticketUrl: string
   organizerName: string
   sourceUrl: string
-}
-
-function toDateTimeLocal(value: string | null) {
-  if (!value) return ""
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return ""
-  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
-}
-
-function fromDateTimeLocal(value: string) {
-  if (!value) return ""
-  const d = new Date(value)
-  return Number.isNaN(d.getTime()) ? value : d.toISOString()
 }
 
 function Field({
@@ -98,9 +82,6 @@ export function ParsedCandidateCard({
   const [form, setForm] = useState<CandidateForm>(() => ({
     title: candidate.title || "",
     description: candidate.description || "",
-    startsAt: toDateTimeLocal(candidate.startsAt),
-    endsAt: toDateTimeLocal(candidate.endsAt),
-    isAllDay: candidate.isAllDay ?? false,
     city: candidate.city || "",
     venueName: candidate.venueName || "",
     address: candidate.address || "",
@@ -109,6 +90,12 @@ export function ParsedCandidateCard({
     ticketUrl: candidate.ticketUrl || "",
     organizerName: candidate.organizerName || "",
     sourceUrl: candidate.sourceUrl || "",
+  }))
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>(() => scheduleRowsFromEvent({
+    startsAt: candidate.startsAt,
+    endsAt: candidate.endsAt,
+    isAllDay: candidate.isAllDay,
+    occurrences: candidate.occurrences,
   }))
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: candidate.imageUrl || "",
@@ -140,7 +127,7 @@ export function ParsedCandidateCard({
 
   const liveMissingFields = [
     !form.title.trim() && "title",
-    !form.startsAt.trim() && "startsAt",
+    (!scheduleRows[0]?.date || (!scheduleRows[0].isAllDay && !scheduleRows[0].startTime)) && "startsAt",
     !form.city.trim() && "city",
     selectedCategoryIds.length === 0 && "category",
   ].filter(Boolean) as string[]
@@ -165,6 +152,8 @@ export function ParsedCandidateCard({
     setBusy(true)
     try {
       const primaryCategoryId = selectedCategoryIds[0]
+      const schedule = scheduleRowsToApi(scheduleRows)
+      const first = schedule[0]
       const res = await authedFetch(
         `/api/admin/event-sources/${candidate.sourceId}/create-event`,
         {
@@ -175,9 +164,10 @@ export function ParsedCandidateCard({
             candidate: {
               title: form.title,
               description: form.description,
-              startsAt: fromDateTimeLocal(form.startsAt),
-              endsAt: fromDateTimeLocal(form.endsAt),
-              isAllDay: form.isAllDay,
+              startsAt: first.startsAt,
+              endsAt: first.endsAt,
+              isAllDay: first.isAllDay,
+              occurrences: candidate.occurrences?.length || scheduleRows.length > 1 ? schedule : undefined,
               city: location?.cityName || form.city,
               venueName: form.venueName,
               // Picking a location on the map is optional; without that the
@@ -211,6 +201,8 @@ export function ParsedCandidateCard({
       } else {
         toast.error("Greška pri kreiranju", { description: await res.text() })
       }
+    } catch (error) {
+      toast.error("Neispravan raspored", { description: error instanceof Error ? error.message : String(error) })
     } finally {
       setBusy(false)
     }
@@ -238,7 +230,7 @@ export function ParsedCandidateCard({
   }
 
   const summaryParts = [
-    form.startsAt ? new Date(form.startsAt).toLocaleDateString("hr") : null,
+    scheduleRows[0]?.date ? new Date(`${scheduleRows[0].date}T12:00:00`).toLocaleDateString("hr") : null,
     form.city || null,
     candidate.category || null,
   ].filter(Boolean).join(" · ")
@@ -286,22 +278,10 @@ export function ParsedCandidateCard({
           <Field label="Naslov">
             <Input value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
           </Field>
-          <Field label="Početak">
-            <Input type="datetime-local" value={form.startsAt} disabled={!isPending} onChange={(e) => setField("startsAt", e.target.value)} />
-          </Field>
-          <Field label="Završetak">
-            <Input type="datetime-local" value={form.endsAt} disabled={!isPending} onChange={(e) => setField("endsAt", e.target.value)} />
-          </Field>
-          <div className="flex items-center gap-2 pt-5">
-            <input
-              id={`allday-${candidate.id}`}
-              type="checkbox"
-              checked={form.isAllDay}
-              disabled={!isPending}
-              onChange={(e) => setField("isAllDay", e.target.checked)}
-              className="size-4 rounded border-border"
-            />
-            <Label htmlFor={`allday-${candidate.id}`} className="text-sm">Cjelodnevni događaj</Label>
+          <div className="sm:col-span-2">
+            <Field label="Raspored">
+              <EventScheduleEditor rows={scheduleRows} onChange={setScheduleRows} disabled={!isPending} />
+            </Field>
           </div>
           {!isCreated && candidate._existingEventId && (
             <div className="sm:col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">

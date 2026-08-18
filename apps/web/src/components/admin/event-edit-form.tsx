@@ -58,14 +58,7 @@ import { EVENT_STATUS_OPTIONS, eventStatusLabel, toApiEventStatus } from "@/lib/
 import type { AdminEvent, AdminOrganizer } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
-
-function toLocalInput(iso: string | null): string {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ""
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 
 export function EventEditForm({
   event,
@@ -78,9 +71,6 @@ export function EventEditForm({
     title: event.title,
     slug: event.slug,
     description: event.description,
-    startsAt: toLocalInput(event.startsAt),
-    endsAt: toLocalInput(event.endsAt),
-    allDay: event.allDay,
     isFree: event.isFree,
     isFeatured: event.isFeatured ?? false,
     priceText: event.priceText ?? "",
@@ -90,6 +80,13 @@ export function EventEditForm({
     organizerId: event._organizerId ? String(event._organizerId) : "",
     venueName: event.venue ?? "",
   })
+  const occurrenceBacked = event.occurrences.length > 0
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>(() => scheduleRowsFromEvent({
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    isAllDay: event.allDay,
+    occurrences: event.occurrences,
+  }))
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: event.imageUrl ?? "",
   })
@@ -147,6 +144,8 @@ export function EventEditForm({
     setSaving(true)
     try {
       const primaryCategoryId = selectedCategoryIds[0] ?? event._categoryId
+      const schedule = scheduleRowsToApi(scheduleRows)
+      const first = schedule[0]
       const res = await authedFetch(`/api/admin/events/${event.id}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -159,9 +158,10 @@ export function EventEditForm({
           regionSlug: location?.regionSlug,
           categoryId: primaryCategoryId,
           categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
-          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : undefined,
-          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
-          isAllDay: form.allDay,
+          startsAt: first.startsAt,
+          endsAt: first.endsAt ?? null,
+          isAllDay: first.isAllDay,
+          occurrences: occurrenceBacked || scheduleRows.length > 1 ? schedule : undefined,
           isFree: form.isFree,
           isFeatured: form.isFeatured,
           priceText: form.priceText || undefined,
@@ -184,6 +184,9 @@ export function EventEditForm({
         toast.error("Greška pri spremanju", { description: await res.text() })
         return false
       }
+    } catch (error) {
+      toast.error("Greška pri spremanju", { description: error instanceof Error ? error.message : String(error) })
+      return false
     } finally {
       setSaving(false)
     }
@@ -368,53 +371,11 @@ export function EventEditForm({
             </CardHeader>
             <CardContent>
               <FieldGroup>
-                <Field orientation="responsive">
-                  <Field>
-                    <FieldLabel htmlFor="startsAt">Početak</FieldLabel>
-                    <Input
-                      id="startsAt"
-                      type="datetime-local"
-                      value={form.startsAt}
-                      onChange={(e) => update("startsAt", e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="endsAt">Završetak</FieldLabel>
-                    <div className="flex gap-2">
-                      <Input
-                        id="endsAt"
-                        type="datetime-local"
-                        value={form.endsAt}
-                        onChange={(e) => update("endsAt", e.target.value)}
-                      />
-                      {form.endsAt && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => update("endsAt", "")}
-                          title="Obriši završni datum"
-                        >
-                          <X className="size-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </Field>
+                <Field>
+                  <FieldLabel>Raspored</FieldLabel>
+                  <EventScheduleEditor rows={scheduleRows} onChange={setScheduleRows} />
                 </Field>
-                <Field
-                  orientation="horizontal"
-                  className="items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <FieldLabel htmlFor="allDay" className="mb-0">
-                    Cjelodnevni događaj
-                  </FieldLabel>
-                  <Switch
-                    id="allDay"
-                    checked={form.allDay}
-                    onCheckedChange={(v) => update("allDay", v)}
-                  />
-                </Field>
-                {form.allDay && (
+                {!occurrenceBacked && scheduleRows.length === 1 && scheduleRows[0].isAllDay && (
                   <Field className="rounded-lg border border-border p-3">
                     {!splitOpen ? (
                       <button

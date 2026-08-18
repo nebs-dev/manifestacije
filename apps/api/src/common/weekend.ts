@@ -48,6 +48,30 @@ export function zagrebLocalToUtc(year: number, month: number, day: number, hour 
   return adjustedOffset === offset ? adjusted : new Date(rough.getTime() - adjustedOffset * 60_000);
 }
 
+export function shiftZagrebCalendarDays(date: Date, days: number): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const target = new Date(Date.UTC(value("year"), value("month") - 1, value("day") + days, 12));
+  return zagrebLocalToUtc(
+    target.getUTCFullYear(),
+    target.getUTCMonth() + 1,
+    target.getUTCDate(),
+    value("hour"),
+    value("minute"),
+    value("second"),
+    date.getUTCMilliseconds(),
+  );
+}
+
 function addLocalDays(parts: { year: number; month: number; day: number }, days: number) {
   const utc = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, 12, 0, 0, 0));
   return partsInZagreb(utc);
@@ -114,4 +138,3 @@ function weekendLabel(start: Date, end: Date) {
   if (startParts.month === endParts.month) return `${startParts.day}. – ${endParts.day}. ${month}`;
   return `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
 }
-

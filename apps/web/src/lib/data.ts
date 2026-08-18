@@ -75,6 +75,8 @@ export interface CroEvent {
    *  Absent on static fallback/demo events; JSON-LD rendering falls back to `date`+`time` in that case. */
   startsAtISO?: string
   endsAtISO?: string
+  occurrences?: CroEventOccurrence[]
+  displayOccurrenceId?: string
   time: string
   allDay?: boolean
   free: boolean
@@ -101,6 +103,16 @@ export interface CroEvent {
   lng?: number
   /** rough map position in % within the discovery map */
   map: { x: number; y: number }
+}
+
+export interface CroEventOccurrence {
+  id: string
+  date: string
+  endDate?: string
+  startsAtISO: string
+  endsAtISO?: string
+  time: string
+  allDay: boolean
 }
 
 // Display label overrides for backend slugs shown in public UI.
@@ -759,9 +771,29 @@ export function dateParts(iso: string) {
 
 export function eventOccursOn(event: CroEvent, day: Date) {
   const key = dateKey(day)
+  if (event.occurrences?.length) {
+    return event.occurrences.some((occurrence) => key >= occurrence.date && key <= (occurrence.endDate || occurrence.date))
+  }
   const start = event.date
   const end = event.endDate || event.date
   return key >= start && key <= end
+}
+
+export function eventEntriesOn(event: CroEvent, day: Date): CroEvent[] {
+  const key = dateKey(day)
+  if (!event.occurrences?.length) return eventOccursOn(event, day) ? [{ ...event, date: key }] : []
+  return event.occurrences
+    .filter((occurrence) => key >= occurrence.date && key <= (occurrence.endDate || occurrence.date))
+    .map((occurrence) => ({
+      ...event,
+      date: key,
+      endDate: occurrence.endDate,
+      startsAtISO: occurrence.startsAtISO,
+      endsAtISO: occurrence.endsAtISO,
+      time: occurrence.time,
+      allDay: occurrence.allDay,
+      displayOccurrenceId: occurrence.id,
+    }))
 }
 
 export function buildMonthGrid(year: number, month: number) {

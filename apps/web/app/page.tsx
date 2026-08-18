@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
@@ -11,6 +10,9 @@ import { PartnersStrip } from "@/components/public/partners-strip";
 import { EventCard } from "@/components/public/event-card";
 import { fetchEvents, fetchPartners, WEB_URL } from "@/lib/public-api";
 import { safeJsonLdString } from "@/lib/event-jsonld";
+import { CalendarTeaser } from "@/components/public/calendar-teaser";
+import { TrackedDiscoveryLink } from "@/components/public/tracked-discovery-link";
+import { calendarTeaserDates } from "@/lib/home-calendar";
 
 const UPCOMING_VISIBLE_COUNT = 6;
 const UPCOMING_ROTATION_POOL_SIZE = 18;
@@ -53,6 +55,7 @@ export default async function Home() {
   const shownSlugs = new Set([...featured.map((event) => event.slug), ...upcoming.map((event) => event.slug)]);
   const freePool = rotateEventsByDay(events.filter((event) => event.free && !shownSlugs.has(event.slug)).slice(0, FREE_ROTATION_POOL_SIZE));
   const free = interleaveByImage(freePool).slice(0, FREE_VISIBLE_COUNT);
+  const calendarDates = calendarTeaserDates(events);
 
   return (
     <>
@@ -66,6 +69,8 @@ export default async function Home() {
             <SectionHeading eyebrow="Izdvojeno" title="Događanja koja ne želiš propustiti" description="Ručno odabrani vrhunci sezone diljem Slavonije i Baranje." href="/eventi" hrefLabel="Sva događanja" />
             <EventRail events={featured} carousel />
           </section>
+
+          <CalendarTeaser dates={calendarDates} />
 
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Uskoro" title="Nadolazeća događanja" href="/eventi" hrefLabel="Pogledaj sve" />
@@ -95,10 +100,10 @@ export default async function Home() {
           <div className="mx-auto flex max-w-6xl flex-col items-center px-4 text-center">
             <h2 className="max-w-2xl text-balance font-heading text-3xl font-semibold md:text-4xl">Vidi sva događanja na karti</h2>
             <p className="mt-4 max-w-lg text-pretty text-ink-foreground/75 leading-relaxed">Otkrij što se zbiva u tvojoj blizini ili planiraj putovanje uz interaktivnu kartu Slavonije i Baranje.</p>
-            <Link href="/mapa" className="mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90">
+            <TrackedDiscoveryLink href="/mapa" sourcePage="home" sourceComponent="map_teaser" className="mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90">
               Otvori kartu
               <ArrowRight className="size-4" aria-hidden />
-            </Link>
+            </TrackedDiscoveryLink>
           </div>
         </section>
       </main>

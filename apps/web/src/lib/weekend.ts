@@ -1,4 +1,4 @@
-import { dateKey, eventOccursOn, type CroEvent } from "@/lib/data"
+import { dateKey, eventEntriesOn, type CroEvent } from "@/lib/data"
 
 const TZ = "Europe/Zagreb"
 
@@ -66,6 +66,9 @@ export function currentWeekendDisplayRange(now = new Date()): WeekendDisplayRang
 
 export function eventOccursDuringCurrentWeekend(event: CroEvent, now = new Date()) {
   const weekend = currentWeekendDisplayRange(now)
+  if (event.occurrences?.length) {
+    return event.occurrences.some((occurrence) => occurrence.date <= weekend.endKey && (occurrence.endDate || occurrence.date) >= weekend.startKey)
+  }
   return event.date <= weekend.endKey && (event.endDate || event.date) >= weekend.startKey
 }
 
@@ -74,9 +77,9 @@ export function groupWeekendEvents(events: CroEvent[], now = new Date()) {
   return {
     weekend,
     days: [
-      { key: "friday" as const, label: "Petak", date: weekend.friday, events: sortDayEvents(events.filter((event) => eventOccursOn(event, weekend.friday))) },
-      { key: "saturday" as const, label: "Subota", date: weekend.saturday, events: sortDayEvents(events.filter((event) => eventOccursOn(event, weekend.saturday))) },
-      { key: "sunday" as const, label: "Nedjelja", date: weekend.sunday, events: sortDayEvents(events.filter((event) => eventOccursOn(event, weekend.sunday))) },
+      { key: "friday" as const, label: "Petak", date: weekend.friday, events: sortDayEvents(events.flatMap((event) => eventEntriesOn(event, weekend.friday))) },
+      { key: "saturday" as const, label: "Subota", date: weekend.saturday, events: sortDayEvents(events.flatMap((event) => eventEntriesOn(event, weekend.saturday))) },
+      { key: "sunday" as const, label: "Nedjelja", date: weekend.sunday, events: sortDayEvents(events.flatMap((event) => eventEntriesOn(event, weekend.sunday))) },
     ],
   }
 }
@@ -92,4 +95,3 @@ function sortDayEvents(events: CroEvent[]) {
 function formatDayMonth(date: Date) {
   return new Intl.DateTimeFormat("hr-HR", { day: "numeric", month: "long" }).format(date)
 }
-

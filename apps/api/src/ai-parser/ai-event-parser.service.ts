@@ -8,6 +8,7 @@ export type ParsedEventCandidate = {
   startsAt: string;
   endsAt: string;
   isAllDay?: boolean;
+  occurrences?: ParsedEventOccurrence[];
   venueName: string;
   address: string;
   lat?: number;
@@ -29,6 +30,12 @@ export type ParsedEventCandidate = {
   confidence: number;
   missingFields: string[];
   warnings: string[];
+};
+
+export type ParsedEventOccurrence = {
+  startsAt: string;
+  endsAt?: string | null;
+  isAllDay?: boolean;
 };
 
 export type ParsedSourceResult = {
@@ -252,7 +259,21 @@ export class AiEventParserService {
 
     const startsAt = this.normalizeJsonLdDateTime(str(raw.startDate));
     const endsAt = this.normalizeJsonLdDateTime(str(raw.endDate));
+    const isAllDay = Boolean(str(raw.startDate) && !/[T ]\d{1,2}:\d{2}/.test(str(raw.startDate)));
     const description = this.normalizeDescription(str(raw.description));
+    const subEvents = Array.isArray(raw.subEvent) ? raw.subEvent : raw.subEvent ? [raw.subEvent] : [];
+    const occurrences = subEvents
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+      .map((item) => {
+        const rawStart = str(item.startDate);
+        const rawEnd = str(item.endDate);
+        return {
+          startsAt: this.normalizeJsonLdDateTime(rawStart),
+          endsAt: this.normalizeJsonLdDateTime(rawEnd) || undefined,
+          isAllDay: Boolean(rawStart && !/[T ]\d{1,2}:\d{2}/.test(rawStart)),
+        };
+      })
+      .filter((item) => item.startsAt);
 
     const locationRaw = raw.location;
     const location = (Array.isArray(locationRaw) ? locationRaw[0] : locationRaw) as Record<string, unknown> | undefined;
@@ -283,6 +304,8 @@ export class AiEventParserService {
       description,
       startsAt,
       endsAt,
+      isAllDay,
+      occurrences: occurrences.length ? occurrences : undefined,
       venueName,
       address,
       city: city ? city.charAt(0).toUpperCase() + city.slice(1) : "",
@@ -447,6 +470,7 @@ export class AiEventParserService {
       description,
       startsAt,
       endsAt,
+      isAllDay: !time,
       venueName: str(raw.venue_name) || str(raw.venueName),
       address: str(raw.venue_address) || str(raw.address),
       city: city ? city.charAt(0).toUpperCase() + city.slice(1) : "",
@@ -561,6 +585,7 @@ export class AiEventParserService {
   "startsAt": "2026-07-15T20:00:00+02:00",
   "endsAt": "2026-07-15T23:00:00+02:00 ili null",
   "isAllDay": false,
+  "occurrences": [{ "startsAt": "2026-07-15T20:00:00+02:00", "endsAt": "2026-07-15T23:00:00+02:00", "isAllDay": false }] ili izostavljeno,
   "venueName": "string",
   "address": "string (ulica i kućni broj) ili ''",
   "city": "string (ime grada na hrvatskom)",
@@ -604,6 +629,8 @@ Ako grad nije eksplicitno napisan uz svaki događaj, zaključi iz konteksta: naz
 Ako nešto ne možeš pronaći, koristi prazan string ili null.
 OBAVEZNA polja (jedino ova idu u missingFields): title, startsAt, city, category.
 OPCIONALNA polja — nikad ne stavljaj u missingFields: endsAt, priceText, imageUrl, ticketUrl, venueName, address, organizerName.
+
+occurrences koristi SAMO kada izvor eksplicitno navodi odvojene dnevne termine ili više termina istog dana. Svaki navedeni termin prenesi zasebno. Nikad ne stvaraj dnevne termine iz samog raspona datuma i nikad ne pretpostavljaj da su sati isti svaki dan. Ako izvor kaže samo "14.–16. kolovoza" bez dnevnog rasporeda, izostavi occurrences i sačuvaj samo poznati ukupni raspon.
 
 address je ULICA I KUĆNI BROJ, ne naziv prostora i ne grad. "Dvorac Prandau - Mailath" je venueName, "Vukovarska 1" je address, "Donji Miholjac" je city.
 Adresu često nađeš izvan glavnog opisa — u bloku "Informacije"/"Lokacija"/"Kontakt", uz vrijeme održavanja, ili ispod naslova. Pretraži cijeli sadržaj, ne samo opis događaja.
@@ -677,30 +704,48 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       rawParsed = salvaged;
     }
 
-    const normalize = (p: Partial<ParsedEventCandidate>): ParsedEventCandidate => ({
-      title: p.title ?? "",
-      description: this.normalizeDescription(p.description ?? ""),
-      startsAt: p.startsAt ?? "",
-      endsAt: p.endsAt ?? "",
-      isAllDay: p.isAllDay ?? false,
-      venueName: p.venueName ?? "",
-      address: p.address ?? "",
-      city: p.city ?? "",
-      county: p.county ?? "",
-      region: p.region ?? "",
-      category: p.category ?? "ostalo",
-      isFree: p.isFree ?? null,
-      priceText: p.priceText ?? "",
-      ticketUrl: p.ticketUrl ?? "",
-      sourceUrl,
-      organizerName: p.organizerName ?? "",
-      imageUrl: p.imageUrl || htmlImageUrl,
-      imageCredit: p.imageCredit,
-      imageSourceUrl: p.imageSourceUrl,
-      confidence: p.confidence ?? 0.7,
-      missingFields: p.missingFields ?? [],
-      warnings: p.warnings ?? [],
-    });
+    const normalize = (p: Partial<ParsedEventCandidate>): ParsedEventCandidate => {
+      const occurrences = Array.isArray(p.occurrences)
+        ? p.occurrences
+            .map((item) => ({
+              startsAt: typeof item?.startsAt === "string" ? item.startsAt : "",
+              endsAt: typeof item?.endsAt === "string" ? item.endsAt : undefined,
+              isAllDay: item?.isAllDay === true,
+            }))
+            .filter((item) => item.startsAt && !Number.isNaN(new Date(item.startsAt).getTime()))
+            .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+        : [];
+      const firstStart = occurrences[0]?.startsAt;
+      const lastEnd = occurrences.reduce<string | undefined>((latest, item) => {
+        const endpoint = item.endsAt || item.startsAt;
+        return !latest || new Date(endpoint) > new Date(latest) ? endpoint : latest;
+      }, undefined);
+      return {
+        title: p.title ?? "",
+        description: this.normalizeDescription(p.description ?? ""),
+        startsAt: firstStart ?? p.startsAt ?? "",
+        endsAt: lastEnd ?? p.endsAt ?? "",
+        isAllDay: occurrences.length ? occurrences.every((item) => item.isAllDay) : p.isAllDay ?? false,
+        occurrences: occurrences.length ? occurrences : undefined,
+        venueName: p.venueName ?? "",
+        address: p.address ?? "",
+        city: p.city ?? "",
+        county: p.county ?? "",
+        region: p.region ?? "",
+        category: p.category ?? "ostalo",
+        isFree: p.isFree ?? null,
+        priceText: p.priceText ?? "",
+        ticketUrl: p.ticketUrl ?? "",
+        sourceUrl,
+        organizerName: p.organizerName ?? "",
+        imageUrl: p.imageUrl || htmlImageUrl,
+        imageCredit: p.imageCredit,
+        imageSourceUrl: p.imageSourceUrl,
+        confidence: p.confidence ?? 0.7,
+        missingFields: p.missingFields ?? [],
+        warnings: p.warnings ?? [],
+      };
+    };
 
     const asBatch = rawParsed && typeof rawParsed === "object" && "candidates" in (rawParsed as object)
       && Array.isArray((rawParsed as { candidates: unknown }).candidates);
@@ -1020,6 +1065,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       description,
       startsAt,
       endsAt,
+      isAllDay: true,
       venueName: "",
       address: "",
       city,
@@ -1099,7 +1145,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   private parseBlock(block: string, sourceUrl: string, organizerName?: string): Candidate {
     const date = this.matchDate(block);
     const time = this.matchTime(block);
-    const startsAt = date ? this.buildDateTime(date, time || "18:00") : "";
+    const startsAt = date ? (time ? this.buildDateTime(date, time) : this.withZagrebOffset(date, "00:00:00")) : "";
 
     const rawLines = block.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
     const lines = rawLines.filter(Boolean);
@@ -1156,7 +1202,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const warnings: string[] = [];
     if (!date) warnings.push("Datum nije pronađen – needs manual date");
     if (!city) warnings.push("Grad nije prepoznat – needs manual city");
-    if (!time) warnings.push("Vrijeme nije pronađeno, pretpostavljeno 18:00");
+    if (!time) warnings.push("Vrijeme nije pronađeno; sačuvan je samo datum.");
     if (city && !this.KNOWN_CITIES.some((c) => c.toLowerCase() === city.toLowerCase())) {
       warnings.push(`Grad '${city}' nije u bazi – may need to be added to taxonomy`);
     }
@@ -1166,6 +1212,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       description,
       startsAt,
       endsAt: "",
+      isAllDay: !time,
       venueName,
       address: this.matchLine(block, /(?:adresa|address)\s*:\s*(.+)/i) || "",
       city: city || "",

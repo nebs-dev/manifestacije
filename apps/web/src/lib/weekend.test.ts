@@ -75,6 +75,23 @@ describe("weekend helpers", () => {
     expect(visibleLabels).toEqual(["Petak"])
   })
 
+  it("uses explicit occurrences, preserves schedule gaps and expands two same-day slots", () => {
+    const scheduled = event({
+      slug: "scheduled",
+      date: "2026-07-03",
+      endDate: "2026-07-05",
+      occurrences: [
+        { id: "1", date: "2026-07-03", startsAtISO: "2026-07-03T18:00:00+02:00", time: "18:00", allDay: false },
+        { id: "2", date: "2026-07-05", startsAtISO: "2026-07-05T10:00:00+02:00", time: "10:00", allDay: false },
+        { id: "3", date: "2026-07-05", startsAtISO: "2026-07-05T18:00:00+02:00", time: "18:00", allDay: false },
+      ],
+    })
+    const grouped = groupWeekendEvents([scheduled], now)
+    expect(grouped.days[0].events.map((item) => item.displayOccurrenceId)).toEqual(["1"])
+    expect(grouped.days[1].events).toEqual([])
+    expect(grouped.days[2].events.map((item) => item.displayOccurrenceId)).toEqual(["2", "3"])
+  })
+
   it("exposes canonical weekend SEO metadata", () => {
     expect(weekendPageTitle).toBe("Kamo za vikend? Događanja ovaj vikend od petka do nedjelje | Manifestacije")
     expect(weekendPageDescription).toBe("Ne znaš kamo za vikend? Pogledaj aktualna događanja ovaj vikend: koncerte, predstave, festivale, radionice i druga događanja od petka do nedjelje.")

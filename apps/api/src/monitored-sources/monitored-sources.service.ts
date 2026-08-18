@@ -504,6 +504,7 @@ export class MonitoredSourcesService {
         imageUrl: matchedImage,
         startsAt: candidate.startsAt || detail.startsAt,
         endsAt: candidate.endsAt || detail.endsAt,
+        occurrences: candidate.occurrences?.length ? candidate.occurrences : detail.occurrences,
         venueName: candidate.venueName || detail.venueName,
         address: candidate.address || detail.address,
         ticketUrl: candidate.ticketUrl || detail.ticketUrl,
