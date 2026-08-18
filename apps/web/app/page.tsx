@@ -65,12 +65,12 @@ export default async function Home() {
       <main>
         <HomeHero />
         <div className="mx-auto max-w-6xl px-4">
+          <CalendarTeaser dates={calendarDates} />
+
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Izdvojeno" title="Događanja koja ne želiš propustiti" description="Ručno odabrani vrhunci sezone diljem Slavonije i Baranje." href="/eventi" hrefLabel="Sva događanja" />
             <EventRail events={featured} carousel />
           </section>
-
-          <CalendarTeaser dates={calendarDates} />
 
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Uskoro" title="Nadolazeća događanja" href="/eventi" hrefLabel="Pogledaj sve" />
