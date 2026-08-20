@@ -15,6 +15,15 @@ interface EventPosterProps {
   className?: string
   sizes?: string
   priority?: boolean
+  /**
+   * "cover" (default) fills the container, cropping to the container's aspect
+   * ratio — right for fixed-ratio card thumbnails. "contain-blur" is for
+   * banners whose aspect ratio doesn't match the source image (e.g. a wide
+   * hero showing a 4:3 poster): it shows the full image uncropped over a
+   * blurred, scaled-up copy of itself as backdrop, so text baked into a
+   * poster (title, date) is never cropped away.
+   */
+  fit?: "cover" | "contain-blur"
 }
 
 function cloudinaryVariant(url: string, width: number, height: number) {
@@ -44,12 +53,43 @@ export function EventPoster({
   className,
   sizes = "(max-width: 768px) 100vw, 33vw",
   priority,
+  fit = "cover",
 }: EventPosterProps) {
   const [imageFailed, setImageFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
 
   const fallbackUrl = categoryFallbackImage(category, title)
   const source = resolvePosterSource({ hasImage: !!image, imageFailed, fallbackFailed })
+
+  if (fit === "contain-blur" && source === "image" && image) {
+    const isLocal = image.startsWith("/")
+    return (
+      <div className={cn("relative h-full w-full overflow-hidden", className)}>
+        {isLocal ? (
+          <Image src={image} alt="" fill sizes={sizes} className="scale-110 object-cover object-center blur-2xl opacity-60" aria-hidden priority={priority} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-2xl opacity-60" aria-hidden loading={priority ? "eager" : "lazy"} decoding="async" />
+        )}
+        {isLocal ? (
+          <Image src={image} alt={alt || title} fill sizes={sizes} className="object-contain" priority={priority} onError={() => setImageFailed(true)} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={image}
+            srcSet={cloudinarySrcSet(image)}
+            sizes={sizes}
+            alt={alt || title}
+            className="absolute inset-0 h-full w-full object-contain"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            decoding="async"
+            onError={() => setImageFailed(true)}
+          />
+        )}
+      </div>
+    )
+  }
 
   if (source === "image" && image?.startsWith("/")) {
     return (
