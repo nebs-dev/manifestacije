@@ -132,7 +132,7 @@ export function EventImagePicker({
             </Button>
           )}
         </div>
-        <FieldDescription>JPEG, PNG ili WebP do 5MB. Preporučeno: horizontalno, min. 1200×900px (4:3). Možeš i zalijepiti sliku (⌘V).</FieldDescription>
+        <FieldDescription>JPEG, PNG ili WebP do 5MB. Preporučeno: horizontalna orijentacija, min. 1200×900px. Možeš i zalijepiti sliku (⌘V).</FieldDescription>
       </Field>
 
       {!hideUrlField && (

@@ -16,14 +16,13 @@ interface EventPosterProps {
   sizes?: string
   priority?: boolean
   /**
-   * "cover" (default) fills the container, cropping to the container's aspect
-   * ratio — right for fixed-ratio card thumbnails. "contain-blur" is for
-   * banners whose aspect ratio doesn't match the source image (e.g. a wide
-   * hero showing a 4:3 poster): it shows the full image uncropped over a
-   * blurred, scaled-up copy of itself as backdrop, so text baked into a
-   * poster (title, date) is never cropped away.
+   * "cover" (default) crops to the container's aspect ratio anchored at
+   * center — right for fixed-ratio card thumbnails. "cover-top" anchors the
+   * crop to the top instead: for banners much wider than the source poster
+   * (event hero), most posters put the title/date near the top, so a
+   * center crop is the one most likely to cut it off.
    */
-  fit?: "cover" | "contain-blur"
+  fit?: "cover" | "cover-top"
 }
 
 function cloudinaryVariant(url: string, width: number, height: number) {
@@ -45,6 +44,32 @@ function cloudinarySrcSet(url: string) {
   ].join(", ")
 }
 
+// c_fill,g_auto above always crops to an exact w:h ratio server-side, which
+// is right for a fixed-ratio card grid but wrong for a full-bleed hero: the
+// crop region is picked before the browser knows the container's actual
+// (viewport-dependent) aspect ratio, so it can just as easily cut off a
+// poster's title as keep it. c_limit only downscales — the full image
+// reaches the browser untouched, and object-cover/object-position there
+// does the real, responsive crop.
+function cloudinaryUncropped(url: string, width: number) {
+  if (!url.includes("res.cloudinary.com")) return url
+  const replacement = `c_limit,f_auto,q_auto,w_${width}`
+  if (/\/upload\/[^/]*w_\d+[^/]*h_\d+[^/]*\//.test(url)) {
+    return url.replace(/\/upload\/[^/]*\//, `/upload/${replacement}/`)
+  }
+  return url.replace(/\/upload\//, `/upload/${replacement}/`)
+}
+
+function cloudinaryUncroppedSrcSet(url: string) {
+  if (!url.includes("res.cloudinary.com")) return undefined
+  return [
+    `${cloudinaryUncropped(url, 800)} 800w`,
+    `${cloudinaryUncropped(url, 1200)} 1200w`,
+    `${cloudinaryUncropped(url, 1600)} 1600w`,
+    `${cloudinaryUncropped(url, 2000)} 2000w`,
+  ].join(", ")
+}
+
 export function EventPoster({
   image,
   title,
@@ -61,36 +86,6 @@ export function EventPoster({
   const fallbackUrl = categoryFallbackImage(category, title)
   const source = resolvePosterSource({ hasImage: !!image, imageFailed, fallbackFailed })
 
-  if (fit === "contain-blur" && source === "image" && image) {
-    const isLocal = image.startsWith("/")
-    return (
-      <div className={cn("relative h-full w-full overflow-hidden", className)}>
-        {isLocal ? (
-          <Image src={image} alt="" fill sizes={sizes} className="scale-110 object-cover object-center blur-2xl opacity-60" aria-hidden priority={priority} />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={image} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-2xl opacity-60" aria-hidden loading={priority ? "eager" : "lazy"} decoding="async" />
-        )}
-        {isLocal ? (
-          <Image src={image} alt={alt || title} fill sizes={sizes} className="object-contain" priority={priority} onError={() => setImageFailed(true)} />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image}
-            srcSet={cloudinarySrcSet(image)}
-            sizes={sizes}
-            alt={alt || title}
-            className="absolute inset-0 h-full w-full object-contain"
-            loading={priority ? "eager" : "lazy"}
-            fetchPriority={priority ? "high" : "auto"}
-            decoding="async"
-            onError={() => setImageFailed(true)}
-          />
-        )}
-      </div>
-    )
-  }
-
   if (source === "image" && image?.startsWith("/")) {
     return (
       <Image
@@ -98,7 +93,7 @@ export function EventPoster({
         alt={alt || title}
         fill
         sizes={sizes}
-        className={cn("h-full w-full object-cover", className)}
+        className={cn("h-full w-full object-cover", fit === "cover-top" && "object-top", className)}
         priority={priority}
         onError={() => setImageFailed(true)}
       />
@@ -113,11 +108,11 @@ export function EventPoster({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={image}
-        srcSet={cloudinarySrcSet(image)}
+        src={fit === "cover-top" ? cloudinaryUncropped(image, 1600) : image}
+        srcSet={fit === "cover-top" ? cloudinaryUncroppedSrcSet(image) : cloudinarySrcSet(image)}
         sizes={sizes}
         alt={alt || title}
-        className={cn("h-full w-full object-cover", className)}
+        className={cn("h-full w-full object-cover", fit === "cover-top" && "object-top", className)}
         loading={priority ? "eager" : "lazy"}
         fetchPriority={priority ? "high" : "auto"}
         decoding="async"
@@ -133,7 +128,7 @@ export function EventPoster({
         alt={categoryName(category)}
         fill
         sizes={sizes}
-        className={cn("h-full w-full object-cover", className)}
+        className={cn("h-full w-full object-cover", fit === "cover-top" && "object-top", className)}
         priority={priority}
         onError={() => setFallbackFailed(true)}
       />
