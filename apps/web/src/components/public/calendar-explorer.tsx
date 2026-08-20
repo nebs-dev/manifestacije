@@ -396,7 +396,7 @@ function AgendaRow({ event, returnTo }: { event: CroEvent; returnTo: string }) {
             {!event.allDay && <span className="inline-flex items-center gap-1 font-semibold text-primary"><Clock className="size-3.5" aria-hidden />{event.time}</span>}
             {multiDay && <span className="text-muted-foreground">· višednevno</span>}
           </div>
-          <h4 className="truncate font-heading text-lg font-semibold leading-snug transition-colors group-hover:text-primary">{event.title}</h4>
+          <h4 className="break-words font-heading text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">{event.title}</h4>
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <MapPin className="size-3.5 shrink-0 text-primary/70" aria-hidden />
             <span className="truncate">{locationLabel}</span>
