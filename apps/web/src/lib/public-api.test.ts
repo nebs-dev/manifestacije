@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { fetchEvents } from "./public-api"
+import { fetchEvents, fetchMapEvents } from "./public-api"
 
 const apiEvent = {
   id: 31,
@@ -53,6 +53,32 @@ describe("public API adapter", () => {
       ],
       outdoor: true,
       free: true,
+    }))
+  })
+
+  it("maps the lightweight map response without detail-only fields", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{
+        ...apiEvent,
+        description: undefined,
+        imageUrl: undefined,
+        organizer: undefined,
+        ticketUrl: undefined,
+        sourceUrl: undefined,
+      }],
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const events = await fetchMapEvents()
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/api/public/map/events")
+    expect(events[0]).toEqual(expect.objectContaining({
+      slug: apiEvent.slug,
+      description: "",
+      image: undefined,
+      lat: apiEvent.venue.lat,
+      lng: apiEvent.venue.lng,
     }))
   })
 

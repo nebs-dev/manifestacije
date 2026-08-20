@@ -52,6 +52,36 @@ const eventListSelect = {
   },
 } satisfies Prisma.EventSelect;
 
+// Map pins/cards do not render descriptions, images, ticket/source metadata,
+// organizer data, or full venue/taxonomy records. Keeping this response small
+// reduces database materialization, JSON serialization, transfer, and parsing
+// for every map regeneration without changing which events or coordinates are
+// returned.
+const eventMapSelect = {
+  slug: true,
+  title: true,
+  startsAt: true,
+  endsAt: true,
+  isAllDay: true,
+  isFree: true,
+  priceText: true,
+  cityName: true,
+  lat: true,
+  lng: true,
+  venue: { select: { name: true, lat: true, lng: true } },
+  city: { select: { name: true, slug: true, lat: true, lng: true } },
+  region: { select: { slug: true } },
+  category: { select: { slug: true, name: true } },
+  categories: {
+    select: { category: { select: { slug: true, name: true, sortOrder: true } } },
+    orderBy: [{ category: { sortOrder: "asc" } }],
+  },
+  occurrences: {
+    select: { id: true, startsAt: true, endsAt: true, isAllDay: true },
+    orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+  },
+} satisfies Prisma.EventSelect;
+
 type PublicEventRow = Prisma.EventGetPayload<{ select: typeof eventListSelect }>;
 
 @Injectable()
@@ -117,7 +147,7 @@ export class PublicFeedService {
   async mapEvents() {
     return this.prisma.event.findMany({
       where: { status: EventStatus.PUBLISHED, AND: [this.publicVisibilityWhere(new Date())] },
-      include: eventInclude,
+      select: eventMapSelect,
       orderBy: { startsAt: "asc" },
       take: 200
     });

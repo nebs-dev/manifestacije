@@ -3,6 +3,18 @@ import { eventOccursDuringCurrentWeekend } from "./weekend"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000"
+const TZ = "Europe/Zagreb"
+const ZAGREB_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+const ZAGREB_TIME_FORMATTER = new Intl.DateTimeFormat("hr-HR", {
+  timeZone: TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+})
 
 type ApiTaxonomy = { id: number; name: string; slug: string; lat?: number | null; lng?: number | null }
 
@@ -16,7 +28,7 @@ type ApiEvent = {
   id: number
   title: string
   slug: string
-  description: string
+  description?: string
   startsAt: string
   endsAt?: string | null
   isAllDay?: boolean | null
@@ -180,7 +192,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
   if (filters.when === "ovaj-mjesec") params.set("month", "true")
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
-  return fetchApi<ApiEvent[]>(path).then((rows) => rows.map(toCroEvent).filter(notPast)).catch(() => fallbackEventsForFilters(filters))
+  return fetchApi<ApiEvent[]>(path).then(mapApiEvents).catch(() => fallbackEventsForFilters(filters))
 }
 
 export async function fetchEvent(slug: string) {
@@ -204,26 +216,29 @@ export async function fetchOrganizer(slug: string) {
 
 export async function fetchMapEvents() {
   return fetchApi<ApiEvent[]>("/api/public/map/events", 300)
-    .then((rows) => rows.map(toCroEvent).filter(notPast))
-    .catch(() => fallbackEvents.filter(notPast))
+    .then(mapApiEvents)
+    .catch(() => filterNotPast(fallbackEvents))
 }
 
-const TZ = "Europe/Zagreb"
-
 function toZagrebDate(d: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(d)
+  const parts = ZAGREB_DATE_FORMATTER.formatToParts(d)
   const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ""
   return `${part("year")}-${part("month")}-${part("day")}`
 }
 
-function notPast(e: CroEvent): boolean {
-  const today = toZagrebDate(new Date())
+function mapApiEvents(rows: ApiEvent[]) {
+  const now = new Date()
+  const today = toZagrebDate(now)
+  return rows.map((event) => toCroEvent(event, now)).filter((event) => notPast(event, today))
+}
+
+function notPast(e: CroEvent, today = toZagrebDate(new Date())): boolean {
   return e.endDate ? e.endDate >= today : e.date >= today
+}
+
+function filterNotPast(events: CroEvent[]) {
+  const today = toZagrebDate(new Date())
+  return events.filter((event) => notPast(event, today))
 }
 
 function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
@@ -232,7 +247,7 @@ function fallbackEventsForFilters(filters: PublicFilters): CroEvent[] {
   const qTokens = [...new Set(q.split(" ").filter((token) => token.length >= 2))]
   const region = filters.region ? (reverseRegionMap[filters.region] || filters.region) : undefined
   return fallbackEvents
-    .filter(notPast)
+    .filter((event) => notPast(event, today))
     .filter((event) => {
       if (filters.category && !eventHasCategory(event, filters.category)) return false
       if (region && (reverseRegionMap[event.region] || event.region) !== region) return false
@@ -318,15 +333,10 @@ async function fetchApi<T>(path: string, revalidate = 60, tags: string[] = ["eve
   return res.json() as Promise<T>
 }
 
-function toCroEvent(event: ApiEvent): CroEvent {
+function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
   const starts = new Date(event.startsAt)
   const ends = event.endsAt ? new Date(event.endsAt) : null
-  const now = new Date()
-  const timeLabel = (value: Date) => new Intl.DateTimeFormat("hr-HR", {
-    timeZone: TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value)
+  const timeLabel = (value: Date) => ZAGREB_TIME_FORMATTER.format(value)
   const occurrences = (event.occurrences ?? []).map((occurrence) => {
     const occurrenceStart = new Date(occurrence.startsAt)
     const occurrenceEnd = occurrence.endsAt ? new Date(occurrence.endsAt) : null
@@ -384,8 +394,8 @@ function toCroEvent(event: ApiEvent): CroEvent {
     forKids: primarySlug === "djeca-i-obitelj" || allCats.some((c) => c.slug === "djeca-i-obitelj"),
     outdoor: primarySlug === "na-otvorenom" || primarySlug === "outdoor" ||
       allCats.some((c) => c.slug === "na-otvorenom" || c.slug === "outdoor"),
-    description: event.description,
-    longDescription: event.description,
+    description: event.description ?? "",
+    longDescription: event.description ?? "",
     organizer: event.organizer?.name || "Organizator nije naveden",
     organizerUrl: event.organizer?.websiteUrl || undefined,
     organizerSlug: event.organizer?.status === "UNCLAIMED" ? event.organizer?.slug : undefined,

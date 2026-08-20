@@ -149,7 +149,19 @@ describe("PublicFeedService", () => {
     expect(prisma.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ slug: "event-slug", status: EventStatus.PUBLISHED, AND: [visible] }),
     }));
-    expect(prisma.event.findMany.mock.calls[0][0].where).toEqual({ status: EventStatus.PUBLISHED, AND: [visible] });
+    const mapQuery = prisma.event.findMany.mock.calls[0][0];
+    expect(mapQuery.where).toEqual({ status: EventStatus.PUBLISHED, AND: [visible] });
+    expect(mapQuery).not.toHaveProperty("include");
+    expect(mapQuery.select).toEqual(expect.objectContaining({
+      slug: true,
+      title: true,
+      startsAt: true,
+      lat: true,
+      lng: true,
+      occurrences: expect.any(Object),
+    }));
+    expect(mapQuery.select).not.toHaveProperty("description");
+    expect(mapQuery.select).not.toHaveProperty("imageUrl");
     expect(prisma.event.findMany.mock.calls[1][0]).toEqual({
       where: { status: EventStatus.PUBLISHED, AND: [visible] },
       select: { slug: true, updatedAt: true },
