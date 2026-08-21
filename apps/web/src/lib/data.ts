@@ -149,7 +149,8 @@ export const CATEGORY_DISPLAY: Record<string, string> = {
   "outdoor":             "Na otvorenom",
 }
 
-// Category strip shown on homepage — curated subset using backend slugs.
+// Category strip shown on homepage — every real backend category
+// ("hrana-i-vino" and "outdoor" excluded: legacy aliases, not real slugs).
 export const categories: Category[] = [
   {
     slug: "glazba",
@@ -198,6 +199,102 @@ export const categories: Category[] = [
     name: "Tradicija i folklor",
     tagline: "Lokalne tradicije i gradske fešte",
     gradient: ["oklch(0.45 0.1 24)", "oklch(0.58 0.12 60)"],
+  },
+  {
+    slug: "sajmovi",
+    name: "Sajmovi",
+    tagline: "Sajmovi, izložbeni i tržišni programi",
+    gradient: ["oklch(0.5 0.11 80)", "oklch(0.62 0.12 50)"],
+  },
+  {
+    slug: "sport",
+    name: "Sport",
+    tagline: "Sportska događanja i natjecanja",
+    gradient: ["oklch(0.45 0.13 150)", "oklch(0.6 0.14 170)"],
+  },
+  {
+    slug: "manifestacije",
+    name: "Manifestacije",
+    tagline: "Gradske fešte i velike manifestacije",
+    gradient: ["oklch(0.45 0.1 10)", "oklch(0.58 0.12 350)"],
+  },
+  {
+    slug: "nocni-zivot",
+    name: "Noćni život",
+    tagline: "Klupske večeri i noćni izlasci",
+    gradient: ["oklch(0.3 0.1 290)", "oklch(0.5 0.15 320)"],
+  },
+  {
+    slug: "edukacija",
+    name: "Edukacija",
+    tagline: "Edukativni programi i tečajevi",
+    gradient: ["oklch(0.42 0.08 210)", "oklch(0.56 0.09 190)"],
+  },
+  {
+    slug: "humanitarno",
+    name: "Humanitarno",
+    tagline: "Humanitarne akcije i dobrotvorni programi",
+    gradient: ["oklch(0.45 0.11 350)", "oklch(0.6 0.1 20)"],
+  },
+  {
+    slug: "udruge",
+    name: "Udruge",
+    tagline: "Programi udruga i lokalnih zajednica",
+    gradient: ["oklch(0.42 0.07 180)", "oklch(0.55 0.08 200)"],
+  },
+  {
+    slug: "kultura",
+    name: "Kultura",
+    tagline: "Kulturni programi i baština",
+    gradient: ["oklch(0.4 0.08 310)", "oklch(0.55 0.1 340)"],
+  },
+  {
+    slug: "predstava",
+    name: "Predstava",
+    tagline: "Kazališne predstave i monodrame",
+    gradient: ["oklch(0.42 0.1 340)", "oklch(0.58 0.11 10)"],
+  },
+  {
+    slug: "film",
+    name: "Film",
+    tagline: "Igrani i dokumentarni filmovi",
+    gradient: ["oklch(0.35 0.06 260)", "oklch(0.5 0.08 300)"],
+  },
+  {
+    slug: "kviz",
+    name: "Kviz",
+    tagline: "Kvizovi znanja i zabavne večeri",
+    gradient: ["oklch(0.5 0.12 130)", "oklch(0.62 0.13 90)"],
+  },
+  {
+    slug: "buvljak",
+    name: "Buvljak",
+    tagline: "Antikviteti, buvljaci i sajmovi rabljenog",
+    gradient: ["oklch(0.48 0.1 70)", "oklch(0.6 0.11 40)"],
+  },
+  {
+    slug: "projekcija-filma",
+    name: "Projekcija filma",
+    tagline: "Filmske projekcije na otvorenom i u kinu",
+    gradient: ["oklch(0.3 0.05 250)", "oklch(0.45 0.08 280)"],
+  },
+  {
+    slug: "knjizevni-susret",
+    name: "Književni susret",
+    tagline: "Susreti s piscima i književne večeri",
+    gradient: ["oklch(0.45 0.06 40)", "oklch(0.58 0.08 70)"],
+  },
+  {
+    slug: "predavanje",
+    name: "Predavanje",
+    tagline: "Predavanja, tribine i stručni skupovi",
+    gradient: ["oklch(0.42 0.05 220)", "oklch(0.55 0.07 250)"],
+  },
+  {
+    slug: "ostalo",
+    name: "Ostalo",
+    tagline: "Ostali programi i događanja",
+    gradient: ["oklch(0.4 0.02 260)", "oklch(0.55 0.03 260)"],
   },
 ]
 
