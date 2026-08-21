@@ -54,6 +54,11 @@ function nextDate(date: string) {
   return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)
 }
 
+export function addWeek(date: string): string {
+  const [year, month, day] = date.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day + 7)).toISOString().slice(0, 10)
+}
+
 export function scheduleRowsFromEvent(input: {
   startsAt?: string | null
   endsAt?: string | null

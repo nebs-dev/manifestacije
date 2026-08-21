@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { scheduleRowsFromEvent, scheduleRowsToApi } from "../lib/schedule-editor-model"
+import { addWeek, scheduleRowsFromEvent, scheduleRowsToApi } from "../lib/schedule-editor-model"
 
 describe("schedule editor serialization", () => {
   it("preserves a legacy multi-day range until explicitly converted", () => {
@@ -26,5 +26,10 @@ describe("schedule editor serialization", () => {
     }])
     expect(serialized.startsAt).toBe("2026-08-14T20:00:00.000Z")
     expect(serialized.endsAt).toBe("2026-08-15T00:00:00.000Z")
+  })
+
+  it("advances a date by a week, rolling over the month when needed", () => {
+    expect(addWeek("2026-08-20")).toBe("2026-08-27")
+    expect(addWeek("2026-08-27")).toBe("2026-09-03")
   })
 })

@@ -1,11 +1,11 @@
 "use client"
 
-import { Plus, Trash2 } from "lucide-react"
+import { Copy, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { emptyScheduleRow, type ScheduleRow } from "@/lib/schedule-editor-model"
+import { addWeek, emptyScheduleRow, type ScheduleRow } from "@/lib/schedule-editor-model"
 
 export { emptyScheduleRow, scheduleRowsFromEvent, scheduleRowsToApi } from "@/lib/schedule-editor-model"
 export type { ScheduleRow } from "@/lib/schedule-editor-model"
@@ -24,6 +24,20 @@ export function EventScheduleEditor({
     if (patch.date && row.endDate === row.date) return { ...row, ...patch, endDate: patch.date }
     return { ...row, ...patch }
   }))
+  // Weekly recurring events (e.g. "every Thursday 17-18") are the common case —
+  // duplicating a row a week later re-enters the same times with one click
+  // instead of retyping them for every occurrence.
+  const duplicateRow = (row: ScheduleRow) => {
+    const index = rows.findIndex((item) => item.key === row.key)
+    const copy: ScheduleRow = {
+      ...row,
+      key: `new-${Date.now()}-${Math.random()}`,
+      id: undefined,
+      date: row.date ? addWeek(row.date) : "",
+      endDate: row.endDate ? addWeek(row.endDate) : undefined,
+    }
+    onChange([...rows.slice(0, index + 1), copy, ...rows.slice(index + 1)])
+  }
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row, index) => (
@@ -45,6 +59,9 @@ export function EventScheduleEditor({
               <Switch checked={row.isAllDay} disabled={disabled} onCheckedChange={(value) => update(row.key, { isAllDay: value })} />
               Cijeli dan
             </label>
+            <Button type="button" variant="ghost" size="icon" disabled={disabled} aria-label={`Dupliciraj termin ${index + 1} tjedan poslije`} onClick={() => duplicateRow(row)}>
+              <Copy className="size-4" />
+            </Button>
             {rows.length > 1 && (
               <Button type="button" variant="ghost" size="icon" disabled={disabled} aria-label={`Ukloni termin ${index + 1}`} onClick={() => onChange(rows.filter((item) => item.key !== row.key))}>
                 <Trash2 className="size-4" />
