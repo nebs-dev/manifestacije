@@ -86,6 +86,12 @@ export default async function EventDetailPage({
   const schedule = effectiveOccurrences(event);
   const hasExplicitSchedule = (event.occurrences?.length ?? 0) > 1;
   const hasEnded = eventHasEnded(event);
+  const locationLabel = event.venue && event.venue !== event.city
+    ? `${event.venue} · ${event.city}, ${regionName(event.region)}`
+    : addressLine
+      ? `${addressLine} · ${event.city}, ${regionName(event.region)}`
+      : `${event.city} · ${regionName(event.region)}`;
+  const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address ?? `${event.venue}, ${event.city}`)}`;
   const breadcrumbCrumbs = [
     { name: "Početna", path: "/" },
     { name: "Događanja", path: "/eventi" },
@@ -105,20 +111,11 @@ export default async function EventDetailPage({
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />
         <EventDetailTracking slug={event.slug} title={event.title} />
         <section className="bg-ink text-ink-foreground">
-          <div className="mx-auto grid max-w-7xl lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <div className="relative min-w-0">
-              <EventHeroMedia
-                previewImage={event.image}
-                detailImage={event.heroImage}
-                title={event.title}
-                category={event.category}
-              />
-              <Link href={backLink.href} className="absolute left-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 sm:left-6 sm:top-6">
+          <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] lg:grid-rows-[1fr_auto] lg:gap-x-10 lg:gap-y-6 lg:px-8 lg:py-10">
+            <div className="order-1 flex min-w-0 flex-col justify-end lg:col-start-2 lg:row-start-1 lg:pt-4">
+              <Link href={backLink.href} className="mb-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm text-ink-foreground transition-colors hover:bg-ink-foreground/15 lg:hidden">
                 <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
               </Link>
-            </div>
-
-            <div className="flex min-w-0 flex-col justify-center px-4 py-7 sm:px-6 sm:py-9 lg:p-10 xl:p-12">
               <div className="flex flex-wrap items-center gap-2">
                 {eventCategories.map((category) => (
                   <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground" />
@@ -130,15 +127,58 @@ export default async function EventDetailPage({
                   </span>
                 )}
               </div>
-              <h1 className="mt-4 max-w-xl text-balance font-heading text-3xl font-semibold leading-tight md:text-4xl xl:text-5xl">{event.title}</h1>
-              <p className="mt-3 inline-flex max-w-xl items-start gap-1.5 text-sm leading-relaxed text-ink-foreground/80 sm:text-base">
-                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
-                {event.venue && event.venue !== event.city
-                  ? `${event.venue} · ${event.city}, ${regionName(event.region)}`
-                  : addressLine
-                    ? `${addressLine} · ${event.city}, ${regionName(event.region)}`
-                    : `${event.city} · ${regionName(event.region)}`}
-              </p>
+              <h1 className="mt-4 max-w-xl text-balance font-heading text-3xl font-semibold leading-[1.08] sm:text-4xl xl:text-5xl">{event.title}</h1>
+
+              <div className="mt-6 space-y-4 text-sm text-ink-foreground/80 sm:text-base">
+                <div className="flex items-start gap-3">
+                  <CalendarDays className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
+                  {hasExplicitSchedule ? (
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-foreground/50">Raspored</span>
+                      <ul className="space-y-1">
+                        {schedule.slice(0, 3).map((occurrence) => <li key={occurrence.id}>{formatOccurrenceLabel(occurrence, true)}</li>)}
+                      </ul>
+                      {schedule.length > 3 && <span className="mt-1 block text-xs text-ink-foreground/55">+ još {schedule.length - 3} termina</span>}
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-foreground/50">Datum i vrijeme</span>
+                      <span>{formatDateRange(event.date, event.endDate)}{!event.allDay ? ` · ${event.time}` : " · Cijeli dan"}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
+                  <div>
+                    <span className="block leading-relaxed">{locationLabel}</span>
+                    <MapLink href={mapHref} slug={event.slug} title={event.title} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative order-2 min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+              <EventHeroMedia
+                previewImage={event.image}
+                detailImage={event.heroImage}
+                title={event.title}
+                category={event.category}
+              />
+              <Link href={backLink.href} className="absolute left-5 top-5 z-20 hidden items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 lg:inline-flex">
+                <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
+              </Link>
+            </div>
+
+            <div className="order-3 flex flex-wrap items-center gap-3 lg:col-start-2 lg:row-start-2 lg:pb-4">
+              {hasEnded ? (
+                <span className="rounded-full bg-ink-foreground/10 px-5 py-3 text-sm font-medium text-ink-foreground/70">Ovo događanje je završilo</span>
+              ) : (
+                <>
+                  {event.ticketUrl && <TicketLink href={event.ticketUrl} slug={event.slug} title={event.title} free={event.free} />}
+                  <AddToCalendarButton event={event} />
+                </>
+              )}
+              <ShareButton title={event.title} slug={event.slug} />
             </div>
           </div>
         </section>
@@ -200,13 +240,11 @@ export default async function EventDetailPage({
                       <ul className="space-y-1.5">
                         {schedule.map((occurrence) => <li key={occurrence.id}>{formatOccurrenceLabel(occurrence, true)}</li>)}
                       </ul>
-                      {!hasEnded && <AddToCalendarButton event={event} compact />}
                     </InfoRow>
                   ) : (
                     <>
                       <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">
                         {formatDateRange(event.date, event.endDate)}
-                        {!hasEnded && <AddToCalendarButton event={event} compact />}
                       </InfoRow>
                       {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
                     </>
@@ -219,11 +257,6 @@ export default async function EventDetailPage({
                       <span className="block text-sm text-muted-foreground">{addressLine}</span>
                     )}
                     <span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span>
-                    <MapLink
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address ?? `${event.venue}, ${event.city}`)}`}
-                      slug={event.slug}
-                      title={event.title}
-                    />
                   </InfoRow>
                   <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">
                     {event.organizer}
@@ -245,16 +278,6 @@ export default async function EventDetailPage({
                   </InfoRow>
                   {!event.free && <InfoRow icon={<Ticket className="size-5" aria-hidden />} label="Ulaznica">{priceLabel(event)}</InfoRow>}
                 </dl>
-                <div className="mt-6 flex flex-col gap-3">
-                  {hasEnded ? (
-                    <span className="rounded-full bg-muted px-5 py-3 text-center text-sm font-medium text-muted-foreground">Ovo događanje je završilo</span>
-                  ) : event.ticketUrl ? (
-                    <TicketLink href={event.ticketUrl} slug={event.slug} title={event.title} free={event.free} />
-                  ) : event.free ? (
-                    <span className="rounded-full bg-muted px-5 py-3 text-center text-sm font-medium text-muted-foreground">Ulaz slobodan</span>
-                  ) : null}
-                  <ShareButton title={event.title} slug={event.slug} />
-                </div>
               </div>
             </aside>
           </div>
