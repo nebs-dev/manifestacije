@@ -3,8 +3,8 @@
 import { useEffect, useMemo } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
-import Link from "next/link"
 import { coordsFor, priceLabel, regionName, type CroEvent } from "@/lib/data"
+import { PrefetchEventLink } from "./prefetch-event-link"
 
 function markerIcon(active: boolean) {
   const fill = active ? "oklch(0.79 0.135 67)" : "oklch(0.38 0.088 256)"
@@ -71,9 +71,9 @@ export default function DiscoveryMap({
               {e.city} · {regionName(e.region)}
             </span>
             <span className="mt-1 block text-xs font-medium">{priceLabel(e)}</span>
-            <Link href={`/eventi/${e.slug}?from=mapa`} className="mt-1 block text-xs font-semibold text-blue-700 underline">
+            <PrefetchEventLink heroImage={e.heroImage ?? e.image} href={`/eventi/${e.slug}?from=mapa`} className="mt-1 block text-xs font-semibold text-blue-700 underline">
               Pogledaj detalje
-            </Link>
+            </PrefetchEventLink>
           </Popup>
         </Marker>
       ))}

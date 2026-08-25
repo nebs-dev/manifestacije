@@ -1,4 +1,3 @@
-import Link from "next/link"
 import { MapPin } from "lucide-react"
 import type { CroEvent } from "@/lib/data"
 import { EventPoster } from "@/components/public/event-poster"
@@ -7,6 +6,7 @@ import { CategoryBadge, PriceBadge } from "@/components/public/badges"
 import { publicAddressLine } from "@/lib/location-display"
 import { cn } from "@/lib/utils"
 import { eventCardDateDisplay } from "./event-card-display"
+import { PrefetchEventLink } from "./prefetch-event-link"
 
 interface EventCardProps {
   event: CroEvent
@@ -22,8 +22,9 @@ export function EventCard({ event, className, displayDate, priorityImage, imageS
   const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   const href = returnTo ? `/eventi/${event.slug}?returnTo=${encodeURIComponent(returnTo)}` : `/eventi/${event.slug}`
   return (
-    <Link
+    <PrefetchEventLink
       href={href}
+      heroImage={event.heroImage ?? event.image}
       className={cn(
         "group flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 [contain-intrinsic-size:420px] [content-visibility:auto] hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
@@ -86,6 +87,6 @@ export function EventCard({ event, className, displayDate, priorityImage, imageS
             ))}
         </div>
       </div>
-    </Link>
+    </PrefetchEventLink>
   )
 }

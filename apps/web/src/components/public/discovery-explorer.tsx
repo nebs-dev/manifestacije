@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react"
 import dynamic from "next/dynamic"
-import Link from "next/link"
 import { MapPin, CalendarDays, Search, X } from "lucide-react"
 import { categories, dateParts, eventHasCategory, priceLabel, regionName, type CroEvent } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { PrefetchEventLink } from "./prefetch-event-link"
 
 const DiscoveryMap = dynamic(() => import("@/components/public/discovery-map"), {
   ssr: false,
@@ -92,12 +92,13 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
                     </p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs font-semibold text-accent-foreground">{priceLabel(e)}</span>
-                      <Link
+                      <PrefetchEventLink
+                        heroImage={e.heroImage ?? e.image}
                         href={`/eventi/${e.slug}?from=mapa`}
                         className="text-xs font-medium text-primary hover:underline"
                       >
                         Detalji
-                      </Link>
+                      </PrefetchEventLink>
                     </div>
                   </div>
                 </button>

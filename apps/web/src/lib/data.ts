@@ -95,7 +95,7 @@ export interface CroEvent {
   ticketUrl?: string
   /** Card-sized image (800x600) — used on listing cards, calendar agenda, rails. */
   image?: string
-  /** Larger image (1600x900) for the full-width detail page hero — falls back to `image` when absent. */
+  /** Larger uncropped image (up to 1600px wide) for the adaptive detail hero. */
   heroImage?: string
   featured?: boolean
   address?: string
@@ -643,21 +643,6 @@ export function getCategory(slug: string) {
 
 export function getRegion(slug: string) {
   return regions.find((r) => r.slug === slug)
-}
-
-/** Transform a Cloudinary URL to deliver an optimised, auto-cropped variant.
- *  Non-Cloudinary URLs are returned unchanged. */
-export function cloudinaryImage(
-  url: string | undefined | null,
-  opts: { w: number; h: number } = { w: 800, h: 600 },
-): string | undefined {
-  if (!url) return undefined
-  if (!url.includes("res.cloudinary.com")) return url
-  // Insert transformation before the version segment (/v123456789/...)
-  return url.replace(
-    /\/upload\//,
-    `/upload/c_fill,g_auto,f_auto,q_auto,w_${opts.w},h_${opts.h}/`,
-  )
 }
 
 export function getEvent(slug: string) {

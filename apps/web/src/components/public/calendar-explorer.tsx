@@ -22,6 +22,7 @@ import { currentWeekendDisplayRange } from "@/lib/weekend"
 import { CategoryBadge, PriceBadge } from "./badges"
 import { EventFilters } from "./event-filters"
 import { EventPoster } from "./event-poster"
+import { PrefetchEventLink } from "./prefetch-event-link"
 
 function addDays(d: Date, n: number) {
   const x = new Date(d)
@@ -385,7 +386,7 @@ function AgendaRow({ event, returnTo }: { event: CroEvent; returnTo: string }) {
   const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   return (
     <li>
-      <Link href={`/eventi/${event.slug}?from=kalendar&returnTo=${encodeURIComponent(returnTo)}`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
+      <PrefetchEventLink heroImage={event.heroImage ?? event.image} href={`/eventi/${event.slug}?from=kalendar&returnTo=${encodeURIComponent(returnTo)}`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
         <div className="relative aspect-square overflow-hidden rounded-xl">
           <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
             <EventPoster image={event.image} title={event.title} category={event.category} sizes="96px" />
@@ -408,7 +409,7 @@ function AgendaRow({ event, returnTo }: { event: CroEvent; returnTo: string }) {
             <PriceBadge free={event.free} price={event.price} />
           </div>
         </div>
-      </Link>
+      </PrefetchEventLink>
     </li>
   )
 }

@@ -1,4 +1,5 @@
-import { CITY_COORDS, cloudinaryImage, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { CITY_COORDS, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
+import { eventImagePrimaryUrl, eventImageVariant } from "./event-image-variants"
 import { eventOccursDuringCurrentWeekend } from "./weekend"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -404,9 +405,9 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     ticketUrl: event.ticketUrl || undefined,
     // Sized for the largest common display context (event card in a 3-column grid,
     // ~350-400px wide) at 2x for retina.
-    image: cloudinaryImage(event.imageUrl, { w: 640, h: 480 }) || undefined,
-    // Full-bleed detail page hero needs more resolution than a card thumbnail.
-    heroImage: cloudinaryImage(event.imageUrl, { w: 1600, h: 900 }) || undefined,
+    image: event.imageUrl ? eventImageVariant(event.imageUrl, 640) : undefined,
+    // Detail preserves the source aspect ratio and only limits its maximum width.
+    heroImage: event.imageUrl ? eventImagePrimaryUrl(event.imageUrl, "detail") : undefined,
     featured: event.isFeatured === true || (event.extractionConfidence ? event.extractionConfidence >= 0.85 : false),
     address: event.address ?? event.venue?.address ?? undefined,
     lat: coords.lat,

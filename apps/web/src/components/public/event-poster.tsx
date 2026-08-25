@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactEventHandler } from "react"
 import Image from "next/image"
 import { gradientFor, categoryName, categoryFallbackImage } from "@/lib/data"
+import { eventImagePrimaryUrl, eventImageSrcSet, type EventImageVariant } from "@/lib/event-image-variants"
 import { cn } from "@/lib/utils"
 import { resolvePosterSource } from "@/components/public/event-poster-source"
 export { resolvePosterSource } from "@/components/public/event-poster-source"
@@ -15,59 +16,8 @@ interface EventPosterProps {
   className?: string
   sizes?: string
   priority?: boolean
-  /**
-   * "cover" (default) crops to the container's aspect ratio anchored at
-   * center — right for fixed-ratio card thumbnails. "cover-top" anchors the
-   * crop to the top instead: for banners much wider than the source poster
-   * (event hero), most posters put the title/date near the top, so a
-   * center crop is the one most likely to cut it off.
-   */
-  fit?: "cover" | "cover-top"
-}
-
-function cloudinaryVariant(url: string, width: number, height: number) {
-  if (!url.includes("res.cloudinary.com")) return url
-  const replacement = `c_fill,g_auto,f_auto,q_auto,w_${width},h_${height}`
-  if (/\/upload\/[^/]*w_\d+[^/]*h_\d+[^/]*\//.test(url)) {
-    return url.replace(/\/upload\/[^/]*\//, `/upload/${replacement}/`)
-  }
-  return url.replace(/\/upload\//, `/upload/${replacement}/`)
-}
-
-function cloudinarySrcSet(url: string) {
-  if (!url.includes("res.cloudinary.com")) return undefined
-  return [
-    `${cloudinaryVariant(url, 360, 270)} 360w`,
-    `${cloudinaryVariant(url, 520, 390)} 520w`,
-    `${cloudinaryVariant(url, 640, 480)} 640w`,
-    `${cloudinaryVariant(url, 800, 600)} 800w`,
-  ].join(", ")
-}
-
-// c_fill,g_auto above always crops to an exact w:h ratio server-side, which
-// is right for a fixed-ratio card grid but wrong for a full-bleed hero: the
-// crop region is picked before the browser knows the container's actual
-// (viewport-dependent) aspect ratio, so it can just as easily cut off a
-// poster's title as keep it. c_limit only downscales — the full image
-// reaches the browser untouched, and object-cover/object-position there
-// does the real, responsive crop.
-function cloudinaryUncropped(url: string, width: number) {
-  if (!url.includes("res.cloudinary.com")) return url
-  const replacement = `c_limit,f_auto,q_auto,w_${width}`
-  if (/\/upload\/[^/]*w_\d+[^/]*h_\d+[^/]*\//.test(url)) {
-    return url.replace(/\/upload\/[^/]*\//, `/upload/${replacement}/`)
-  }
-  return url.replace(/\/upload\//, `/upload/${replacement}/`)
-}
-
-function cloudinaryUncroppedSrcSet(url: string) {
-  if (!url.includes("res.cloudinary.com")) return undefined
-  return [
-    `${cloudinaryUncropped(url, 800)} 800w`,
-    `${cloudinaryUncropped(url, 1200)} 1200w`,
-    `${cloudinaryUncropped(url, 1600)} 1600w`,
-    `${cloudinaryUncropped(url, 2000)} 2000w`,
-  ].join(", ")
+  variant?: EventImageVariant
+  onLoad?: ReactEventHandler<HTMLImageElement>
 }
 
 export function EventPoster({
@@ -78,7 +28,8 @@ export function EventPoster({
   className,
   sizes = "(max-width: 768px) 100vw, 33vw",
   priority,
-  fit = "cover",
+  variant = "card",
+  onLoad,
 }: EventPosterProps) {
   const [imageFailed, setImageFailed] = useState(false)
   const [fallbackFailed, setFallbackFailed] = useState(false)
@@ -86,15 +37,36 @@ export function EventPoster({
   const fallbackUrl = categoryFallbackImage(category, title)
   const source = resolvePosterSource({ hasImage: !!image, imageFailed, fallbackFailed })
 
+  if (source === "image" && image && variant === "detail") {
+    return (
+      // Detail pages preserve the source's natural aspect ratio. A height cap
+      // only affects unusually tall images, which remain fully visible via contain.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={eventImagePrimaryUrl(image, variant)}
+        srcSet={eventImageSrcSet(image, variant)}
+        sizes={sizes}
+        alt={alt ?? title}
+        className={cn("block h-auto w-full max-h-[72vh] object-contain lg:max-h-[720px]", className)}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        decoding="async"
+        onLoad={onLoad}
+        onError={() => setImageFailed(true)}
+      />
+    )
+  }
+
   if (source === "image" && image?.startsWith("/")) {
     return (
       <Image
         src={image}
-        alt={alt || title}
+        alt={alt ?? title}
         fill
         sizes={sizes}
-        className={cn("h-full w-full object-cover", fit === "cover-top" && "object-top", className)}
+        className={cn("h-full w-full object-cover", className)}
         priority={priority}
+        onLoad={onLoad}
         onError={() => setImageFailed(true)}
       />
     )
@@ -108,15 +80,32 @@ export function EventPoster({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={fit === "cover-top" ? cloudinaryUncropped(image, 1600) : image}
-        srcSet={fit === "cover-top" ? cloudinaryUncroppedSrcSet(image) : cloudinarySrcSet(image)}
+        src={eventImagePrimaryUrl(image, variant)}
+        srcSet={eventImageSrcSet(image, variant)}
         sizes={sizes}
-        alt={alt || title}
-        className={cn("h-full w-full object-cover", fit === "cover-top" && "object-top", className)}
+        alt={alt ?? title}
+        className={cn("h-full w-full object-cover", className)}
         loading={priority ? "eager" : "lazy"}
         fetchPriority={priority ? "high" : "auto"}
         decoding="async"
+        onLoad={onLoad}
         onError={() => setImageFailed(true)}
+      />
+    )
+  }
+
+  if (source === "fallback" && variant === "detail") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={fallbackUrl}
+        alt={alt ?? categoryName(category)}
+        className={cn("block h-auto w-full max-h-[72vh] object-contain lg:max-h-[720px]", className)}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        decoding="async"
+        onLoad={onLoad}
+        onError={() => setFallbackFailed(true)}
       />
     )
   }
@@ -125,11 +114,12 @@ export function EventPoster({
     return (
       <Image
         src={fallbackUrl}
-        alt={categoryName(category)}
+        alt={alt ?? categoryName(category)}
         fill
         sizes={sizes}
-        className={cn("h-full w-full object-cover", fit === "cover-top" && "object-top", className)}
+        className={cn("h-full w-full object-cover", className)}
         priority={priority}
+        onLoad={onLoad}
         onError={() => setFallbackFailed(true)}
       />
     )

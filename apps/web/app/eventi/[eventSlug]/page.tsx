@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Baby, Building2, CalendarDays, Clock, MapPin, Tags, Ticket, Trees } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
-import { EventPoster } from "@/components/public/event-poster";
+import { EventHeroMedia } from "@/components/public/event-hero-media";
 import { EventCard } from "@/components/public/event-card";
 import { CategoryBadge, PriceBadge } from "@/components/public/badges";
 import { ShareButton } from "@/components/public/share-button";
@@ -103,30 +103,37 @@ export default async function EventDetailPage({
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(jsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />
         <EventDetailTracking slug={event.slug} title={event.title} />
-        <section className="relative isolate h-[44vh] min-h-[320px] w-full overflow-hidden bg-ink text-ink-foreground md:h-[56vh]">
-          <div className="absolute inset-0">
-            <EventPoster image={event.heroImage ?? event.image} title={event.title} alt={event.title} category={event.category} sizes="100vw" priority fit="cover-top" />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-ink/20" aria-hidden />
-          <div className="relative mx-auto flex h-full max-w-5xl flex-col justify-end px-4 pb-8">
-            <Link href={backLink.href} className="absolute left-4 top-6 inline-flex items-center gap-1.5 rounded-full bg-ink/40 px-3 py-1.5 text-sm text-ink-foreground backdrop-blur hover:bg-ink/60">
-              <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
-            </Link>
-            <div className="flex flex-wrap items-center gap-2">
-              {eventCategories.map((category) => (
-                <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground backdrop-blur" />
-              ))}
-              <PriceBadge free={event.free} price={event.price} />
+        <section className="bg-ink text-ink-foreground">
+          <div className="mx-auto grid max-w-7xl lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="relative min-w-0">
+              <EventHeroMedia
+                previewImage={event.image}
+                detailImage={event.heroImage}
+                title={event.title}
+                category={event.category}
+              />
+              <Link href={backLink.href} className="absolute left-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 sm:left-6 sm:top-6">
+                <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
+              </Link>
             </div>
-            <h1 className="mt-3 max-w-3xl text-balance font-heading text-3xl font-semibold leading-tight text-shadow-lg md:text-5xl">{event.title}</h1>
-            <p className="mt-2 inline-flex items-center gap-1.5 text-ink-foreground/85">
-              <MapPin className="size-4 shrink-0" aria-hidden />
-              {event.venue && event.venue !== event.city
-                ? `${event.venue} · ${event.city}, ${regionName(event.region)}`
-                : addressLine
-                  ? `${addressLine} · ${event.city}, ${regionName(event.region)}`
-                  : `${event.city} · ${regionName(event.region)}`}
-            </p>
+
+            <div className="flex min-w-0 flex-col justify-center px-4 py-7 sm:px-6 sm:py-9 lg:p-10 xl:p-12">
+              <div className="flex flex-wrap items-center gap-2">
+                {eventCategories.map((category) => (
+                  <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground" />
+                ))}
+                <PriceBadge free={event.free} price={event.price} />
+              </div>
+              <h1 className="mt-4 max-w-xl text-balance font-heading text-3xl font-semibold leading-tight md:text-4xl xl:text-5xl">{event.title}</h1>
+              <p className="mt-3 inline-flex max-w-xl items-start gap-1.5 text-sm leading-relaxed text-ink-foreground/80 sm:text-base">
+                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {event.venue && event.venue !== event.city
+                  ? `${event.venue} · ${event.city}, ${regionName(event.region)}`
+                  : addressLine
+                    ? `${addressLine} · ${event.city}, ${regionName(event.region)}`
+                    : `${event.city} · ${regionName(event.region)}`}
+              </p>
+            </div>
           </div>
         </section>
 

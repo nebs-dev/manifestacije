@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ImagePlus, Loader2, X } from "lucide-react"
+import { ImagePlus, Loader2, TriangleAlert, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { authedFetch } from "@/lib/admin/api"
+import { eventImagePrimaryUrl } from "@/lib/event-image-variants"
+import { cn } from "@/lib/utils"
 
 export type EventImageValue = {
   imageUrl: string
@@ -22,7 +24,7 @@ export function EventImagePicker({
   uploadPath = "/api/admin/uploads/event-image",
   uploadFetch = authedFetch,
   fit = "cover",
-  aspectClassName = "aspect-video",
+  aspectClassName,
   label = "Slika događaja",
 }: {
   value: EventImageValue
@@ -38,6 +40,21 @@ export function EventImagePicker({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
+
+  useEffect(() => {
+    setImageDimensions(null)
+    if (!value.imageUrl) return
+    let active = true
+    const image = new window.Image()
+    image.onload = () => {
+      if (active) setImageDimensions({ width: image.naturalWidth, height: image.naturalHeight })
+    }
+    image.src = value.imageUrl
+    return () => {
+      active = false
+    }
+  }, [value.imageUrl])
 
   useEffect(() => {
     function onPaste(e: ClipboardEvent) {
@@ -79,21 +96,54 @@ export function EventImagePicker({
   }
 
   const hasSuggested = Boolean(suggestedImageUrl) && suggestedImageUrl !== value.imageUrl
+  const imageWarnings = imageDimensions && fit === "cover" ? [
+    ...(imageDimensions.width < 1200
+      ? [`Slika je ${imageDimensions.width}×${imageDimensions.height}px; preporučeno je najmanje 1200px širine.`]
+      : []),
+    ...(imageDimensions.height > imageDimensions.width
+      ? ["Detail prikazuje cijelu portretnu sliku, ali će kartice koristiti 4:3 crop."]
+      : []),
+  ] : []
+  const previewUrl = value.imageUrl && fit === "cover"
+    ? eventImagePrimaryUrl(value.imageUrl, "detail")
+    : value.imageUrl
+  const isAdaptiveEventPreview = fit === "cover" && !aspectClassName
 
   return (
     <FieldGroup>
       <Field>
         <FieldLabel>{label}</FieldLabel>
-        <div className="overflow-hidden rounded-2xl border border-border bg-muted">
+        <div className={cn(
+          "overflow-hidden rounded-2xl border border-border bg-muted",
+          isAdaptiveEventPreview && "flex items-center justify-center bg-ink",
+        )}>
           {value.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={value.imageUrl} alt="Slika događaja" className={`w-full ${aspectClassName} object-${fit}`} />
+            <img
+              src={previewUrl}
+              alt="Slika događaja"
+              className={cn(
+                "w-full",
+                aspectClassName,
+                isAdaptiveEventPreview
+                  ? "block h-auto max-h-[640px] object-contain"
+                  : fit === "contain" ? "object-contain" : "object-cover",
+              )}
+            />
           ) : (
-            <div className={`flex ${aspectClassName} items-center justify-center text-sm text-muted-foreground`}>
+            <div className={cn("flex items-center justify-center text-sm text-muted-foreground", aspectClassName ?? "min-h-48")}>
               Nema slike
             </div>
           )}
         </div>
+        {imageWarnings.length > 0 && (
+          <div className="flex gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <ul className="space-y-0.5">
+              {imageWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           <input
             ref={inputRef}
@@ -132,7 +182,11 @@ export function EventImagePicker({
             </Button>
           )}
         </div>
-        <FieldDescription>JPEG, PNG ili WebP do 5MB. Preporučeno: horizontalna orijentacija, min. 1200×900px. Možeš i zalijepiti sliku (⌘V).</FieldDescription>
+        <FieldDescription>
+          {fit === "cover"
+            ? "JPEG, PNG ili WebP do 5MB. Detail čuva originalni omjer slike; kartice koriste 4:3 crop. Preporučeno najmanje 1200px širine. Možeš i zalijepiti sliku (⌘V)."
+            : "JPEG, PNG ili WebP do 5MB. Možeš i zalijepiti sliku (⌘V)."}
+        </FieldDescription>
       </Field>
 
       {!hideUrlField && (
