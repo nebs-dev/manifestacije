@@ -100,8 +100,10 @@ export class PublicFeedService {
     return this.prisma.event.findFirst({
       where: {
         slug,
-        status: EventStatus.PUBLISHED,
-        AND: [this.publicVisibilityWhere(new Date())],
+        OR: [
+          { status: EventStatus.PUBLISHED },
+          { status: EventStatus.ARCHIVED, publishedAt: { not: null } },
+        ],
       },
       include: eventInclude,
     });

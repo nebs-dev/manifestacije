@@ -128,7 +128,7 @@ describe("PublicFeedService", () => {
     }));
   });
 
-  it("hides past event detail, map events and sitemap events", async () => {
+  it("keeps historical detail accessible while hiding past events from map and sitemap", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-03T12:00:00.000Z"));
     const prisma = {
       event: {
@@ -147,7 +147,13 @@ describe("PublicFeedService", () => {
 
     const visible = visibility(new Date("2026-07-03T12:00:00.000Z"));
     expect(prisma.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ slug: "event-slug", status: EventStatus.PUBLISHED, AND: [visible] }),
+      where: {
+        slug: "event-slug",
+        OR: [
+          { status: EventStatus.PUBLISHED },
+          { status: EventStatus.ARCHIVED, publishedAt: { not: null } },
+        ],
+      },
     }));
     const mapQuery = prisma.event.findMany.mock.calls[0][0];
     expect(mapQuery.where).toEqual({ status: EventStatus.PUBLISHED, AND: [visible] });

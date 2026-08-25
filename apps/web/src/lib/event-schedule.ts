@@ -2,6 +2,13 @@ import type { CroEvent, CroEventOccurrence } from "./data"
 
 const TZ = "Europe/Zagreb"
 
+const ZAGREB_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
 export function effectiveOccurrences(event: CroEvent): CroEventOccurrence[] {
   if (event.occurrences?.length) return event.occurrences
   if (!event.startsAtISO) return []
@@ -27,6 +34,21 @@ export function eventForOccurrence(event: CroEvent, occurrence: CroEventOccurren
     allDay: occurrence.allDay,
     displayOccurrenceId: occurrence.id,
   }
+}
+
+export function eventHasEnded(event: CroEvent, now = new Date()) {
+  const occurrences = effectiveOccurrences(event)
+  if (occurrences.length === 0) {
+    return (event.endDate ?? event.date) < ZAGREB_DATE.format(now)
+  }
+
+  const today = ZAGREB_DATE.format(now)
+  return occurrences.every((occurrence) => {
+    if (occurrence.allDay && !occurrence.endsAtISO) {
+      return (occurrence.endDate ?? occurrence.date) < today
+    }
+    return new Date(occurrence.endsAtISO ?? occurrence.startsAtISO) < now
+  })
 }
 
 export function formatOccurrenceLabel(occurrence: CroEventOccurrence, includeYear = false) {

@@ -16,7 +16,7 @@ import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { citySlugForEvent } from "@/lib/seo-taxonomy";
 import { publicAddressLine } from "@/lib/location-display";
-import { effectiveOccurrences, formatOccurrenceLabel } from "@/lib/event-schedule";
+import { effectiveOccurrences, eventHasEnded, formatOccurrenceLabel } from "@/lib/event-schedule";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 const BACK_LINKS = {
@@ -85,6 +85,7 @@ export default async function EventDetailPage({
   const jsonLd = eventToJsonLd({ ...event, image: imageUrl }, WEB_URL);
   const schedule = effectiveOccurrences(event);
   const hasExplicitSchedule = (event.occurrences?.length ?? 0) > 1;
+  const hasEnded = eventHasEnded(event);
   const breadcrumbCrumbs = [
     { name: "Početna", path: "/" },
     { name: "Događanja", path: "/eventi" },
@@ -123,6 +124,11 @@ export default async function EventDetailPage({
                   <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground" />
                 ))}
                 <PriceBadge free={event.free} price={event.price} />
+                {hasEnded && (
+                  <span className="rounded-full border border-ink-foreground/25 bg-ink-foreground/10 px-3 py-1 text-xs font-medium text-ink-foreground/85">
+                    Događanje završeno
+                  </span>
+                )}
               </div>
               <h1 className="mt-4 max-w-xl text-balance font-heading text-3xl font-semibold leading-tight md:text-4xl xl:text-5xl">{event.title}</h1>
               <p className="mt-3 inline-flex max-w-xl items-start gap-1.5 text-sm leading-relaxed text-ink-foreground/80 sm:text-base">
@@ -194,13 +200,13 @@ export default async function EventDetailPage({
                       <ul className="space-y-1.5">
                         {schedule.map((occurrence) => <li key={occurrence.id}>{formatOccurrenceLabel(occurrence, true)}</li>)}
                       </ul>
-                      <AddToCalendarButton event={event} compact />
+                      {!hasEnded && <AddToCalendarButton event={event} compact />}
                     </InfoRow>
                   ) : (
                     <>
                       <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">
                         {formatDateRange(event.date, event.endDate)}
-                        <AddToCalendarButton event={event} compact />
+                        {!hasEnded && <AddToCalendarButton event={event} compact />}
                       </InfoRow>
                       {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
                     </>
@@ -240,7 +246,9 @@ export default async function EventDetailPage({
                   {!event.free && <InfoRow icon={<Ticket className="size-5" aria-hidden />} label="Ulaznica">{priceLabel(event)}</InfoRow>}
                 </dl>
                 <div className="mt-6 flex flex-col gap-3">
-                  {event.ticketUrl ? (
+                  {hasEnded ? (
+                    <span className="rounded-full bg-muted px-5 py-3 text-center text-sm font-medium text-muted-foreground">Ovo događanje je završilo</span>
+                  ) : event.ticketUrl ? (
                     <TicketLink href={event.ticketUrl} slug={event.slug} title={event.title} free={event.free} />
                   ) : event.free ? (
                     <span className="rounded-full bg-muted px-5 py-3 text-center text-sm font-medium text-muted-foreground">Ulaz slobodan</span>
