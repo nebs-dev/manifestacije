@@ -27,16 +27,28 @@ export function TicketLink({
   )
 }
 
-export function MapLink({ href, slug, title }: { href: string; slug: string; title: string }) {
+export function MapLink({
+  href,
+  slug,
+  title,
+  inverse = false,
+}: {
+  href: string
+  slug: string
+  title: string
+  inverse?: boolean
+}) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       onClick={() => trackEvent({ name: "click_map_or_directions", params: { event_slug: slug, event_title: title } })}
-      className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+      className={inverse
+        ? "mt-1 inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors hover:text-accent/80 hover:underline"
+        : "mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"}
     >
-      <Map className="size-3" /> Otvori kartu
+      <Map className="size-3" aria-hidden /> Otvori kartu
     </a>
   )
 }

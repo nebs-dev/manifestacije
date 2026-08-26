@@ -151,7 +151,7 @@ export default async function EventDetailPage({
                   <MapPin className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
                   <div>
                     <span className="block leading-relaxed">{locationLabel}</span>
-                    <MapLink href={mapHref} slug={event.slug} title={event.title} />
+                    <MapLink href={mapHref} slug={event.slug} title={event.title} inverse />
                   </div>
                 </div>
               </div>
@@ -257,6 +257,7 @@ export default async function EventDetailPage({
                       <span className="block text-sm text-muted-foreground">{addressLine}</span>
                     )}
                     <span className="block text-muted-foreground">{event.city}, {regionName(event.region)}</span>
+                    <MapLink href={mapHref} slug={event.slug} title={event.title} />
                   </InfoRow>
                   <InfoRow icon={<Building2 className="size-5" aria-hidden />} label="Organizator">
                     {event.organizer}
