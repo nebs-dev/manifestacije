@@ -26,7 +26,6 @@ export function EventHeroMedia({
   const [detailReady, setDetailReady] = useState(false)
   const [detailFailed, setDetailFailed] = useState(false)
   const [mode, setMode] = useState<EventHeroMediaMode>(() => eventHeroMediaMode({ hasImage: Boolean(detailImage ?? previewImage) }))
-  const [resolvedImage, setResolvedImage] = useState<string>()
   const { fullImage, previewVisible, detailVisible } = eventHeroMediaVisibility(previewImage, detailImage, detailReady)
 
   const revealDetail = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
@@ -37,7 +36,6 @@ export function EventHeroMedia({
       height: image.naturalHeight,
       sourceDimensions: !image.srcset,
     }))
-    setResolvedImage(image.currentSrc || image.src)
     const decoded = typeof image.decode === "function" ? image.decode() : Promise.resolve()
     void decoded.catch(() => undefined).then(() => setDetailReady(true))
   }, [])
@@ -58,7 +56,7 @@ export function EventHeroMedia({
           // larger detail resource fails. It stays bounded and never leaves
           // an empty hero panel.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewImage} alt="" className="absolute inset-0 size-full object-cover opacity-55" aria-hidden />
+          <img src={previewImage} alt="" className="absolute inset-0 size-full object-contain p-2 opacity-70" aria-hidden />
         ) : (
           <>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.14),transparent_32%),radial-gradient(circle_at_80%_75%,rgba(245,166,66,0.18),transparent_35%)]" aria-hidden />
@@ -76,8 +74,6 @@ export function EventHeroMedia({
 
   const primaryUrl = eventImagePrimaryUrl(fullImage, "detail")
   const srcSet = eventImageSrcSet(fullImage, "detail")
-  const posterMode = mode !== "landscape"
-
   return (
     <div
       className={cn(
@@ -87,7 +83,6 @@ export function EventHeroMedia({
           : "h-[min(60vh,560px)] min-h-80 lg:h-full lg:min-h-[500px] lg:max-h-[600px]",
         className,
       )}
-      style={{ backgroundImage: gradientFor(category) }}
       data-media-mode={mode}
     >
       {previewImage && previewImage !== fullImage && previewVisible && (
@@ -99,18 +94,7 @@ export function EventHeroMedia({
           aria-hidden
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewImage} alt="" className="size-full scale-105 object-cover blur-sm" />
-          <div className="absolute inset-0 bg-ink/35" />
-        </div>
-      )}
-
-      {posterMode && detailReady && resolvedImage && (
-        <div
-          className="pointer-events-none absolute -inset-6 scale-110 bg-cover bg-center blur-2xl saturate-75"
-          style={{ backgroundImage: `url(${JSON.stringify(resolvedImage)})` }}
-          aria-hidden
-        >
-          <div className="absolute inset-0 bg-ink/55" />
+          <img src={previewImage} alt="" className="size-full object-contain p-2 opacity-70" />
         </div>
       )}
 
