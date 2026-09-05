@@ -1,3 +1,4 @@
+import { RevalidateService } from "../admin/revalidate.service";
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { OrganizerClaimStatus, OrganizerStatus, UserRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -36,7 +37,8 @@ export class OrganizerClaimService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
-    private readonly contacts: ResendContactsService
+    private readonly contacts: ResendContactsService,
+    private readonly revalidate: RevalidateService
   ) {}
 
   /**
@@ -159,6 +161,8 @@ export class OrganizerClaimService {
 
       return claimedUser;
     });
+
+    if (organizer.status === OrganizerStatus.UNCLAIMED) await this.revalidate.revalidate("events");
 
     // Sync failure must never roll back a claim that already succeeded —
     // this runs after the transaction has committed.

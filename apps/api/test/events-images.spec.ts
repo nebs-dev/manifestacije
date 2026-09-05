@@ -5,7 +5,7 @@ describe("EventsService image fields", () => {
     const prisma = {
       city: { findUnique: jest.fn().mockResolvedValue(null) },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.createFromDto({
       title: "Test event",
@@ -21,7 +21,7 @@ describe("EventsService image fields", () => {
       city: { findUnique: jest.fn().mockResolvedValue({ id: 1, countyId: 2, county: { regionId: 3 } }) },
       category: { findUnique: jest.fn().mockResolvedValue(null) },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.createFromDto({
       title: "Test event",
@@ -37,12 +37,13 @@ describe("EventsService image fields", () => {
       city: { findUnique: jest.fn().mockResolvedValue({ id: 1, countyId: 2, county: { regionId: 3 } }) },
       category: { findUnique: jest.fn().mockResolvedValue({ id: 4 }) },
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 10 }),
       },
       eventCategory: { upsert: jest.fn() },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.createFromDto({
       title: "Test event",
@@ -69,12 +70,13 @@ describe("EventsService image fields", () => {
       city: { findUnique: jest.fn().mockResolvedValue({ id: 1, countyId: 2, county: { regionId: 3 } }) },
       category: { findUnique: jest.fn().mockResolvedValue({ id: 4 }) },
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 10 }),
       },
       eventCategory: { upsert: jest.fn() },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.createFromDto({
       title: "Test event",
@@ -98,7 +100,7 @@ describe("EventsService image fields", () => {
       event: { findUnique: jest.fn().mockResolvedValue({ id: 10 }) },
       organizer: { findUnique: jest.fn().mockResolvedValue(null) },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.updateEvent(10, { organizerId: 999 })).rejects.toThrow("Unknown organizerId");
   });
@@ -106,13 +108,14 @@ describe("EventsService image fields", () => {
   it("saves an updated, normalized slug", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn()
           .mockResolvedValueOnce({ id: 10, cityId: 1, regionId: 3, slug: "old-slug" }) // load current
           .mockResolvedValueOnce(null), // no event already has the new slug
         update: jest.fn().mockResolvedValue({ id: 10, slug: "novi-slug" }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, { slug: "  Novi Slug!  " });
 
@@ -125,12 +128,13 @@ describe("EventsService image fields", () => {
   it("rejects a slug already taken by a different event", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn()
           .mockResolvedValueOnce({ id: 10, cityId: 1, regionId: 3, slug: "old-slug" })
           .mockResolvedValueOnce({ id: 99, slug: "taken-slug" }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.updateEvent(10, { slug: "taken-slug" })).rejects.toThrow("Taj slug je već zauzet.");
   });
@@ -138,11 +142,12 @@ describe("EventsService image fields", () => {
   it("does not check for a collision when the slug is unchanged", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValueOnce({ id: 10, cityId: 1, regionId: 3, slug: "same-slug" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, { slug: "same-slug" });
 
@@ -155,11 +160,12 @@ describe("EventsService image fields", () => {
   it("persists image fields on update", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       imageUrl: null,
@@ -177,6 +183,7 @@ describe("EventsService image fields", () => {
     const city = { id: 7, name: "Belišće", countyId: 8, county: { regionId: 1, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, cityName: "Belišće" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
@@ -188,7 +195,7 @@ describe("EventsService image fields", () => {
         upsert: jest.fn().mockResolvedValue({ id: 12 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       venueName: "Park hrvatskih branitelja",
@@ -226,6 +233,7 @@ describe("EventsService image fields", () => {
     const city = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, cityName: "Donji Kukuljica" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
@@ -234,7 +242,7 @@ describe("EventsService image fields", () => {
         findFirst: jest.fn().mockResolvedValue(city),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       cityName: "Osijek",
@@ -263,6 +271,7 @@ describe("EventsService image fields", () => {
     const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 999, cityName: "Stari grad" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
@@ -272,7 +281,7 @@ describe("EventsService image fields", () => {
         findUnique: jest.fn(),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       cityId: 99,
@@ -298,6 +307,7 @@ describe("EventsService image fields", () => {
     const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 999, cityName: "Stari grad" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
@@ -306,7 +316,7 @@ describe("EventsService image fields", () => {
         findFirst: jest.fn().mockResolvedValue(osijek),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       address: "Zadarska ul. 33, Osijek",
@@ -330,6 +340,7 @@ describe("EventsService image fields", () => {
     const donjiKukljica = { id: 99, name: "Donji Kukljica", countyId: 98, county: { regionId: 97, region: { slug: "dalmacija" } } };
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 97, cityName: "Donji Kukljica" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
@@ -338,7 +349,7 @@ describe("EventsService image fields", () => {
         findFirst: jest.fn().mockResolvedValue(osijek),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       cityName: "Donji Kukljica",
@@ -371,6 +382,7 @@ describe("EventsService image fields", () => {
     const osijek = { id: 1, name: "Osijek", countyId: 2, county: { regionId: 3, region: { slug: "slavonija-i-baranja" } } };
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 99, regionId: 97, cityName: "Stari grad" }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
@@ -382,7 +394,7 @@ describe("EventsService image fields", () => {
         upsert: jest.fn().mockResolvedValue({ id: 44 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, {
       venueName: "Garaza",
@@ -410,11 +422,12 @@ describe("EventsService image fields", () => {
   it("clears endsAt when explicitly set to null (e.g. duplicated event with a stale end date)", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, { endsAt: null });
 
@@ -427,11 +440,12 @@ describe("EventsService image fields", () => {
   it("sets endsAt to the parsed date when a value is supplied", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, { endsAt: "2026-08-29T02:00:00.000Z" });
 
@@ -444,11 +458,12 @@ describe("EventsService image fields", () => {
   it("leaves endsAt untouched when omitted from the update payload", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, { title: "Renamed" });
 
@@ -460,11 +475,12 @@ describe("EventsService image fields", () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-01T12:00:00.000Z"));
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: 1, regionId: 3 }),
         update: jest.fn().mockResolvedValue({ id: 10 }),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.updateEvent(10, { status: "PUBLISHED" as never });
 
@@ -481,11 +497,12 @@ describe("EventsService image fields", () => {
   it("rejects publishing when location cannot be mapped to city and region", async () => {
     const prisma = {
       event: {
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn().mockResolvedValue({ id: 10, cityId: null, regionId: null }),
         update: jest.fn(),
       },
     };
-    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never);
+    const service = new EventsService(prisma as never, { detectForEvent: jest.fn() } as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.updateEvent(10, { status: "PUBLISHED" as never })).rejects.toThrow("Lokacija nije mapirana na grad/regiju.");
     expect(prisma.event.update).not.toHaveBeenCalled();

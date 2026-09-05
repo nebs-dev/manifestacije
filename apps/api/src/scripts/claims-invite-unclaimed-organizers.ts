@@ -1,3 +1,4 @@
+import { RevalidateService } from "../admin/revalidate.service";
 import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
@@ -20,7 +21,7 @@ async function main() {
   const prisma = new PrismaClient();
   const email = new EmailService();
   const contacts = new ResendContactsService(prisma as unknown as PrismaService);
-  const claims = new OrganizerClaimService(prisma as unknown as PrismaService, email, contacts);
+  const claims = new OrganizerClaimService(prisma as unknown as PrismaService, email, contacts, new RevalidateService());
 
   console.log(`claims:invite-unclaimed-organizers — starting${dryRun ? " (dry run)" : ""} (limit=${limit})`);
 

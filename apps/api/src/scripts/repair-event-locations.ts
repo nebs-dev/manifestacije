@@ -1,3 +1,4 @@
+import { RevalidateService } from "../admin/revalidate.service";
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionSlugForCounty } from "../common/croatia-geo";
@@ -7,6 +8,7 @@ import { slugify } from "../common/slug";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const prisma = new PrismaClient();
+let publicDataChanged = false;
 const apply = process.argv.includes("--apply");
 
 function normalize(value: string) {
@@ -72,6 +74,7 @@ async function repairBrokenCityRegions() {
       where: { id: city.id },
       data: { countyId: county.id, lat: geo?.lat ?? city.lat, lng: geo?.lng ?? city.lng },
     });
+    publicDataChanged = true;
     fixed += 1;
   }
 
@@ -106,6 +109,7 @@ async function repairMissingCityCoordinates() {
       where: { id: city.id },
       data: { lat: geo!.lat, lng: geo!.lng, countyId: county.id },
     });
+    publicDataChanged = true;
     fixed += 1;
   }
 
@@ -207,6 +211,7 @@ async function mergeDuplicateCities() {
 
         await tx.city.delete({ where: { id: duplicate.id } });
       });
+      publicDataChanged = true;
       merged += 1;
     }
   }
@@ -388,6 +393,7 @@ async function main() {
           venueId,
         },
       });
+      publicDataChanged = true;
       changed += 1;
     }
   }
@@ -401,5 +407,10 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    if (publicDataChanged) {
+      const cache = new RevalidateService();
+      await cache.revalidate("events");
+      await cache.revalidate("taxonomy");
+    }
     await prisma.$disconnect();
   });

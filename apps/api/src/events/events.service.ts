@@ -7,6 +7,7 @@ import { lookupVenueGeo } from "../common/croatia-geo";
 import { zagrebLocalToUtc } from "../common/weekend";
 import { EventOccurrenceDto, EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
+import { hasPublicEventOutput, RevalidateService } from "../admin/revalidate.service";
 
 type NormalizedOccurrence = {
   id?: number;
@@ -17,7 +18,7 @@ type NormalizedOccurrence = {
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly prisma: PrismaService, private readonly duplicates: DuplicatesService) {}
+  constructor(private readonly prisma: PrismaService, private readonly duplicates: DuplicatesService, private readonly revalidate: RevalidateService) {}
 
   async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind }) {
     const title = dto.title?.trim() || "Novi događaj";
@@ -87,6 +88,7 @@ export class EventsService {
       });
     }
 
+    if (hasPublicEventOutput(event) || (venueId && await this.hasPublicVenueEvents(venueId))) await this.revalidate.revalidate("events");
     await this.duplicates.detectForEvent(event.id);
     return event;
   }
@@ -212,8 +214,20 @@ export class EventsService {
       }
     }
 
+    const changed = Object.keys(data).length > 0 || Boolean(dto.categoryIds?.length) || Boolean(occurrences);
+    if ((changed && (hasPublicEventOutput(current) || hasPublicEventOutput(event))) ||
+        (typeof data.venueId === "number" && await this.hasPublicVenueEvents(data.venueId))) {
+      await this.revalidate.revalidate("events");
+    }
     await this.duplicates.detectForEvent(id);
     return event;
+  }
+
+  private async hasPublicVenueEvents(venueId: number): Promise<boolean> {
+    return (await this.prisma.event.count({ where: { venueId, OR: [
+      { status: EventStatus.PUBLISHED },
+      { status: EventStatus.ARCHIVED, publishedAt: { not: null } },
+    ] } })) > 0;
   }
 
   private normalizeOccurrences(input: EventOccurrenceDto[]): NormalizedOccurrence[] {
@@ -355,7 +369,10 @@ export class EventsService {
       return city;
     }
     const name = dto.cityName?.trim() || "Nepoznato";
-    return findOrCreateCity(this.prisma, name, dto.countyName, dto.regionSlug);
+    return findOrCreateCity(this.prisma, name, dto.countyName, dto.regionSlug, async () => {
+      await this.revalidate.revalidate("events");
+      await this.revalidate.revalidate("taxonomy");
+    });
   }
 
   private async resolveCategory(categoryId?: number) {

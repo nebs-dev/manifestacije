@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
@@ -19,6 +20,10 @@ const UPCOMING_ROTATION_POOL_SIZE = 18;
 const FREE_VISIBLE_COUNT = 3;
 const FREE_ROTATION_POOL_SIZE = 12;
 const ZAGREB_TIME_ZONE = "Europe/Zagreb";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default async function Home() {
   const [events, partners] = await Promise.all([fetchEvents(), fetchPartners()]);

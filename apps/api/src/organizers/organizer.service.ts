@@ -1,3 +1,4 @@
+import { RevalidateService } from "../admin/revalidate.service";
 import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import { EventStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -19,15 +20,18 @@ export class OrganizerService {
     private readonly parser: AiEventParserService,
     private readonly duplicates: DuplicatesService,
     private readonly email: EmailService,
-    private readonly contacts: ResendContactsService
+    private readonly contacts: ResendContactsService,
+    private readonly revalidate: RevalidateService
   ) {}
 
   profile(organizerId: number) {
     return this.prisma.organizer.findUnique({ where: { id: organizerId } });
   }
 
-  updateProfile(organizerId: number, dto: OrganizerProfileDto) {
-    return this.prisma.organizer.update({ where: { id: organizerId }, data: dto });
+  async updateProfile(organizerId: number, dto: OrganizerProfileDto) {
+    const result = await this.prisma.organizer.update({ where: { id: organizerId }, data: dto });
+    await this.revalidate.revalidate("events");
+    return result;
   }
 
   listEvents(organizerId: number) {

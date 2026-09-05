@@ -2,7 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import { EventsService } from "../src/events/events.service";
 
 describe("event occurrence schedules", () => {
-  const service = new EventsService({} as never, {} as never);
+  const service = new EventsService({} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
   const normalize = (rows: Array<{ id?: number; startsAt: string; endsAt?: string | null; isAllDay?: boolean }>) =>
     (service as never as { normalizeOccurrences(input: typeof rows): Array<{ id?: number; startsAt: Date; endsAt: Date | null; isAllDay: boolean }> }).normalizeOccurrences(rows);
   const summarize = (rows: ReturnType<typeof normalize>) =>
@@ -80,7 +80,7 @@ describe("event occurrence schedules", () => {
       $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     };
     const duplicates = { detectForEvent: jest.fn().mockResolvedValue(undefined) };
-    const updateService = new EventsService(prisma as never, duplicates as never);
+    const updateService = new EventsService(prisma as never, duplicates as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await updateService.updateEvent(7, {
       occurrences: [
@@ -116,7 +116,7 @@ describe("event occurrence schedules", () => {
         }),
       },
     };
-    const updateService = new EventsService(prisma as never, {} as never);
+    const updateService = new EventsService(prisma as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
     await expect(updateService.updateEvent(7, { startsAt: "2026-08-15T10:00:00Z" })).rejects.toThrow(
       "Događaj koristi raspored termina",
     );

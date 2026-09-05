@@ -47,7 +47,8 @@ export async function findOrCreateCity(
   prisma: PrismaClient,
   name: string,
   countyName?: string,
-  regionName?: string
+  regionName?: string,
+  onCityUpdated?: () => Promise<void>
 ) {
   const cleaned = name.trim();
   const citySlug = slugify(cleaned);
@@ -66,11 +67,13 @@ export async function findOrCreateCity(
     // under this city name broken until someone runs the repair script.
     const geo = countyName || regionName ? null : await lookupCityGeo(cleaned);
     const { county } = await resolveCountyAndRegion(prisma, { countyName, regionName, geo });
-    return prisma.city.update({
+    const repaired = await prisma.city.update({
       where: { id: existing.id },
       data: { countyId: county.id, lat: geo?.lat ?? existing.lat, lng: geo?.lng ?? existing.lng },
       include: { county: { include: { region: true } } },
     });
+    await onCityUpdated?.();
+    return repaired;
   }
 
   const cleanRegionSlug = regionName ? slugify(regionName) : undefined;

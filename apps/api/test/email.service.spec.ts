@@ -141,6 +141,7 @@ describe("EmailService.dispatch (via public send* methods)", () => {
 
       await service.sendAdminNewSubmission({
         titleOrSource: "Novi koncert",
+        entityLabel: "događaj",
         sourceTypeLabel: "Organizator — poveznica",
         adminReviewUrl: "https://manifestacije.hr/admin/sources/1",
         webUrl: "https://manifestacije.hr",

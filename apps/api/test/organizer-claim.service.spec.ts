@@ -48,7 +48,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
 describe("OrganizerClaimService.requestClaim", () => {
   it("returns the identical generic message whether or not the organizer exists", async () => {
     const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(null) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.requestClaim({ organizerSlug: "nope", email: "a@example.hr" });
 
@@ -58,7 +58,7 @@ describe("OrganizerClaimService.requestClaim", () => {
   it("does nothing when the organizer does not exist", async () => {
     const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(null) } });
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaim({ organizerSlug: "nope", email: "a@example.hr" });
 
@@ -70,7 +70,7 @@ describe("OrganizerClaimService.requestClaim", () => {
     const prisma = makePrisma();
     const email = emailMock();
     const contacts = contactsMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contacts as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contacts as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.requestClaim({ organizerSlug: "test-organizer", email: "organizer@example.hr" });
 
@@ -90,7 +90,7 @@ describe("OrganizerClaimService.requestClaim", () => {
   it("takes the admin-review path and does not email the submitter when the email does not match", async () => {
     const prisma = makePrisma();
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.requestClaim({ organizerSlug: "test-organizer", email: "someone-else@example.hr" });
 
@@ -105,7 +105,7 @@ describe("OrganizerClaimService.requestClaim", () => {
   it("takes the admin-review path when the organizer is already claimed, even on an exact email match", async () => {
     const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaim({ organizerSlug: "test-organizer", email: "organizer@example.hr" });
 
@@ -116,7 +116,7 @@ describe("OrganizerClaimService.requestClaim", () => {
 
   it("invalidates previous unresolved claims for the organizer before creating a new automatic one", async () => {
     const prisma = makePrisma();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaim({ organizerSlug: "test-organizer", email: "organizer@example.hr" });
 
@@ -129,7 +129,7 @@ describe("OrganizerClaimService.requestClaim", () => {
   it("deletes the newly created claim token when the email fails to send, still returning the generic message", async () => {
     const prisma = makePrisma();
     const email = emailMock({ sendOrganizerClaim: jest.fn().mockRejectedValue(new Error("Resend down")) });
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.requestClaim({ organizerSlug: "test-organizer", email: "organizer@example.hr" });
 
@@ -141,7 +141,7 @@ describe("OrganizerClaimService.requestClaim", () => {
 describe("OrganizerClaimService.requestClaimByEmail", () => {
   it("returns the identical generic message whether or not the email matches anything", async () => {
     const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(null) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.requestClaimByEmail({ email: "nobody@example.hr" });
 
@@ -151,7 +151,7 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
   it("does nothing when no organizer matches the email", async () => {
     const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(null) } });
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaimByEmail({ email: "nobody@example.hr" });
 
@@ -163,7 +163,7 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
   it("finds the matching UNCLAIMED organizer by email alone (no slug needed) and sends the automatic claim link", async () => {
     const prisma = makePrisma();
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.requestClaimByEmail({ email: "organizer@example.hr" });
 
@@ -179,7 +179,7 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
   it("flags for admin review when the matched organizer is already claimed", async () => {
     const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaimByEmail({ email: "organizer@example.hr" });
 
@@ -195,7 +195,7 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
     // profile — it must never be treated as "already claimed" by itself.
     const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.TRUSTED, users: [] })) } });
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaimByEmail({ email: "organizer@example.hr" });
 
@@ -206,7 +206,7 @@ describe("OrganizerClaimService.requestClaimByEmail", () => {
   it("never syncs a Resend contact for a pending request", async () => {
     const prisma = makePrisma();
     const contacts = contactsMock();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.requestClaimByEmail({ email: "organizer@example.hr" });
 
@@ -254,7 +254,7 @@ describe("OrganizerClaimService.completeClaim", () => {
 
   it("rejects an unknown token", async () => {
     const { prisma } = makePrismaForComplete({ organizerClaim: { findUnique: jest.fn().mockResolvedValue(null) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" }))
       .rejects.toThrow(INVALID_CLAIM_MESSAGE);
@@ -264,7 +264,7 @@ describe("OrganizerClaimService.completeClaim", () => {
     const { prisma } = makePrismaForComplete({
       organizerClaim: { findUnique: jest.fn().mockResolvedValue(activeClaim({ expiresAt: new Date(Date.now() - 1000) })) },
     });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" }))
       .rejects.toBeInstanceOf(BadRequestException);
@@ -274,7 +274,7 @@ describe("OrganizerClaimService.completeClaim", () => {
     const { prisma } = makePrismaForComplete({
       organizerClaim: { findUnique: jest.fn().mockResolvedValue(activeClaim({ status: "COMPLETED" })) },
     });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" }))
       .rejects.toBeInstanceOf(BadRequestException);
@@ -282,7 +282,7 @@ describe("OrganizerClaimService.completeClaim", () => {
 
   it("rejects when the organizer is already claimed (race with another completion)", async () => {
     const { prisma } = makePrismaForComplete({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" }))
       .rejects.toBeInstanceOf(BadRequestException);
@@ -290,7 +290,7 @@ describe("OrganizerClaimService.completeClaim", () => {
 
   it("creates a new User safely when none exists yet, hashing the password", async () => {
     const { prisma, tx } = makePrismaForComplete();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" });
 
@@ -306,7 +306,7 @@ describe("OrganizerClaimService.completeClaim", () => {
 
   it("requires name and password when no User exists yet", async () => {
     const { prisma } = makePrismaForComplete();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN })).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -315,7 +315,7 @@ describe("OrganizerClaimService.completeClaim", () => {
     const { prisma, tx } = makePrismaForComplete({
       user: { findUnique: jest.fn().mockResolvedValue({ id: 2, email: "organizer@example.hr", role: UserRole.ORGANIZER, organizerId: null }) },
     });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.completeClaim({ token: RAW_TOKEN });
 
@@ -328,7 +328,7 @@ describe("OrganizerClaimService.completeClaim", () => {
     const { prisma } = makePrismaForComplete({
       user: { findUnique: jest.fn().mockResolvedValue({ id: 2, email: "organizer@example.hr", role: UserRole.ORGANIZER, organizerId: 99 }) },
     });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN })).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -337,14 +337,14 @@ describe("OrganizerClaimService.completeClaim", () => {
     const { prisma } = makePrismaForComplete({
       user: { findUnique: jest.fn().mockResolvedValue({ id: 2, email: "organizer@example.hr", role: UserRole.ADMIN, organizerId: null }) },
     });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.completeClaim({ token: RAW_TOKEN })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("invalidates other unresolved claims for the organizer on completion", async () => {
     const { prisma, tx } = makePrismaForComplete();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" });
 
@@ -357,7 +357,7 @@ describe("OrganizerClaimService.completeClaim", () => {
   it("syncs a Resend contact after completion, and a sync failure does not roll back or fail the claim", async () => {
     const { prisma } = makePrismaForComplete();
     const contacts = contactsMock({ syncClaimedOrganizer: jest.fn().mockRejectedValue(new Error("Resend down")) });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.completeClaim({ token: RAW_TOKEN, name: "New Organizer", password: "brandNewPassword123" });
 
@@ -378,7 +378,7 @@ describe("OrganizerClaimService.verifyToken", () => {
       organizer: { findUnique: jest.fn().mockResolvedValue(organizer()) },
       user: { findUnique: jest.fn().mockResolvedValue(null) },
     };
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.verifyToken({ token: RAW_TOKEN });
 
@@ -387,7 +387,7 @@ describe("OrganizerClaimService.verifyToken", () => {
 
   it("reports valid=false for an unknown token", async () => {
     const prisma = { organizerClaim: { findUnique: jest.fn().mockResolvedValue(null) } };
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.verifyToken({ token: RAW_TOKEN });
 
@@ -398,7 +398,7 @@ describe("OrganizerClaimService.verifyToken", () => {
 describe("OrganizerClaimService.listClaims", () => {
   it("includes organizer details for the admin review table", async () => {
     const prisma = { organizerClaim: { findMany: jest.fn().mockResolvedValue([{ id: 1 }]) } };
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.listClaims();
 
@@ -417,7 +417,7 @@ describe("OrganizerClaimService.approveClaim", () => {
   it("sends a claim email and moves the claim to EMAIL_VERIFICATION_SENT", async () => {
     const prisma = makePrisma({ organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue(reviewClaim()) } });
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.approveClaim(5);
 
@@ -430,7 +430,7 @@ describe("OrganizerClaimService.approveClaim", () => {
 
   it("rejects approving a claim that isn't pending review", async () => {
     const prisma = makePrisma({ organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue(reviewClaim({ status: "COMPLETED" })) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.approveClaim(5)).rejects.toThrow(/nije na čekanju/);
   });
@@ -440,7 +440,7 @@ describe("OrganizerClaimService.approveClaim", () => {
       organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) },
       organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue(reviewClaim()) },
     });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.approveClaim(5)).rejects.toThrow(/već preuzet/);
   });
@@ -448,7 +448,7 @@ describe("OrganizerClaimService.approveClaim", () => {
   it("reverts to NEEDS_ADMIN_REVIEW and surfaces an error when the claim email fails to send", async () => {
     const prisma = makePrisma({ organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue(reviewClaim()) } });
     const email = emailMock({ sendOrganizerClaim: jest.fn().mockRejectedValue(new Error("Resend down")) });
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.approveClaim(5)).rejects.toBeInstanceOf(BadRequestException);
 
@@ -462,7 +462,7 @@ describe("OrganizerClaimService.approveClaim", () => {
 describe("OrganizerClaimService.rejectClaim", () => {
   it("marks the claim REJECTED with an optional internal reason", async () => {
     const prisma = makePrisma({ organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue({ id: 5 }) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.rejectClaim(5, "Sumnjiv zahtjev");
 
@@ -476,7 +476,7 @@ describe("OrganizerClaimService.rejectClaim", () => {
   it("does not add a Resend Contact for a rejected claim", async () => {
     const prisma = makePrisma({ organizerClaim: { ...makePrisma().organizerClaim, findUnique: jest.fn().mockResolvedValue({ id: 5 }) } });
     const contacts = contactsMock();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.rejectClaim(5);
 
@@ -488,7 +488,7 @@ describe("OrganizerClaimService.sendClaimInvite", () => {
   it("sends a claim invite for an eligible UNCLAIMED organizer with an email", async () => {
     const prisma = makePrisma();
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const result = await service.sendClaimInvite(7);
 
@@ -498,14 +498,14 @@ describe("OrganizerClaimService.sendClaimInvite", () => {
 
   it("rejects inviting an already-claimed organizer", async () => {
     const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.CLAIMED, users: [{ id: 99 }] })) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.sendClaimInvite(7)).rejects.toThrow(/već preuzet/);
   });
 
   it("rejects inviting an organizer with no email on file", async () => {
     const prisma = makePrisma({ organizer: { findUnique: jest.fn().mockResolvedValue(organizer({ email: null })) } });
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await expect(service.sendClaimInvite(7)).rejects.toThrow(/nema email/);
   });
@@ -532,7 +532,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
       { id: 1, name: "Org A", email: "orga@example.hr", status: OrganizerStatus.UNCLAIMED, users: [], claims: [] },
     ]);
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const stats = await service.bulkInviteUnclaimedOrganizers();
 
@@ -548,7 +548,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
       },
     ]);
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const stats = await service.bulkInviteUnclaimedOrganizers();
 
@@ -560,7 +560,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
     const prisma = makeBulkPrisma([
       { id: 1, name: "Org A", email: null, status: OrganizerStatus.UNCLAIMED, users: [], claims: [] },
     ]);
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const stats = await service.bulkInviteUnclaimedOrganizers();
 
@@ -571,7 +571,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
     const prisma = makeBulkPrisma([
       { id: 1, name: "Org A", email: "orga@example.hr", status: OrganizerStatus.UNCLAIMED, users: [{ id: 5 }], claims: [] },
     ]);
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const stats = await service.bulkInviteUnclaimedOrganizers();
 
@@ -583,7 +583,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
       { id: 1, name: "Org A", email: "orga@example.hr", status: OrganizerStatus.UNCLAIMED, users: [], claims: [] },
     ]);
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const stats = await service.bulkInviteUnclaimedOrganizers({ dryRun: true });
 
@@ -598,7 +598,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
       { id: 2, name: "Org B", email: "orgb@example.hr", status: OrganizerStatus.UNCLAIMED, users: [], claims: [] },
     ]);
     const email = emailMock();
-    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never);
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     const stats = await service.bulkInviteUnclaimedOrganizers({ limit: 1 });
 
@@ -611,7 +611,7 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
       { id: 1, name: "Org A", email: "orga@example.hr", status: OrganizerStatus.UNCLAIMED, users: [], claims: [] },
     ]);
     const contacts = contactsMock();
-    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never);
+    const service = new OrganizerClaimService(prisma as never, emailMock() as never, contacts as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 
     await service.bulkInviteUnclaimedOrganizers();
 

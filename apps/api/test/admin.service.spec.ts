@@ -45,7 +45,7 @@ describe("AdminService ingestion workflow", () => {
       // stub just resolves whatever the two calls already returned.
       $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.allEvents({ sortBy: "startsAt", sortDir: "desc" });
 
@@ -64,7 +64,7 @@ describe("AdminService ingestion workflow", () => {
       // stub just resolves whatever the two calls already returned.
       $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.pendingEvents();
 
@@ -80,7 +80,7 @@ describe("AdminService ingestion workflow", () => {
       eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     };
     const parser = { parseBatch: jest.fn().mockResolvedValue(result) };
-    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createManualEmail({ rawText: "raw", sourceUrl: "https://source.example", rawEmailSubject: "Subject", rawEmailFrom: "from@example.hr" });
 
@@ -95,12 +95,13 @@ describe("AdminService ingestion workflow", () => {
   });
 
   it("adds fetch warning when URL fetch fails", async () => {
-    const result = parsedResult([candidate()]);
+    const result = parsedResult([candidate({ startsAt: "2099-07-04T18:00:00.000Z" })]);
     const prisma = {
+      event: { findMany: jest.fn().mockResolvedValue([]) },
       eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     };
     const parser = { parseBatch: jest.fn().mockResolvedValue(result) };
-    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
     jest.spyOn(global, "fetch").mockRejectedValueOnce(new Error("network down"));
 
     await service.parseUrl({ sourceUrl: "https://source.example/event" });
@@ -119,7 +120,7 @@ describe("AdminService ingestion workflow", () => {
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0);
 
@@ -144,7 +145,7 @@ describe("AdminService ingestion workflow", () => {
       },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const created = await service.createEventFromSource(1, 0, { startsAt: "2026-07-05T19:00:00.000Z" });
 
@@ -186,7 +187,7 @@ describe("AdminService ingestion workflow", () => {
     };
     jest.spyOn(global, "fetch").mockRejectedValueOnce(new Error("offline"));
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0);
 
@@ -211,7 +212,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 55 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, { categoryIds: [44, 45] });
 
@@ -235,7 +236,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, { isAllDay: true });
 
@@ -254,7 +255,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0);
 
@@ -273,7 +274,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, { sourceUrl: null });
 
@@ -288,7 +289,7 @@ describe("AdminService ingestion workflow", () => {
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.ignoreCandidate(1, 0);
 
@@ -305,7 +306,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { delete: jest.fn().mockResolvedValue({ id: 7 }) },
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const result = await service.deleteOrganizer(7);
 
@@ -320,7 +321,7 @@ describe("AdminService ingestion workflow", () => {
       organizer: { delete: jest.fn() },
       $transaction: jest.fn(),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await expect(service.deleteOrganizer(7)).rejects.toThrow(/3 događaja/);
     expect(prisma.organizer.delete).not.toHaveBeenCalled();
@@ -384,7 +385,7 @@ describe("AdminService ingestion workflow", () => {
       },
       eventCategory: { create: jest.fn() },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.duplicateEvent(9);
 
@@ -534,7 +535,7 @@ describe("AdminService.organizers", () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const result = await service.organizers();
 
@@ -558,7 +559,7 @@ describe("AdminService.users", () => {
         ]),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.users();
 
@@ -571,7 +572,7 @@ describe("AdminService.users", () => {
 describe("AdminService.deleteUser", () => {
   it("deletes a user by id", async () => {
     const prisma = { user: { delete: jest.fn().mockResolvedValue({ id: 5 }) } };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const result = await service.deleteUser(5, 1);
 
@@ -581,7 +582,7 @@ describe("AdminService.deleteUser", () => {
 
   it("refuses to delete your own account", async () => {
     const prisma = { user: { delete: jest.fn() } };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await expect(service.deleteUser(1, 1)).rejects.toThrow(/vlastiti račun/);
     expect(prisma.user.delete).not.toHaveBeenCalled();
@@ -598,7 +599,7 @@ describe("AdminService.deleteCity", () => {
       },
       $transaction: jest.fn(),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await expect(service.deleteCity(518)).rejects.toThrow("Grad ima 2 događaja");
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -613,7 +614,7 @@ describe("AdminService.deleteCity", () => {
       },
       $transaction: jest.fn(),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await expect(service.deleteCity(518)).rejects.toThrow("Grad ima 1 događaja preko lokacija");
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -632,7 +633,7 @@ describe("AdminService.deleteCity", () => {
       },
       $transaction: jest.fn(async (callback) => callback(tx)),
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const result = await service.deleteCity(518);
 
@@ -652,7 +653,7 @@ describe("AdminService city taxonomy writes", () => {
         create: jest.fn(),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await expect(service.createCity({ name: "Dakovo", slug: "dakovo-2", countyId: 1 })).rejects.toThrow("Grad već postoji: Đakovo (dakovo).");
     expect(prisma.city.create).not.toHaveBeenCalled();
@@ -665,7 +666,7 @@ describe("AdminService city taxonomy writes", () => {
         update: jest.fn().mockResolvedValue({ id: 3, name: "Đakovo" }),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, uploadsStub as never);
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const result = await service.updateCity(3, { name: "Đakovo", slug: "dakovo", countyId: 1 });
 

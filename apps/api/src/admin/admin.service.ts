@@ -11,7 +11,7 @@ import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
-import { RevalidateService } from "./revalidate.service";
+import { hasPublicEventOutput, RevalidateService } from "./revalidate.service";
 import { shiftZagrebCalendarDays, zagrebLocalToUtc } from "../common/weekend";
 import { UploadsService } from "./uploads.service";
 
@@ -75,6 +75,7 @@ export class AdminService {
   }
 
   async bulkAssignCategory(eventIds: number[], categoryId: number, action: "add" | "remove") {
+    const publicChange = await this.hasPublicEvents(eventIds);
     if (action === "remove") {
       await this.prisma.eventCategory.deleteMany({
         where: { eventId: { in: eventIds }, categoryId },
@@ -88,9 +89,11 @@ export class AdminService {
         });
       }
     }
+    if (publicChange) await this.revalidate.revalidate("events");
   }
 
   async bulkSetStatus(eventIds: number[], status: EventStatus) {
+    const publicChange = await this.hasPublicEvents(eventIds);
     const changedIds = (status === EventStatus.PUBLISHED || status === EventStatus.REJECTED)
       ? (await this.prisma.event.findMany({ where: { id: { in: eventIds }, status: { not: status } }, select: { id: true } })).map((e) => e.id)
       : [];
@@ -99,7 +102,7 @@ export class AdminService {
       where: { id: { in: eventIds } },
       data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined },
     });
-    void this.revalidate.revalidate("events");
+    if (publicChange || (status === EventStatus.PUBLISHED && result.count > 0)) await this.revalidate.revalidate("events");
 
     for (const eventId of changedIds) {
       await this.notifyOrganizerOfStatusChange(eventId, status as typeof EventStatus.PUBLISHED | typeof EventStatus.REJECTED);
@@ -111,7 +114,7 @@ export class AdminService {
   async bulkShiftDates(eventIds: number[], days: number) {
     const events = await this.prisma.event.findMany({
       where: { id: { in: eventIds } },
-      select: { id: true, startsAt: true, endsAt: true, occurrences: true },
+      select: { id: true, startsAt: true, endsAt: true, occurrences: true, status: true, publishedAt: true },
     });
     await this.prisma.$transaction(
       events.flatMap((e) => [
@@ -131,7 +134,7 @@ export class AdminService {
         })),
       ])
     );
-    void this.revalidate.revalidate("events");
+    if (events.some(hasPublicEventOutput)) await this.revalidate.revalidate("events");
     return { count: events.length };
   }
 
@@ -150,7 +153,6 @@ export class AdminService {
 
   async updateEvent(id: number, dto: AdminEventDto) {
     const result = await this.events.updateEvent(id, dto);
-    void this.revalidate.revalidate("events");
     return result;
   }
 
@@ -159,7 +161,6 @@ export class AdminService {
 
     const result = await this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
     if (dto.status === EventStatus.PUBLISHED) {
-      void this.revalidate.revalidate("events");
       if (result.organizerId) await this.notifyOrganizerOfStatusChange(result.id, EventStatus.PUBLISHED);
     }
     return result;
@@ -211,7 +212,6 @@ export class AdminService {
     }
 
     if (dto.status === EventStatus.PUBLISHED) {
-      void this.revalidate.revalidate("events");
       for (const event of created) {
         if (event.organizerId) await this.notifyOrganizerOfStatusChange(event.id, EventStatus.PUBLISHED);
       }
@@ -300,7 +300,7 @@ export class AdminService {
       createdIds.push(clone.id);
     }
 
-    if (event.status === EventStatus.PUBLISHED) void this.revalidate.revalidate("events");
+    if (hasPublicEventOutput(event)) await this.revalidate.revalidate("events");
 
     return { ...updatedFirst, _seriesCount: createdIds.length, _seriesEventIds: createdIds };
   }
@@ -321,11 +321,11 @@ export class AdminService {
   }
 
   async setEventStatus(id: number, status: EventStatus) {
-    const current = await this.prisma.event.findUnique({ where: { id }, select: { status: true } });
+    const current = await this.prisma.event.findUnique({ where: { id }, select: { status: true, publishedAt: true } });
     const statusChanged = current?.status !== status;
 
     const result = await this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
-    void this.revalidate.revalidate("events");
+    if (hasPublicEventOutput(current) || hasPublicEventOutput(result)) await this.revalidate.revalidate("events");
 
     // Only notify on an actual transition — repeated approve/publish clicks on an
     // already-published event (or repeated reject) must not send duplicate emails.
@@ -445,12 +445,16 @@ export class AdminService {
     return this.prisma.organizer.create({ data: { ...dto, slug, status: OrganizerStatus.UNCLAIMED, adminViewedAt: new Date() } });
   }
 
-  updateOrganizer(id: number, dto: OrganizerAdminDto) {
-    return this.prisma.organizer.update({ where: { id }, data: dto });
+  async updateOrganizer(id: number, dto: OrganizerAdminDto) {
+    const result = await this.prisma.organizer.update({ where: { id }, data: dto });
+    await this.revalidate.revalidate("events");
+    return result;
   }
 
-  setOrganizerStatus(id: number, status: OrganizerStatus) {
-    return this.prisma.organizer.update({ where: { id }, data: { status } });
+  async setOrganizerStatus(id: number, status: OrganizerStatus) {
+    const result = await this.prisma.organizer.update({ where: { id }, data: { status } });
+    await this.revalidate.revalidate("events");
+    return result;
   }
 
   async resetOrganizerPassword(organizerId: number, password: string) {
@@ -502,7 +506,7 @@ export class AdminService {
       });
       return tx.event.delete({ where: { id } });
     });
-    void this.revalidate.revalidate("events");
+    if (hasPublicEventOutput(result)) await this.revalidate.revalidate("events");
     return result;
   }
 
@@ -766,7 +770,6 @@ export class AdminService {
     }
 
     if (publish) {
-      void this.revalidate.revalidate("events");
       if (event.organizerId) await this.notifyOrganizerOfStatusChange(event.id, EventStatus.PUBLISHED);
     }
     return { event, candidateIndex };
@@ -838,7 +841,10 @@ export class AdminService {
 
   async updateCity(id: number, dto: import("./admin.dto").CityDto) {
     await this.assertNoDuplicateCity(dto, id);
-    return this.prisma.city.update({ where: { id }, data: { name: dto.name, slug: dto.slug, lat: dto.lat, lng: dto.lng } });
+    const result = await this.prisma.city.update({ where: { id }, data: { name: dto.name, slug: dto.slug, lat: dto.lat, lng: dto.lng } });
+    await this.revalidate.revalidate("events");
+    await this.revalidate.revalidate("taxonomy");
+    return result;
   }
 
   private async assertNoDuplicateCity(dto: import("./admin.dto").CityDto, currentId?: number) {
@@ -877,8 +883,11 @@ export class AdminService {
     return this.prisma.category.create({ data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder ?? 0 } });
   }
 
-  updateCategory(id: number, dto: import("./admin.dto").CategoryDto) {
-    return this.prisma.category.update({ where: { id }, data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder } });
+  async updateCategory(id: number, dto: import("./admin.dto").CategoryDto) {
+    const result = await this.prisma.category.update({ where: { id }, data: { name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder } });
+    await this.revalidate.revalidate("events");
+    await this.revalidate.revalidate("taxonomy");
+    return result;
   }
 
   async deleteCategory(id: number) {
@@ -895,7 +904,7 @@ export class AdminService {
     const p = await this.prisma.partner.create({
       data: { name: dto.name, logoUrl: dto.logoUrl, websiteUrl: dto.websiteUrl, sortOrder: dto.sortOrder ?? 0, isActive: dto.isActive ?? true },
     });
-    void this.revalidate.revalidate("partners");
+    await this.revalidate.revalidate("partners");
     return p;
   }
 
@@ -904,13 +913,13 @@ export class AdminService {
       where: { id },
       data: { name: dto.name, logoUrl: dto.logoUrl, websiteUrl: dto.websiteUrl, sortOrder: dto.sortOrder, isActive: dto.isActive },
     });
-    void this.revalidate.revalidate("partners");
+    await this.revalidate.revalidate("partners");
     return p;
   }
 
   async deletePartner(id: number) {
     await this.prisma.partner.delete({ where: { id } });
-    void this.revalidate.revalidate("partners");
+    await this.revalidate.revalidate("partners");
   }
 
   async searchVenues(q: string) {
@@ -954,6 +963,13 @@ export class AdminService {
       categories: { include: { category: true } },
       occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] },
     } satisfies Prisma.EventInclude;
+  }
+
+  private async hasPublicEvents(ids: number[]): Promise<boolean> {
+    return (await this.prisma.event.count({ where: { id: { in: ids }, OR: [
+      { status: EventStatus.PUBLISHED },
+      { status: EventStatus.ARCHIVED, publishedAt: { not: null } },
+    ] } })) > 0;
   }
 
   private async paginatedEvents(where: Prisma.EventWhereInput, params?: AdminEventListParams) {

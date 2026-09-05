@@ -1,3 +1,4 @@
+import { flagAlreadyImported } from "../src/ai-parser/candidate-filters";
 import { AiEventParserService } from "../src/ai-parser/ai-event-parser.service";
 import { AdminService } from "../src/admin/admin.service";
 import { DuplicatesService } from "../src/duplicates/duplicates.service";
@@ -215,9 +216,7 @@ describe("already-imported flagging", () => {
   });
 
   const flagOf = async (over: Parameters<typeof candidate>[0]) => {
-    const result = await (service as never as {
-      flagAlreadyImported(p: { sourceUrl: string; sourceType: string; candidates: unknown[] }): Promise<{ candidates: { _existingEventId?: number; _status?: string }[] }>;
-    }).flagAlreadyImported({ sourceUrl: "x", sourceType: "batch", candidates: [candidate(over)] });
+    const result = await flagAlreadyImported(prisma as never, duplicates, { sourceUrl: "x", sourceType: "batch", candidates: [candidate(over)] });
     return result.candidates[0];
   };
 

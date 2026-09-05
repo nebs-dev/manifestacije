@@ -193,7 +193,9 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
   if (filters.when === "ovaj-mjesec") params.set("month", "true")
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
-  return fetchApi<ApiEvent[]>(path).then(mapApiEvents).catch(() => fallbackEventsForFilters(filters))
+  // Mutation webhooks invalidate `events`; this finite fallback also refreshes
+  // clock-dependent visibility and today/weekend ranges without mutations.
+  return fetchApi<ApiEvent[]>(path, 300, ["events"]).then(mapApiEvents).catch(() => fallbackEventsForFilters(filters))
 }
 
 export async function fetchEvent(slug: string) {
