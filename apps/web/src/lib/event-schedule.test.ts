@@ -80,3 +80,8 @@ describe("historical event state", () => {
     }), now)).toBe(false)
   })
 })
+
+ it("shows an exclusive midnight end as 24:00 on the starting day", () => {
+  expect(formatOccurrenceLabel({ id: "midnight", date: "2026-08-14", startsAtISO: "2026-08-14T18:00:00+02:00", endsAtISO: "2026-08-15T00:00:00+02:00", time: "18:00", allDay: false }))
+    .toBe("14. kolovoza · 18:00–24:00")
+ })

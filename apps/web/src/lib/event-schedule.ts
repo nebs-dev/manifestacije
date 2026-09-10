@@ -1,3 +1,4 @@
+import { eventDisplayEnd } from "./event-end"
 import type { CroEvent, CroEventOccurrence } from "./data"
 
 const TZ = "Europe/Zagreb"
@@ -47,7 +48,9 @@ export function eventHasEnded(event: CroEvent, now = new Date()) {
     if (occurrence.allDay && !occurrence.endsAtISO) {
       return (occurrence.endDate ?? occurrence.date) < today
     }
-    return new Date(occurrence.endsAtISO ?? occurrence.startsAtISO) < now
+    return occurrence.endsAtISO
+      ? new Date(occurrence.endsAtISO) <= now
+      : new Date(occurrence.startsAtISO) < now
   })
 }
 
@@ -68,17 +71,19 @@ export function formatOccurrenceLabel(occurrence: CroEventOccurrence, includeYea
     minute: "2-digit",
   }).format(value)
   if (!end) return `${date} · ${time(start)}`
+  const displayEnd = eventDisplayEnd(start, end)
+  const endTime = ZAGREB_DATE.format(displayEnd) !== ZAGREB_DATE.format(end) ? "24:00" : time(end)
   const endDate = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(end)
-  if (endDate === occurrence.date) return `${date} · ${time(start)}–${time(end)}`
+  }).format(displayEnd)
+  if (endDate === occurrence.date) return `${date} · ${time(start)}–${endTime}`
   const endLabel = new Intl.DateTimeFormat("hr-HR", {
     timeZone: TZ,
     day: "numeric",
     month: "long",
-  }).format(end)
-  return `${date} · ${time(start)} – ${endLabel} · ${time(end)}`
+  }).format(displayEnd)
+  return `${date} · ${time(start)} – ${endLabel} · ${endTime}`
 }

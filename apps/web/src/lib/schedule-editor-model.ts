@@ -1,3 +1,5 @@
+import { eventDisplayEnd } from "./event-end"
+
 export type ScheduleRow = {
   key: string
   id?: number
@@ -72,11 +74,14 @@ export function scheduleRowsFromEvent(input: {
   return source.map((occurrence, index) => {
     const start = partsInZagreb(occurrence.startsAt)
     const end = occurrence.endsAt ? partsInZagreb(occurrence.endsAt) : null
+    const endsAtMidnightOnStartingDay = !occurrence.isAllDay && occurrence.endsAt &&
+      end?.time === "00:00" && start.time !== "00:00" &&
+      partsInZagreb(eventDisplayEnd(new Date(occurrence.startsAt), new Date(occurrence.endsAt))).date === start.date
     return {
       key: occurrence.id ? `occurrence-${occurrence.id}` : `initial-${index}`,
       id: occurrence.id,
       date: start.date,
-      endDate: end?.date && end.date !== start.date ? end.date : undefined,
+      endDate: !endsAtMidnightOnStartingDay && end?.date && end.date !== start.date ? end.date : undefined,
       startTime: occurrence.isAllDay ? "" : start.time,
       endTime: occurrence.isAllDay ? "" : end?.time ?? "",
       isAllDay: occurrence.isAllDay === true,

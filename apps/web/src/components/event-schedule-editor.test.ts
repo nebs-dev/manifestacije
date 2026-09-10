@@ -33,3 +33,11 @@ describe("schedule editor serialization", () => {
     expect(addWeek("2026-08-27")).toBe("2026-09-03")
   })
 })
+
+ it.each(["00:00", "24:00"])("preserves midnight end %s as the next midnight timestamp", endTime => {
+  const [saved] = scheduleRowsToApi([{ key: "midnight", date: "2026-09-10", startTime: "18:00", endTime, isAllDay: false }])
+  expect(saved.endsAt).toBe("2026-09-10T22:00:00.000Z")
+  const rows = scheduleRowsFromEvent(saved)
+  expect(rows[0].endDate).toBeUndefined()
+  expect(scheduleRowsToApi(rows)[0].endsAt).toBe(saved.endsAt)
+ })

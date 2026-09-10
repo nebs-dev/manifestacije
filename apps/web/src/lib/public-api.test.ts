@@ -224,3 +224,21 @@ describe("public API adapter", () => {
     expect(events.some((event) => event.categories.some((category) => category.name === "Festivali"))).toBe(true)
   })
 })
+
+ describe("midnight event dates", () => {
+  it.each([false, true])("does not count the midnight endpoint as another day (occurrences=%s)", async withOccurrences => {
+    const startsAt = "2099-07-04T18:00:00+02:00"
+    const endsAt = "2099-07-05T00:00:00+02:00"
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [{
+      ...apiEvent, startsAt, endsAt,
+      occurrences: withOccurrences ? [{ id: 1, startsAt, endsAt, isAllDay: false }] : [],
+    }] }))
+    try {
+      const [event] = await fetchEvents()
+      expect(event.date).toBe("2099-07-04")
+      expect(event.endDate).toBe("2099-07-04")
+      expect(event.endsAtISO).toBe(endsAt)
+      if (withOccurrences) expect(event.occurrences?.[0].endDate).toBe("2099-07-04")
+    } finally { vi.unstubAllGlobals() }
+  })
+})

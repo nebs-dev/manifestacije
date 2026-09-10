@@ -3,7 +3,7 @@ import { currentWeekendRange } from "../src/common/weekend";
 import { PublicFeedService } from "../src/public-feed/public-feed.service";
 
 const legacyVisibility = (now: Date) => ({
-  OR: [{ endsAt: { gte: now } }, { endsAt: null, startsAt: { gte: now } }],
+  OR: [{ endsAt: { gt: now } }, { endsAt: null, startsAt: { gte: now } }],
 });
 
 const visibility = (now: Date) => ({
@@ -16,7 +16,7 @@ const visibility = (now: Date) => ({
 const occurrenceOverlap = (start: Date, end: Date) => {
   const overlap = {
     startsAt: { lte: end },
-    OR: [{ endsAt: { gte: start } }, { endsAt: null, startsAt: { gte: start } }],
+    OR: [{ endsAt: { gt: start } }, { endsAt: null, startsAt: { gte: start } }],
   };
   return {
     OR: [

@@ -294,7 +294,7 @@ export class PublicFeedService {
     const overlap = {
       startsAt: { lte: periodEnd },
       OR: [
-        { endsAt: { gte: periodStart } },
+        { endsAt: { gt: periodStart } },
         { endsAt: null, startsAt: { gte: periodStart } },
       ],
     } satisfies Prisma.EventOccurrenceWhereInput;
@@ -307,7 +307,7 @@ export class PublicFeedService {
             {
               startsAt: { lte: periodEnd },
               OR: [
-                { endsAt: { gte: periodStart } },
+                { endsAt: { gt: periodStart } },
                 { endsAt: null, startsAt: { gte: periodStart } },
               ],
             },
@@ -324,7 +324,7 @@ export class PublicFeedService {
           occurrences: {
             some: {
               OR: [
-                { endsAt: { gte: now } },
+                { endsAt: { gt: now } },
                 { endsAt: null, startsAt: { gte: now } },
               ],
             },
@@ -335,7 +335,7 @@ export class PublicFeedService {
             { occurrences: { none: {} } },
             {
               OR: [
-                { endsAt: { gte: now } },
+                { endsAt: { gt: now } },
                 { endsAt: null, startsAt: { gte: now } },
               ],
             },

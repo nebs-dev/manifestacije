@@ -59,3 +59,15 @@ describe("Europe/Zagreb weekend range", () => {
     expect(eventOverlapsDay(start, end, range.sunday)).toBe(true);
   });
 });
+
+ describe("exclusive event endpoint", () => {
+  it("does not include the next day when an event ends at midnight", () => {
+    const start = new Date("2026-09-10T18:00:00+02:00")
+    const end = new Date("2026-09-11T00:00:00+02:00")
+    expect(eventOverlapsDay(start, end, new Date("2026-09-10T00:00:00+02:00"))).toBe(true)
+    expect(eventOverlapsDay(start, end, end)).toBe(false)
+    expect(eventOverlapsRange(start, end, currentWeekendRange(end))).toBe(false)
+    expect(eventOverlapsDay(start, new Date("2026-09-11T00:01:00+02:00"), end)).toBe(true)
+    expect(eventOverlapsDay(end, null, end)).toBe(true)
+  })
+ })

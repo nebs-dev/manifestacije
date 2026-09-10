@@ -1,3 +1,4 @@
+import { eventDisplayEnd } from "./event-end"
 import { CITY_COORDS, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 import { eventImagePrimaryUrl, eventImageVariant } from "./event-image-variants"
 import { eventOccursDuringCurrentWeekend } from "./weekend"
@@ -346,7 +347,7 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     return {
       id: String(occurrence.id),
       date: toZagrebDate(occurrenceStart),
-      endDate: occurrenceEnd ? toZagrebDate(occurrenceEnd) : undefined,
+      endDate: occurrenceEnd ? toZagrebDate(eventDisplayEnd(occurrenceStart, occurrenceEnd, occurrence.isAllDay === true)) : undefined,
       startsAtISO: toZagrebISOString(occurrenceStart),
       endsAtISO: occurrenceEnd ? toZagrebISOString(occurrenceEnd) : undefined,
       time: timeLabel(occurrenceStart),
@@ -355,13 +356,13 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
   })
   const selectedOccurrence = occurrences.find((occurrence) => {
     const endpoint = new Date(occurrence.endsAtISO ?? occurrence.startsAtISO)
-    return endpoint >= now
+    return occurrence.endsAtISO ? endpoint > now : endpoint >= now
   }) ?? occurrences[occurrences.length - 1]
   // Legacy ongoing ranges keep their existing display behavior. Occurrence-backed
   // events instead show the next active/upcoming real slot.
   const displayStart = selectedOccurrence
     ? new Date(selectedOccurrence.startsAtISO)
-    : ends && starts < now ? now : starts
+    : ends && starts < now && now < ends ? now : starts
   const displayEnd = selectedOccurrence?.endsAtISO ? new Date(selectedOccurrence.endsAtISO) : ends
   const region = regionMap[event.region?.slug || ""] || "nepoznato"
 
@@ -385,7 +386,7 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     citySlug: event.city?.slug || (event.cityName ? slugifyLabel(event.cityName) : undefined),
     venue: event.venue?.name || event.cityName || event.city?.name || "",
     date: selectedOccurrence?.date ?? toZagrebDate(displayStart),
-    endDate: selectedOccurrence?.endDate ?? (displayEnd ? toZagrebDate(displayEnd) : undefined),
+    endDate: selectedOccurrence?.endDate ?? (displayEnd ? toZagrebDate(eventDisplayEnd(starts, displayEnd, event.isAllDay === true)) : undefined),
     startsAtISO: selectedOccurrence?.startsAtISO ?? toZagrebISOString(starts),
     endsAtISO: selectedOccurrence?.endsAtISO ?? (ends ? toZagrebISOString(ends) : undefined),
     occurrences: occurrences.length ? occurrences : undefined,

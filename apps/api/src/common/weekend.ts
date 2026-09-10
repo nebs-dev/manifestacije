@@ -111,8 +111,8 @@ export function currentWeekendRange(now = new Date()): WeekendRange {
 }
 
 export function eventOverlapsRange(startsAt: Date, endsAt: Date | null | undefined, range: Pick<WeekendRange, "start" | "end">): boolean {
-  const eventEnd = endsAt ?? startsAt;
-  return startsAt <= range.end && eventEnd >= range.start;
+  // The ending instant belongs to the following interval, not this event.
+  return startsAt <= range.end && (endsAt ? endsAt > range.start : startsAt >= range.start);
 }
 
 export function eventOverlapsDay(startsAt: Date, endsAt: Date | null | undefined, dayStart: Date): boolean {
