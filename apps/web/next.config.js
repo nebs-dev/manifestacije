@@ -1,3 +1,8 @@
+// The map is client-only, so also surface missing configuration during builds.
+if (!process.env.NEXT_PUBLIC_CARTO_BASEMAP_KEY?.trim()) {
+  console.warn("[mapa] NEXT_PUBLIC_CARTO_BASEMAP_KEY is missing; CARTO tiles will be disabled. Set it before building the web app.");
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {

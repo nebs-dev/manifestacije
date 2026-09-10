@@ -5,6 +5,12 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
 import { coordsFor, priceLabel, regionName, type CroEvent } from "@/lib/data"
 import { PrefetchEventLink } from "./prefetch-event-link"
+import { cartoBasemapUrl } from "@/lib/carto-basemap"
+
+const tileUrl = cartoBasemapUrl(process.env.NEXT_PUBLIC_CARTO_BASEMAP_KEY)
+if (!tileUrl) {
+  console.warn("[mapa] NEXT_PUBLIC_CARTO_BASEMAP_KEY is missing; CARTO tiles are disabled.")
+}
 
 function markerIcon(active: boolean) {
   const fill = active ? "oklch(0.79 0.135 67)" : "oklch(0.38 0.088 256)"
@@ -53,10 +59,10 @@ export default function DiscoveryMap({
       className="h-full w-full"
       style={{ background: "oklch(0.94 0.01 83)" }}
     >
-      <TileLayer
+      {tileUrl && <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-      />
+        url={tileUrl}
+      />}
       <FlyTo event={selectedEvent} />
       {events.map((e) => (
         <Marker
