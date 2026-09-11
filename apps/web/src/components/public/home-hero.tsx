@@ -1,13 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useTransition } from "react"
+import { normalizeCity } from "@/lib/discovery-filters"
+import { trackEvent } from "@/lib/analytics"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Search, MapPin, CalendarDays, Loader2 } from "lucide-react"
 import { QuickFilters } from "@/components/public/quick-filters"
 import { TrackedDiscoveryLink } from "@/components/public/tracked-discovery-link"
 
 export function HomeHero() {
-  const [searching, setSearching] = useState(false)
+  const router = useRouter()
+  const [searching, startTransition] = useTransition()
 
   return (
     <section className="relative isolate overflow-hidden bg-ink text-ink-foreground">
@@ -36,7 +40,17 @@ export function HomeHero() {
         <form
           id="home-hero-search-form"
           action="/eventi"
-          onSubmit={() => setSearching(true)}
+          onSubmit={(event) => {
+            event.preventDefault()
+            const form = new FormData(event.currentTarget)
+            const q = String(form.get("q") || "").trim()
+            const city = normalizeCity(String(form.get("grad") || ""))
+            const params = new URLSearchParams()
+            if (q) params.set("q", q)
+            if (city) params.set("grad", city)
+            trackEvent({ name: "home_search", params: { has_text: Boolean(q), has_city: Boolean(city) } })
+            startTransition(() => router.push(`/eventi${params.size ? `?${params}` : ""}`))
+          }}
           className="mt-9 flex w-full max-w-2xl flex-col gap-2 rounded-2xl bg-background p-2 text-foreground shadow-poster-lg sm:flex-row sm:items-center sm:rounded-full"
         >
           <label className="flex flex-1 items-center gap-2 rounded-xl px-3 py-2.5 sm:rounded-full">

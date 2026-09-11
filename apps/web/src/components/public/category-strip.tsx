@@ -1,10 +1,12 @@
 "use client"
 
+import type { PublicCategory } from "@/lib/public-api"
 import Link from "next/link"
 import { useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { categories, eventHasCategory, eventsByCategory, type CroEvent } from "@/lib/data"
+import { categories, type CroEvent } from "@/lib/data"
 import { buttonVariants } from "@/components/ui/button"
+import { upcomingCategoryCounts } from "@/lib/discovery-filters"
 import { cn } from "@/lib/utils"
 
 // 3 rows x 4 columns per page — the full 24-category grid at once read as a
@@ -17,10 +19,13 @@ function chunk<T>(items: T[], size: number): T[][] {
   return pages
 }
 
-export function CategoryStrip({ events }: { events?: CroEvent[] }) {
+export function CategoryStrip({ events, inventory = [] }: { events?: CroEvent[]; inventory?: PublicCategory[] }) {
   const railRef = useRef<HTMLDivElement>(null)
   const [page, setPage] = useState(0)
-  const pages = chunk(categories, PAGE_SIZE)
+  const counts = inventory.length && inventory.every(c => c.upcomingCount !== undefined)
+    ? Object.fromEntries(inventory.map(c => [c.slug, c.upcomingCount!]))
+    : upcomingCategoryCounts(events || [])
+  const pages = chunk(categories.filter(c => (counts[c.slug] || 0) > 0).sort((a, b) => (counts[b.slug] || 0) - (counts[a.slug] || 0)), PAGE_SIZE)
 
   function scrollToPage(index: number) {
     const rail = railRef.current
@@ -77,7 +82,7 @@ export function CategoryStrip({ events }: { events?: CroEvent[] }) {
                 <span className="absolute inset-0 bg-ink/10 transition-colors group-hover:bg-ink/0" aria-hidden />
                 <span className="relative font-heading text-lg font-semibold leading-tight">{cat.name}</span>
                 <span className="relative mt-0.5 text-xs text-ink-foreground/80">
-                  {(events ? events.filter((event) => eventHasCategory(event, cat.slug)).length : eventsByCategory(cat.slug).length)} događanja
+                  {counts[cat.slug]} događanja
                 </span>
               </Link>
             ))}

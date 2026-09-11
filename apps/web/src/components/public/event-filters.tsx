@@ -2,7 +2,9 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useState, useEffect } from "react"
-import { Search, X } from "lucide-react"
+import { Search } from "lucide-react"
+import { normalizeDiscoveryParams, changeDiscoveryFilter } from "@/lib/discovery-filters"
+import { trackEvent } from "@/lib/analytics"
 import { startProgress } from "@/lib/route-progress"
 import { categories as staticCategories, categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
@@ -17,14 +19,14 @@ const whenOptions = [
 
 const toggles = [
   { key: "besplatno", label: "Besplatno" },
-  { key: "djeca", label: "Za djecu" },
-  { key: "vani", label: "Na otvorenom" },
 ]
 
 export function EventFilters({
   categories: fetchedCategories,
+  categoryCounts,
 }: {
   categories?: PublicCategory[]
+  categoryCounts?: Record<string, number>
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -32,7 +34,7 @@ export function EventFilters({
   const [q, setQ] = useState(params.get("q") ?? "")
 
   // Fall back to static lists if nothing fetched yet
-  const categories = fetchedCategories?.length
+  const allCategories = fetchedCategories?.length
     ? fetchedCategories
     : staticCategories.map((c) => ({ id: 0, slug: c.slug, name: categoryName(c.slug), sortOrder: 0 }))
 
@@ -42,17 +44,17 @@ export function EventFilters({
 
   const update = useCallback(
     (key: string, value: string | null) => {
-      const next = new URLSearchParams(params.toString())
+      const next = normalizeDiscoveryParams(new URLSearchParams(params.toString()))
       // Any filter change also commits whatever is currently typed in the
       // search box — otherwise clearing it without pressing Enter left a
       // stale q= behind the next time a different filter (e.g. category)
       // was clicked, silently narrowing results by the old search term too.
       if (q) next.set("q", q)
       else next.delete("q")
-      if (value === null || value === "") next.delete(key)
-      else next.set(key, value)
+      const changed = changeDiscoveryFilter(next, key, value)
+      trackEvent({ name: "filter_change", params: { source_page: pathname, filter: key, action: changed.has(key) ? "apply" : "remove" } })
       startProgress()
-      router.push(`${pathname}?${next.toString()}`, { scroll: false })
+      router.push(`${pathname}?${changed.toString()}`, { scroll: false })
     },
     [params, pathname, router, q],
   )
@@ -62,10 +64,11 @@ export function EventFilters({
     update("q", q || null)
   }
 
-  const activeCategory = params.get("kategorija") ?? ""
+  const activeCategory = normalizeDiscoveryParams(new URLSearchParams(params.toString())).get("kategorija") ?? ""
+  const categories = categoryCounts ? allCategories.filter(c => (categoryCounts[c.slug] || 0) > 0 || c.slug === activeCategory)
+    .sort((a, b) => (categoryCounts[b.slug] || 0) - (categoryCounts[a.slug] || 0)) : allCategories
   const activeWhen = params.get("kada") ?? ""
-  const hasActive =
-    [...params.keys()].filter((k) => params.get(k)).length > 0
+
 
   return (
     <div className="flex flex-col gap-7">
@@ -75,8 +78,8 @@ export function EventFilters({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           type="search"
-          placeholder="Pretraži…"
-          aria-label="Pretraži događaje"
+          placeholder="Pretraži naziv, grad ili lokaciju…"
+          aria-label="Pretraži naziv, grad ili lokaciju"
           className="w-full rounded-full border border-input bg-card py-2.5 pl-10 pr-4 text-sm outline-none ring-ring/40 transition focus:ring-2"
         />
       </form>
@@ -106,7 +109,7 @@ export function EventFilters({
               active={activeCategory === c.slug}
               onClick={() => update("kategorija", c.slug)}
             >
-              {c.name}
+              {c.name}{categoryCounts && <span className="ml-2 text-xs text-muted-foreground">{categoryCounts[c.slug] || 0}</span>}
             </RadioRow>
           ))}
         </div>
@@ -131,15 +134,7 @@ export function EventFilters({
         </div>
       </FilterGroup>
 
-      {hasActive && (
-        <button
-          onClick={() => { startProgress(); router.push(pathname, { scroll: false }) }}
-          className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary hover:underline"
-        >
-          <X className="size-4" aria-hidden />
-          Poništi filtre
-        </button>
-      )}
+
     </div>
   )
 }
@@ -165,6 +160,7 @@ function Chip({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
         active
@@ -189,6 +185,7 @@ function RadioRow({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "rounded-lg px-3 py-2 text-left text-sm transition-colors",
         active ? "bg-secondary font-semibold text-secondary-foreground" : "text-foreground hover:bg-muted",

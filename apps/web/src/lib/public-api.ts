@@ -1,3 +1,5 @@
+import { rankRelatedEvents } from "./related-events"
+import { normalizeCity } from "./discovery-filters"
 import { eventDisplayEnd } from "./event-end"
 import { CITY_COORDS, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 import { eventImagePrimaryUrl, eventImageVariant } from "./event-image-variants"
@@ -60,7 +62,7 @@ type ApiEvent = {
   }>
 }
 
-export type PublicCategory = { id: number; name: string; slug: string; sortOrder: number }
+export type PublicCategory = { id: number; name: string; slug: string; sortOrder: number; upcomingCount?: number }
 export type PublicRegion = { id: number; name: string; slug: string; sortOrder: number }
 
 export type PublicFilters = {
@@ -165,6 +167,10 @@ export async function fetchCategories(): Promise<PublicCategory[]> {
   return fetchApi<PublicCategory[]>("/api/public/categories", 3600, ["taxonomy"]).catch(() => [])
 }
 
+export async function fetchCategoryInventory(): Promise<PublicCategory[]> {
+  return fetchApi<PublicCategory[]>("/api/public/categories?counts=true", 300, ["events", "taxonomy"]).catch(() => [])
+}
+
 export async function fetchRegions(): Promise<PublicRegion[]> {
   return fetchApi<PublicRegion[]>("/api/public/regions", 3600, ["taxonomy"]).catch(() => [])
 }
@@ -188,7 +194,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
     params.set("category", "na-otvorenom")
   }
   if (filters.region) params.set("region", reverseRegionMap[filters.region] || filters.region)
-  if (filters.city) params.set("city", filters.city)
+  if (filters.city?.trim()) params.set("city", normalizeCity(filters.city))
   if (filters.free) params.set("free", "true")
   if (filters.when === "danas") params.set("today", "true")
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
@@ -196,7 +202,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
   // Mutation webhooks invalidate `events`; this finite fallback also refreshes
   // clock-dependent visibility and today/weekend ranges without mutations.
-  return fetchApi<ApiEvent[]>(path, 300, ["events"]).then(mapApiEvents).catch(() => fallbackEventsForFilters(filters))
+  return fetchApi<ApiEvent[]>(path, 300, ["events"]).then(mapApiEvents).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
 }
 
 export async function fetchEvent(slug: string) {
@@ -207,9 +213,7 @@ export async function fetchEvent(slug: string) {
 
 export async function fetchRelatedEvents(event: CroEvent) {
   const all = await fetchEvents()
-  return all
-    .filter((item) => item.slug !== event.slug && (item.region === event.region || event.categories.some((category) => eventHasCategory(item, category.slug))))
-    .slice(0, 3)
+  return rankRelatedEvents(event, all)
 }
 
 export type ApiOrganizer = { id: number; name: string; slug: string; status: string }

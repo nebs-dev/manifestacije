@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest"
-import { fetchEvents, fetchEvent, fetchMapEvents, fetchPartners, fetchCategories, fetchOrganizer } from "./public-api"
+import { fetchEvents, fetchEvent, fetchMapEvents, fetchPartners, fetchCategories, fetchCategoryInventory, fetchOrganizer } from "./public-api"
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -23,4 +23,13 @@ it("uses five-minute tagged discovery caches without extending unrelated caches"
   expect(fetch).toHaveBeenLastCalledWith(expect.any(String), { next: { revalidate: 3600, tags: ["partners"] } })
   await fetchCategories()
   expect(fetch).toHaveBeenLastCalledWith(expect.any(String), { next: { revalidate: 3600, tags: ["taxonomy"] } })
+})
+
+it("refreshes live category counts on event or taxonomy invalidation", async () => {
+  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
+  vi.stubGlobal("fetch", fetch)
+  await fetchCategoryInventory()
+  expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/public/categories?counts=true"), {
+    next: { revalidate: 300, tags: ["events", "taxonomy"] },
+  })
 })

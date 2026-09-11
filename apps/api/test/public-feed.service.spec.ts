@@ -248,3 +248,26 @@ describe("PublicFeedService", () => {
     expect(data.weekendRegions).toEqual([{ slug: "slavonija" }]);
   });
 });
+
+
+describe("public category inventory", () => {
+  it("counts all published upcoming inventory, deduplicating primary/join categories", async () => {
+    const prisma = {
+      category: { findMany: jest.fn().mockResolvedValue([{ id: 1, slug: "glazba" }, { id: 2, slug: "sport" }, { id: 3, slug: "film" }]) },
+      event: { findMany: jest.fn().mockResolvedValue(Array.from({ length: 501 }, () => ({ categoryId: 1, categories: [{ categoryId: 1 }, { categoryId: 2 }] }))) },
+    };
+    const service = new PublicFeedService(prisma as never);
+    expect(await service.categories(true)).toEqual([
+      { id: 1, slug: "glazba", upcomingCount: 501 }, { id: 2, slug: "sport", upcomingCount: 501 }, { id: 3, slug: "film", upcomingCount: 0 },
+    ]);
+    const query = prisma.event.findMany.mock.calls[0][0];
+    expect(query.where.status).toBe(EventStatus.PUBLISHED);
+    expect(query.where.AND).toBeDefined();
+    expect(query.take).toBeUndefined();
+  });
+  it("keeps plain taxonomy requests unchanged", async () => {
+    const prisma = { category: { findMany: jest.fn().mockResolvedValue([{ id: 1 }]) }, event: { findMany: jest.fn() } };
+    expect(await new PublicFeedService(prisma as never).categories()).toEqual([{ id: 1 }]);
+    expect(prisma.event.findMany).not.toHaveBeenCalled();
+  });
+});

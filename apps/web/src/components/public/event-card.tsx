@@ -15,15 +15,17 @@ interface EventCardProps {
   priorityImage?: boolean
   imageSizes?: string
   returnTo?: string
+  related?: boolean
 }
 
-export function EventCard({ event, className, displayDate, priorityImage, imageSizes, returnTo }: EventCardProps) {
+export function EventCard({ event, className, displayDate, priorityImage, imageSizes, returnTo, related }: EventCardProps) {
   const dateForCard = eventCardDateDisplay(event.date, displayDate)
   const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   const href = returnTo ? `/eventi/${event.slug}?returnTo=${encodeURIComponent(returnTo)}` : `/eventi/${event.slug}`
   return (
     <PrefetchEventLink
       href={href}
+      relatedEventSlug={related ? event.slug : undefined}
       heroImage={event.heroImage ?? event.image}
       className={cn(
         "group flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-poster transition-all duration-300 [contain-intrinsic-size:420px] [content-visibility:auto] hover:-translate-y-1 hover:shadow-poster-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

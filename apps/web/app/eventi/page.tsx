@@ -1,9 +1,11 @@
+import { ActiveFilters } from "@/components/public/active-filters";
+import { discoveryParams } from "@/lib/discovery-filters";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { FiltersPanel } from "@/components/public/filters-panel";
 import { ResultsGrid } from "@/components/public/results-grid";
-import { fetchEvents, fetchCategories, WEB_URL, type PublicFilters } from "@/lib/public-api";
+import { fetchEvents, fetchCategoryInventory, WEB_URL, type PublicFilters } from "@/lib/public-api";
 import { eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 
 // Canonical always points at the bare /eventi URL — filter query params (kategorija,
@@ -20,19 +22,18 @@ function str(v: string | string[] | undefined) {
 }
 
 export default async function EventsPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+  const normalized = discoveryParams(searchParams);
   const filters: PublicFilters = {
     q: str(searchParams.q),
-    category: str(searchParams.kategorija),
+    category: normalized.get("kategorija") || undefined,
     region: str(searchParams.regija),
-    city: str(searchParams.grad),
+    city: normalized.get("grad") || undefined,
     free: str(searchParams.besplatno) === "1",
-    kids: str(searchParams.djeca) === "1",
-    outdoor: str(searchParams.vani) === "1",
     when: str(searchParams.kada) as PublicFilters["when"]
   };
   const [results, categories] = await Promise.all([
     fetchEvents(filters),
-    fetchCategories(),
+    fetchCategoryInventory(),
   ]);
   const returnParams = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
@@ -53,9 +54,12 @@ export default async function EventsPage({ searchParams }: { searchParams: Recor
           <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Sva događanja</h1>
           <p className="mt-2 text-muted-foreground">{results.length} događanja odgovara tvojim filtrima.</p>
         </header>
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr] md:items-start">
-          <FiltersPanel categories={categories} />
-          <ResultsGrid events={results} returnTo={returnTo} />
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
+          <FiltersPanel categories={categories} categoryCounts={categories.every(c => c.upcomingCount !== undefined) ? Object.fromEntries(categories.map(c => [c.slug, c.upcomingCount!])) : undefined} />
+          <div className="min-w-0">
+            <ActiveFilters categories={categories} />
+            <ResultsGrid events={results} returnTo={returnTo} />
+          </div>
         </div>
       </main>
       <SiteFooter />

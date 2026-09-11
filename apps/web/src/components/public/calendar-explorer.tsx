@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, SlidersHorizontal, X } from "lucide-react"
+import { ActiveFilters } from "./active-filters"
+import { trackEvent } from "@/lib/analytics"
 import { startProgress } from "@/lib/route-progress"
 import {
   buildMonthGrid,
@@ -87,23 +89,22 @@ export function CalendarExplorer({
   }, [])
   const todayKey = dateKey(today)
 
-  const [view, setView] = useState<View>(initialView)
-  const [anchor, setAnchor] = useState<Date>(() => initialDate ? new Date(`${initialDate}T00:00:00`) : new Date(initialYear, initialMonth, 1))
-  const [selectedDay, setSelectedDay] = useState<string | null>(() => initialDate ?? null)
+  const view: View = params.get("pogled") === "mjesec" ? "mjesec" : params.get("pogled") === "tjedan" ? "tjedan" : initialView
+  const urlDate = params.get("datum")
+  const selectedDay = urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate) && !Number.isNaN(new Date(`${urlDate}T00:00:00`).getTime())
+    ? urlDate : initialDate ?? dateKey(new Date(initialYear, initialMonth, 1))
+  const anchor = useMemo(() => new Date(`${selectedDay}T00:00:00`), [selectedDay])
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [scrollRequest, setScrollRequest] = useState(0)
 
-  // Re-sync from server-provided props when they actually change (e.g. landing back
-  // on /kalendar?datum=... via the event page's "back" link after browsing forward
-  // within the page navigated away and the client router reused this component
-  // instance instead of a fresh mount — the useState initializers above only run
-  // once, so without this the calendar would silently stay on whatever month/day
-  // was showing when the user navigated away instead of the URL's saved date).
-  useEffect(() => {
-    setView(initialView)
-    setAnchor(initialDate ? new Date(`${initialDate}T00:00:00`) : new Date(initialYear, initialMonth, 1))
-    setSelectedDay(initialDate ?? null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDate, initialView, initialYear, initialMonth])
+  function selectDate(date: Date, nextView: View = view) {
+    const next = new URLSearchParams(params.toString())
+    next.set("datum", dateKey(date))
+    next.set("pogled", nextView)
+    trackEvent({ name: "calendar_date_select", params: { view: nextView } })
+    if (dateKey(date) === selectedDay && nextView === view) setScrollRequest(n => n + 1)
+    else router.push(`${pathname}?${next}`, { scroll: false })
+  }
 
   const weekend = useMemo(() => currentWeekendDisplayRange(today), [today])
 
@@ -125,14 +126,18 @@ export function CalendarExplorer({
     return m
   }, [visibleDays, events])
 
-  const daySections = visibleDays.filter((d) => groups[dateKey(d)])
-  const totalVisible = daySections.reduce((n, d) => n + groups[dateKey(d)].length, 0)
+  const daySections = visibleDays.filter((d) => groups[dateKey(d)] || dateKey(d) === selectedDay)
+  const totalVisible = daySections.reduce((n, d) => n + (groups[dateKey(d)]?.length ?? 0), 0)
 
   useEffect(() => {
-    if (!selectedDay) return
-    const el = document.getElementById(`day-${selectedDay}`)
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
-  }, [selectedDay, view, anchor])
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`day-${selectedDay}`)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [selectedDay, view, events, scrollRequest])
 
   const calendarDate = selectedDay ?? dateKey(anchor)
   const returnTo = useMemo(() => {
@@ -143,41 +148,14 @@ export function CalendarExplorer({
   }, [calendarDate, params, pathname, view])
 
   useEffect(() => {
-    const next = new URLSearchParams(params.toString())
-    next.set("pogled", view)
-    next.set("datum", calendarDate)
-    const nextUrl = `${pathname}?${next.toString()}`
-    if (nextUrl !== `${pathname}?${params.toString()}`) {
-      router.replace(nextUrl, { scroll: false })
-    }
-  }, [calendarDate, params, pathname, router, view])
+    if (!params.get("datum") || !params.get("pogled")) router.replace(returnTo, { scroll: false })
+  }, [params, returnTo, router])
 
-  const goPrev = () => {
-    const next = view === "tjedan" ? addDays(anchor, -7) : new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)
-    setAnchor(next)
-    setSelectedDay(dateKey(next))
-  }
-  const goNext = () => {
-    const next = view === "tjedan" ? addDays(anchor, 7) : new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)
-    setAnchor(next)
-    setSelectedDay(dateKey(next))
-  }
+  const goPrev = () => selectDate(view === "tjedan" ? addDays(anchor, -7) : new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))
+  const goNext = () => selectDate(view === "tjedan" ? addDays(anchor, 7) : new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))
 
   function preset(kind: "danas" | "vikend" | "mjesec") {
-    if (kind === "mjesec") {
-      setView("mjesec")
-      setAnchor(firstOfMonth(today))
-      setSelectedDay(null)
-      return
-    }
-    setView("tjedan")
-    if (kind === "danas") {
-      setAnchor(today)
-      setSelectedDay(todayKey)
-    } else {
-      setAnchor(weekend.friday)
-      setSelectedDay(dateKey(weekend.friday))
-    }
+    selectDate(kind === "mjesec" ? firstOfMonth(today) : kind === "danas" ? today : weekend.friday, kind === "mjesec" ? "mjesec" : "tjedan")
   }
 
   const presetActive = {
@@ -191,6 +169,7 @@ export function CalendarExplorer({
     const next = new URLSearchParams(params.toString())
     if (checked) next.delete(key)
     else next.set(key, "1")
+    trackEvent({ name: "filter_change", params: { source_page: pathname, filter: key, action: checked ? "remove" : "apply" } })
     startProgress()
     router.push(`${pathname}?${next.toString()}`, { scroll: false })
   }
@@ -208,12 +187,11 @@ export function CalendarExplorer({
 
   const miniGrid = useMemo(() => buildMonthGrid(anchor.getFullYear(), anchor.getMonth()), [anchor])
   const selectFromMini = (date: Date) => {
-    setAnchor(date)
-    setSelectedDay(dateKey(date))
+    selectDate(date)
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-8 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)]">
+    <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="hidden lg:block">
         <div className="sticky top-24 flex flex-col gap-6">
           <div className="rounded-2xl border border-border/60 bg-card/50 p-5">
@@ -225,8 +203,8 @@ export function CalendarExplorer({
             events={events}
             todayKey={todayKey}
             selectedDay={selectedDay}
-            onPrev={() => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1))}
-            onNext={() => setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1))}
+            onPrev={() => selectDate(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}
+            onNext={() => selectDate(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}
             onSelect={selectFromMini}
           />
         </div>
@@ -248,12 +226,7 @@ export function CalendarExplorer({
             {(["mjesec", "tjedan"] as const).map((v) => (
               <button
                 key={v}
-                onClick={() => {
-                  setView(v)
-                  if (v === "mjesec") {
-                    setAnchor((a) => firstOfMonth(a))
-                  }
-                }}
+                onClick={() => selectDate(anchor, v)}
                 className={cn(
                   "rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors",
                   view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
@@ -277,8 +250,6 @@ export function CalendarExplorer({
             <Chip active={presetActive.mjesec} onClick={() => preset("mjesec")}>Ovaj mjesec</Chip>
             <span className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden />
             <Chip tone="accent" active={params.get("besplatno") === "1"} onClick={() => toggleParam("besplatno")}>Besplatno</Chip>
-            <Chip tone="accent" active={params.get("djeca") === "1"} onClick={() => toggleParam("djeca")}>Za djecu</Chip>
-            <Chip tone="accent" active={params.get("vani") === "1"} onClick={() => toggleParam("vani")}>Na otvorenom</Chip>
           </div>
         </div>
 
@@ -291,7 +262,9 @@ export function CalendarExplorer({
               return (
                 <button
                   key={key}
-                  onClick={() => setSelectedDay(count ? key : null)}
+                  onClick={() => selectDate(d)}
+                  aria-pressed={isSelected}
+                  aria-label={`Odaberi ${key}`}
                   className={cn(
                     "flex w-12 shrink-0 flex-col items-center gap-1 rounded-2xl border py-2.5 transition-colors",
                     isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:border-foreground/30",
@@ -307,13 +280,14 @@ export function CalendarExplorer({
           </div>
         </div>
 
+        <ActiveFilters />
         {daySections.length ? (
           <div className="flex flex-col gap-10">
             <p className="text-sm text-muted-foreground">{totalVisible} termina u ovom prikazu</p>
             {daySections.map((d) => {
               const key = dateKey(d)
               const dp = dateParts(key)
-              const list = groups[key]
+              const list = groups[key] ?? []
               const isToday = key === todayKey
               return (
                 <section key={key} id={`day-${key}`} className="min-w-0 scroll-mt-24">
@@ -328,6 +302,7 @@ export function CalendarExplorer({
                     </div>
                     <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">{list.length} termina</span>
                   </div>
+                  {!list.length && <p className="rounded-2xl border border-dashed border-border p-6 text-muted-foreground">Nema termina za ovaj datum. Pokušaj drugi datum ili ublaži filtre.</p>}
                   <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={`${e.slug}-${e.displayOccurrenceId ?? "legacy"}`} event={e} returnTo={returnTo} />)}</ul>
                 </section>
               )

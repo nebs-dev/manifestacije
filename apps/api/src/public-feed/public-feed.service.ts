@@ -126,8 +126,19 @@ export class PublicFeedService {
     return this.prisma.city.findMany({ include: { county: { include: { region: true } } }, orderBy: { name: "asc" } });
   }
 
-  categories() {
-    return this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+  async categories(withCounts = false) {
+    const categories = await this.prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+    if (!withCounts) return categories;
+    const events = await this.prisma.event.findMany({
+      where: await this.publicWhere({}),
+      select: { categoryId: true, categories: { select: { categoryId: true } } },
+    });
+    const counts = new Map<number, number>();
+    for (const event of events) {
+      const ids = new Set([event.categoryId, ...event.categories.map(item => item.categoryId)]);
+      for (const id of ids) if (id != null) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return categories.map(category => ({ ...category, upcomingCount: counts.get(category.id) ?? 0 }));
   }
 
   partners() {

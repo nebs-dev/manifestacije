@@ -20,6 +20,12 @@ type DiscoveryParams = {
 // GA4 exploration reports and the pilot report template can rely on a fixed
 // schema.
 type AnalyticsEvent =
+  | { name: "home_search"; params: { has_text: boolean; has_city: boolean } }
+  | { name: "filter_change"; params: { source_page: string; filter: string; action: "apply" | "remove" } }
+  | { name: "filter_reset"; params: { source_page: string } }
+  | { name: "calendar_date_select"; params: { view: string } }
+  | { name: "map_city_search"; params: { result_count: number } }
+  | { name: "related_event_click"; params: { event_slug: string } }
   | { name: "view_event_detail"; params: { event_slug: string; event_title: string } }
   | { name: "click_ticket_or_source"; params: { event_slug: string; event_title: string; url: string } }
   | { name: "click_map_or_directions"; params: { event_slug: string; event_title: string } }

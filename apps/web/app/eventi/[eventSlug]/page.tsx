@@ -285,9 +285,9 @@ export default async function EventDetailPage({
 
           {related.length > 0 && (
             <section className="mt-16 border-t border-border pt-12">
-              <h2 className="mb-6 font-heading text-2xl font-semibold">Slična događanja</h2>
+              <h2 className="mb-6 font-heading text-2xl font-semibold">Moglo bi te zanimati</h2>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {related.map((item) => <EventCard key={item.slug} event={item} />)}
+                {related.map((item) => <EventCard key={item.slug} event={item} related />)}
               </div>
             </section>
           )}

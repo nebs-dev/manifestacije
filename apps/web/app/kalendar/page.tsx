@@ -1,3 +1,4 @@
+import { discoveryParams } from "@/lib/discovery-filters"
 import type { Metadata } from "next"
 import { CalendarExplorer } from "@/components/public/calendar-explorer"
 import { SiteFooter } from "@/components/public/site-footer"
@@ -25,14 +26,14 @@ function validView(value: string | undefined) {
 }
 
 export default async function CalendarPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+  const normalized = discoveryParams(searchParams)
   const filters: PublicFilters = {
     q: str(searchParams.q),
-    category: str(searchParams.kategorija),
+    category: normalized.get("kategorija") ?? undefined,
     region: str(searchParams.regija),
-    city: str(searchParams.grad),
+    city: normalized.get("grad") ?? undefined,
     free: str(searchParams.besplatno) === "1",
-    kids: str(searchParams.djeca) === "1",
-    outdoor: str(searchParams.vani) === "1",
+    when: str(searchParams.kada) as PublicFilters["when"],
   }
 
   const results = await fetchEvents(filters)
@@ -57,7 +58,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto w-full max-w-7xl overflow-hidden px-4 py-10 md:py-14">
+      <main className="mx-auto w-full max-w-7xl px-4 py-10 md:py-14">
         <header className="mb-8 max-w-2xl">
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Pregled</p>
           <h1 className="mt-2 text-balance font-heading text-3xl font-semibold md:text-5xl">Digitalni kalendar događanja</h1>

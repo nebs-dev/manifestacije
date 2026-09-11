@@ -1,9 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import { MapPin, CalendarDays, Search, X } from "lucide-react"
 import { categories, dateParts, eventHasCategory, priceLabel, regionName, type CroEvent } from "@/lib/data"
+import { resolveMapCity } from "@/lib/discovery-map-model"
+import { normalizeCity } from "@/lib/discovery-filters"
+import { trackEvent } from "@/lib/analytics"
 import { cn } from "@/lib/utils"
 import { PrefetchEventLink } from "./prefetch-event-link"
 
@@ -19,21 +22,28 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
 
   const filtered = useMemo(() => {
     let result = category ? events.filter((e) => eventHasCategory(e, category)) : events
-    const q = query.trim().toLowerCase()
+    const q = normalizeCity(query)
     if (q) {
       result = result.filter((e) =>
-        e.title.toLowerCase().includes(q) ||
-        e.city.toLowerCase().includes(q) ||
-        e.venue.toLowerCase().includes(q)
+        normalizeCity(e.title).includes(q) ||
+        normalizeCity(e.city).includes(q) ||
+        normalizeCity(e.venue).includes(q)
       )
     }
     return result
   }, [events, category, query])
 
+  const cityCenter = useMemo(() => resolveMapCity(query, filtered), [query, filtered])
+  useEffect(() => {
+    if (!cityCenter) return
+    const timer = setTimeout(() => trackEvent({ name: "map_city_search", params: { result_count: filtered.length } }), 350)
+    return () => clearTimeout(timer)
+  }, [cityCenter, filtered.length])
+
   return (
-    <div className="grid h-[calc(100vh-4rem)] grid-rows-[auto_1fr] md:grid-rows-1 md:grid-cols-[400px_1fr]">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] md:h-[calc(100dvh-4rem)] md:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
       {/* List panel */}
-      <div className="flex min-h-0 flex-col border-b border-border md:border-b-0 md:border-r">
+      <div className="flex min-h-0 min-w-0 flex-col border-b border-border md:border-b-0 md:border-r">
         <div className="border-b border-border px-4 py-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -49,7 +59,7 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
               <button
                 onClick={() => setQuery("")}
                 aria-label="Očisti pretragu"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-0 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground"
               >
                 <X className="size-4" />
               </button>
@@ -68,13 +78,12 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
           <p className="mt-2 text-xs text-muted-foreground">{filtered.length} događanja na karti</p>
         </div>
 
-        <ul className="min-h-0 flex-1 overflow-y-auto">
+        <ul className="min-h-0 max-h-96 flex-1 overflow-y-auto md:max-h-none">
           {filtered.map((e) => {
             const d = dateParts(e.date)
             return (
               <li key={e.slug}>
-                <button
-                  onClick={() => setSelected(e.slug)}
+                <div
                   className={cn(
                     "flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors",
                     selected === e.slug ? "bg-secondary" : "hover:bg-muted",
@@ -85,23 +94,23 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
                     <span className="text-lg font-semibold leading-none">{d.day}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{e.title}</p>
-                    <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="size-3" aria-hidden />
+                    <button onClick={() => setSelected(e.slug)} className="min-h-11 w-full break-words text-left font-medium" aria-label={`Prikaži na karti: ${e.title}`}>{e.title}</button>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="size-3 shrink-0" aria-hidden />
                       {e.city} · {regionName(e.region)}
                     </p>
-                    <div className="mt-1.5 flex items-center gap-2">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       <span className="text-xs font-semibold text-accent-foreground">{priceLabel(e)}</span>
                       <PrefetchEventLink
                         heroImage={e.heroImage ?? e.image}
                         href={`/eventi/${e.slug}?from=mapa`}
-                        className="text-xs font-medium text-primary hover:underline"
+                        className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline"
                       >
                         Detalji
                       </PrefetchEventLink>
                     </div>
                   </div>
-                </button>
+                </div>
               </li>
             )
           })}
@@ -115,8 +124,8 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
       </div>
 
       {/* Map */}
-      <div className="relative min-h-[360px]">
-        <DiscoveryMap events={filtered} selected={selected} onSelect={setSelected} />
+      <div className="relative h-[55dvh] min-h-[360px] min-w-0 md:h-auto">
+        <DiscoveryMap cityCenter={cityCenter} events={filtered} selected={selected} onSelect={setSelected} />
       </div>
     </div>
   )
@@ -135,7 +144,7 @@ function FilterPill({
     <button
       onClick={onClick}
       className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+        "min-h-11 shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:border-foreground/30",
       )}
     >

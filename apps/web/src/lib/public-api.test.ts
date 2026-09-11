@@ -242,3 +242,25 @@ describe("public API adapter", () => {
     } finally { vi.unstubAllGlobals() }
   })
 })
+
+describe("homepage city search API contract", () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it.each([
+    [{ city: "Osijek" }, "osijek", null],
+    [{ city: "Đakovo" }, "dakovo", null],
+    [{ q: "koncert" }, null, "koncert"],
+    [{ q: "koncert", city: "Osijek" }, "osijek", "koncert"],
+    [{ city: "Nepostojeći grad" }, "nepostojeci-grad", null],
+  ])("keeps location separate from text: %j", async (filters, city, search) => {
+    const fetchMock = vi.fn().mockImplementation(async (input: string) => {
+      const params = new URL(input).searchParams
+      return { ok: true, json: async () => params.get("city") === "nepostojeci-grad" ? [] : [apiEvent] }
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const results = await fetchEvents(filters)
+    const params = new URL(String(fetchMock.mock.calls[0][0])).searchParams
+    expect(params.get("city")).toBe(city)
+    expect(params.get("search")).toBe(search)
+    expect(results.length).toBe(city === "nepostojeci-grad" ? 0 : 1)
+  })
+})

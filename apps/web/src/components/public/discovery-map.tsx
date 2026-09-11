@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
+import { DISCOVERY_BOUNDS } from "@/lib/discovery-map-model"
 import { coordsFor, priceLabel, regionName, type CroEvent } from "@/lib/data"
 import { PrefetchEventLink } from "./prefetch-event-link"
 import { cartoBasemapUrl } from "@/lib/carto-basemap"
@@ -40,11 +41,21 @@ function FlyTo({ event }: { event?: CroEvent }) {
   return null
 }
 
+function CityView({ center }: { center?: [number, number] }) {
+  const map = useMap()
+  useEffect(() => {
+    if (center) map.flyTo(center, 12, { duration: 0.5 })
+  }, [center, map])
+  return null
+}
+
 export default function DiscoveryMap({
   events,
   selected,
   onSelect,
+  cityCenter,
 }: {
+  cityCenter?: [number, number]
   events: CroEvent[]
   selected?: string
   onSelect: (slug: string) => void
@@ -53,8 +64,7 @@ export default function DiscoveryMap({
 
   return (
     <MapContainer
-      center={[44.6, 16.0]}
-      zoom={7}
+      bounds={DISCOVERY_BOUNDS}
       scrollWheelZoom
       className="h-full w-full"
       style={{ background: "oklch(0.94 0.01 83)" }}
@@ -64,6 +74,7 @@ export default function DiscoveryMap({
         url={tileUrl}
       />}
       <FlyTo event={selectedEvent} />
+      <CityView center={cityCenter} />
       {events.map((e) => (
         <Marker
           key={e.slug}

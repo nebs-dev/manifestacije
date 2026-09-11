@@ -41,8 +41,8 @@ export class PublicFeedController {
   }
 
   @Get("categories")
-  categories() {
-    return this.feed.categories();
+  categories(@Query("counts") counts?: string) {
+    return this.feed.categories(counts === "true");
   }
 
   @Get("partners")

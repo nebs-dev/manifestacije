@@ -9,7 +9,7 @@ import { CategoryStrip } from "@/components/public/category-strip";
 import { OrganizerCta } from "@/components/public/organizer-cta";
 import { PartnersStrip } from "@/components/public/partners-strip";
 import { EventCard } from "@/components/public/event-card";
-import { fetchEvents, fetchPartners, WEB_URL } from "@/lib/public-api";
+import { fetchEvents, fetchPartners, fetchCategoryInventory, WEB_URL } from "@/lib/public-api";
 import { safeJsonLdString } from "@/lib/event-jsonld";
 import { CalendarTeaser } from "@/components/public/calendar-teaser";
 import { TrackedDiscoveryLink } from "@/components/public/tracked-discovery-link";
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const [events, partners] = await Promise.all([fetchEvents(), fetchPartners()]);
+  const [events, partners, categoryInventory] = await Promise.all([fetchEvents(), fetchPartners(), fetchCategoryInventory()]);
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -86,7 +86,7 @@ export default async function Home() {
 
           <section className="py-14 md:py-20">
             <SectionHeading eyebrow="Po kategoriji" title="Pronađi svoj žanr" description="Koncerti, festivali, radionice i još mnogo toga." />
-            <CategoryStrip events={events} />
+            <CategoryStrip events={events} inventory={categoryInventory} />
           </section>
 
           {free.length > 0 && (

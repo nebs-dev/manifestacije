@@ -7,8 +7,8 @@ const filters = [
   { label: "Danas", href: "/danas", icon: Sun },
   { label: "Ovaj vikend", href: "/ovaj-vikend", icon: CalendarDays },
   { label: "Besplatno", href: "/eventi?besplatno=1", icon: Gift },
-  { label: "Za djecu", href: "/eventi?djeca=1", icon: Baby },
-  { label: "Na otvorenom", href: "/eventi?vani=1", icon: Trees },
+  { label: "Djeca i obitelj", href: "/eventi?kategorija=djeca-i-obitelj", icon: Baby },
+  { label: "Na otvorenom", href: "/eventi?kategorija=na-otvorenom", icon: Trees },
 ] as const
 
 export function QuickFilters({
