@@ -290,6 +290,35 @@ admin1234
 
 Production must set `SEED_ADMIN_PASSWORD` to a real secret before running seed.
 
+## Add An Admin User
+
+Use the dedicated command to add a second staff administrator. Do **not** use
+`prisma:seed` for this: seed updates its configured bootstrap admin and also
+upserts reference data.
+
+1. Deploy the API version that contains `users:create-admin`.
+2. From a local terminal authenticated to Railway, run the command against the
+   production API service. Railway supplies that service's `DATABASE_URL`:
+
+   ```bash
+   railway run --service <api-service> pnpm --filter api users:create-admin -- --email <person@example.com> --name <full-name>
+   ```
+
+   The command requires an interactive TTY and prompts twice for a password;
+   it never accepts, prints, or stores a plaintext password in command history.
+   It creates exactly one `ADMIN`-role `User`, with a bcrypt password hash. It
+   normalizes the email and fails without changes if that email already exists.
+3. Verify the command prints the new user's id, normalized email, and name,
+   then have the user log in at `https://manifestacije.hr/admin/login`.
+   Confirm `/admin/users` shows their `ADMIN` role.
+4. To roll back, sign in as a *different* administrator, open `/admin/users`,
+   and delete the new account. Its JWT is rejected on the next protected API
+   request because the guard can no longer find the user.
+
+For a non-Railway production environment, run the same command from the API
+service directory with that environment's `DATABASE_URL` set in the process.
+Never put a password, hash, JWT, or database credential on the command line.
+
 ## Seed Safety
 
 The Prisma seed is safe for Railway staging:

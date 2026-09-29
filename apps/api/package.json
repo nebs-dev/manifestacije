@@ -10,6 +10,7 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "prisma generate && tsx prisma/seed.ts",
+    "users:create-admin": "tsx src/scripts/create-admin.ts",
     "contacts:retry-failed": "tsx src/scripts/contacts-retry-failed.ts",
     "contacts:backfill-engaged-organizers": "tsx src/scripts/contacts-backfill-engaged-organizers.ts",
     "claims:invite-unclaimed-organizers": "tsx src/scripts/claims-invite-unclaimed-organizers.ts",
