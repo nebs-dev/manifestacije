@@ -54,15 +54,15 @@ export class AdminController {
     @Query("pageSize") pageSize?: string,
     @Query("fieldFilters") fieldFilters?: string,
   ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
-  @Post("events") createAdminEvent(@Body() dto: AdminEventDto) { return this.admin.createEvent(dto); }
+  @Post("events") createAdminEvent(@CurrentUser() user: AuthUser, @Body() dto: AdminEventDto) { return this.admin.createEvent(dto, user.id); }
   @Get("events/:id") event(@Param("id") id: string) { return this.admin.event(Number(id)); }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }
   @Post("events/:id/approve") approve(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
   @Post("events/:id/reject") reject(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.REJECTED); }
   @Post("events/:id/publish") publish(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
   @Post("events/:id/archive") archive(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.ARCHIVED); }
-  @Post("events/:id/duplicate") duplicateEvent(@Param("id") id: string) { return this.admin.duplicateEvent(Number(id)); }
-  @Post("events/:id/split-weekly") splitWeekly(@Param("id") id: string, @Body() dto: SplitWeeklySeriesDto) { return this.admin.splitIntoWeeklySeries(Number(id), dto); }
+  @Post("events/:id/duplicate") duplicateEvent(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.duplicateEvent(Number(id), user.id); }
+  @Post("events/:id/split-weekly") splitWeekly(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: SplitWeeklySeriesDto) { return this.admin.splitIntoWeeklySeries(Number(id), dto, user.id); }
   @Delete("events/:id") deleteEvent(@Param("id") id: string) { return this.admin.deleteEvent(Number(id)); }
 
   @Get("organizers") organizers() { return this.admin.organizers(); }
@@ -101,8 +101,8 @@ export class AdminController {
   @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }
   @Put("event-sources/:id") updateEventSource(@Param("id") id: string, @Body() dto: UpdateEventSourceDto) { return this.admin.updateEventSource(Number(id), dto); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
-  @Post("event-sources/:id/create-event") createEvent(@Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
-    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false);
+  @Post("event-sources/:id/create-event") createEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
+    return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false, user.id);
   }
   @Post("event-sources/:id/ignore-candidate") ignoreCandidate(@Param("id") id: string, @Body() dto: IgnoreCandidateDto) {
     return this.admin.ignoreCandidate(Number(id), dto.candidateIndex);

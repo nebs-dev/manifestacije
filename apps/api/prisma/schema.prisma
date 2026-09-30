@@ -122,6 +122,7 @@ model User {
   role               UserRole
   organizerId        Int?
   organizer          Organizer? @relation(fields: [organizerId], references: [id])
+  createdEvents      Event[]   @relation("EventCreatedBy")
   /// Incremented on password reset to invalidate all previously issued JWTs
   /// (JwtAuthGuard rejects tokens whose authVersion doesn't match this value).
   authVersion        Int       @default(0)
@@ -304,6 +305,8 @@ model Event {
   status               EventStatus @default(PENDING_REVIEW)
   organizerId          Int?
   organizer            Organizer? @relation(fields: [organizerId], references: [id])
+  createdByUserId      Int?
+  createdBy            User?     @relation("EventCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   venueId              Int?
   venue                Venue?    @relation(fields: [venueId], references: [id])
   cityName             String?

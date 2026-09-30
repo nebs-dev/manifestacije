@@ -20,7 +20,7 @@ type NormalizedOccurrence = {
 export class EventsService {
   constructor(private readonly prisma: PrismaService, private readonly duplicates: DuplicatesService, private readonly revalidate: RevalidateService) {}
 
-  async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind }) {
+  async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind; createdByUserId?: number }) {
     const title = dto.title?.trim() || "Novi događaj";
     const description = dto.description?.trim() || title;
     const city = await this.resolveCityForWrite(dto);
@@ -49,6 +49,7 @@ export class EventsService {
         description,
         status: opts.status || EventStatus.PENDING_REVIEW,
         organizerId: opts.organizerId || undefined,
+        createdByUserId: opts.createdByUserId,
         venueId,
         cityName: city?.name ?? dto.cityName,
         cityId: city?.id,

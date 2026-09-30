@@ -71,6 +71,7 @@ export function adaptEvent(event: BE): AdminEvent {
   const venue = event.venue as BE | null
   const category = event.category as BE | null
   const organizer = event.organizer as BE | null
+  const createdBy = event.createdBy as BE | null
   const rawCats = (event.categories as Array<{ categoryId: number; category: BE }> | null) ?? []
   const categories = rawCats.map((ec) => ({
     id: (ec.category?.id ?? ec.categoryId) as number,
@@ -106,6 +107,9 @@ export function adaptEvent(event: BE): AdminEvent {
     category: (category?.name as string) ?? null,
     categories,
     organizer: (organizer?.name as string) ?? null,
+    createdBy: createdBy
+      ? { id: createdBy.id as number, name: createdBy.name as string, email: createdBy.email as string }
+      : null,
     isFree: (event.isFree as boolean) ?? false,
     isFeatured: (event.isFeatured as boolean) ?? false,
     priceText: (event.priceText as string) ?? null,

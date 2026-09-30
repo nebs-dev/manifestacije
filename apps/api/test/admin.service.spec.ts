@@ -38,6 +38,32 @@ function parsedResult(candidates: ParsedEventCandidate[]): ParsedSourceResult {
 }
 
 describe("AdminService ingestion workflow", () => {
+  it("records the admin who creates an event from a source", async () => {
+    const sourceParsed = parsedResult([candidate({ city: "", organizerName: "" })]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+
+    await service.createEventFromSource(1, 0, undefined, false, 91);
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ createdByUserId: 91 }));
+  });
+
+  it("passes the creating admin to manually created events", async () => {
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44, organizerId: null }) };
+    const service = new AdminService({} as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+
+    await service.createEvent({ title: "Ručno dodan", status: EventStatus.DRAFT } as never, 91);
+
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ createdByUserId: 91 }));
+  });
+
   it("orders the full admin events query by startsAt before limiting results", async () => {
     const prisma = {
       event: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
@@ -387,11 +413,12 @@ describe("AdminService ingestion workflow", () => {
     };
     const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
-    await service.duplicateEvent(9);
+    await service.duplicateEvent(9, 91);
 
     expect(prisma.event.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         title: "Original (kopija)",
+        createdByUserId: 91,
         status: "DRAFT",
         sourceUrl: "https://source.example",
       }),
@@ -565,7 +592,7 @@ describe("AdminService.users", () => {
 
     const args = prisma.user.findMany.mock.calls[0][0];
     expect(args.select.passwordHash).toBeUndefined();
-    expect(args.select).toMatchObject({ id: true, email: true, role: true, organizerId: true, organizer: expect.anything() });
+    expect(args.select).toMatchObject({ id: true, email: true, role: true, organizerId: true, organizer: expect.anything(), _count: { select: { createdEvents: true } } });
   });
 });
 

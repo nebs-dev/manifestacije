@@ -56,6 +56,7 @@ export type EventColumnKey =
   | "category"
   | "categories"
   | "organizer"
+  | "createdBy"
   | "isFree"
   | "isFeatured"
   | "priceText"
@@ -83,6 +84,7 @@ const EVENT_COLUMNS: Array<{ key: EventColumnKey; label: string; kind: FieldKind
   { key: "category", label: "Primarna kategorija", kind: "text" },
   { key: "categories", label: "Kategorije", kind: "text", defaultVisible: true },
   { key: "organizer", label: "Organizator", kind: "text", defaultVisible: true },
+  { key: "createdBy", label: "Dodao", kind: "text", defaultVisible: true },
   { key: "isFree", label: "Besplatno", kind: "boolean" },
   { key: "isFeatured", label: "Izdvojeno", kind: "boolean" },
   { key: "priceText", label: "Cijena", kind: "text" },
@@ -643,6 +645,7 @@ export function EventsTable({
       case "category": return event.category ?? "—"
       case "categories": return categoryNames(event) || "—"
       case "organizer": return event.organizer ?? "—"
+      case "createdBy": return event.createdBy?.name ?? "Nepoznato"
       case "isFree": return event.isFree ? "Da" : "Ne"
       case "isFeatured": return event.isFeatured ? "Da" : "Ne"
       case "priceText": return event.priceText ?? "—"

@@ -156,10 +156,10 @@ export class AdminService {
     return result;
   }
 
-  async createEvent(dto: AdminEventDto) {
-    if (dto.repeatWeeklyUntil) return this.createWeeklySeries(dto);
+  async createEvent(dto: AdminEventDto, createdByUserId?: number) {
+    if (dto.repeatWeeklyUntil) return this.createWeeklySeries(dto, createdByUserId);
 
-    const result = await this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT });
+    const result = await this.events.createFromDto(dto, { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT, createdByUserId });
     if (dto.status === EventStatus.PUBLISHED) {
       if (result.organizerId) await this.notifyOrganizerOfStatusChange(result.id, EventStatus.PUBLISHED);
     }
@@ -178,7 +178,7 @@ export class AdminService {
    * learn to expand, each occurrence becomes its own real, single-day Event
    * row — the shape every existing query already assumes.
    */
-  private async createWeeklySeries(dto: AdminEventDto) {
+  private async createWeeklySeries(dto: AdminEventDto, createdByUserId?: number) {
     if (dto.occurrences) throw new BadRequestException("Tjedno ponavljanje podržava jedan početni termin bez occurrences rasporeda");
     if (!dto.startsAt) throw new BadRequestException("startsAt je obavezan za ponavljajući događaj");
     const start = new Date(dto.startsAt);
@@ -207,7 +207,7 @@ export class AdminService {
     for (const occurrence of occurrences) {
       created.push(await this.events.createFromDto(
         { ...base, startsAt: occurrence.startsAt, endsAt: occurrence.endsAt },
-        { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT },
+        { organizerId: dto.organizerId, status: dto.status ?? EventStatus.DRAFT, createdByUserId },
       ));
     }
 
@@ -236,7 +236,7 @@ export class AdminService {
    * recreated, so its id and slug — and anything already linking to or
    * indexing that URL — keep working.
    */
-  async splitIntoWeeklySeries(id: number, dto: SplitWeeklySeriesDto) {
+  async splitIntoWeeklySeries(id: number, dto: SplitWeeklySeriesDto, createdByUserId?: number) {
     const event = await this.prisma.event.findUnique({ where: { id }, include: this.eventInclude() });
     if (!event) throw new NotFoundException("Event not found");
     if ((event.occurrences ?? []).length > 0) throw new BadRequestException("Događaj s rasporedom termina nije moguće pretvoriti u tjednu seriju");
@@ -295,7 +295,7 @@ export class AdminService {
           lng: event.venue?.lng ?? event.lng ?? undefined,
           imageUrl: event.imageUrl ?? undefined,
         },
-        { organizerId: event.organizerId, status: event.status, sourceType: event.sourceType },
+        { organizerId: event.organizerId, status: event.status, sourceType: event.sourceType, createdByUserId },
       );
       createdIds.push(clone.id);
     }
@@ -366,7 +366,7 @@ export class AdminService {
     }
   }
 
-  async duplicateEvent(id: number) {
+  async duplicateEvent(id: number, createdByUserId?: number) {
     const current = await this.prisma.event.findUnique({
       where: { id },
       include: { categories: true, occurrences: true },
@@ -400,6 +400,7 @@ export class AdminService {
         lat: current.lat,
         lng: current.lng,
         sourceType: current.sourceType,
+        createdByUserId,
         extractionConfidence: current.extractionConfidence,
         occurrences: current.occurrences?.length ? {
           create: current.occurrences.map((occurrence) => ({
@@ -487,6 +488,7 @@ export class AdminService {
         role: true,
         organizerId: true,
         organizer: { select: { id: true, name: true, slug: true, status: true } },
+        _count: { select: { createdEvents: true } },
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
@@ -676,7 +678,7 @@ export class AdminService {
     });
   }
 
-  async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto, publish = false) {
+  async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto, publish = false, createdByUserId?: number) {
     const source = await this.prisma.eventSource.findUnique({ where: { id } });
     if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
 
@@ -741,7 +743,7 @@ export class AdminService {
         lng: candidate.lng ?? undefined,
         imageUrl: imageUrl || undefined,
       },
-      { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }
+      { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION", createdByUserId }
     );
 
     if (isBatchFormat) {
@@ -955,6 +957,7 @@ export class AdminService {
   private eventInclude() {
     return {
       organizer: true,
+      createdBy: { select: { id: true, name: true, email: true } },
       venue: true,
       city: true,
       county: true,

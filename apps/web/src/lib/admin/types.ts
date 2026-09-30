@@ -98,6 +98,7 @@ export interface AdminEvent {
   category: string | null
   categories: { id: number; name: string; slug: string }[]
   organizer: string | null
+  createdBy: { id: number; name: string; email: string } | null
   isFree: boolean
   isFeatured: boolean
   priceText: string | null

@@ -24,6 +24,7 @@ interface AdminUser {
   role: "ADMIN" | "ORGANIZER"
   organizerId: number | null
   organizer: { id: number; name: string; slug: string; status: string } | null
+  _count: { createdEvents: number }
   createdAt: string
 }
 
@@ -72,6 +73,7 @@ export default function UsersPage() {
                 <TableHead>Ime</TableHead>
                 <TableHead>Uloga</TableHead>
                 <TableHead>Organizator</TableHead>
+                <TableHead className="text-right">Uneseno događaja</TableHead>
                 <TableHead>Kreiran</TableHead>
                 <TableHead className="text-right">Akcije</TableHead>
               </TableRow>
@@ -89,6 +91,7 @@ export default function UsersPage() {
                         <span className="text-destructive">Bez organizatora (obrisan)</span>
                       ) : "—"}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums">{u._count.createdEvents}</TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(u.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <DeleteButton onDelete={() => deleteUser(u)} label="Obriši korisnika" />
