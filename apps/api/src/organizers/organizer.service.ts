@@ -2,7 +2,6 @@ import { RevalidateService } from "../admin/revalidate.service";
 import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import { EventStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { EventUpsertDto } from "../events/event.dto";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
@@ -10,7 +9,7 @@ import { DuplicatesService } from "../duplicates/duplicates.service";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
-import { OrganizerProfileDto, SubmitSourceDto } from "./organizer.dto";
+import { OrganizerEventDto, OrganizerProfileDto, SubmitSourceDto, pickOrganizerEventInput } from "./organizer.dto";
 
 @Injectable()
 export class OrganizerService {
@@ -48,10 +47,12 @@ export class OrganizerService {
     });
   }
 
-  async createEvent(organizerId: number, dto: EventUpsertDto, organizerEmail?: string, userId?: number) {
+  /** organizerId always comes from the authenticated user, never the body;
+   *  status is derived from that organizer's own trust level. */
+  async createEvent(organizerId: number, dto: OrganizerEventDto, organizerEmail?: string, userId?: number) {
     const organizer = await this.prisma.organizer.findUniqueOrThrow({ where: { id: organizerId } });
     const status = organizer.status === "TRUSTED" ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW;
-    const event = await this.events.createFromDto(dto, { organizerId, status, sourceType: "ORGANIZER_FORM" });
+    const event = await this.events.createFromDto(pickOrganizerEventInput(dto), { organizerId, status, sourceType: "ORGANIZER_FORM" });
 
     await this.notifyEventCreated(event, organizer.name, status, organizerEmail);
 
@@ -126,10 +127,10 @@ export class OrganizerService {
     return this.prisma.event.delete({ where: { id } });
   }
 
-  async updateEvent(organizerId: number, id: number, dto: EventUpsertDto) {
+  async updateEvent(organizerId: number, id: number, dto: OrganizerEventDto) {
     const event = await this.prisma.event.findFirst({ where: { id, organizerId } });
     if (!event) throw new BadRequestException("Event not found for organizer");
-    return this.events.updateEvent(id, { ...dto, status: EventStatus.PENDING_REVIEW });
+    return this.events.updateEvent(id, { ...pickOrganizerEventInput(dto), status: EventStatus.PENDING_REVIEW });
   }
 
   async submitSource(organizerId: number, dto: SubmitSourceDto, organizerEmail?: string, userId?: number) {

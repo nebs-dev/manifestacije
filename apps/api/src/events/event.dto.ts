@@ -19,7 +19,14 @@ export class EventOccurrenceDto {
   isAllDay?: boolean;
 }
 
-export class EventUpsertDto {
+/**
+ * Event content fields any authenticated event author may supply. Organizer
+ * endpoints accept exactly this shape (OrganizerEventDto); everything else on
+ * an Event — owner, status, publication, featuring, slug, attribution,
+ * sourceType/confidence and taxonomy (county/region) writes — is set by the
+ * server or by admins only. Add a field here only if organizers may legitimately set it.
+ */
+export class EventContentDto {
   @IsString()
   @IsOptional()
   title?: string;
@@ -27,10 +34,6 @@ export class EventUpsertDto {
   @IsString()
   @IsOptional()
   description?: string;
-
-  @IsString()
-  @IsOptional()
-  slug?: string;
 
   @Type(() => Number)
   @IsInt()
@@ -40,14 +43,6 @@ export class EventUpsertDto {
   @IsOptional()
   @IsString()
   cityName?: string;
-
-  @IsOptional()
-  @IsString()
-  countyName?: string;
-
-  @IsOptional()
-  @IsString()
-  regionSlug?: string;
 
   @Type(() => Number)
   @IsInt()
@@ -59,11 +54,6 @@ export class EventUpsertDto {
   @IsInt({ each: true })
   @Type(() => Number)
   categoryIds?: number[];
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  organizerId?: number | null;
 
   @IsDateString()
   @IsOptional()
@@ -87,10 +77,6 @@ export class EventUpsertDto {
   @IsOptional()
   @IsBoolean()
   isFree?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  isFeatured?: boolean;
 
   @IsOptional()
   @IsString()
@@ -125,4 +111,28 @@ export class EventUpsertDto {
   @IsOptional()
   @IsString()
   imageUrl?: string | null;
+}
+
+/** Admin-facing event shape: content fields plus admin-controlled fields. */
+export class EventUpsertDto extends EventContentDto {
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  countyName?: string;
+
+  @IsOptional()
+  @IsString()
+  regionSlug?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  organizerId?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
 }
