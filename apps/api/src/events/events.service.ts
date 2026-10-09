@@ -97,7 +97,7 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id }, include: { occurrences: true } });
     if (!current) throw new NotFoundException("Event not found");
-    const urls = this.safeUrlFields(dto);
+    const urls = this.safeUrlFields(dto, current);
     const hasScheduleInput = "startsAt" in dto || "endsAt" in dto || "isAllDay" in dto;
     const currentOccurrences = current.occurrences ?? [];
     if (currentOccurrences.length > 0 && dto.occurrences === undefined && hasScheduleInput) {
@@ -329,12 +329,24 @@ export class EventsService {
   }
 
   /** Every event write funnels through here, so URL safety holds even for
-   *  callers that bypass the DTO pipe. Blank values keep their meaning. */
-  private safeUrlFields(dto: Partial<EventUpsertDto>) {
+   *  callers that bypass the DTO pipe. Blank/null values keep their "clear
+   *  this field" meaning. On update, a value identical to the stored one is
+   *  left untouched: legacy rows that predate validation (e.g. ticketUrl
+   *  "racesmanager") must not block saving unrelated changes. Such values are
+   *  never rendered as links (the web sanitizes on output). */
+  private safeUrlFields(
+    dto: Partial<EventUpsertDto>,
+    current?: { ticketUrl: string | null; sourceUrl: string | null; imageUrl: string | null },
+  ) {
+    const unchanged = (field: "ticketUrl" | "sourceUrl" | "imageUrl") => {
+      const value = dto[field];
+      const stored = current?.[field];
+      return current !== undefined && (value === stored || (typeof value === "string" && typeof stored === "string" && value.trim() === stored.trim()));
+    };
     return {
-      ticketUrl: requireSafeHttpUrl(dto.ticketUrl, "ticketUrl", { allowContactLinks: true }),
-      sourceUrl: requireSafeHttpUrl(dto.sourceUrl, "sourceUrl"),
-      imageUrl: requireSafeHttpUrl(dto.imageUrl, "imageUrl"),
+      ticketUrl: unchanged("ticketUrl") ? undefined : requireSafeHttpUrl(dto.ticketUrl, "Poveznica za ulaznice", { allowContactLinks: true }),
+      sourceUrl: unchanged("sourceUrl") ? undefined : requireSafeHttpUrl(dto.sourceUrl, "Poveznica na događaj"),
+      imageUrl: unchanged("imageUrl") ? undefined : requireSafeHttpUrl(dto.imageUrl, "Slika"),
     };
   }
 

@@ -1,11 +1,11 @@
 "use client"
 
-import { Copy, Plus, Trash2 } from "lucide-react"
+import { Copy, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { addWeek, emptyScheduleRow, type ScheduleRow } from "@/lib/schedule-editor-model"
+import { addWeek, clearScheduleRowEnd, emptyScheduleRow, patchScheduleRow, type ScheduleRow } from "@/lib/schedule-editor-model"
 
 export { emptyScheduleRow, scheduleRowsFromEvent, scheduleRowsToApi } from "@/lib/schedule-editor-model"
 export type { ScheduleRow } from "@/lib/schedule-editor-model"
@@ -19,11 +19,8 @@ export function EventScheduleEditor({
   onChange: (rows: ScheduleRow[]) => void
   disabled?: boolean
 }) {
-  const update = (key: string, patch: Partial<ScheduleRow>) => onChange(rows.map((row) => {
-    if (row.key !== key) return row
-    if (patch.date && row.endDate === row.date) return { ...row, ...patch, endDate: patch.date }
-    return { ...row, ...patch }
-  }))
+  const update = (key: string, patch: Partial<ScheduleRow>) => onChange(rows.map((row) => row.key === key ? patchScheduleRow(row, patch) : row))
+  const clearEnd = (key: string) => onChange(rows.map((row) => row.key === key ? clearScheduleRowEnd(row) : row))
   // Weekly recurring events (e.g. "every Thursday 17-18") are the common case —
   // duplicating a row a week later re-enters the same times with one click
   // instead of retyping them for every occurrence.
@@ -68,10 +65,22 @@ export function EventScheduleEditor({
               </Button>
             )}
           </div>
-          {row.endDate && row.endDate !== row.date && (
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label>Datum završetka</Label>
-              <Input type="date" value={row.endDate} disabled={disabled} onChange={(event) => update(row.key, { endDate: event.target.value || undefined })} />
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label>Datum završetka <span className="font-normal text-muted-foreground">(za višednevne događaje)</span></Label>
+            <Input
+              type="date"
+              value={row.endDate ?? ""}
+              min={row.date || undefined}
+              disabled={disabled}
+              aria-label={`Datum završetka termina ${index + 1}`}
+              onChange={(event) => update(row.key, { endDate: event.target.value || undefined })}
+            />
+          </div>
+          {(row.endDate || row.endTime) && (
+            <div className="flex items-end pb-1 sm:col-span-2">
+              <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => clearEnd(row.key)}>
+                <X className="size-4" /> Ukloni završetak
+              </Button>
             </div>
           )}
         </div>

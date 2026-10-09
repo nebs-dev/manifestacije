@@ -68,19 +68,30 @@ describe("normalizeSafeHttpUrl", () => {
 });
 
 describe("URL fields in request DTOs", () => {
-  it.each(["ticketUrl", "sourceUrl", "imageUrl"])("organizer event %s rejects javascript:", async (field) => {
-    await expect(viaPipe({ title: "X", [field]: "javascript:alert(1)" }, OrganizerEventDto)).rejects.toBeInstanceOf(BadRequestException);
+  // Event content URL fields are normalized by the pipe and enforced by
+  // EventsService (it knows the stored value, so unchanged legacy values do
+  // not block unrelated edits). These run the real pipe and then the service.
+  it.each(["ticketUrl", "sourceUrl", "imageUrl"])("organizer event %s: javascript: is rejected after the pipe", async (field) => {
+    const { prisma, organizer } = organizerFixture();
+    const dto = await viaPipe({ ...BASE, [field]: "javascript:alert(1)" }, OrganizerEventDto);
+    await expect(organizer.createEvent(7, dto as never)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.event.create).not.toHaveBeenCalled();
   });
 
-  it("admin event DTO rejects data: image URLs", async () => {
-    await expect(viaPipe({ imageUrl: "data:image/svg+xml,<svg onload=alert(1)>" }, AdminEventDto)).rejects.toBeInstanceOf(BadRequestException);
+  it("admin event: data: image URL is rejected after the pipe", async () => {
+    const { prisma, events } = organizerFixture();
+    const dto = await viaPipe({ imageUrl: "data:image/svg+xml,<svg onload=alert(1)>" }, AdminEventDto);
+    await expect(events.updateEvent(1, dto as never)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.event.update).not.toHaveBeenCalled();
   });
 
-  it("accepts tel: ticket links but not tel: source/image links", async () => {
+  it("accepts tel: ticket links but not tel:/mailto: source or image links", async () => {
+    const { prisma, events } = organizerFixture();
     await expect(viaPipe({ ticketUrl: "tel:099-488-9294" }, OrganizerEventDto)).resolves.toEqual(expect.objectContaining({ ticketUrl: "tel:099-488-9294" }));
-    await expect(viaPipe({ ticketUrl: "tel:099-488-9294" }, AdminEventDto)).resolves.toEqual(expect.objectContaining({ ticketUrl: "tel:099-488-9294" }));
-    await expect(viaPipe({ sourceUrl: "tel:099-488-9294" }, OrganizerEventDto)).rejects.toBeInstanceOf(BadRequestException);
-    await expect(viaPipe({ imageUrl: "mailto:a@b.hr" }, AdminEventDto)).rejects.toBeInstanceOf(BadRequestException);
+    await events.updateEvent(1, await viaPipe({ ticketUrl: "tel:099-488-9294" }, AdminEventDto) as never);
+    expect(prisma.event.update.mock.calls[0][0].data.ticketUrl).toBe("tel:099-488-9294");
+    await expect(events.updateEvent(1, await viaPipe({ sourceUrl: "tel:099-488-9294" }, OrganizerEventDto) as never)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(events.updateEvent(1, await viaPipe({ imageUrl: "mailto:a@b.hr" }, AdminEventDto) as never)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("normalizes scheme-less links and preserves legitimate ones", async () => {

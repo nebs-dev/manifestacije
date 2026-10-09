@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { X } from "lucide-react"
 import { API_URL } from "@/lib/api"
 import { orgFetch, type Category } from "@/lib/organizer/api"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
 import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
+import { buildOrganizerEventBody, invalidLegacyUrl, organizerUrlError } from "@/lib/organizer/event-form-model"
 
 type EventData = {
   title?: string
@@ -30,10 +32,10 @@ type EventData = {
   lat?: number | null
   lng?: number | null
   isFree?: boolean
-  priceText?: string
-  ticketUrl?: string
-  sourceUrl?: string
-  imageUrl?: string
+  priceText?: string | null
+  ticketUrl?: string | null
+  sourceUrl?: string | null
+  imageUrl?: string | null
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -42,6 +44,37 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label>{label}</Label>
       {children}
     </div>
+  )
+}
+
+function ClearableInput({ name, value, onChange, placeholder, inputMode, clearLabel }: {
+  name: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  inputMode?: "url"
+  clearLabel: string
+}) {
+  return (
+    <div className="flex gap-2">
+      {/* type="text": type="url" made the browser refuse to submit the whole
+          form when a stored legacy value (e.g. "racesmanager") was present. */}
+      <Input name={name} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} inputMode={inputMode} autoComplete="off" />
+      {value && (
+        <Button type="button" variant="outline" size="icon" aria-label={clearLabel} title={clearLabel} onClick={() => onChange("")}>
+          <X className="size-4" />
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function LegacyUrlWarning({ value, initial, allowContactLinks = false }: { value: string; initial?: string | null; allowContactLinks?: boolean }) {
+  if (!invalidLegacyUrl(value, initial, allowContactLinks)) return null
+  return (
+    <p className="text-xs text-destructive">
+      Spremljena poveznica nije valjana i ne prikazuje se na stranici. Ispravite je ili je obrišite gumbom ×.
+    </p>
   )
 }
 
@@ -57,6 +90,9 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
   const [image, setImage] = useState<EventImageValue>({
     imageUrl: initial?.imageUrl ?? "",
   })
+  const [priceText, setPriceText] = useState(initial?.priceText ?? "")
+  const [ticketUrl, setTicketUrl] = useState(initial?.ticketUrl ?? "")
+  const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? "")
   const [loading, setLoading] = useState(false)
   const occurrenceBacked = Boolean(initial?.occurrences?.length)
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>(() => scheduleRowsFromEvent({
@@ -90,24 +126,29 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       setLoading(false)
       return
     }
-    const first = schedule[0]
+    const urlError = organizerUrlError({ ticketUrl: isFree ? undefined : ticketUrl, sourceUrl }, initial)
+    if (urlError) {
+      toast.error("Neispravna poveznica", { description: urlError })
+      setLoading(false)
+      return
+    }
     const body = {
       title: String(form.get("title") || ""),
       description: String(form.get("description") || ""),
-      startsAt: first.startsAt,
-      endsAt: first.endsAt,
-      isAllDay: first.isAllDay,
-      occurrences: occurrenceBacked || scheduleRows.length > 1 ? schedule : undefined,
+      ...buildOrganizerEventBody({
+        schedule,
+        sendOccurrences: occurrenceBacked || scheduleRows.length > 1,
+        isFree,
+        priceText,
+        ticketUrl,
+        sourceUrl,
+        imageUrl: image.imageUrl,
+      }),
       cityName: location?.cityName || undefined,
       categoryId: primaryCategoryId,
       categoryIds: categoryIds.length ? categoryIds : undefined,
       venueName: String(form.get("venueName") || "") || undefined,
       ...(location ? { address: location.address, lat: location.lat || undefined, lng: location.lng || undefined } : {}),
-      isFree,
-      priceText: isFree ? undefined : String(form.get("priceText") || "") || undefined,
-      ticketUrl: isFree ? undefined : String(form.get("ticketUrl") || "") || undefined,
-      imageUrl: image.imageUrl || undefined,
-      sourceUrl: String(form.get("sourceUrl") || "") || undefined,
     }
     try {
       const res = eventId
@@ -214,15 +255,17 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
           {!isFree && (
             <>
               <Field label="Cijena">
-                <Input name="priceText" defaultValue={initial?.priceText} placeholder="npr. 10 EUR" />
+                <ClearableInput name="priceText" value={priceText} onChange={setPriceText} placeholder="npr. 10 EUR" clearLabel="Obriši cijenu" />
               </Field>
               <Field label="Link za ulaznice">
-                <Input name="ticketUrl" defaultValue={initial?.ticketUrl} placeholder="https://…" type="url" />
+                <ClearableInput name="ticketUrl" value={ticketUrl} onChange={setTicketUrl} placeholder="https://…" inputMode="url" clearLabel="Obriši poveznicu za ulaznice" />
+                <LegacyUrlWarning value={ticketUrl} initial={initial?.ticketUrl} allowContactLinks />
               </Field>
             </>
           )}
           <Field label="Dodaj poveznicu na događaj">
-            <Input name="sourceUrl" defaultValue={initial?.sourceUrl} placeholder="https://…" type="url" />
+            <ClearableInput name="sourceUrl" value={sourceUrl} onChange={setSourceUrl} placeholder="https://…" inputMode="url" clearLabel="Obriši poveznicu na događaj" />
+            <LegacyUrlWarning value={sourceUrl} initial={initial?.sourceUrl} />
           </Field>
         </CardContent>
       </Card>

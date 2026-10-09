@@ -165,8 +165,9 @@ export function EventEditForm({
           occurrences: occurrenceBacked || scheduleRows.length > 1 ? schedule : undefined,
           isFree: form.isFree,
           isFeatured: form.isFeatured,
-          priceText: form.priceText || undefined,
-          ticketUrl: form.ticketUrl || undefined,
+          // null, not undefined: a cleared field must reach the API (EVT-06).
+          priceText: form.priceText || null,
+          ticketUrl: form.ticketUrl || null,
           sourceUrl: form.sourceUrl || null,
           venueName: form.venueName || undefined,
           address: location?.address || undefined,
@@ -497,7 +498,7 @@ export function EventEditForm({
                   <FieldLabel htmlFor="ticketUrl">URL ulaznica</FieldLabel>
                   <Input
                     id="ticketUrl"
-                    type="url"
+                    inputMode="url"
                     value={form.ticketUrl}
                     onChange={(e) => update("ticketUrl", e.target.value)}
                   />
@@ -506,7 +507,7 @@ export function EventEditForm({
                   <FieldLabel htmlFor="sourceUrl">URL izvora</FieldLabel>
                   <Input
                     id="sourceUrl"
-                    type="url"
+                    inputMode="url"
                     value={form.sourceUrl}
                     onChange={(e) => update("sourceUrl", e.target.value)}
                   />

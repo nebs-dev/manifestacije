@@ -73,13 +73,24 @@ function isBlank(value: unknown): boolean {
 export function requireSafeHttpUrl<T extends string | null | undefined>(value: T, field: string, options?: SafeUrlOptions): T | string {
   if (isBlank(value)) return value;
   const safe = normalizeSafeHttpUrl(value, options);
-  if (!safe) throw new BadRequestException(`${field} mora biti valjana http(s) poveznica.`);
+  if (!safe) throw new BadRequestException(`${field} mora biti valjana poveznica (http:// ili https://).`);
   return safe;
 }
 
 /** Lenient variant for untrusted parsed/legacy data: unsafe links are dropped. */
 export function safeHttpUrlOrUndefined(value: string | null | undefined, options?: SafeUrlOptions): string | undefined {
   return normalizeSafeHttpUrl(value, options) ?? undefined;
+}
+
+/**
+ * DTO decorator that only normalizes (scheme-less host -> https://) and
+ * never rejects. Used on event content fields, whose safety is enforced in
+ * EventsService because only the service knows the stored value: an
+ * unchanged legacy value (e.g. "racesmanager") must not block saving
+ * unrelated changes, while any new or changed value must be safe.
+ */
+export function NormalizeSafeHttpUrl(urlOptions?: SafeUrlOptions): PropertyDecorator {
+  return Transform(({ value }) => (isBlank(value) ? value : normalizeSafeHttpUrl(value, urlOptions) ?? value));
 }
 
 /**
