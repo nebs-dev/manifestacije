@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import Link from "next/link"
+import { AuthHelp } from "@/components/auth/auth-help"
 import { API_URL } from "@/lib/api"
 
 const GENERIC_MESSAGE = "Ako račun s tom adresom postoji, poslali smo upute za promjenu lozinke."
@@ -46,7 +47,7 @@ export function ForgotPasswordForm() {
 
       {status === "done" ? (
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-secondary-foreground">
+          <div role="status" className="rounded-lg bg-secondary px-4 py-3 text-sm text-secondary-foreground">
             {GENERIC_MESSAGE}
           </div>
           <Link
@@ -59,8 +60,8 @@ export function ForgotPasswordForm() {
       ) : (
         <form id="forgot-password-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {status === "error" && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Greška pri slanju zahtjeva. Pokušajte ponovo.
+            <div role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Usluga je privremeno nedostupna ili ste poslali previše zahtjeva. Pričekajte minutu pa pokušajte ponovno.
             </div>
           )}
 
@@ -98,6 +99,7 @@ export function ForgotPasswordForm() {
           </div>
         </form>
       )}
+      <AuthHelp emailExpected />
     </div>
   )
 }

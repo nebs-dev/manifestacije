@@ -41,4 +41,12 @@ describe("HealthController", () => {
     expect(result.ok).toBe(false);
     expect(result.db).toBe("error");
   });
+
+  it("reports an email tracking migration that is not ready without reading records", async () => {
+    prisma.$queryRaw.mockImplementation(async (sql: TemplateStringsArray) => {
+      if (sql.join("").includes('FROM "EmailDelivery"')) throw new Error("missing table");
+      return [{ ready: true, count: 3 }];
+    });
+    expect(await controller.health()).toMatchObject({ ok: false, db: "ok", emailTracking: "unavailable" });
+  });
 });

@@ -1,3 +1,4 @@
+import { EmailTrackingService } from "../email/email-tracking.service";
 import { BadRequestException, Body, Controller, Headers, Post, Req, UnauthorizedException } from "@nestjs/common";
 import { ResendContactsService, type ResendContactWebhookPayload } from "../contacts/resend-contacts.service";
 import { verifyResendWebhookSignature } from "./verify-resend-signature";
@@ -8,7 +9,7 @@ interface RequestWithRawBody {
 
 @Controller("webhooks")
 export class ResendWebhookController {
-  constructor(private readonly contacts: ResendContactsService) {}
+  constructor(private readonly contacts: ResendContactsService, private readonly tracking: EmailTrackingService) {}
 
   @Post("resend")
   async handle(
@@ -24,6 +25,8 @@ export class ResendWebhookController {
 
     const valid = verifyResendWebhookSignature({ svixId, svixTimestamp, svixSignature, rawBody: req.rawBody, secret });
     if (!valid) throw new UnauthorizedException("Invalid signature");
+
+    await this.tracking.webhook(svixId!, body);
 
     // Idempotent by construction — processing the same event twice converges
     // to the same row state, so there's nothing extra to do for retries.

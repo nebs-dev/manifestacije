@@ -22,7 +22,7 @@ async function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T 
 
 describe("EmailService provider selection", () => {
   it("uses LogEmailProvider in log mode and never touches Resend", async () => {
-    withEnv({ EMAIL_DELIVERY_MODE: "log", RESEND_API_KEY: undefined, NODE_ENV: "test" }, () => {
+    return withEnv({ EMAIL_DELIVERY_MODE: "log", RESEND_API_KEY: undefined, NODE_ENV: "test" }, () => {
       const service = new EmailService();
       const provider = (service as unknown as { provider: unknown }).provider;
       expect(provider).toBeInstanceOf(LogEmailProvider);
@@ -30,7 +30,7 @@ describe("EmailService provider selection", () => {
   });
 
   it("uses ResendEmailProvider when EMAIL_DELIVERY_MODE=resend and an API key is present", () => {
-    withEnv({ EMAIL_DELIVERY_MODE: "resend", RESEND_API_KEY: "re_test_key", NODE_ENV: "test" }, () => {
+    return withEnv({ EMAIL_DELIVERY_MODE: "resend", RESEND_API_KEY: "re_test_key", NODE_ENV: "test" }, () => {
       const service = new EmailService();
       const provider = (service as unknown as { provider: unknown }).provider;
       expect(provider).toBeInstanceOf(ResendEmailProvider);
@@ -38,7 +38,7 @@ describe("EmailService provider selection", () => {
   });
 
   it("falls back to LogEmailProvider when resend mode is set but no API key exists (non-production)", () => {
-    withEnv({ EMAIL_DELIVERY_MODE: "resend", RESEND_API_KEY: undefined, NODE_ENV: "test" }, () => {
+    return withEnv({ EMAIL_DELIVERY_MODE: "resend", RESEND_API_KEY: undefined, NODE_ENV: "test" }, () => {
       const service = new EmailService();
       const provider = (service as unknown as { provider: unknown }).provider;
       expect(provider).toBeInstanceOf(LogEmailProvider);
@@ -46,7 +46,7 @@ describe("EmailService provider selection", () => {
   });
 
   it("throws at construction when production is missing required env vars", () => {
-    withEnv({
+    return withEnv({
       EMAIL_DELIVERY_MODE: "resend",
       RESEND_API_KEY: undefined,
       EMAIL_FROM_ADDRESS: undefined,
@@ -58,13 +58,15 @@ describe("EmailService provider selection", () => {
   });
 
   it("defaults to Resend on Railway production when EMAIL_DELIVERY_MODE is omitted", () => {
-    withEnv({
+    return withEnv({
       EMAIL_DELIVERY_MODE: undefined,
       RESEND_API_KEY: "re_test_key",
       EMAIL_FROM_ADDRESS: "info@manifestacije.hr",
       PUBLIC_WEB_URL: "https://manifestacije.hr",
       NODE_ENV: undefined,
       RAILWAY_ENVIRONMENT_NAME: "production",
+      PASSWORD_RESET_URL: undefined,
+      ORGANIZER_CLAIM_URL: undefined,
     }, () => {
       const service = new EmailService();
       const provider = (service as unknown as { provider: unknown }).provider;
@@ -73,7 +75,7 @@ describe("EmailService provider selection", () => {
   });
 
   it("refuses explicit log mode in production", () => {
-    withEnv({
+    return withEnv({
       EMAIL_DELIVERY_MODE: "log",
       RESEND_API_KEY: "re_test_key",
       EMAIL_FROM_ADDRESS: "info@manifestacije.hr",

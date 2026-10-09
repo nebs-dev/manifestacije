@@ -90,4 +90,15 @@ describe("verifyResendWebhookSignature", () => {
 
     expect(valid).toBe(false);
   });
+
+  it("rejects unsupported signature versions even with a matching HMAC", () => {
+    const body = "{}", timestamp = String(Math.floor(Date.now() / 1000));
+    expect(verifyResendWebhookSignature({ svixId: "msg_1", svixTimestamp: timestamp,
+      svixSignature: sign("msg_1", timestamp, body).replace("v1,", "v2,"), rawBody: Buffer.from(body), secret: SECRET })).toBe(false);
+  });
+
+  it("rejects malformed secrets", () => {
+    expect(verifyResendWebhookSignature({ svixId: "msg_1", svixTimestamp: String(Math.floor(Date.now() / 1000)),
+      svixSignature: "v1,bad", rawBody: Buffer.from("{}"), secret: "not-a-signing-secret" })).toBe(false);
+  });
 });

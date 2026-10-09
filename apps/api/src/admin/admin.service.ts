@@ -474,10 +474,17 @@ export class AdminService {
   }
 
   async resetOrganizerPassword(organizerId: number, password: string) {
-    const user = await this.prisma.user.findFirst({ where: { organizerId } });
-    if (!user) throw new NotFoundException("Korisnik za ovog organizatora nije pronađen");
+    const users = await this.prisma.user.findMany({ where: { organizerId, role: "ORGANIZER" }, select: { id: true }, take: 2 });
+    if (!users.length) throw new NotFoundException("Korisnik za ovog organizatora nije pronađen");
+    if (users.length !== 1) throw new BadRequestException("Organizator ima više korisničkih računa. Za promjenu lozinke koristite poveznicu Zaboravili ste lozinku za željenu email adresu.");
+    const user = users[0];
     const passwordHash = await bcrypt.hash(password, 10);
-    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} AND "organizerId" = ${organizerId} AND "role" = 'ORGANIZER' FOR UPDATE`;
+      const updated = await tx.user.updateMany({ where: { id: user.id, organizerId, role: "ORGANIZER" }, data: { passwordHash, authVersion: { increment: 1 } } });
+      if (updated.count !== 1) throw new NotFoundException("Korisnik za ovog organizatora nije pronađen");
+      await tx.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+    });
     return { ok: true };
   }
 

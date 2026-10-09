@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Suspense } from "react";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import { PublicAnalytics } from "@/components/auth/public-analytics";
 import { RouteProgress } from "@/components/route-progress";
 import "./globals.css";
 
@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Suspense>
         {children}
       </body>
-      {gaId && <GoogleAnalytics gaId={gaId} />}
+      {gaId && <Suspense fallback={null}><PublicAnalytics gaId={gaId} /></Suspense>}
     </html>
   );
 }

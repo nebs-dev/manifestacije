@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Bell,
+  Mail,
   Link2,
   Radar,
   Clock,
@@ -24,6 +25,7 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
+  { label: "Dostava emailova", href: "/admin/email-deliveries", icon: Mail },
   { label: "Obavijesti", href: "/admin/notifications", icon: Bell },
   { label: "Sources", href: "/admin/sources", icon: Link2 },
   { label: "Monitored sources", href: "/admin/monitored-sources", icon: Radar },

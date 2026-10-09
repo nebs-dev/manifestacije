@@ -10,6 +10,12 @@ const nextConfig = {
       { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
+  async headers() {
+    return [{ source: "/reset-password", headers: [
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Cache-Control", value: "no-store" },
+    ] }];
+  },
   async redirects() {
     // Config-level redirect, not a page-level permanentRedirect() call — the
     // latter gets statically prerendered and served from CDN cache without a

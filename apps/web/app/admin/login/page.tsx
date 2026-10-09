@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { AuthHelp } from "@/components/auth/auth-help"
 import { Eye, EyeOff } from "lucide-react"
 import { loginErrorMessage } from "@/lib/session-check"
 
@@ -129,6 +130,7 @@ export default function AdminLoginPage() {
             Zaboravili ste lozinku?
           </Link>
         </form>
+        <AuthHelp />
       </div>
     </div>
   )

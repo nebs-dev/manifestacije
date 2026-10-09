@@ -1,9 +1,11 @@
+import { EmailTrackingService } from "./email-tracking.service";
 import { adminAutoPublishedSubject, adminAutoPublishedHtml, adminAutoPublishedText, type AdminAutoPublishedData } from "./templates/admin-auto-published.template";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { loadEmailConfig, type EmailConfig } from "./email.config";
 import type { EmailProvider } from "./providers/email-provider.interface";
 import { ResendEmailProvider } from "./providers/resend-email.provider";
-import { LogEmailProvider, maskEmail } from "./providers/log-email.provider";
+import { LogEmailProvider } from "./providers/log-email.provider";
+import { EmailDeliveryError } from "./email.types";
 import type { SendEmailInput, SendEmailResult } from "./email.types";
 import { organizerWelcomeSubject, organizerWelcomeHtml, organizerWelcomeText, type OrganizerWelcomeData } from "./templates/organizer-welcome.template";
 import { eventSubmittedSubject, eventSubmittedHtml, eventSubmittedText, type EventSubmittedData } from "./templates/event-submitted.template";
@@ -17,8 +19,8 @@ import { adminEventRevisionHtml, adminEventRevisionText, eventRevisionDecisionHt
 
 /**
  * The only email entry point the rest of the app should use. Every send*
- * method catches its own delivery errors and logs structured metadata —
- * callers never need a try/catch, and a failed send never throws.
+ * method records transport metadata. Reset/claim sends throw on submission
+ * failure; other sends preserve the underlying business operation.
  */
 @Injectable()
 export class EmailService {
@@ -26,7 +28,7 @@ export class EmailService {
   private readonly config: EmailConfig;
   private readonly provider: EmailProvider;
 
-  constructor() {
+  constructor(@Optional() private readonly tracking?: EmailTrackingService) {
     this.config = loadEmailConfig();
     this.provider = this.buildProvider();
   }
@@ -66,9 +68,10 @@ export class EmailService {
     return this.config.organizerClaimTokenTtlMinutes;
   }
 
-  async sendOrganizerWelcome(to: string, data: OrganizerWelcomeData): Promise<void> {
+  async sendOrganizerWelcome(to: string, data: OrganizerWelcomeData, userId?: number): Promise<void> {
     await this.dispatch({
       template: "organizer_welcome",
+      userId,
       to,
       subject: organizerWelcomeSubject(),
       html: organizerWelcomeHtml(data),
@@ -146,80 +149,30 @@ export class EmailService {
       subject: `Izmjene ${data.approved ? "odobrene" : "odbijene"}: ${data.title}`, html: eventRevisionDecisionHtml(data), text: eventRevisionDecisionText(data), relatedId });
   }
 
-  /** Throws on failure (unlike the other send* methods) — ForgotPassword needs
-   *  to know whether delivery failed so it can delete the just-created reset
-   *  token rather than leaving an unlimited-lifetime valid token behind. */
-  async sendPasswordReset(to: string, data: PasswordResetData): Promise<SendEmailResult> {
-    const input: SendEmailInput = {
-      to,
-      subject: passwordResetSubject(),
-      html: passwordResetHtml(data),
-      text: passwordResetText(data),
-      replyTo: this.config.replyTo,
-      tags: [
-        { name: "template", value: "password_reset" },
-        { name: "environment", value: process.env.NODE_ENV || "development" },
-      ],
-    };
-    // Deliberately not routed through dispatch(): dispatch() swallows errors,
-    // but the caller here (AuthService.forgotPassword) must know about a
-    // failure so it can delete the newly created token instead of leaving an
-    // unlimited-lifetime valid reset token in the database. The raw token
-    // itself never appears in this method or in any log line — only the
-    // already-built resetUrl (data.resetUrl) does, exactly as intended.
-    try {
-      const result = await this.provider.send(input);
-      this.logger.log(`email sent template=password_reset to=${maskEmail(to)} provider=${result.provider}`);
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`email delivery failed template=password_reset to=${maskEmail(to)} provider=${this.config.deliveryMode} error=${message}`);
-      throw err;
-    }
+  /** Reset/claim callers receive a safe submission outcome for token cleanup. */
+  async sendPasswordReset(to: string, data: PasswordResetData, userId?: number): Promise<SendEmailResult> {
+    return this.submit({ template: "password_reset", to, userId, subject: passwordResetSubject(), html: passwordResetHtml(data), text: passwordResetText(data) });
   }
 
-  /** Throws on failure (unlike the other send* methods) — OrganizerClaimService
-   *  needs to know whether delivery failed so it can delete the just-created
-   *  claim token rather than leaving an unlimited-lifetime valid token behind. */
   async sendOrganizerClaim(to: string, data: OrganizerClaimData): Promise<SendEmailResult> {
-    const input: SendEmailInput = {
-      to,
-      subject: organizerClaimSubject(),
-      html: organizerClaimHtml(data),
-      text: organizerClaimText(data),
-      replyTo: this.config.replyTo,
-      tags: [
-        { name: "template", value: "organizer_claim" },
-        { name: "environment", value: process.env.NODE_ENV || "development" },
-      ],
-    };
-    try {
-      const result = await this.provider.send(input);
-      this.logger.log(`email sent template=organizer_claim to=${maskEmail(to)} provider=${result.provider}`);
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`email delivery failed template=organizer_claim to=${maskEmail(to)} provider=${this.config.deliveryMode} error=${message}`);
-      throw err;
-    }
+    return this.submit({ template: "organizer_claim", to, subject: organizerClaimSubject(), html: organizerClaimHtml(data), text: organizerClaimText(data) });
   }
 
-  /** Central send path: builds the Resend payload, sends, and logs structured
-   *  metadata on both success and failure. Never throws — a delivery failure
-   *  must never fail the business operation that triggered the email. */
-  private async dispatch(params: {
-    template: string;
-    to: string;
-    subject: string;
-    html: string;
-    text: string;
-    relatedId?: number;
-  }): Promise<SendEmailResult | undefined> {
+  private async dispatch(params: EmailParams): Promise<SendEmailResult | undefined> {
+    try { return await this.submit(params); } catch { return undefined; }
+  }
+
+  private async submit(params: EmailParams): Promise<SendEmailResult> {
+    let attempt;
+    try {
+      attempt = await this.tracking?.start(params.template, this.provider instanceof LogEmailProvider ? "log" : "resend", params.userId);
+    } catch {
+      this.logger.error(`email tracking unavailable template=${params.template}`);
+      throw new EmailDeliveryError("Email tracking unavailable");
+    }
     const input: SendEmailInput = {
-      to: params.to,
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
+      idempotencyKey: attempt?.id,
+      to: params.to, subject: params.subject, html: params.html, text: params.text,
       replyTo: this.config.replyTo,
       tags: [
         { name: "template", value: params.template },
@@ -227,19 +180,31 @@ export class EmailService {
         ...(params.relatedId !== undefined ? [{ name: "event_id", value: String(params.relatedId) }] : []),
       ],
     };
-
+    let result: SendEmailResult;
     try {
-      const result = await this.provider.send(input);
-      this.logger.log(
-        `email sent template=${params.template} to=${maskEmail(params.to)} relatedId=${params.relatedId ?? "-"} provider=${result.provider}`
-      );
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `email delivery failed template=${params.template} to=${maskEmail(params.to)} relatedId=${params.relatedId ?? "-"} provider=${this.config.deliveryMode} error=${message}`
-      );
-      return undefined;
+      result = await this.provider.send(input);
+    } catch (error) {
+      if (attempt) await this.tracking!.fail(attempt.id, error instanceof EmailDeliveryError && error.outcome === "rejected" ? "submission_failed" : "submission_unknown").catch(() => this.logger.error("email tracking update failed"));
+      // Provider errors may contain recipient addresses or request bodies. Never log them.
+      this.logger.error(`email submission failed template=${params.template} attempt=${attempt?.id ?? "-"}`);
+      throw new EmailDeliveryError("Email submission failed", error instanceof EmailDeliveryError ? error.outcome : "unknown");
     }
+    if (attempt) {
+      // Once accepted, a tracking outage must not invalidate a link already sent.
+      await this.tracking!.submitted(attempt.id, result.provider, result.messageId)
+        .catch(() => this.logger.error(`email tracking update failed attempt=${attempt.id}`));
+    }
+    this.logger.log(`email ${result.provider === "log" ? "logged" : "accepted"} template=${params.template} attempt=${attempt?.id ?? "-"} messageId=${result.messageId ?? "-"}`);
+    return result;
   }
+}
+
+interface EmailParams {
+  template: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  relatedId?: number;
+  userId?: number;
 }

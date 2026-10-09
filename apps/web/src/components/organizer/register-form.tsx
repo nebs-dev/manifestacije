@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react"
 import Link from "next/link"
+import { AuthHelp } from "@/components/auth/auth-help"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 import { API_URL } from "@/lib/api"
@@ -59,7 +60,7 @@ export function RegisterForm({ initialEmail = "" }: { initialEmail?: string }) {
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.message || "Registracija nije uspjela"); return }
+      if (!res.ok) { setError(res.status === 400 ? "Provjerite unesene podatke. Ako već imate račun, prijavite se ili zatražite promjenu lozinke." : res.status === 429 ? "Previše zahtjeva. Pričekajte minutu pa pokušajte ponovno." : "Registracija trenutačno nije dostupna. Pokušajte ponovno za nekoliko minuta."); return }
       if (data.user?.role !== "ORGANIZER" || data.user?.email?.toLowerCase() !== email) {
         setError("Registracija je uspjela, ali sesija nije organizatorska")
         return
@@ -85,16 +86,18 @@ export function RegisterForm({ initialEmail = "" }: { initialEmail?: string }) {
           <Input name="organizerName" placeholder="Naziv organizatora / udruge" required />
           <Input name="email" type="email" placeholder="Email" required autoComplete="email" defaultValue={initialEmail} />
           <PasswordInput name="password" placeholder="Lozinka (min 8 znakova)" required autoComplete="new-password" />
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={loading}>{loading ? "Registracija…" : "Registriraj se"}</Button>
           <p className="text-center text-sm text-muted-foreground">
             Već imate račun?{" "}
             <Link href="/organizer/login" className="text-primary hover:underline">Prijavite se</Link>
           </p>
+          <Link href="/forgot-password" className="text-center text-sm text-primary hover:underline">Zaboravili ste lozinku?</Link>
           <p className="text-xs leading-relaxed text-muted-foreground/70">
             Registracijom na manifestacije.hr stvarate korisnički račun koji vam omogućuje unos, uređivanje i upravljanje događajima na platformi. Podatke koje unesete koristimo isključivo za rad platforme, komunikaciju vezanu uz vaše događaje, moderaciju sadržaja, sigurnost korisničkog računa i poboljšanje usluge. Vaše podatke ne prodajemo trećim stranama. Marketinške obavijesti i newsletter šaljemo samo ako za to date posebnu privolu, koju u svakom trenutku možete povući.
           </p>
         </form>
+        <AuthHelp />
       </CardContent>
     </Card>
   )

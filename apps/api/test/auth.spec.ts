@@ -109,7 +109,7 @@ describe("AuthService", () => {
 
     await service.register({ name: "New Organizer", organizerName: "New Organizer Co", email: "new@example.hr", password: "secret123" });
 
-    expect(email.sendOrganizerWelcome).toHaveBeenCalledWith("new@example.hr", { organizerName: "New Organizer Co", webUrl: "https://manifestacije.hr" });
+    expect(email.sendOrganizerWelcome).toHaveBeenCalledWith("new@example.hr", { organizerName: "New Organizer Co", webUrl: "https://manifestacije.hr" }, 2);
     expect(email.sendAdminNewOrganizer).toHaveBeenCalledWith(
       expect.objectContaining({
         organizerName: "New Organizer Co",
@@ -170,15 +170,17 @@ describe("AuthService", () => {
 
 describe("AuthService.forgotPassword", () => {
   function makePrisma(overrides: Record<string, unknown> = {}) {
-    return {
+    const prisma = {
       user: { findUnique: jest.fn().mockResolvedValue(null) },
       passwordResetToken: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         create: jest.fn().mockResolvedValue({ id: 1 }),
         delete: jest.fn().mockResolvedValue({ id: 1 }),
       },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 1 }]),
       ...overrides,
     };
+    return { ...prisma, $transaction: jest.fn((work) => work(prisma)) };
   }
 
   const KNOWN_USER = { id: 1, email: "organizer@example.hr", authVersion: 0 };
@@ -241,7 +243,7 @@ describe("AuthService.forgotPassword", () => {
     expect(email.sendPasswordReset).toHaveBeenCalledTimes(1);
     const [to, data] = email.sendPasswordReset.mock.calls[0];
     expect(to).toBe("organizer@example.hr");
-    expect(data.resetUrl).toMatch(/^https:\/\/manifestacije\.hr\/reset-password\?token=/);
+    expect(data.resetUrl).toMatch(/^https:\/\/manifestacije\.hr\/reset-password#token=/);
     const createArgs = prisma.passwordResetToken.create.mock.calls[0][0];
     const rawTokenFromUrl = decodeURIComponent(data.resetUrl.split("token=")[1]);
     expect(createHash("sha256").update(rawTokenFromUrl).digest("hex")).toBe(createArgs.data.tokenHash);
@@ -274,8 +276,9 @@ describe("AuthService.resetPassword", () => {
 
   function makeTx() {
     return {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 1 }]),
       user: { update: jest.fn().mockResolvedValue({}) },
-      passwordResetToken: { update: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      passwordResetToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
   }
 
@@ -327,7 +330,7 @@ describe("AuthService.resetPassword", () => {
 
     await service.resetPassword({ token: RAW_TOKEN, newPassword: "brandNewPassword123" });
 
-    expect(tx.passwordResetToken.update).toHaveBeenCalledWith({ where: { id: 9 }, data: { usedAt: expect.any(Date) } });
+    expect(tx.passwordResetToken.updateMany).toHaveBeenCalledWith({ where: { id: 9, usedAt: null, expiresAt: { gt: expect.any(Date) } }, data: { usedAt: expect.any(Date) } });
   });
 
   it("invalidates other unused reset tokens for the same user", async () => {

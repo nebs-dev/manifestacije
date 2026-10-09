@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState, useCallback } from "react"
 import { Users as UsersIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -94,6 +95,7 @@ export default function UsersPage() {
                     <TableCell className="text-right tabular-nums">{u._count.createdEvents}</TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(u.createdAt)}</TableCell>
                     <TableCell className="text-right">
+                      <Link href={`/admin/email-deliveries?userId=${u.id}`} className="mr-3 text-sm text-primary hover:underline">Dostava emailova</Link>
                       <DeleteButton onDelete={() => deleteUser(u)} label="Obriši korisnika" />
                     </TableCell>
                   </TableRow>

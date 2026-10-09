@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react"
 import Link from "next/link"
+import { AuthHelp } from "@/components/auth/auth-help"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 import { API_URL } from "@/lib/api"
@@ -112,6 +113,7 @@ export default function LoginPage() {
             <Link href="/organizer/register" className="text-primary hover:underline">Registrirajte se</Link>
           </p>
         </form>
+        <AuthHelp />
       </CardContent>
     </Card>
   )

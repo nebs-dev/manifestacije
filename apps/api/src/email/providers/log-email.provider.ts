@@ -7,10 +7,7 @@ export class LogEmailProvider implements EmailProvider {
   private readonly logger = new Logger("LogEmailProvider");
 
   async send(input: SendEmailInput): Promise<SendEmailResult> {
-    const recipients = Array.isArray(input.to) ? input.to : [input.to];
-    this.logger.log(
-      `[email:log] to=${recipients.map(maskEmail).join(",")} subject="${input.subject}" tags=${JSON.stringify(input.tags ?? [])}`
-    );
+    this.logger.log(`[email:log] template=${input.tags?.find(tag => tag.name === "template")?.value ?? "unknown"}`);
     return { provider: "log" };
   }
 }

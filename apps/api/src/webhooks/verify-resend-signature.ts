@@ -21,13 +21,14 @@ export function verifyResendWebhookSignature(params: {
   const timestamp = Number(svixTimestamp);
   if (!Number.isFinite(timestamp) || Math.abs(Date.now() / 1000 - timestamp) > TOLERANCE_SECONDS) return false;
 
+  if (!/^whsec_[A-Za-z0-9+/]+=*$/.test(secret)) return false;
   const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
   const signedContent = `${svixId}.${svixTimestamp}.${rawBody.toString("utf8")}`;
   const expected = createHmac("sha256", secretBytes).update(signedContent).digest();
 
   return svixSignature.split(" ").some((token) => {
-    const [, sig] = token.split(",");
-    if (!sig) return false;
+    const [version, sig] = token.split(",");
+    if (version !== "v1" || !sig) return false;
     let candidate: Buffer;
     try {
       candidate = Buffer.from(sig, "base64");

@@ -294,7 +294,7 @@ export class ResendContactsService {
       await fn();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`contacts sync failed trigger=${trigger} error=${message}`);
+      this.logger.error(`contacts sync failed trigger=${trigger}`);
     }
   }
 
@@ -389,7 +389,7 @@ export class ResendContactsService {
   }
 
   private async markFailed(email: string, syncError: string): Promise<void> {
-    this.logger.error(`contacts sync failed email=${maskEmail(email)} error=${syncError}`);
+    this.logger.error("contacts sync failed");
     await this.prisma.emailContact.update({
       where: { email },
       data: { syncStatus: EmailContactSyncStatus.FAILED, syncError: syncError.slice(0, 500) },

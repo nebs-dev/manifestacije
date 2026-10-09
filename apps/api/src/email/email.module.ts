@@ -1,3 +1,5 @@
+import { EmailTrackingService } from "./email-tracking.service";
+import { PrismaService } from "../prisma/prisma.service";
 import { Module } from "@nestjs/common";
 import { EmailService } from "./email.service";
 
@@ -6,7 +8,7 @@ import { EmailService } from "./email.service";
 // than composing feature modules. Kept for structure/testability and in case
 // the app moves to composed modules later.
 @Module({
-  providers: [EmailService],
+  providers: [EmailService, EmailTrackingService, PrismaService],
   exports: [EmailService],
 })
 export class EmailModule {}

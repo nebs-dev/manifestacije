@@ -35,13 +35,13 @@ export function loadEmailConfig(): EmailConfig {
   const fromAddress = process.env.EMAIL_FROM_ADDRESS || "info@manifestacije.hr";
   const replyTo = process.env.EMAIL_REPLY_TO || "info@manifestacije.hr";
   const adminNotificationEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "info@manifestacije.hr";
-  const publicWebUrl = process.env.PUBLIC_WEB_URL || "http://localhost:3000";
+  const publicWebUrl = (process.env.PUBLIC_WEB_URL || "http://localhost:3000").replace(/\/$/, "");
   const resendApiKey = process.env.RESEND_API_KEY;
   // Never hardcode a Vercel preview URL — fall back to PUBLIC_WEB_URL, not localhost, in prod.
   const passwordResetUrl = process.env.PASSWORD_RESET_URL || `${publicWebUrl}/reset-password`;
-  const passwordResetTokenTtlMinutes = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES) || 30;
+  const passwordResetTokenTtlMinutes = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 30);
   const organizerClaimUrl = process.env.ORGANIZER_CLAIM_URL || `${publicWebUrl}/preuzmi-profil`;
-  const organizerClaimTokenTtlMinutes = Number(process.env.ORGANIZER_CLAIM_TOKEN_TTL_MINUTES) || 30;
+  const organizerClaimTokenTtlMinutes = Number(process.env.ORGANIZER_CLAIM_TOKEN_TTL_MINUTES || 30);
 
   if (productionRuntime && deliveryMode !== "resend") {
     throw new Error("EMAIL_DELIVERY_MODE must be set to resend in production.");
@@ -57,5 +57,29 @@ export function loadEmailConfig(): EmailConfig {
     }
   }
 
+  if (!["log", "resend"].includes(deliveryMode) || provider !== "resend") throw new Error("Invalid email provider configuration");
+  for (const [key, address] of Object.entries({ EMAIL_FROM_ADDRESS: fromAddress, EMAIL_REPLY_TO: replyTo, ADMIN_NOTIFICATION_EMAIL: adminNotificationEmail })) {
+    if (!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(address)) throw new Error(`Invalid ${key}`);
+  }
+  if (/[\r\n<>]/.test(fromName)) throw new Error("Invalid EMAIL_FROM_NAME");
+  const web = safeUrl(publicWebUrl, productionRuntime, "PUBLIC_WEB_URL");
+  if (web.pathname !== "/" || web.search || web.hash) throw new Error("PUBLIC_WEB_URL must be an origin");
+  for (const [key, value, path] of [["PASSWORD_RESET_URL", passwordResetUrl, "/reset-password"], ["ORGANIZER_CLAIM_URL", organizerClaimUrl, "/preuzmi-profil"]]) {
+    const url = safeUrl(value, productionRuntime, key);
+    if (url.origin !== web.origin || url.pathname !== path || url.search || url.hash) throw new Error(`Invalid ${key}: expected canonical web page without query or fragment`);
+  }
+  for (const [key, value] of [["PASSWORD_RESET_TOKEN_TTL_MINUTES", passwordResetTokenTtlMinutes], ["ORGANIZER_CLAIM_TOKEN_TTL_MINUTES", organizerClaimTokenTtlMinutes]] as const) {
+    if (!Number.isInteger(value) || value < 1 || value > 43200) throw new Error(`Invalid ${key}`);
+  }
   return { deliveryMode, provider, resendApiKey, fromName, fromAddress, replyTo, adminNotificationEmail, publicWebUrl, passwordResetUrl, passwordResetTokenTtlMinutes, organizerClaimUrl, organizerClaimTokenTtlMinutes };
+}
+
+function safeUrl(value: string, production: boolean, key: string): URL {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error(`Invalid ${key}`); }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password
+    || (production && (url.protocol !== "https:" || !["manifestacije.hr", "www.manifestacije.hr"].includes(url.hostname) || url.port))) {
+    throw new Error(`Invalid ${key}: use the canonical public web origin`);
+  }
+  return url;
 }

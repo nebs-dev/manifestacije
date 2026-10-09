@@ -1,3 +1,5 @@
+import { EmailTrackingService } from "./email/email-tracking.service";
+import { EmailTrackingController } from "./email/email-tracking.controller";
 import { Controller, Get, Module } from "@nestjs/common";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { ScheduleModule } from "@nestjs/schedule";
@@ -41,6 +43,7 @@ export class HealthController {
 
   @Get()
   async health() {
+    let emailTracking: "ready" | "unavailable" = "unavailable";
     let db: "ok" | "error" = "ok";
     let notifications: "ready" | "unavailable" = "unavailable";
     let eventRevisions: "ready" | "unavailable" = "unavailable";
@@ -64,9 +67,17 @@ export class HealthController {
         if (row.count === 3) notifications = "ready";
       } catch { /* Additive schema readiness, no user data returned. */ }
     }
+    if (db === "ok") {
+      try {
+        await this.prisma.$queryRaw`SELECT "id", "messageId", "status", "userId" FROM "EmailDelivery" LIMIT 0`;
+        await this.prisma.$queryRaw`SELECT "id", "messageId", "occurredAt" FROM "EmailDeliveryEvent" LIMIT 0`;
+        emailTracking = "ready";
+      } catch { /* Schema-only probe; never reads email records. */ }
+    }
     return {
+      emailTracking,
       notifications,
-      ok: db === "ok" && eventRevisions === "ready" && notifications === "ready",
+      ok: db === "ok" && eventRevisions === "ready" && notifications === "ready" && emailTracking === "ready",
       db,
       eventRevisions,
       uptime: Math.floor(process.uptime()),
@@ -89,7 +100,7 @@ export class HealthController {
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [NotificationsController, AdminDuplicateCheckController, OrganizerDuplicateCheckController, HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
+  controllers: [EmailTrackingController, NotificationsController, AdminDuplicateCheckController, OrganizerDuplicateCheckController, HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
   providers: [
     PrismaService,
     AuthService,
@@ -104,6 +115,7 @@ export class HealthController {
     EventsService,
     EventRevisionsService,
     EmailService,
+    EmailTrackingService,
     ResendContactsService,
     OrganizerClaimService,
     MonitoredSourcesService

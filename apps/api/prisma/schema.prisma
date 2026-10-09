@@ -519,3 +519,31 @@ model AdminNotificationRead {
 
   @@id([userId, key])
 }
+
+// No addresses, bodies or token-bearing URLs are retained here.
+model EmailDelivery {
+  id String @id @default(uuid())
+  template String
+  provider String
+  userId Int?
+  messageId String? @unique
+  status String @default("submitting")
+  statusRank Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  acceptedAt DateTime?
+  lastEventAt DateTime?
+  @@index([userId, createdAt])
+  @@index([template, createdAt])
+}
+
+// Separate from attempts so a webhook arriving before a send response is retained.
+model EmailDeliveryEvent {
+  id String @id
+  messageId String
+  type String
+  statusRank Int
+  occurredAt DateTime
+  receivedAt DateTime @default(now())
+  @@index([messageId, statusRank, occurredAt])
+}

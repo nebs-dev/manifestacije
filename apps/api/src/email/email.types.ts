@@ -1,6 +1,7 @@
 export type EmailProviderName = "resend" | "log";
 
 export interface SendEmailInput {
+  idempotencyKey?: string;
   to: string | string[];
   subject: string;
   html: string;
@@ -16,7 +17,7 @@ export interface SendEmailResult {
 
 /** Non-fatal — thrown by providers, always caught by EmailService so callers never see it. */
 export class EmailDeliveryError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(message: string, readonly outcome: "rejected" | "unknown" = "rejected") {
     super(message);
     this.name = "EmailDeliveryError";
   }

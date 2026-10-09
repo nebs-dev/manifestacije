@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react"
 import Link from "next/link"
+import { AuthHelp } from "@/components/auth/auth-help"
 import { Eye, EyeOff } from "lucide-react"
 import { API_URL } from "@/lib/api"
 import { clearToken as clearAdminToken } from "@/lib/admin/api"
@@ -61,8 +62,10 @@ export function ResetPasswordForm() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const t = params.get("token")
+    const t = new URLSearchParams(window.location.hash.slice(1)).get("token") || params.get("token")
     setToken(t)
+    // Remove the secret from browser history and subsequent referrer URLs.
+    window.history.replaceState(null, "", window.location.pathname)
     if (!t) setStatus("missing-token")
     // Clear any existing session as soon as this page loads — a password
     // reset in progress should not leave a stale logged-in session around.
@@ -124,7 +127,7 @@ export function ResetPasswordForm() {
 
       {status === "missing-token" && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
             Poveznica nije valjana ili je istekla.
           </div>
           <Link href="/forgot-password" className="text-center text-sm font-medium text-primary hover:underline">
@@ -135,7 +138,7 @@ export function ResetPasswordForm() {
 
       {status === "invalid-token" && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
             Poveznica nije valjana ili je istekla.
           </div>
           <Link href="/forgot-password" className="text-center text-sm font-medium text-primary hover:underline">
@@ -146,7 +149,7 @@ export function ResetPasswordForm() {
 
       {status === "success" && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-secondary-foreground">
+          <div role="status" className="rounded-lg bg-secondary px-4 py-3 text-sm text-secondary-foreground">
             Lozinka je uspješno promijenjena.
           </div>
           <div className="flex justify-center gap-4 text-sm">
@@ -163,12 +166,12 @@ export function ResetPasswordForm() {
       {(status === "form" || status === "loading" || status === "error") && (
         <form id="reset-password-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {status === "error" && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              Greška pri spremanju lozinke. Pokušajte ponovo.
+            <div role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              Lozinku trenutačno nije moguće spremiti. Pričekajte minutu pa pokušajte ponovno.
             </div>
           )}
           {fieldError && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {fieldError}
             </div>
           )}
@@ -208,6 +211,7 @@ export function ResetPasswordForm() {
           </button>
         </form>
       )}
+      <AuthHelp emailExpected />
     </div>
   )
 }

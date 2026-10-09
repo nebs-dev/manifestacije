@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { ValidationPipe } from "@nestjs/common";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { configureTrustProxy } from "./common/trusted-proxy";
@@ -21,19 +22,11 @@ function corsOrigin(origin: string | undefined, callback: (error: Error | null, 
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const proxyHops = configureTrustProxy(app);
   console.log(`[api] trust proxy hops: ${proxyHops}`);
-  app.use(
-    require("express").json({
-      limit: "10mb",
-      // Stash the raw bytes alongside the parsed body — the Resend webhook
-      // route needs the exact original bytes to verify its Svix signature.
-      verify: (req: { rawBody?: Buffer }, _res: unknown, buf: Buffer) => {
-        req.rawBody = buf;
-      },
-    })
-  );
+  // Nest preserves exact webhook bytes before parsing, with a bounded body size.
+  app.useBodyParser("json", { limit: "10mb" });
   app.setGlobalPrefix("api");
   app.enableCors({ origin: corsOrigin, credentials: true, methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

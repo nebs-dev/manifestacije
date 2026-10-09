@@ -169,7 +169,7 @@ export class OrganizerClaimService {
     try {
       await this.contacts.syncClaimedOrganizer(user, organizer);
     } catch (err) {
-      this.logger.error(`contacts sync failed trigger=profile_claim error=${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error("contacts sync failed trigger=profile_claim");
     }
 
     try {
@@ -246,7 +246,7 @@ export class OrganizerClaimService {
         where: { id: claim.id },
         data: { status: OrganizerClaimStatus.NEEDS_ADMIN_REVIEW, tokenHash: null, expiresAt: null, approvedAt: null },
       });
-      this.logger.error(`organizer claim approval email delivery failed claimId=${claim.id} error=${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(`organizer claim approval email submission failed claimId=${claim.id}`);
       throw new BadRequestException("Slanje emaila nije uspjelo. Pokušajte ponovo.");
     }
 
@@ -342,7 +342,7 @@ export class OrganizerClaimService {
         sent++;
       } catch (err) {
         stats.failed++;
-        this.logger.error(`bulk claim invite failed organizerId=${organizer.id} error=${err instanceof Error ? err.message : String(err)}`);
+        this.logger.error(`bulk claim invite failed organizerId=${organizer.id}`);
       }
     }
 

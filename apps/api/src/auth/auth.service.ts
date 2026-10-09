@@ -1,3 +1,4 @@
+import { EmailDeliveryError } from "../email/email.types";
 import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { UserRole } from "@prisma/client";
@@ -27,8 +28,7 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const email = this.normalizeEmail(dto.email);
     const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing?.role === UserRole.ADMIN) throw new BadRequestException("Email is already used by an admin account");
-    if (existing) throw new BadRequestException("Email already registered");
+    if (existing) throw new BadRequestException("Ova je email adresa već registrirana. Prijavite se ili zatražite promjenu lozinke.");
     const organizerName = dto.organizerName || dto.name;
     const organizerSlug = await uniqueSlug(organizerName, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -43,7 +43,7 @@ export class AuthService {
     // throws; this try/catch is a second guard so registration can never fail
     // even if that guarantee is ever broken.
     try {
-      await this.email.sendOrganizerWelcome(email, { organizerName, webUrl: this.email.webUrl });
+      await this.email.sendOrganizerWelcome(email, { organizerName, webUrl: this.email.webUrl }, user.id);
     } catch {
       // intentionally swallowed — see comment above
     }
@@ -93,10 +93,10 @@ export class AuthService {
           organizerSlug: organizer.slug,
         });
       }
-      throw new UnauthorizedException("Invalid credentials");
+      throw new UnauthorizedException("Email ili lozinka nisu ispravni.");
     }
 
-    if (!(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException("Invalid credentials");
+    if (!(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException("Email ili lozinka nisu ispravni.");
     return this.session(user);
   }
 
@@ -111,7 +111,7 @@ export class AuthService {
    * Always returns the same generic message whether or not the email exists —
    * this is the account-enumeration defense. Every branch below (unknown
    * email, known email, email-send failure) must produce an identical
-   * response and take roughly the same amount of time.
+   * response. No claim is made about constant provider network latency.
    */
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
     const email = this.normalizeEmail(dto.email);
@@ -125,30 +125,35 @@ export class AuthService {
       return { message: GENERIC_FORGOT_PASSWORD_MESSAGE };
     }
 
-    // Repeated requests invalidate prior unused tokens for this user — only
-    // the most recently requested link should ever work.
-    await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
-
+    // Repeated requests invalidate prior unused tokens in the transaction below.
     const rawToken = generateResetToken();
     const tokenHash = hashResetToken(rawToken);
     const ttlMinutes = this.email.passwordResetTokenTtlMinutes;
     const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
 
-    const resetToken = await this.prisma.passwordResetToken.create({
-      data: { userId: user.id, tokenHash, expiresAt },
+    const resetToken = await this.prisma.$transaction(async (tx) => {
+      // Serialize issue/consume/admin reset for this account, including concurrent requests.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
+      await tx.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+      return tx.passwordResetToken.create({ data: { userId: user.id, tokenHash, expiresAt } });
     });
 
-    const resetUrl = `${this.email.passwordResetUrl}?token=${encodeURIComponent(rawToken)}`;
+    const url = new URL(this.email.passwordResetUrl);
+    // A fragment keeps the secret out of HTTP access logs and referrer URLs.
+    url.hash = new URLSearchParams({ token: rawToken }).toString();
+    const resetUrl = url.toString();
 
     try {
-      await this.email.sendPasswordReset(user.email, { resetUrl, ttlMinutes, webUrl: this.email.webUrl });
-    } catch {
-      // Preferred strategy: if sending fails, delete the just-created token
-      // rather than leaving a valid-but-undelivered token sitting in the DB.
-      // The public response stays generic either way — email failure must
-      // never reveal whether the account exists.
-      await this.prisma.passwordResetToken.delete({ where: { id: resetToken.id } }).catch(() => {});
-      this.logger.error(`password reset email delivery failed userId=${user.id}`);
+      await this.email.sendPasswordReset(user.email, { resetUrl, ttlMinutes, webUrl: this.email.webUrl }, user.id);
+    } catch (error) {
+      // Explicit rejection removes the new token. Every public response stays
+      // generic, including provider and local tracking failures.
+      // A lost response may follow provider acceptance. Keep that short-lived
+      // link usable; do not automatically resend an ambiguous submission.
+      if (!(error instanceof EmailDeliveryError && error.outcome === "unknown")) {
+        await this.prisma.passwordResetToken.delete({ where: { id: resetToken.id } }).catch(() => {});
+      }
+      this.logger.error(`password reset email submission failed userId=${user.id}`);
     }
 
     return { message: GENERIC_FORGOT_PASSWORD_MESSAGE };
@@ -158,23 +163,24 @@ export class AuthService {
     const tokenHash = hashResetToken(dto.token);
     const resetToken = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash } });
 
-    if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+    if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
       throw new BadRequestException(INVALID_RESET_TOKEN_MESSAGE);
     }
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
 
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${resetToken.userId} FOR UPDATE`;
+      const consumed = await tx.passwordResetToken.updateMany({
+        where: { id: resetToken.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() },
+      });
+      if (consumed.count !== 1) throw new BadRequestException(INVALID_RESET_TOKEN_MESSAGE);
       await tx.user.update({
         where: { id: resetToken.userId },
         data: {
           passwordHash,
           authVersion: { increment: 1 }, // invalidates every previously issued JWT
         },
-      });
-      await tx.passwordResetToken.update({
-        where: { id: resetToken.id },
-        data: { usedAt: new Date() },
       });
       // Invalidate any other still-unused tokens for this user (e.g. an older
       // token that somehow survived, or a race with a second forgot-password
