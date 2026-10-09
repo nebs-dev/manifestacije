@@ -205,7 +205,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
           screenshotBase64: screenshot?.data,
           screenshotMediaType: screenshot?.mediaType,
           contextHint: label || undefined,
-          useLlm,
+          useLlm: useLlm || Boolean(screenshot),
         }),
       })
       if (!res.ok) { toast.error("Kreiranje neuspješno", { description: await res.text() }); return }
@@ -346,9 +346,9 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
               <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
                 <input
                   type="checkbox"
-                  checked={useLlm}
+                  checked={useLlm || Boolean(screenshot)}
                   onChange={(e) => setUseLlm(e.target.checked)}
-                  disabled={loading}
+                  disabled={loading || Boolean(screenshot)}
                   className="accent-primary size-4 rounded"
                 />
                 <Sparkles className="size-3.5 text-primary/70" />

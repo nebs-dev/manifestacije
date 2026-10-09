@@ -557,7 +557,8 @@ export class AdminService {
   }
 
   async createManualEmail(dto: ManualEmailDto) {
-    const result = dto.useLlm
+    // A rule parser cannot read image bytes, regardless of the UI toggle.
+    const result = (dto.useLlm || dto.screenshotBase64)
       ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl, screenshotBase64: dto.screenshotBase64, screenshotMediaType: dto.screenshotMediaType, contextHint: dto.contextHint })
       : await this.parser.parseBatch({ rawText: dto.rawText, sourceUrl: dto.sourceUrl });
     const { confidence, status } = this.sourceMetaFromResult(result);

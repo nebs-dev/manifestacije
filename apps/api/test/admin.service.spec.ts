@@ -38,6 +38,27 @@ function parsedResult(candidates: ParsedEventCandidate[]): ParsedSourceResult {
 }
 
 describe("AdminService ingestion workflow", () => {
+  it("always extracts attached screenshots and preserves missing-time review warnings even with AI toggled off", async () => {
+    const result = parsedResult([candidate({ startsAt: "", missingFields: ["startsAt"],
+      warnings: ["Datum ili vrijeme nije potvrđeno izvorom; potreban je pregled."] })]);
+    const prisma = { eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) } };
+    const parser = { parseBatchWithLlm: jest.fn().mockResolvedValue(result), parseBatch: jest.fn() };
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, { revalidate: jest.fn() } as never, {} as never, uploadsStub as never);
+    await service.createManualEmail({ screenshotBase64: "fixture", screenshotMediaType: "image/png", useLlm: false });
+    expect(parser.parseBatchWithLlm).toHaveBeenCalledWith(expect.objectContaining({ screenshotBase64: "fixture", screenshotMediaType: "image/png" }));
+    expect(parser.parseBatch).not.toHaveBeenCalled();
+    expect(prisma.eventSource.create).toHaveBeenCalledWith({ data: expect.objectContaining({ status: "NEEDS_REVIEW", parsedJson: result }) });
+  });
+
+  it("does not store a successful source when image extraction fails", async () => {
+    const prisma = { eventSource: { create: jest.fn() } };
+    const parser = { parseBatchWithLlm: jest.fn().mockRejectedValue(new Error("unavailable")), parseBatch: jest.fn() };
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, { revalidate: jest.fn() } as never, {} as never, uploadsStub as never);
+    await expect(service.createManualEmail({ screenshotBase64: "fixture", useLlm: false })).rejects.toThrow("unavailable");
+    expect(prisma.eventSource.create).not.toHaveBeenCalled();
+    expect(parser.parseBatch).not.toHaveBeenCalled();
+  });
+
   it("routes date-only and assumed-year warnings to admin review without discarding the candidate", async () => {
     const result = parsedResult([candidate({ startsAt: "2099-07-04T00:00:00+02:00", isAllDay: true,
       warnings: ["Izvor navodi samo datume; provjerite vrijeme ili potvrdite cjelodnevno događanje."] })]);

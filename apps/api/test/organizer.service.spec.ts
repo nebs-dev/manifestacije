@@ -52,6 +52,22 @@ function contactsMock() {
 }
 
 describe("OrganizerService submitSource", () => {
+  it("does not bypass an attached poster with structured metadata from the accompanying URL", async () => {
+    const result = parsedResult({ candidates: [{ ...candidate({ startsAt: "", missingFields: ["startsAt"],
+      warnings: ["Vrijeme nije navedeno; potreban je pregled."] }), _status: "pending" }] });
+    const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) }, eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) } };
+    const parser = { extractJsonLdEvents: jest.fn().mockReturnValue(parsedResult()), parseBatchWithLlm: jest.fn().mockResolvedValue(result), parseBatch: jest.fn() };
+    const service = new OrganizerService(prisma as never, {} as never, parser as never, { findCandidates: jest.fn().mockResolvedValue([]) } as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn() } as never);
+    const fetch = jest.spyOn(global, "fetch").mockResolvedValueOnce({ ok: true, text: async () => "<html>old schedule</html>" } as never);
+    try {
+      await service.submitSource(7, { sourceUrl: "https://example.com/event", screenshotBase64: "fixture", screenshotMediaType: "image/png", sourceImageUrl: "https://cdn.example/evidence.png" });
+      expect(parser.extractJsonLdEvents).not.toHaveBeenCalled();
+      expect(parser.parseBatch).not.toHaveBeenCalled();
+      expect(parser.parseBatchWithLlm).toHaveBeenCalledWith(expect.objectContaining({ screenshotBase64: "fixture", rawHtml: "<html>old schedule</html>" }));
+      expect(prisma.eventSource.create).toHaveBeenCalledWith({ data: expect.objectContaining({ status: "NEEDS_REVIEW", parsedJson: { ...result, sourceImageUrl: "https://cdn.example/evidence.png" } }) });
+    } finally { fetch.mockRestore(); }
+  });
+
   it("rejects Facebook URL without screenshot or raw text", async () => {
     const service = new OrganizerService({} as never, {} as never, {} as never, { findCandidates: jest.fn().mockResolvedValue([]) } as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn().mockResolvedValue(true) } as never);
 

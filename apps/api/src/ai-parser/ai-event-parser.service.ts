@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseZagrebWallTime, zagrebDateKey } from "../common/zagreb-time";
 import { sourceDates, sourceTimes } from "./date-evidence";
@@ -60,6 +60,7 @@ type Candidate = ParsedEventCandidate & { _status: "pending" };
 
 @Injectable()
 export class AiEventParserService {
+  private readonly logger = new Logger(AiEventParserService.name);
   private readonly KNOWN_CITIES = [
     "Osijek", "Zagreb", "Đakovo", "Vukovar", "Vinkovci", "Našice", "Valpovo", "Beli Manastir",
     "Slavonski Brod", "Požega", "Virovitica", "Koprivnica", "Čakovec", "Kneževi Vinogradi",
@@ -545,7 +546,10 @@ export class AiEventParserService {
     contextHint?: string;
   }): Promise<ParsedSourceResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY nije postavljen u .env");
+    if (!apiKey) {
+      this.logger.error("AI provider credential is missing");
+      throw new ServiceUnavailableException("AI parsiranje nije konfigurirano. Obratite se administratoru.");
+    }
 
     const sourceUrl = input.sourceUrl ?? "";
 
@@ -618,6 +622,7 @@ Hrvatski mjeseci: siječanj/siječnja=01, veljača/veljače=02, ožujak/ožujka=
 Vrijeme: 20:00, 20.00, 20 h, 20 sati znače 20:00. Datum 12.10. NIKADA nije vrijeme 12:10. Ako je zapis dvosmislen, upozori i ostavi startsAt prazan.
 Ne izmišljaj vrijeme (ni 18:00 ni ponoć). Ako vrijeme nije navedeno, startsAt ostavi prazan i dodaj startsAt u missingFields te upozorenje s poznatim datumom. isAllDay=true samo ako izvor izričito kaže cijeli dan.
 Za svaki događaj i svaki occurrence obavezno prepiši dateText i timeText DOSLOVNO iz izvora, bez prijevoda mjeseci ili pretvaranja brojeva. Za screenshot prepiši vidljivi zapis; nečitljiv zapis ostavi prazan i upozori. Ti zapisi služe provjeri datuma i sata.
+Ako screenshot i dodatni sadržaj navode različite datume ili sate istog događaja, ostavi startsAt prazan i dodaj upozorenje za admin pregled; ne biraj proizvoljno između izvora.
 Ako je izvor cjelodnevni, timeText mora sadržavati doslovni izraz "cijeli dan".
 Za završetak obavezno prepiši endDateText i endTimeText (za noćni završetak bez datuma endDateText ostavi prazan, server zaključuje sljedeći dan iz sata). Za vrijeme završetka koristi endsAt samo ako je izvor jasan; ne pretpostavljaj trajanje. Preko ponoći sačuvaj sljedeći datum.
 
@@ -672,6 +677,19 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         role: "user",
         content: userContent,
       }],
+    }).catch((error: unknown) => {
+      // Never log SDK errors, request headers or provider bodies: these may
+      // contain credentials or submitted content. Keep only a numeric status.
+      const status = error && typeof error === "object" && "status" in error
+        && typeof error.status === "number" ? error.status : undefined;
+      this.logger.error(`AI provider request failed (HTTP ${status ?? "unavailable"})`);
+      if (status === 400 || status === 413) {
+        throw new BadRequestException("AI nije mogao obraditi sadržaj. Provjerite format i veličinu slike ili teksta.");
+      }
+      if (status === 401 || status === 403) {
+        throw new ServiceUnavailableException("AI parsiranje nije dostupno zbog postavki pristupa. Obratite se administratoru.");
+      }
+      throw new ServiceUnavailableException("AI parsiranje trenutačno nije dostupno. Pokušajte ponovno kasnije.");
     });
 
     const content = response.content[0];

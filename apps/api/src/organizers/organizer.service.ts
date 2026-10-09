@@ -180,7 +180,9 @@ export class OrganizerService {
     }
 
     const useLlm = Boolean(dto.useLlm || hasScreenshot || isFacebook);
-    let result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+    // The attached poster is primary evidence; page metadata may describe a
+    // different event or an old schedule and must not bypass image extraction.
+    let result = (!hasScreenshot && rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
       || (useLlm
         ? await this.parser.parseBatchWithLlm({
             rawText,
