@@ -54,6 +54,7 @@ import {
 import { StatusBadge } from "@/components/admin/status-badge"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
+import { safeExternalUrl } from "@/lib/safe-url"
 import { EVENT_STATUS_OPTIONS, eventStatusLabel, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, AdminOrganizer } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
@@ -556,9 +557,9 @@ export function EventEditForm({
                   </Select>
                 </Field>
               </FieldGroup>
-              {form.sourceUrl && (
+              {safeExternalUrl(form.sourceUrl) && (
                 <a
-                  href={form.sourceUrl}
+                  href={safeExternalUrl(form.sourceUrl)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1 text-sm text-primary hover:underline"

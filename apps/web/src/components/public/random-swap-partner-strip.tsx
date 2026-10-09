@@ -4,6 +4,7 @@ import Image from "next/image"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import type { PublicPartner } from "@/lib/public-api"
+import { safeExternalUrl } from "@/lib/safe-url"
 import {
   createInitialSwapState,
   getRandomSwapInterval,
@@ -42,15 +43,18 @@ function usePrefersReducedMotion(): boolean {
 }
 
 function PartnerLogo({ partner }: { partner: PublicPartner }) {
+  const websiteUrl = safeExternalUrl(partner.websiteUrl)
+  const logoUrl = safeExternalUrl(partner.logoUrl)
+  if (!logoUrl) return null
   return (
     <a
-      href={partner.websiteUrl ?? undefined}
-      target={partner.websiteUrl ? "_blank" : undefined}
-      rel={partner.websiteUrl ? "noopener noreferrer" : undefined}
+      href={websiteUrl}
+      target={websiteUrl ? "_blank" : undefined}
+      rel={websiteUrl ? "noopener noreferrer" : undefined}
       className="flex h-full w-full items-center justify-center"
     >
       <Image
-        src={partner.logoUrl}
+        src={logoUrl}
         alt={partner.name}
         width={200}
         height={80}

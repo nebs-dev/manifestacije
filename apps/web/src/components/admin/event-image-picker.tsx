@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { authedFetch } from "@/lib/admin/api"
 import { eventImagePrimaryUrl } from "@/lib/event-image-variants"
+import { safeExternalUrl } from "@/lib/safe-url"
 import { cn } from "@/lib/utils"
 
 export type EventImageValue = {
@@ -104,9 +105,10 @@ export function EventImagePicker({
       ? ["Detail prikazuje cijelu portretnu sliku, ali će kartice koristiti 4:3 crop."]
       : []),
   ] : []
-  const previewUrl = value.imageUrl && fit === "cover"
-    ? eventImagePrimaryUrl(value.imageUrl, "detail")
-    : value.imageUrl
+  const safeImageUrl = safeExternalUrl(value.imageUrl)
+  const previewUrl = safeImageUrl && fit === "cover"
+    ? eventImagePrimaryUrl(safeImageUrl, "detail")
+    : safeImageUrl
   const isAdaptiveEventPreview = fit === "cover" && !aspectClassName
 
   return (
@@ -117,7 +119,7 @@ export function EventImagePicker({
           "overflow-hidden rounded-2xl border border-border bg-muted",
           isAdaptiveEventPreview && "flex items-center justify-center bg-ink",
         )}>
-          {value.imageUrl ? (
+          {previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewUrl}

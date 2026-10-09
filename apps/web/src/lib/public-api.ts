@@ -4,6 +4,7 @@ import { eventDisplayEnd } from "./event-end"
 import { CITY_COORDS, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 import { eventImagePrimaryUrl, eventImageVariant } from "./event-image-variants"
 import { eventOccursDuringCurrentWeekend } from "./weekend"
+import { safeExternalUrl } from "./safe-url"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 export const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000"
@@ -377,6 +378,8 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
       : [{ slug: event.category.slug, name: event.category.name }]
   const allCats = Array.from(new Map(rawCats.map((category) => [category.slug, category])).values())
 
+  // Stored links may predate API validation — only http(s) reaches href/src.
+  const imageUrl = safeExternalUrl(event.imageUrl)
   const primarySlug = allCats[0]?.slug || event.category.slug
   const coords = resolveEventCoordinates(event)
 
@@ -405,16 +408,16 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     description: event.description ?? "",
     longDescription: event.description ?? "",
     organizer: event.organizer?.name || "Organizator nije naveden",
-    organizerUrl: event.organizer?.websiteUrl || undefined,
+    organizerUrl: safeExternalUrl(event.organizer?.websiteUrl),
     organizerSlug: event.organizer?.status === "UNCLAIMED" ? event.organizer?.slug : undefined,
     organizerClaimable: event.organizer?.status === "UNCLAIMED",
-    source: event.sourceUrl || "Manifestacije.hr",
-    ticketUrl: event.ticketUrl || undefined,
+    source: safeExternalUrl(event.sourceUrl) || "Manifestacije.hr",
+    ticketUrl: safeExternalUrl(event.ticketUrl, { allowContactLinks: true }),
     // Sized for the largest common display context (event card in a 3-column grid,
     // ~350-400px wide) at 2x for retina.
-    image: event.imageUrl ? eventImageVariant(event.imageUrl, 640) : undefined,
+    image: imageUrl ? eventImageVariant(imageUrl, 640) : undefined,
     // Detail preserves the source aspect ratio and only limits its maximum width.
-    heroImage: event.imageUrl ? eventImagePrimaryUrl(event.imageUrl, "detail") : undefined,
+    heroImage: imageUrl ? eventImagePrimaryUrl(imageUrl, "detail") : undefined,
     featured: event.isFeatured === true || (event.extractionConfidence ? event.extractionConfidence >= 0.85 : false),
     address: event.address ?? event.venue?.address ?? undefined,
     lat: coords.lat,

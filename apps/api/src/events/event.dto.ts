@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsSafeHttpUrl } from "../common/safe-url";
 
 export class EventOccurrenceDto {
   @Type(() => Number)
@@ -84,10 +85,12 @@ export class EventContentDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeHttpUrl({ allowContactLinks: true })
   ticketUrl?: string;
 
   @IsOptional()
   @IsString()
+  @IsSafeHttpUrl()
   sourceUrl?: string | null;
 
   @IsOptional()
@@ -110,6 +113,7 @@ export class EventContentDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeHttpUrl()
   imageUrl?: string | null;
 }
 

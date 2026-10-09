@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
+import { safeExternalUrl } from "@/lib/safe-url"
 import type { ParsedCandidate } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
@@ -436,12 +437,12 @@ export function ParsedCandidateCard({
               onChange={(e) => setField("sourceUrl", e.target.value)}
               placeholder="https://…"
             />
-            {form.sourceUrl && (
+            {safeExternalUrl(form.sourceUrl) && (
               <Button
                 variant="outline"
                 size="icon"
                 nativeButton={false}
-                render={<a href={form.sourceUrl} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}
+                render={<a href={safeExternalUrl(form.sourceUrl)} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}
               >
                 <ExternalLink className="size-4" />
               </Button>

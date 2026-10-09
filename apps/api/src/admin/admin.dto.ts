@@ -2,6 +2,7 @@ import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, 
 import { Type } from "class-transformer";
 import { EventStatus } from "@prisma/client";
 import { EventOccurrenceDto, EventUpsertDto } from "../events/event.dto";
+import { IsSafeHttpUrl } from "../common/safe-url";
 
 export class AdminEventDto extends EventUpsertDto {
   @IsOptional()
@@ -59,7 +60,7 @@ export class OrganizerAdminDto {
   @IsString()
   name!: string;
   @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsString() websiteUrl?: string;
+  @IsOptional() @IsString() @IsSafeHttpUrl() websiteUrl?: string;
   @IsOptional() @IsString() email?: string;
   @IsOptional() @IsString() phone?: string;
 }
@@ -68,7 +69,7 @@ export class ManualEmailDto {
   @IsOptional() @IsString() rawEmailSubject?: string;
   @IsOptional() @IsString() rawEmailFrom?: string;
   @IsOptional() @IsString() rawText?: string;
-  @IsOptional() @IsString() sourceUrl?: string;
+  @IsOptional() @IsString() @IsSafeHttpUrl() sourceUrl?: string;
   @IsOptional() @IsBoolean() useLlm?: boolean;
   @IsOptional() @IsString() screenshotBase64?: string;
   @IsOptional() @IsString() screenshotMediaType?: string;
@@ -77,6 +78,7 @@ export class ManualEmailDto {
 
 export class ParseUrlDto {
   @IsString()
+  @IsSafeHttpUrl()
   sourceUrl!: string;
 
   @IsOptional()
@@ -103,12 +105,12 @@ export class CandidateOverrideDto {
   @IsOptional() @IsBoolean() isFree?: boolean;
   @IsOptional() @IsBoolean() isFeatured?: boolean;
   @IsOptional() @IsString() priceText?: string;
-  @IsOptional() @IsString() ticketUrl?: string;
-  @IsOptional() @IsString() sourceUrl?: string | null;
+  @IsOptional() @IsString() @IsSafeHttpUrl({ allowContactLinks: true }) ticketUrl?: string;
+  @IsOptional() @IsString() @IsSafeHttpUrl() sourceUrl?: string | null;
   @IsOptional() @IsString() organizerName?: string;
-  @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsString() @IsSafeHttpUrl() imageUrl?: string;
   @IsOptional() @IsString() imageCredit?: string;
-  @IsOptional() @IsString() imageSourceUrl?: string;
+  @IsOptional() @IsString() @IsSafeHttpUrl() imageSourceUrl?: string;
 }
 
 export class CreateEventFromCandidateDto {
@@ -136,7 +138,7 @@ export class IgnoreCandidateDto {
 }
 
 export class UpdateEventSourceDto {
-  @IsOptional() @IsString() sourceUrl?: string | null;
+  @IsOptional() @IsString() @IsSafeHttpUrl() sourceUrl?: string | null;
 }
 
 export class CategoryDto {
@@ -167,8 +169,8 @@ export class RegionDto {
 
 export class PartnerDto {
   @IsString() name!: string;
-  @IsString() logoUrl!: string;
-  @IsOptional() @IsString() websiteUrl?: string;
+  @IsString() @IsSafeHttpUrl() logoUrl!: string;
+  @IsOptional() @IsString() @IsSafeHttpUrl() websiteUrl?: string;
   @IsOptional() @IsInt() @Min(0) sortOrder?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }

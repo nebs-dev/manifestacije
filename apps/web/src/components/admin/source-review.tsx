@@ -35,6 +35,7 @@ import { ParsedCandidateCard } from "@/components/admin/parsed-candidate-card"
 import { EmptyState } from "@/components/admin/states"
 import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
+import { safeExternalUrl } from "@/lib/safe-url"
 import type { EventSource, ParsedCandidate } from "@/lib/admin/types"
 
 const typeLabels: Record<string, string> = {
@@ -138,6 +139,7 @@ export function SourceReview({
   const [tab, setTab] = useState<Tab>("pending")
   const [search, setSearch] = useState("")
   const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
+  const sourceImageSrc = safeExternalUrl(source.sourceImageUrl)
   const [savingUrl, setSavingUrl] = useState(false)
   const [reparsing, setReparsing] = useState(false)
 
@@ -211,8 +213,8 @@ export function SourceReview({
             <span className="text-xs text-muted-foreground">URL izvora</span>
             <div className="flex gap-2">
               <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." />
-              {sourceUrl && (
-                <Button variant="outline" size="icon" nativeButton={false} render={<a href={sourceUrl} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
+              {safeExternalUrl(sourceUrl) && (
+                <Button variant="outline" size="icon" nativeButton={false} render={<a href={safeExternalUrl(sourceUrl)} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
                   <ExternalLink className="size-4" />
                 </Button>
               )}
@@ -239,7 +241,7 @@ export function SourceReview({
       </Card>
 
       {/* Source image evidence */}
-      {source.sourceImageUrl && (
+      {sourceImageSrc && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Screenshot / plakat izvora</CardTitle>
@@ -247,14 +249,14 @@ export function SourceReview({
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Image
-              src={source.sourceImageUrl}
+              src={sourceImageSrc}
               alt="Screenshot ili plakat izvora"
               width={1200}
               height={900}
               unoptimized
               className="max-h-[520px] w-full rounded-lg border object-contain"
             />
-            <a href={source.sourceImageUrl} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+            <a href={sourceImageSrc} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
               Otvori sliku izvora
             </a>
           </CardContent>

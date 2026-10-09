@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { authedFetch } from "@/lib/admin/api"
+import { safeExternalUrl } from "@/lib/safe-url"
 
 interface Partner {
   id: number
@@ -119,9 +120,9 @@ function PartnerRow({ partner, onChanged, selected, onToggle }: { partner: Partn
       </TableCell>
       <TableCell className="w-12 tabular-nums text-muted-foreground">{partner.id}</TableCell>
       <TableCell className="w-24">
-        {partner.logoUrl && (
+        {safeExternalUrl(partner.logoUrl) && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={partner.logoUrl} alt={partner.name} className="h-8 w-auto max-w-[96px] object-contain" />
+          <img src={safeExternalUrl(partner.logoUrl)} alt={partner.name} className="h-8 w-auto max-w-[96px] object-contain" />
         )}
       </TableCell>
       <TableCell className="font-medium">{partner.name}</TableCell>

@@ -56,6 +56,35 @@ describe("public API adapter", () => {
     }))
   })
 
+  it("neutralises unsafe stored links and normalises scheme-less ones", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          ...apiEvent,
+          ticketUrl: "javascript:alert(1)",
+          sourceUrl: "data:text/html,<script>alert(1)</script>",
+          imageUrl: "javascript:alert(1)",
+          organizer: { id: 5, name: "TZ Osijek", websiteUrl: "vbscript:msgbox(1)" },
+        },
+        { ...apiEvent, id: 32, slug: "drugi", ticketUrl: "www.entrio.hr/koncert", sourceUrl: "entrio.hr" },
+        { ...apiEvent, id: 33, slug: "treci", ticketUrl: "tel:099-488-9294", sourceUrl: "tel:099-488-9294" },
+      ],
+    }))
+
+    const [unsafe, schemeless, phone] = await fetchEvents()
+
+    expect(unsafe.ticketUrl).toBeUndefined()
+    expect(unsafe.source).toBe("Manifestacije.hr")
+    expect(unsafe.image).toBeUndefined()
+    expect(unsafe.heroImage).toBeUndefined()
+    expect(unsafe.organizerUrl).toBeUndefined()
+    expect(schemeless.ticketUrl).toBe("https://www.entrio.hr/koncert")
+    expect(schemeless.source).toBe("https://entrio.hr")
+    expect(phone.ticketUrl).toBe("tel:099-488-9294")
+    expect(phone.source).toBe("Manifestacije.hr")
+  })
+
   it("maps the lightweight map response without detail-only fields", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

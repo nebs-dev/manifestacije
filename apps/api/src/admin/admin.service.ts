@@ -4,6 +4,7 @@ import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { findOrCreateCity } from "../common/city-resolver";
+import { safeHttpUrlOrUndefined } from "../common/safe-url";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -287,13 +288,13 @@ export class AdminService {
           isAllDay: false,
           isFree: event.isFree ?? undefined,
           priceText: event.priceText ?? undefined,
-          ticketUrl: event.ticketUrl ?? undefined,
-          sourceUrl: event.sourceUrl ?? undefined,
+          ticketUrl: safeHttpUrlOrUndefined(event.ticketUrl, { allowContactLinks: true }),
+          sourceUrl: safeHttpUrlOrUndefined(event.sourceUrl),
           venueName: event.venue?.name,
           address: event.venue?.address ?? event.address ?? undefined,
           lat: event.venue?.lat ?? event.lat ?? undefined,
           lng: event.venue?.lng ?? event.lng ?? undefined,
-          imageUrl: event.imageUrl ?? undefined,
+          imageUrl: safeHttpUrlOrUndefined(event.imageUrl),
         },
         { organizerId: event.organizerId, status: event.status, sourceType: event.sourceType, createdByUserId },
       );
@@ -731,12 +732,14 @@ export class AdminService {
         occurrences: candidate.occurrences,
         isFree: candidate.isFree ?? undefined,
         priceText: candidate.priceText || undefined,
-        ticketUrl: candidate.ticketUrl || undefined,
+        // Parsed candidates are untrusted (scraped/LLM output): unsafe links
+        // are dropped rather than blocking the approval.
+        ticketUrl: safeHttpUrlOrUndefined(candidate.ticketUrl, { allowContactLinks: true }),
         // null means the admin explicitly cleared the source URL override —
         // must not fall back to the source's own URL in that case.
         sourceUrl: (candidate.sourceUrl as string | null | undefined) === null
           ? undefined
-          : candidate.sourceUrl || source.sourceUrl || undefined,
+          : safeHttpUrlOrUndefined(candidate.sourceUrl) || safeHttpUrlOrUndefined(source.sourceUrl),
         venueName: candidate.venueName || undefined,
         address: candidate.address || undefined,
         lat: candidate.lat ?? undefined,
@@ -1239,8 +1242,8 @@ export class AdminService {
    *  Anything already hosted by us is left alone, and a failed copy silently
    *  keeps the original URL rather than losing the image entirely. */
   private async rehostCandidateImage(imageUrl?: string): Promise<string | undefined> {
-    const url = imageUrl?.trim();
-    if (!url || url.includes("res.cloudinary.com")) return url || undefined;
+    const url = safeHttpUrlOrUndefined(imageUrl);
+    if (!url || url.includes("res.cloudinary.com")) return url;
     const uploaded = await this.uploads.uploadEventImageFromUrl(url);
     return uploaded?.imageUrl ?? url;
   }

@@ -5,6 +5,7 @@ import { slugify, uniqueSlug } from "../common/slug";
 import { findOrCreateCity } from "../common/city-resolver";
 import { lookupVenueGeo } from "../common/croatia-geo";
 import { zagrebLocalToUtc } from "../common/weekend";
+import { requireSafeHttpUrl } from "../common/safe-url";
 import { EventOccurrenceDto, EventUpsertDto } from "./event.dto";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { hasPublicEventOutput, RevalidateService } from "../admin/revalidate.service";
@@ -21,6 +22,7 @@ export class EventsService {
   constructor(private readonly prisma: PrismaService, private readonly duplicates: DuplicatesService, private readonly revalidate: RevalidateService) {}
 
   async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind; createdByUserId?: number }) {
+    const urls = this.safeUrlFields(dto);
     const title = dto.title?.trim() || "Novi događaj";
     const description = dto.description?.trim() || title;
     const city = await this.resolveCityForWrite(dto);
@@ -62,9 +64,7 @@ export class EventsService {
         isFree: dto.isFree,
         isFeatured: dto.isFeatured ?? false,
         priceText: dto.priceText,
-        ticketUrl: dto.ticketUrl,
-        sourceUrl: dto.sourceUrl,
-        imageUrl: dto.imageUrl,
+        ...urls,
         address: point.address,
         lat: point.lat,
         lng: point.lng,
@@ -97,6 +97,7 @@ export class EventsService {
   async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
     const current = await this.prisma.event.findUnique({ where: { id }, include: { occurrences: true } });
     if (!current) throw new NotFoundException("Event not found");
+    const urls = this.safeUrlFields(dto);
     const hasScheduleInput = "startsAt" in dto || "endsAt" in dto || "isAllDay" in dto;
     const currentOccurrences = current.occurrences ?? [];
     if (currentOccurrences.length > 0 && dto.occurrences === undefined && hasScheduleInput) {
@@ -130,9 +131,7 @@ export class EventsService {
       isFree: dto.isFree,
       isFeatured: dto.isFeatured,
       priceText: dto.priceText,
-      ticketUrl: dto.ticketUrl,
-      sourceUrl: dto.sourceUrl,
-      imageUrl: dto.imageUrl,
+      ...urls,
       address: dto.address,
       lat: dto.lat,
       lng: dto.lng,
@@ -327,6 +326,16 @@ export class EventsService {
     // geocoder had to resolve one to place the pin, so keep it rather than
     // leaving the admin to look it up by hand.
     return { lat: found.lat, lng: found.lng, address: dto.address || found.formattedAddress };
+  }
+
+  /** Every event write funnels through here, so URL safety holds even for
+   *  callers that bypass the DTO pipe. Blank values keep their meaning. */
+  private safeUrlFields(dto: Partial<EventUpsertDto>) {
+    return {
+      ticketUrl: requireSafeHttpUrl(dto.ticketUrl, "ticketUrl", { allowContactLinks: true }),
+      sourceUrl: requireSafeHttpUrl(dto.sourceUrl, "sourceUrl"),
+      imageUrl: requireSafeHttpUrl(dto.imageUrl, "imageUrl"),
+    };
   }
 
   private async resolveCityForWrite(
