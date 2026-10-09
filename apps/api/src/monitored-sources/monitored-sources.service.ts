@@ -1,3 +1,4 @@
+import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { createHash } from "node:crypto";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
@@ -718,7 +719,7 @@ export class MonitoredSourcesService {
     const avgConfidence = parsed.candidates.length
       ? parsed.candidates.reduce((sum, c) => sum + c.confidence, 0) / parsed.candidates.length
       : 0;
-    const needsReview = parsed.candidates.some((c) => c.missingFields.length > 0);
+    const needsReview = parsed.candidates.some(candidateNeedsReview);
     return this.prisma.eventSource.create({
       data: {
         type: EventSourceType.SCRAPE_DISCOVERY,

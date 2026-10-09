@@ -3,6 +3,8 @@ import { ParsedSourceResult } from "./ai-event-parser.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
+import { zagrebDateKey } from "../common/zagreb-time";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 // How alike two titles must read before a candidate is flagged as already
 // imported. Set high on purpose: the flag is only a warning, but a wrong one
@@ -24,6 +26,7 @@ export function dropPastCandidates(parsed: ParsedSourceResult): ParsedSourceResu
     }, undefined) || c.endsAt || c.startsAt;
     if (!relevantDate) return true;
     const t = new Date(relevantDate).getTime();
+    if (c.isAllDay && Number.isFinite(t)) return zagrebDateKey(new Date(t)) >= zagrebDateKey(new Date(now));
     return Number.isNaN(t) || t >= now;
   });
   return { ...parsed, candidates };
@@ -79,7 +82,7 @@ export async function flagAlreadyImported(
 }
 
 function sameCalendarDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return zagrebDateKey(a) === zagrebDateKey(b);
 }
 
 /** An unknown city on either side is not evidence of a different event, so

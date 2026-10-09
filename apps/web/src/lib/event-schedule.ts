@@ -1,4 +1,4 @@
-import { eventDisplayEnd } from "./event-end"
+import { eventDisplayEnd, isOvernightEvent } from "./event-end"
 import type { CroEvent, CroEventOccurrence } from "./data"
 
 const TZ = "Europe/Zagreb"
@@ -45,7 +45,7 @@ export function eventHasEnded(event: CroEvent, now = new Date()) {
 
   const today = ZAGREB_DATE.format(now)
   return occurrences.every((occurrence) => {
-    if (occurrence.allDay && !occurrence.endsAtISO) {
+    if (occurrence.allDay) {
       return (occurrence.endDate ?? occurrence.date) < today
     }
     return occurrence.endsAtISO
@@ -72,7 +72,7 @@ export function formatOccurrenceLabel(occurrence: CroEventOccurrence, includeYea
   }).format(value)
   if (!end) return `${date} · ${time(start)}`
   const displayEnd = eventDisplayEnd(start, end)
-  const endTime = ZAGREB_DATE.format(displayEnd) !== ZAGREB_DATE.format(end) ? "24:00" : time(end)
+  const endTime = !isOvernightEvent(start, end) && ZAGREB_DATE.format(displayEnd) !== ZAGREB_DATE.format(end) ? "24:00" : time(end)
   const endDate = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
     year: "numeric",

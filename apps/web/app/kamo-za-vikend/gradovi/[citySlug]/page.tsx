@@ -22,6 +22,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
+export const revalidate = 0;
+
 export default async function KamoZaVikendCityPage({ params }: PageProps) {
   const events = await fetchEvents({ when: "ovaj-vikend", city: params.citySlug })
   const seo = kamoZaVikendSeo({ kind: "city", slug: params.citySlug, events })

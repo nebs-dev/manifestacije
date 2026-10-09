@@ -56,13 +56,16 @@ explicit invalidation or rely on fallback expiry.
 
 | Data / route | Fallback |
 | --- | --- |
-| fetchEvents: homepage, today, weekend, city/region/category discovery, calendar, search/list filters | 300 seconds, events tag |
-| Homepage, /danas, /ovaj-vikend Full Route Cache | 300 seconds confirmed in build manifest |
+| fetchEvents: homepage, today, city/region/category discovery, calendar, search/list filters | 300 seconds, events tag; Zagreb calendar date included in cache key |
+| fetchEvents: weekend (including city/region weekend pages) | Uncached (`revalidate: 0`), events tag retained |
+| Homepage, /danas, /ovaj-vikend, city/region weekend Full Route Cache | Disabled (`revalidate: 0`); clock-dependent presentation renders per request |
 | Map events | 300 seconds, unchanged |
 | Individual event fetch | 60 seconds, unchanged |
 | Organizer fetch | 60 seconds, unchanged |
 | Partners | 3600 seconds, unchanged |
 | Taxonomy API fetches | 3600 seconds, unchanged |
+
+The date/time correctness package (2026-10-09) disables Full Route Cache for clock-dependent pages while retaining explicit fetch TTLs. Weekend fetches are uncached. Discovery cache keys include `clockDate=YYYY-MM-DD` in Europe/Zagreb; the API ignores this cache discriminator. This prevents yesterday’s API period from being reused after midnight. Raw cached discovery results are filtered against the actual current instant before rendering. Already-open pages still need navigation or reload.
 
 Only fetchEvents explicitly changes TTL. The generic fetchApi default remains 60.
 Dynamic discovery routes still render per request even though their data cache is
@@ -136,8 +139,8 @@ been exercised by the local checks.
 
 API/web unit tests cover delivery outcomes, endpoint validation, public/private
 mutation guards, required organizer/admin flows, and distinct TTL policies.
-A production Next build with a local fixture API confirmed 300-second entries for
-/, /danas and /ovaj-vikend. Compiled RevalidateService was then run against the local
+Earlier verification (before the 2026-10-09 date/time package): a production Next build with a local fixture API confirmed 300-second entries for
+/, /danas and /ovaj-vikend. These three routes now render per request. Compiled RevalidateService was then run against the local
 production endpoint: homepage HIT, origin changed but still HIT, awaited webhook
 success, next request MISS with fresh content, following request HIT. This verifies
 actual Next cache invalidation independently of mocked revalidateTag tests.

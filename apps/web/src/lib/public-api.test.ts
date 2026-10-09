@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { fetchEvents, fetchMapEvents } from "./public-api"
+import { eventTimeLabel } from "./event-end"
+import { eventToICS } from "./calendar"
+import { eventToJsonLd } from "./event-jsonld"
 
 const apiEvent = {
   id: 31,
@@ -291,5 +294,41 @@ describe("homepage city search API contract", () => {
     expect(params.get("city")).toBe(city)
     expect(params.get("search")).toBe(search)
     expect(results.length).toBe(city === "nepostojeci-grad" ? 0 : 1)
+  })
+})
+
+
+describe("ongoing overnight adapter and exports", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+  it.each([false, true])("keeps the starting evening during an overnight occurrence=%s", async (withOccurrences) => {
+    vi.useFakeTimers().setSystemTime(new Date("2026-07-04T00:30:00+02:00"))
+    const startsAt = "2026-07-03T22:00:00+02:00"
+    const endsAt = "2026-07-04T02:00:00+02:00"
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [{
+      ...apiEvent, startsAt, endsAt,
+      occurrences: withOccurrences ? [{ id: 1, startsAt, endsAt, isAllDay: false }] : [],
+    }] }))
+    const [event] = await fetchEvents({ when: "ovaj-vikend" })
+    expect(event.date).toBe("2026-07-03")
+    expect(event.endDate).toBe("2026-07-03")
+    expect(eventTimeLabel(event)).toBe("22:00–02:00")
+    expect(eventToJsonLd(event, "https://manifestacije.hr")).toMatchObject({ startDate: startsAt, endDate: endsAt })
+    const ics = eventToICS(event)
+    expect(ics).toContain("DTSTART:20260703T200000Z")
+    expect(ics).toContain("DTEND:20260704T000000Z")
+  })
+  it("expires cached raw events at the actual ending instant", async () => {
+    vi.useFakeTimers().setSystemTime(new Date("2026-07-04T02:00:00+02:00"))
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [{ ...apiEvent,
+      startsAt: "2026-07-03T22:00:00+02:00", endsAt: "2026-07-04T02:00:00+02:00",
+    }] }))
+    expect(await fetchEvents()).toEqual([])
+  })
+  it("preserves API text-search relevance order", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [
+      { ...apiEvent, slug: "best-match", startsAt: "2099-07-05T20:00:00+02:00" },
+      { ...apiEvent, slug: "weaker-match", startsAt: "2099-07-04T20:00:00+02:00" },
+    ] }))
+    expect((await fetchEvents({ q: "koncert" })).map((e) => e.slug)).toEqual(["best-match", "weaker-match"])
   })
 })

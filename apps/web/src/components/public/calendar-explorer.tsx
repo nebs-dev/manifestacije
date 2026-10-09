@@ -1,5 +1,7 @@
 "use client"
 
+import { eventTimeLabel } from "@/lib/event-end"
+
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -369,7 +371,7 @@ function AgendaRow({ event, returnTo }: { event: CroEvent; returnTo: string }) {
         </div>
         <div className="flex min-w-0 flex-col justify-center gap-1.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {!event.allDay && <span className="inline-flex items-center gap-1 font-semibold text-primary"><Clock className="size-3.5" aria-hidden />{event.time}</span>}
+            {!event.allDay && <span className="inline-flex items-center gap-1 font-semibold text-primary"><Clock className="size-3.5" aria-hidden />{eventTimeLabel(event)}</span>}
             {multiDay && <span className="text-muted-foreground">· višednevno</span>}
           </div>
           <h4 className="break-words font-heading text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">{event.title}</h4>

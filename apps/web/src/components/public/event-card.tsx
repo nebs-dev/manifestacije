@@ -1,3 +1,4 @@
+import { eventTimeLabel } from "@/lib/event-end"
 import { MapPin } from "lucide-react"
 import type { CroEvent } from "@/lib/data"
 import { EventPoster } from "@/components/public/event-poster"
@@ -62,7 +63,7 @@ export function EventCard({ event, className, displayDate, priorityImage, imageS
           {!event.allDay && (
             <>
               <span aria-hidden>·</span>
-              <span>{event.time}</span>
+              <span>{eventTimeLabel(event)}</span>
             </>
           )}
         </div>

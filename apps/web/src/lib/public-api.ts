@@ -1,6 +1,8 @@
+import { orderRecommendations } from "./event-order"
+import { eventHasEnded } from "./event-schedule"
 import { rankRelatedEvents } from "./related-events"
 import { normalizeCity } from "./discovery-filters"
-import { eventDisplayEnd } from "./event-end"
+import { eventDisplayEnd, isOvernightEvent } from "./event-end"
 import { CITY_COORDS, eventHasCategory, events as fallbackEvents, toZagrebISOString, type CategorySlug, type CroEvent, type RegionSlug } from "./data"
 import { eventImagePrimaryUrl, eventImageVariant } from "./event-image-variants"
 import { eventOccursDuringCurrentWeekend } from "./weekend"
@@ -200,10 +202,11 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   if (filters.when === "danas") params.set("today", "true")
   if (filters.when === "ovaj-vikend") params.set("weekend", "true")
   if (filters.when === "ovaj-mjesec") params.set("month", "true")
+  params.set("clockDate", toZagrebDate(new Date()))
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
   // Mutation webhooks invalidate `events`; this finite fallback also refreshes
   // clock-dependent visibility and today/weekend ranges without mutations.
-  return fetchApi<ApiEvent[]>(path, 300, ["events"]).then(mapApiEvents).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
+  return fetchApi<ApiEvent[]>(path, filters.when === "ovaj-vikend" ? 0 : 300, ["events"]).then((rows) => mapApiEvents(rows, !filters.q?.trim())).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
 }
 
 export async function fetchEvent(slug: string) {
@@ -235,10 +238,11 @@ function toZagrebDate(d: Date): string {
   return `${part("year")}-${part("month")}-${part("day")}`
 }
 
-function mapApiEvents(rows: ApiEvent[]) {
+function mapApiEvents(rows: ApiEvent[], rankRecommendations = true) {
   const now = new Date()
   const today = toZagrebDate(now)
-  return rows.map((event) => toCroEvent(event, now)).filter((event) => notPast(event, today))
+  const visible = rows.map((event) => toCroEvent(event, now)).filter((event) => !eventHasEnded(event, now))
+  return rankRecommendations ? orderRecommendations(visible, today) : visible
 }
 
 function notPast(e: CroEvent, today = toZagrebDate(new Date())): boolean {
@@ -360,6 +364,7 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     }
   })
   const selectedOccurrence = occurrences.find((occurrence) => {
+    if (occurrence.allDay) return (occurrence.endDate || occurrence.date) >= toZagrebDate(now)
     const endpoint = new Date(occurrence.endsAtISO ?? occurrence.startsAtISO)
     return occurrence.endsAtISO ? endpoint > now : endpoint >= now
   }) ?? occurrences[occurrences.length - 1]
@@ -367,7 +372,7 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
   // events instead show the next active/upcoming real slot.
   const displayStart = selectedOccurrence
     ? new Date(selectedOccurrence.startsAtISO)
-    : ends && starts < now && now < ends ? now : starts
+    : ends && starts < now && now < ends && !isOvernightEvent(starts, ends, event.isAllDay === true) ? now : starts
   const displayEnd = selectedOccurrence?.endsAtISO ? new Date(selectedOccurrence.endsAtISO) : ends
   const region = regionMap[event.region?.slug || ""] || "nepoznato"
 

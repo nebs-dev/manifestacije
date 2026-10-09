@@ -92,7 +92,24 @@ export class PublicFeedService {
     const search = query.search?.trim();
     const where = await this.publicWhere(query, { includeSearch: false });
     const events = await this.prisma.event.findMany({ where, select: eventListSelect, orderBy: { startsAt: "asc" }, take: search ? 1000 : 500 });
-    if (!search) return events;
+    if (!search) {
+      const now = new Date();
+      const { start } = this.zagrebDayRange(now);
+      // Fetch fresh starts independently so long-running ranges cannot consume
+      // the entire result cap before application-level ordering takes place.
+      const fresh = await this.prisma.event.findMany({
+        where: { ...where, AND: [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), {
+          OR: [{ startsAt: { gte: start } }, { occurrences: { some: { startsAt: { gte: start } } } }],
+        }] },
+        select: eventListSelect, orderBy: { startsAt: "asc" }, take: 500,
+      });
+      const rows = [...new Map([...events, ...fresh].map((event) => [event.slug, event])).values()];
+      const relevantStart = (event: typeof rows[number]) => event.occurrences?.find((item) =>
+        item.isAllDay ? (item.endsAt || item.startsAt) >= start : item.endsAt ? item.endsAt > now : item.startsAt >= now)?.startsAt ?? event.startsAt;
+      const continuing = (event: typeof rows[number]) => relevantStart(event) < start;
+      return rows.sort((a, b) => Number(continuing(a)) - Number(continuing(b))
+        || relevantStart(a).getTime() - relevantStart(b).getTime() || a.slug.localeCompare(b.slug)).slice(0, 500);
+    }
     return this.rankSearchResults(events, search).slice(0, 500);
   }
 
@@ -306,6 +323,7 @@ export class PublicFeedService {
       startsAt: { lte: periodEnd },
       OR: [
         { endsAt: { gt: periodStart } },
+        { isAllDay: true, endsAt: { gte: periodStart } },
         { endsAt: null, startsAt: { gte: periodStart } },
       ],
     } satisfies Prisma.EventOccurrenceWhereInput;
@@ -319,6 +337,7 @@ export class PublicFeedService {
               startsAt: { lte: periodEnd },
               OR: [
                 { endsAt: { gt: periodStart } },
+                { isAllDay: true, endsAt: { gte: periodStart } },
                 { endsAt: null, startsAt: { gte: periodStart } },
               ],
             },
@@ -329,6 +348,7 @@ export class PublicFeedService {
   }
 
   private publicVisibilityWhere(now: Date): Prisma.EventWhereInput {
+    const { start } = this.zagrebDayRange(now);
     return {
       OR: [
         {
@@ -336,6 +356,8 @@ export class PublicFeedService {
             some: {
               OR: [
                 { endsAt: { gt: now } },
+                { isAllDay: true, endsAt: { gte: start } },
+                { isAllDay: true, endsAt: null, startsAt: { gte: start } },
                 { endsAt: null, startsAt: { gte: now } },
               ],
             },
@@ -347,6 +369,8 @@ export class PublicFeedService {
             {
               OR: [
                 { endsAt: { gt: now } },
+                { isAllDay: true, endsAt: { gte: start } },
+                { isAllDay: true, endsAt: null, startsAt: { gte: start } },
                 { endsAt: null, startsAt: { gte: now } },
               ],
             },

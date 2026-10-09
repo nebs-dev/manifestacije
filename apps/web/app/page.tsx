@@ -1,3 +1,4 @@
+import { prioritizeFreshEvents } from "@/lib/event-order";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/public/site-header";
@@ -24,6 +25,8 @@ const ZAGREB_TIME_ZONE = "Europe/Zagreb";
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
+
+export const revalidate = 0;
 
 export default async function Home() {
   const [events, partners, categoryInventory] = await Promise.all([fetchEvents(), fetchPartners(), fetchCategoryInventory()]);
@@ -56,10 +59,10 @@ export default async function Home() {
   // including mid-run through a block of same-poster entries the interleave
   // had carefully spread out.
   const upcomingPool = rotateEventsByDay(events.filter((event) => !featuredSlugs.has(event.slug)).slice(0, UPCOMING_ROTATION_POOL_SIZE));
-  const upcoming = interleaveByImage(upcomingPool).slice(0, UPCOMING_VISIBLE_COUNT);
+  const upcoming = prioritizeFreshEvents(interleaveByImage(upcomingPool)).slice(0, UPCOMING_VISIBLE_COUNT);
   const shownSlugs = new Set([...featured.map((event) => event.slug), ...upcoming.map((event) => event.slug)]);
   const freePool = rotateEventsByDay(events.filter((event) => event.free && !shownSlugs.has(event.slug)).slice(0, FREE_ROTATION_POOL_SIZE));
-  const free = interleaveByImage(freePool).slice(0, FREE_VISIBLE_COUNT);
+  const free = prioritizeFreshEvents(interleaveByImage(freePool)).slice(0, FREE_VISIBLE_COUNT);
   const calendarDates = calendarTeaserDates(events);
 
   return (

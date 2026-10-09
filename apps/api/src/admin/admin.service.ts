@@ -1,3 +1,4 @@
+import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -953,7 +954,7 @@ export class AdminService {
     const avgConfidence = result.candidates.length
       ? result.candidates.reduce((s, c) => s + c.confidence, 0) / result.candidates.length
       : 0;
-    const needsReview = result.candidates.some((c) => c.missingFields.length > 0);
+    const needsReview = result.candidates.some(candidateNeedsReview);
     return { confidence: avgConfidence, status: needsReview ? "NEEDS_REVIEW" : "PARSED" };
   }
 

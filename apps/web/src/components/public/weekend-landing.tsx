@@ -1,3 +1,4 @@
+import { zagrebDateKey } from "@/lib/event-end"
 import Link from "next/link"
 import { EventCard } from "@/components/public/event-card"
 import { SiteFooter } from "@/components/public/site-footer"
@@ -24,6 +25,7 @@ export function WeekendLanding({
 }) {
   const grouped = groupWeekendEvents(events)
   const visibleDays = grouped.days.filter((day) => day.events.length > 0)
+  const eventCount = new Set(visibleDays.flatMap((day) => day.events.map((event) => event.slug))).size
   const breadcrumbJsonLd = breadcrumbsToJsonLd(breadcrumbs, WEB_URL)
   let priorityImageUsed = false
 
@@ -36,14 +38,14 @@ export function WeekendLanding({
         <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">{h1}</h1>
         <p className="mt-2 max-w-3xl text-muted-foreground">{intro}</p>
         <p className="mb-8 mt-3 text-muted-foreground">
-          {events.length} {events.length === 1 ? "događanje" : "događanja"} {grouped.weekend.longLabel}.
+          {eventCount} {eventCount === 1 ? "događanje" : "događanja"} {grouped.weekend.longLabel}.
         </p>
 
         {visibleDays.length > 0 ? (
           <div className="flex flex-col gap-12">
             {visibleDays.map((day) => {
-              const parts = dateParts(dateKeyFromDate(day.date))
-              const displayDate = dateKeyFromDate(day.date)
+              const parts = dateParts(zagrebDateKey(day.date))
+              const displayDate = zagrebDateKey(day.date)
               return (
                 <section key={day.key}>
                   <div className="mb-5">
@@ -87,11 +89,4 @@ export function WeekendLanding({
       <SiteFooter />
     </>
   )
-}
-
-function dateKeyFromDate(date: Date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
 }

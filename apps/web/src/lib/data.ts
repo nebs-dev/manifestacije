@@ -71,6 +71,8 @@ export interface CroEvent {
   /** ISO date, possibly advanced to today for display if the event is a multi-day event in progress */
   date: string
   endDate?: string
+  /** Original start day retained when grouping a continuing range. */
+  startDate?: string
   /** Raw, unadjusted ISO 8601 datetime (with timezone offset) as stored — for structured data, not display.
    *  Absent on static fallback/demo events; JSON-LD rendering falls back to `date`+`time` in that case. */
   startsAtISO?: string
@@ -851,8 +853,8 @@ export function dateParts(iso: string) {
   }
 }
 
-export function eventOccursOn(event: CroEvent, day: Date) {
-  const key = dateKey(day)
+export function eventOccursOn(event: CroEvent, day: Date | string) {
+  const key = typeof day === "string" ? day : dateKey(day)
   if (event.occurrences?.length) {
     return event.occurrences.some((occurrence) => key >= occurrence.date && key <= (occurrence.endDate || occurrence.date))
   }
@@ -861,9 +863,9 @@ export function eventOccursOn(event: CroEvent, day: Date) {
   return key >= start && key <= end
 }
 
-export function eventEntriesOn(event: CroEvent, day: Date): CroEvent[] {
-  const key = dateKey(day)
-  if (!event.occurrences?.length) return eventOccursOn(event, day) ? [{ ...event, date: key }] : []
+export function eventEntriesOn(event: CroEvent, day: Date | string): CroEvent[] {
+  const key = typeof day === "string" ? day : dateKey(day)
+  if (!event.occurrences?.length) return eventOccursOn(event, day) ? [{ ...event, startDate: event.startDate ?? event.date, date: key }] : []
   return event.occurrences
     .filter((occurrence) => key >= occurrence.date && key <= (occurrence.endDate || occurrence.date))
     .map((occurrence) => ({

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import type { CroEvent } from "./data"
 import { currentWeekendDisplayRange, eventOccursDuringCurrentWeekend, groupWeekendEvents } from "./weekend"
 import { weekendPageCanonical, weekendPageDescription, weekendPageTitle } from "./weekend-page"
+import { eventDisplayEnd, zagrebDateKey } from "./event-end"
+import { orderRecommendations, prioritizeFreshEvents } from "./event-order"
 
 function event(overrides: Partial<CroEvent>): CroEvent {
   return {
@@ -64,7 +66,7 @@ describe("weekend helpers", () => {
 
     expect(visibleLabels).toEqual(["Petak", "Subota", "Nedjelja"])
     expect(grouped.days[0].events.map((item) => item.slug)).toEqual(["multi"])
-    expect(grouped.days[1].events.map((item) => item.slug)).toEqual(["multi", "sat"])
+    expect(grouped.days[1].events.map((item) => item.slug)).toEqual(["sat", "multi"])
     expect(grouped.days[2].events.map((item) => item.slug)).toEqual(["multi"])
   })
 
@@ -97,4 +99,65 @@ describe("weekend helpers", () => {
     expect(weekendPageDescription).toBe("Ne znaš kamo za vikend? Pogledaj aktualna događanja ovaj vikend: koncerte, predstave, festivale, radionice i druga događanja od petka do nedjelje.")
     expect(weekendPageCanonical).toBe("https://manifestacije.hr/ovaj-vikend")
   })
+})
+
+describe("current weekend recommendations", () => {
+  const timed = (slug: string, start: string, end?: string): CroEvent => event({
+    slug, date: zagrebDateKey(new Date(start)),
+    endDate: end ? zagrebDateKey(eventDisplayEnd(new Date(start), new Date(end))) : undefined,
+    startsAtISO: start, endsAtISO: end, time: start.slice(11, 16),
+  })
+  const fixtures = [
+    timed("friday", "2026-07-03T20:00:00+02:00", "2026-07-03T23:00:00+02:00"),
+    timed("overnight", "2026-07-03T22:00:00+02:00", "2026-07-04T02:00:00+02:00"),
+    timed("saturday", "2026-07-04T20:00:00+02:00", "2026-07-04T23:00:00+02:00"),
+    timed("sunday", "2026-07-05T20:00:00+02:00", "2026-07-05T23:00:00+02:00"),
+    timed("festival", "2026-06-20T10:00:00+02:00", "2026-07-06T23:00:00+02:00"),
+  ]
+  it.each([
+    ["2026-07-03T19:00:00+02:00", ["friday", "overnight", "festival"], ["saturday", "festival"], ["sunday", "festival"]],
+    ["2026-07-04T00:00:00+02:00", ["overnight"], ["saturday", "festival"], ["sunday", "festival"]],
+    ["2026-07-04T02:00:00+02:00", [], ["saturday", "festival"], ["sunday", "festival"]],
+    ["2026-07-05T00:00:00+02:00", [], [], ["sunday", "festival"]],
+    ["2026-07-05T23:00:00+02:00", [], [], ["festival"]],
+  ])("filters exact Friday/Saturday/Sunday boundaries at %s", (now, friday, saturday, sunday) => {
+    const grouped = groupWeekendEvents(fixtures, new Date(now))
+    expect(grouped.days.map((day) => day.events.map((event) => event.slug))).toEqual([friday, saturday, sunday])
+    expect(grouped.days.flatMap((day) => day.events).filter((item) => item.slug === "overnight").length).toBeLessThanOrEqual(1)
+    if (friday.length === 1) expect(grouped.days[0].label).toBe("Još traje · petak")
+  })
+  it("moves to the next weekend exactly at Zagreb Monday midnight", () => {
+    expect(currentWeekendDisplayRange(new Date("2026-07-05T21:59:59Z")).startKey).toBe("2026-07-03")
+    expect(currentWeekendDisplayRange(new Date("2026-07-05T22:00:00Z")).startKey).toBe("2026-07-10")
+    expect(groupWeekendEvents(fixtures, new Date("2026-07-05T22:00:00Z")).days.every((day) => day.events.length === 0)).toBe(true)
+  })
+  it.each([
+    ["2026-03-29T01:30:00Z", "2026-03-27", "2026-03-29"],
+    ["2026-10-25T01:30:00Z", "2026-10-23", "2026-10-25"],
+    ["2026-12-31T23:15:00Z", "2027-01-01", "2027-01-03"],
+  ])("calculates DST/year-boundary weekend %s", (now, startKey, endKey) => {
+    expect(currentWeekendDisplayRange(new Date(now))).toMatchObject({ startKey, endKey })
+  })
+  it("checks a selected occurrence independently of later slots", () => {
+    const scheduled = { ...fixtures[0], occurrences: [
+      { id: "old", date: "2026-07-03", startsAtISO: fixtures[0].startsAtISO!, endsAtISO: fixtures[0].endsAtISO, time: "20:00", allDay: false },
+      { id: "new", date: "2026-07-05", startsAtISO: fixtures[3].startsAtISO!, time: "20:00", allDay: false },
+    ] }
+    const grouped = groupWeekendEvents([scheduled], new Date("2026-07-04T12:00:00Z"))
+    expect(grouped.days[0].events).toEqual([])
+    expect(grouped.days[2].events.map((item) => item.displayOccurrenceId)).toEqual(["new"])
+  })
+  it("demotes ongoing long ranges using actual starts while retaining homepage diversity order", () => {
+    const continuing = { ...fixtures[4], date: "2026-07-04" }
+    const upcoming = [fixtures[3], fixtures[2]]
+    expect(orderRecommendations([continuing, ...upcoming], "2026-07-04").map((e) => e.slug)).toEqual(["saturday", "sunday", "festival"])
+    expect(prioritizeFreshEvents([continuing, ...upcoming], "2026-07-04").map((e) => e.slug)).toEqual(["sunday", "saturday", "festival"])
+  })
+})
+
+
+it("orders repeated DST clocks by the actual instant", () => {
+  const early = event({ slug: "early", startsAtISO: "2026-10-25T02:30:00+02:00" })
+  const late = event({ slug: "late", startsAtISO: "2026-10-25T02:30:00+01:00" })
+  expect(orderRecommendations([late, early], "2026-10-25").map((event) => event.slug)).toEqual(["early", "late"])
 })

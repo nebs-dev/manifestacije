@@ -1,4 +1,7 @@
-import { dateKey, eventEntriesOn, type CroEvent } from "@/lib/data"
+import { isOvernightEvent, zagrebDateKey } from "./event-end"
+import { eventHasEnded } from "./event-schedule"
+import { orderRecommendations } from "./event-order"
+import { eventEntriesOn, type CroEvent } from "@/lib/data"
 
 const TZ = "Europe/Zagreb"
 
@@ -51,12 +54,12 @@ export function currentWeekendDisplayRange(now = new Date()): WeekendDisplayRang
   const friday = addLocalDays(local, daysToFriday)
   const saturday = addLocalDays(friday, 1)
   const sunday = addLocalDays(friday, 2)
-  const fridayDate = new Date(friday.year, friday.month - 1, friday.day)
-  const saturdayDate = new Date(saturday.year, saturday.month - 1, saturday.day)
-  const sundayDate = new Date(sunday.year, sunday.month - 1, sunday.day)
+  const fridayDate = new Date(Date.UTC(friday.year, friday.month - 1, friday.day, 12))
+  const saturdayDate = new Date(Date.UTC(saturday.year, saturday.month - 1, saturday.day, 12))
+  const sundayDate = new Date(Date.UTC(sunday.year, sunday.month - 1, sunday.day, 12))
   return {
-    startKey: dateKey(fridayDate),
-    endKey: dateKey(sundayDate),
+    startKey: zagrebDateKey(fridayDate),
+    endKey: zagrebDateKey(sundayDate),
     friday: fridayDate,
     saturday: saturdayDate,
     sunday: sundayDate,
@@ -74,24 +77,28 @@ export function eventOccursDuringCurrentWeekend(event: CroEvent, now = new Date(
 
 export function groupWeekendEvents(events: CroEvent[], now = new Date()) {
   const weekend = currentWeekendDisplayRange(now)
-  return {
-    weekend,
-    days: [
-      { key: "friday" as const, label: "Petak", date: weekend.friday, events: sortDayEvents(events.flatMap((event) => eventEntriesOn(event, weekend.friday))) },
-      { key: "saturday" as const, label: "Subota", date: weekend.saturday, events: sortDayEvents(events.flatMap((event) => eventEntriesOn(event, weekend.saturday))) },
-      { key: "sunday" as const, label: "Nedjelja", date: weekend.sunday, events: sortDayEvents(events.flatMap((event) => eventEntriesOn(event, weekend.sunday))) },
-    ],
-  }
-}
-
-function sortDayEvents(events: CroEvent[]) {
-  return [...events].sort((a, b) => {
-    const time = (a.startsAtISO || `${a.date}T${a.time}`).localeCompare(b.startsAtISO || `${b.date}T${b.time}`)
-    if (time !== 0) return time
-    return a.title.localeCompare(b.title, "hr") || a.slug.localeCompare(b.slug, "hr")
+  const today = zagrebDateKey(now)
+  const days = [
+    { key: "friday" as const, label: "Petak", date: weekend.friday },
+    { key: "saturday" as const, label: "Subota", date: weekend.saturday },
+    { key: "sunday" as const, label: "Nedjelja", date: weekend.sunday },
+  ].map((day) => {
+    const key = zagrebDateKey(day.date)
+    const entries = events.flatMap((event) => eventEntriesOn(event, key)).filter((event) => {
+      // A selected occurrence must be checked independently of future slots.
+      if (eventHasEnded({ ...event, occurrences: undefined }, now)) return false
+      if (key >= today) return true
+      // An overnight still in progress belongs to its starting evening once.
+      return Boolean(event.startsAtISO && event.endsAtISO && isOvernightEvent(
+        new Date(event.startsAtISO), new Date(event.endsAtISO), event.allDay,
+      ))
+    })
+    return { ...day, label: key < today ? `Još traje · ${day.label.toLocaleLowerCase("hr")}` : day.label,
+      events: orderRecommendations(entries, key) }
   })
+  return { weekend, days }
 }
 
 function formatDayMonth(date: Date) {
-  return new Intl.DateTimeFormat("hr-HR", { day: "numeric", month: "long" }).format(date)
+  return new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, day: "numeric", month: "long" }).format(date)
 }

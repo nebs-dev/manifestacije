@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "Pregled svih događanja koja se održavaju danas.",
 };
 
+export const revalidate = 0;
+
 export default async function TodayPage() {
   const events = await fetchEvents({ when: "danas" });
   return (

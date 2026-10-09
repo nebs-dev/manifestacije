@@ -1,10 +1,13 @@
 import { EventStatus } from "@prisma/client";
-import { currentWeekendRange } from "../src/common/weekend";
+import { currentWeekendRange, zagrebLocalToUtc } from "../src/common/weekend";
 import { PublicFeedService } from "../src/public-feed/public-feed.service";
 
-const legacyVisibility = (now: Date) => ({
-  OR: [{ endsAt: { gt: now } }, { endsAt: null, startsAt: { gte: now } }],
-});
+const legacyVisibility = (now: Date) => {
+  const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zagreb", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const [y, m, d] = key.split("-").map(Number);
+  const start = zagrebLocalToUtc(y, m, d);
+  return { OR: [{ endsAt: { gt: now } }, { isAllDay: true, endsAt: { gte: start } }, { isAllDay: true, endsAt: null, startsAt: { gte: start } }, { endsAt: null, startsAt: { gte: now } }] };
+};
 
 const visibility = (now: Date) => ({
   OR: [
@@ -16,7 +19,7 @@ const visibility = (now: Date) => ({
 const occurrenceOverlap = (start: Date, end: Date) => {
   const overlap = {
     startsAt: { lte: end },
-    OR: [{ endsAt: { gt: start } }, { endsAt: null, startsAt: { gte: start } }],
+    OR: [{ endsAt: { gt: start } }, { isAllDay: true, endsAt: { gte: start } }, { endsAt: null, startsAt: { gte: start } }],
   };
   return {
     OR: [
@@ -29,6 +32,27 @@ const occurrenceOverlap = (start: Date, end: Date) => {
 describe("PublicFeedService", () => {
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it("retains fresh starts beyond the old result cap and demotes continuing ranges", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-04T10:00:00Z"));
+    const ongoing = Array.from({ length: 500 }, (_, id) => ({
+      slug: `old-${id}`, startsAt: new Date("2026-06-01T18:00:00Z"), endsAt: new Date("2026-08-01T18:00:00Z"), occurrences: [],
+    }));
+    const tonight = { slug: "tonight", startsAt: new Date("2026-07-04T18:00:00Z"), endsAt: null, occurrences: [] };
+    const scheduled = { slug: "scheduled", startsAt: new Date("2026-06-01T18:00:00Z"), endsAt: null, occurrences: [
+      { startsAt: new Date("2026-07-04T16:00:00Z"), endsAt: new Date("2026-07-04T17:00:00Z") },
+    ] };
+    const prisma = { event: { findMany: jest.fn().mockResolvedValueOnce(ongoing).mockResolvedValueOnce([tonight, scheduled]) } };
+    const rows = await new PublicFeedService(prisma as never).events({ weekend: "true" });
+    expect(rows).toHaveLength(500);
+    expect(rows.slice(0, 2).map((event) => event.slug)).toEqual(["scheduled", "tonight"]);
+    expect(rows.some((event) => event.slug.startsWith("old-"))).toBe(true);
+    const freshQuery = prisma.event.findMany.mock.calls[1][0];
+    expect(freshQuery.where.status).toBe(EventStatus.PUBLISHED);
+    expect(freshQuery.where.AND).toEqual(expect.arrayContaining([{
+      OR: [{ startsAt: { gte: new Date("2026-07-03T22:00:00Z") } }, { occurrences: { some: { startsAt: { gte: new Date("2026-07-03T22:00:00Z") } } } }],
+    }]));
   });
 
   it("queries only published public events", async () => {
@@ -187,17 +211,17 @@ describe("PublicFeedService", () => {
 
     await service.events({ weekend: "true" });
     const weekend = currentWeekendRange(now);
-    expect(prisma.event.findMany.mock.calls[1][0].where.AND).toEqual(expect.arrayContaining([
+    expect(prisma.event.findMany.mock.calls[2][0].where.AND).toEqual(expect.arrayContaining([
       occurrenceOverlap(weekend.start, weekend.end),
     ]));
 
     await service.events({ month: "true" });
-    expect(prisma.event.findMany.mock.calls[2][0].where.AND).toEqual(expect.arrayContaining([
+    expect(prisma.event.findMany.mock.calls[4][0].where.AND).toEqual(expect.arrayContaining([
       occurrenceOverlap(new Date("2026-06-30T22:00:00.000Z"), new Date("2026-07-31T21:59:59.999Z")),
     ]));
 
     await service.events({ dateFrom: "2026-08-01", dateTo: "2026-08-31" });
-    expect(prisma.event.findMany.mock.calls[3][0].where.AND).toEqual(expect.arrayContaining([
+    expect(prisma.event.findMany.mock.calls[6][0].where.AND).toEqual(expect.arrayContaining([
       occurrenceOverlap(new Date("2026-07-31T22:00:00.000Z"), new Date("2026-08-31T21:59:59.999Z")),
     ]));
   });

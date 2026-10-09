@@ -38,6 +38,15 @@ function parsedResult(candidates: ParsedEventCandidate[]): ParsedSourceResult {
 }
 
 describe("AdminService ingestion workflow", () => {
+  it("routes date-only and assumed-year warnings to admin review without discarding the candidate", async () => {
+    const result = parsedResult([candidate({ startsAt: "2099-07-04T00:00:00+02:00", isAllDay: true,
+      warnings: ["Izvor navodi samo datume; provjerite vrijeme ili potvrdite cjelodnevno događanje."] })]);
+    const prisma = { eventSource: { create: jest.fn().mockResolvedValue({ id: 1 }) } };
+    const parser = { parseBatch: jest.fn().mockResolvedValue(result) };
+    const service = new AdminService(prisma as never, {} as never, parser as never, {} as never, { revalidate: jest.fn() } as never, {} as never, uploadsStub as never);
+    await service.createManualEmail({ rawText: "raw" });
+    expect(prisma.eventSource.create).toHaveBeenCalledWith({ data: expect.objectContaining({ status: "NEEDS_REVIEW", parsedJson: result }) });
+  });
   it("records the admin who creates an event from a source", async () => {
     const sourceParsed = parsedResult([candidate({ city: "", organizerName: "" })]);
     const prisma = {

@@ -1,3 +1,4 @@
+import { eventTimeLabel } from "@/lib/event-end"
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -143,7 +144,7 @@ export default async function EventDetailPage({
                   ) : (
                     <div>
                       <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-foreground/50">Datum i vrijeme</span>
-                      <span>{formatDateRange(event.date, event.endDate)}{!event.allDay ? ` · ${event.time}` : " · Cijeli dan"}</span>
+                      <span>{formatDateRange(event.date, event.endDate)}{!event.allDay ? ` · ${eventTimeLabel(event)}` : " · Cijeli dan"}</span>
                     </div>
                   )}
                 </div>
@@ -246,7 +247,7 @@ export default async function EventDetailPage({
                       <InfoRow icon={<CalendarDays className="size-5" aria-hidden />} label="Datum">
                         {formatDateRange(event.date, event.endDate)}
                       </InfoRow>
-                      {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{event.time}</InfoRow>}
+                      {!event.allDay && <InfoRow icon={<Clock className="size-5" aria-hidden />} label="Vrijeme">{eventTimeLabel(event)}</InfoRow>}
                     </>
                   )}
                   <InfoRow icon={<MapPin className="size-5" aria-hidden />} label="Lokacija">

@@ -25,6 +25,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
+export const revalidate = 0;
+
 export default async function KamoZaVikendRegionPage({ params }: PageProps) {
   const [events, regions] = await Promise.all([
     fetchEvents({ when: "ovaj-vikend", region: params.regionSlug }),

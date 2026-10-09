@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import Anthropic from "@anthropic-ai/sdk";
+import { parseZagrebWallTime, zagrebDateKey } from "../common/zagreb-time";
+import { sourceDates, sourceTimes } from "./date-evidence";
 import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
 export type ParsedEventCandidate = {
@@ -339,21 +341,7 @@ export class AiEventParserService {
   /** Croatia is CET/CEST, so the offset depends on the date itself — derive
    *  it from the zone rather than hardcoding +01:00 or +02:00. */
   private withZagrebOffset(date: string, time: string): string {
-    const naive = `${date}T${time}`;
-    const asUtc = new Date(`${naive}Z`);
-    if (Number.isNaN(asUtc.getTime())) return naive;
-
-    // Round-trip the instant through the zone: the gap between how Zagreb
-    // renders it and the UTC value it was built from is that date's offset.
-    const zoned = new Date(asUtc.toLocaleString("en-US", { timeZone: "Europe/Zagreb" }));
-    const utcRef = new Date(asUtc.toLocaleString("en-US", { timeZone: "UTC" }));
-    const offsetMinutes = Math.round((zoned.getTime() - utcRef.getTime()) / 60000);
-
-    const sign = offsetMinutes < 0 ? "-" : "+";
-    const abs = Math.abs(offsetMinutes);
-    const hh = String(Math.floor(abs / 60)).padStart(2, "0");
-    const mm = String(abs % 60).padStart(2, "0");
-    return `${naive}${sign}${hh}:${mm}`;
+    return parseZagrebWallTime(date, time);
   }
 
   /** Site taxonomies are small and stable; anything unmapped falls through
@@ -582,10 +570,14 @@ export class AiEventParserService {
     const eventSchema = `{
   "title": "string",
   "description": "string",
-  "startsAt": "2026-07-15T20:00:00+02:00",
-  "endsAt": "2026-07-15T23:00:00+02:00 ili null",
+  "startsAt": "YYYY-MM-DDTHH:mm:ss (lokalno vrijeme Europe/Zagreb) ili prazan string",
+  "dateText": "doslovni datum iz izvora",
+  "timeText": "doslovno vrijeme iz izvora ili prazan string",
+  "endsAt": "YYYY-MM-DDTHH:mm:ss (lokalno vrijeme) ili null",
+  "endDateText": "doslovni završni datum ili prazan string",
+  "endTimeText": "doslovno završno vrijeme ili prazan string",
   "isAllDay": false,
-  "occurrences": [{ "startsAt": "2026-07-15T20:00:00+02:00", "endsAt": "2026-07-15T23:00:00+02:00", "isAllDay": false }] ili izostavljeno,
+  "occurrences": [{ "startsAt": "YYYY-MM-DDTHH:mm:ss", "endsAt": null, "dateText": "doslovni datum", "timeText": "doslovno vrijeme", "endDateText": "", "endTimeText": "", "isAllDay": false }] ili izostavljeno,
   "venueName": "string",
   "address": "string (ulica i kućni broj) ili ''",
   "city": "string (ime grada na hrvatskom)",
@@ -620,9 +612,14 @@ Mapiranje Facebook kategorija u naše:
 - "Community", "Causes", "Fundraiser" → humanitarno
 - "Outdoor" → outdoor
 
-Datumi i vremena u ISO 8601 formatu, vremenska zona Europe/Zagreb (UTC+2).
-Hrvatsko pisanje vremena: "21.00", "20.00", "19.00", "18.00" su sati i minute (ne decimalni brojevi) — mapirati u T21:00:00+02:00, T20:00:00+02:00 itd.
-Ako datum nema godinu, pretpostavi tekuću godinu (2026).
+Datumi i vremena: lokalni ISO 8601 bez UTC pomaka, zona Europe/Zagreb. Server određuje CET/CEST prema datumu.
+Danas je ${zagrebDateKey()}. Ako nema godine, koristi tekuću godinu ${zagrebDateKey().slice(0, 4)} i dodaj upozorenje za provjeru godine; ne prebacuj automatski u sljedeću godinu.
+Hrvatski mjeseci: siječanj/siječnja=01, veljača/veljače=02, ožujak/ožujka=03, travanj/travnja=04, svibanj/svibnja=05, lipanj/lipnja=06, srpanj/srpnja=07, kolovoz/kolovoza=08, rujan/rujna=09 (rujan je rujan, September), listopad/listopada=10 (October), studeni/studenoga=11, prosinac/prosinca=12.
+Vrijeme: 20:00, 20.00, 20 h, 20 sati znače 20:00. Datum 12.10. NIKADA nije vrijeme 12:10. Ako je zapis dvosmislen, upozori i ostavi startsAt prazan.
+Ne izmišljaj vrijeme (ni 18:00 ni ponoć). Ako vrijeme nije navedeno, startsAt ostavi prazan i dodaj startsAt u missingFields te upozorenje s poznatim datumom. isAllDay=true samo ako izvor izričito kaže cijeli dan.
+Za svaki događaj i svaki occurrence obavezno prepiši dateText i timeText DOSLOVNO iz izvora, bez prijevoda mjeseci ili pretvaranja brojeva. Za screenshot prepiši vidljivi zapis; nečitljiv zapis ostavi prazan i upozori. Ti zapisi služe provjeri datuma i sata.
+Ako je izvor cjelodnevni, timeText mora sadržavati doslovni izraz "cijeli dan".
+Za završetak obavezno prepiši endDateText i endTimeText (za noćni završetak bez datuma endDateText ostavi prazan, server zaključuje sljedeći dan iz sata). Za vrijeme završetka koristi endsAt samo ako je izvor jasan; ne pretpostavljaj trajanje. Preko ponoći sačuvaj sljedeći datum.
 
 Ako grad nije eksplicitno napisan uz svaki događaj, zaključi iz konteksta: naziva festivala, organizatora ili poznatih lokacija (npr. "Dvorana Franjo Krežma", "Trg Vatroslava Lisinskog", "Galerija KCO", "Dvorište PTFOS" → Osijek). Ako je na screenshotu naveden grad ili festival koji se održava u jednom gradu, primijeni taj grad na sve događaje.
 
@@ -670,12 +667,6 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 16384,
-      // The instructions are byte-identical on every call while the page text
-      // differs, so they are the natural cache prefix. Measured at ~1.9k total
-      // input tokens this currently reports no cache write or read — the
-      // prompt sits under the model's minimum cacheable length — so it buys
-      // nothing today and costs nothing either; it starts paying off by
-      // itself if the instructions grow.
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{
         role: "user",
@@ -704,18 +695,64 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       rawParsed = salvaged;
     }
 
-    const normalize = (p: Partial<ParsedEventCandidate>): ParsedEventCandidate => {
+    type Evidence = { dateText?: string; timeText?: string; endDateText?: string; endTimeText?: string };
+    const normalize = (p: Partial<ParsedEventCandidate> & Evidence): ParsedEventCandidate => {
+      const warnings = [...(p.warnings ?? [])];
+      const normalizeStart = (raw: string, evidence: Evidence, allDay: boolean): string => {
+        const dates = sourceDates(evidence.dateText || "");
+        const times = sourceTimes(evidence.timeText || "");
+        const date = dates.length === 1 ? dates[0] : "";
+        const time = allDay ? /cijeli dan|cjelodnev|all.day/i.test(evidence.timeText || "") ? "00:00" : "" : times.length === 1 ? times[0] : "";
+        const literal = (value: string | undefined) => isScreenshot || !value || text.includes(value);
+        // The wall-clock portion is authoritative for Croatian sources. Do not
+        // trust model-generated offsets; validate source evidence independently.
+        const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+        if (!date || !time || !wall || !literal(evidence.dateText) || !literal(evidence.timeText)
+            || wall[1] !== date || wall[2] !== time) {
+          warnings.push(`Datum ili vrijeme nije potvrđeno izvorom (${evidence.dateText || "datum nedostaje"}; ${evidence.timeText || "vrijeme nedostaje"}); potreban je pregled.`);
+          return "";
+        }
+        const normalized = parseZagrebWallTime(date, time);
+        if (!normalized) warnings.push("Nevažeće ili dvosmisleno vrijeme pri promjeni sata; potreban je pregled.");
+        if (!/20\d{2}/.test(evidence.dateText || "")) warnings.push(`Godina nije navedena; provjerite pretpostavljenu godinu ${date.slice(0, 4)}.`);
+        return normalized;
+      };
+      const normalizeEnd = (raw: string | null | undefined, evidence: Evidence, start: string): string => {
+        if (!raw) return "";
+        const dates = sourceDates(evidence.endDateText || "");
+        const times = sourceTimes(evidence.endTimeText || "");
+        let date = dates.length === 1 ? dates[0] : start.slice(0, 10);
+        const time = times.length === 1 ? times[0] : "";
+        if (!evidence.endDateText && time && time < start.slice(11, 16)) {
+          const next = new Date(`${date}T12:00:00Z`);
+          if (Number.isFinite(next.getTime())) {
+            next.setUTCDate(next.getUTCDate() + 1);
+            date = next.toISOString().slice(0, 10);
+          }
+        }
+        const literal = (value: string | undefined) => isScreenshot || !value || text.includes(value);
+        const normalized = date && time ? parseZagrebWallTime(date, time) : "";
+        if (!start || !normalized || Date.parse(normalized) <= Date.parse(start)
+            || !literal(evidence.endDateText) || !literal(evidence.endTimeText)) {
+          warnings.push("Završno vrijeme nije potvrđeno ili je dvosmisleno; provjerite izvor.");
+          return "";
+        }
+        return normalized;
+      };
       const occurrences = Array.isArray(p.occurrences)
         ? p.occurrences
-            .map((item) => ({
-              startsAt: typeof item?.startsAt === "string" ? item.startsAt : "",
-              endsAt: typeof item?.endsAt === "string" ? item.endsAt : undefined,
-              isAllDay: item?.isAllDay === true,
-            }))
+            .map((item) => {
+              const evidence = item as ParsedEventOccurrence & Evidence;
+              const startsAt = normalizeStart(item?.startsAt || "", evidence, item?.isAllDay === true);
+              return { startsAt, endsAt: normalizeEnd(item?.endsAt, evidence, startsAt) || undefined, isAllDay: item?.isAllDay === true };
+            })
             .filter((item) => item.startsAt && !Number.isNaN(new Date(item.startsAt).getTime()))
             .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
         : [];
-      const firstStart = occurrences[0]?.startsAt;
+      const invalidSchedule = Array.isArray(p.occurrences) && occurrences.length !== p.occurrences.length;
+      if (invalidSchedule) warnings.push("Neki termini nisu potvrđeni; provjerite cijeli raspored prije uvoza.");
+      const firstStart = invalidSchedule ? "" : occurrences[0]?.startsAt;
+      const start = firstStart ?? normalizeStart(p.startsAt || "", p, p.isAllDay === true);
       const lastEnd = occurrences.reduce<string | undefined>((latest, item) => {
         const endpoint = item.endsAt || item.startsAt;
         return !latest || new Date(endpoint) > new Date(latest) ? endpoint : latest;
@@ -723,10 +760,10 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       return {
         title: p.title ?? "",
         description: this.normalizeDescription(p.description ?? ""),
-        startsAt: firstStart ?? p.startsAt ?? "",
-        endsAt: lastEnd ?? p.endsAt ?? "",
+        startsAt: start,
+        endsAt: invalidSchedule ? "" : lastEnd ?? normalizeEnd(p.endsAt, p, start),
         isAllDay: occurrences.length ? occurrences.every((item) => item.isAllDay) : p.isAllDay ?? false,
-        occurrences: occurrences.length ? occurrences : undefined,
+        occurrences: !invalidSchedule && occurrences.length ? occurrences : undefined,
         venueName: p.venueName ?? "",
         address: p.address ?? "",
         city: p.city ?? "",
@@ -741,9 +778,9 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         imageUrl: p.imageUrl || htmlImageUrl,
         imageCredit: p.imageCredit,
         imageSourceUrl: p.imageSourceUrl,
-        confidence: p.confidence ?? 0.7,
-        missingFields: p.missingFields ?? [],
-        warnings: p.warnings ?? [],
+        confidence: warnings.length ? Math.min(p.confidence ?? 0.7, 0.6) : p.confidence ?? 0.7,
+        missingFields: [...new Set([...(p.missingFields ?? []), ...(!start ? ["startsAt"] : [])])],
+        warnings,
       };
     };
 
@@ -949,7 +986,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   private parseVisitSlavoniaLines(text: string, sourceUrl: string): ParsedSourceResult {
     const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
     const candidates: Candidate[] = [];
-    let currentYear = new Date().getFullYear();
+    let currentYear = Number(zagrebDateKey().slice(0, 4));
     let currentMonth = 0;
 
     for (const line of lines) {
@@ -1052,7 +1089,8 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
 
     const missingFields: string[] = [];
     if (!title) missingFields.push("title");
-    if (!startsAt && !endsAt) missingFields.push("startsAt");
+    if (!startsAt) missingFields.push("startsAt");
+    warnings.push("Izvor navodi samo datume; provjerite vrijeme ili potvrdite cjelodnevno događanje.");
     if (!city) missingFields.push("city");
 
     if (!city) warnings.push("Grad nije prepoznat – needs manual city");
@@ -1100,7 +1138,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
 
   private buildDate(year: number, month: number, day: number): string {
     try {
-      return new Date(Date.UTC(year, month - 1, day, 10, 0, 0)).toISOString();
+      return parseZagrebWallTime(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, "00:00");
     } catch {
       return "";
     }
@@ -1145,7 +1183,8 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   private parseBlock(block: string, sourceUrl: string, organizerName?: string): Candidate {
     const date = this.matchDate(block);
     const time = this.matchTime(block);
-    const startsAt = date ? (time ? this.buildDateTime(date, time) : this.withZagrebOffset(date, "00:00:00")) : "";
+    const explicitAllDay = /cijeli dan|cjelodnev|all.day/i.test(block);
+    const startsAt = date && (time || explicitAllDay) ? this.buildDateTime(date, time || "00:00") : "";
 
     const rawLines = block.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
     const lines = rawLines.filter(Boolean);
@@ -1202,7 +1241,9 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
     const warnings: string[] = [];
     if (!date) warnings.push("Datum nije pronađen – needs manual date");
     if (!city) warnings.push("Grad nije prepoznat – needs manual city");
-    if (!time) warnings.push("Vrijeme nije pronađeno; sačuvan je samo datum.");
+    if (!time && !explicitAllDay) warnings.push(`Vrijeme nedostaje ili je dvosmisleno${date ? ` (datum: ${date})` : ""}; provjerite izvor i unesite vrijeme.`);
+    if (date && time && !startsAt) warnings.push("Nevažeće ili dvosmisleno lokalno vrijeme pri promjeni sata; potreban je pregled.");
+    if (date && !/20\d{2}/.test(block)) warnings.push(`Godina nije navedena; pretpostavljena je tekuća godina ${zagrebDateKey().slice(0, 4)}. Provjerite datum.`);
     if (city && !this.KNOWN_CITIES.some((c) => c.toLowerCase() === city.toLowerCase())) {
       warnings.push(`Grad '${city}' nije u bazi – may need to be added to taxonomy`);
     }
@@ -1212,7 +1253,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       description,
       startsAt,
       endsAt: "",
-      isAllDay: !time,
+      isAllDay: explicitAllDay,
       venueName,
       address: this.matchLine(block, /(?:adresa|address)\s*:\s*(.+)/i) || "",
       city: city || "",
@@ -1236,28 +1277,12 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   // ── Shared helpers ────────────────────────────────────────────────────────────
 
   private matchTime(text: string): string {
-    const explicit = this.matchLine(text, /(?:vrijeme|time)\s*[:\-]\s*(\d{1,2}[:.]\d{2})/i);
-    if (explicit) return explicit.replace(".", ":");
-    const withUnit = text.match(/\b(\d{1,2}[:.]\d{2})\s*(?:h|sati)\b/i)?.[1];
-    if (withUnit) return withUnit.replace(".", ":");
-    const plain = text.match(/\b([01]?\d|2[0-3])[.:]([0-5]\d)\b/)?.[0];
-    if (plain) return plain.replace(".", ":");
-    return "";
+    const times = sourceTimes(text);
+    return times.length === 1 ? times[0] : "";
   }
 
   private buildDateTime(date: string, time: string): string {
-    try {
-      let t = time.replace(".", ":").trim();
-      if (/^\d{1,2}:\d{2}$/.test(t)) {
-        const [h, min] = t.split(":");
-        t = `${h.padStart(2, "0")}:${min}`;
-      } else {
-        t = "18:00";
-      }
-      return new Date(`${date}T${t}:00`).toISOString();
-    } catch {
-      return "";
-    }
+    return parseZagrebWallTime(date, time);
   }
 
   private isDateLine(line: string): boolean {
@@ -1278,10 +1303,8 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
   }
 
   private matchDate(text: string): string {
-    const iso = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
-    if (iso) return iso[1];
-    const local = text.match(/\b(\d{1,2})\.(\d{1,2})\.(20\d{2})\.?\b/);
-    return local ? `${local[3]}-${local[2].padStart(2, "0")}-${local[1].padStart(2, "0")}` : "";
+    const dates = sourceDates(text);
+    return dates.length === 1 ? dates[0] : "";
   }
 
   private findKnownCity(text: string): string {

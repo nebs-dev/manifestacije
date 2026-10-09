@@ -43,7 +43,7 @@ describe("occurrence labels", () => {
       endsAtISO: "2026-08-15T02:00:00+02:00",
       time: "22:00",
       allDay: false,
-    })).toBe("14. kolovoza · 22:00 – 15. kolovoza · 02:00")
+    })).toBe("14. kolovoza · 22:00–02:00")
 
     expect(formatOccurrenceLabel({
       id: "3",
@@ -79,9 +79,15 @@ describe("historical event state", () => {
       startsAtISO: "2026-08-15T00:00:00+02:00",
     }), now)).toBe(false)
   })
+
+  it("preserves the inclusive last day of genuine all-day ranges", () => {
+    const festival = event({ allDay: true, endDate: "2026-08-15", endsAtISO: "2026-08-15T00:00:00+02:00" })
+    expect(eventHasEnded(festival, now)).toBe(false)
+    expect(eventHasEnded(festival, new Date("2026-08-16T00:00:00+02:00"))).toBe(true)
+  })
 })
 
- it("shows an exclusive midnight end as 24:00 on the starting day", () => {
+ it("shows an overnight midnight end on the starting evening", () => {
   expect(formatOccurrenceLabel({ id: "midnight", date: "2026-08-14", startsAtISO: "2026-08-14T18:00:00+02:00", endsAtISO: "2026-08-15T00:00:00+02:00", time: "18:00", allDay: false }))
-    .toBe("14. kolovoza · 18:00–24:00")
+    .toBe("14. kolovoza · 18:00–00:00")
  })
