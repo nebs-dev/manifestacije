@@ -13,9 +13,9 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **7** | EVT-02, EVT-04, EVT-05, EVT-06, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M/§O; runtime limitations recorded there) |
-| **PARTIAL** | **11** | EVT-08, EVT-09, EVT-10, EVT-11, ADM-02, ADM-03, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
-| **NOT IMPLEMENTED** | **8** | AUTH-03, EVT-01, EVT-03, EVT-07, EVT-12, ADM-01, ADM-04, PUB-06 |
+| **DONE** | **11** | EVT-02, EVT-04, EVT-05, EVT-06, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M/§O/§P; runtime limitations recorded there) |
+| **PARTIAL** | **9** | EVT-08, EVT-09, EVT-10, EVT-11, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
+| **NOT IMPLEMENTED** | **6** | AUTH-03, EVT-01, EVT-03, EVT-07, ADM-04, PUB-06 |
 | **BUG STILL PRESENT** | **1** | NOT-02 |
 | **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
 | **Total** | **33** | |
@@ -64,10 +64,10 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | EVT-09 | PARTIAL | P2 | S | Edit form has price/category; list inline-edit lacks price; no “unknown” price state |
 | EVT-10 | PARTIAL (DECISION) | P2 | S | Admin create **already defaults to Besplatno**; organizer form defaults to paid; no “Nepoznato” |
 | EVT-11 | PARTIAL | P1 | M | Post-save duplicate queue + “Vjerojatno već uvezen” on parsed candidates; no pre-save warning in forms |
-| EVT-12 | NOT IMPLEMENTED | P2 | S | No link from admin list/editor to `/eventi/{slug}` |
-| ADM-01 | NOT IMPLEMENTED | P2 | S | `/admin/organizers` has no search |
-| ADM-02 | PARTIAL | P2 | S | Event list can be filtered by organizer (generic field filter / API `organizerId`); no counts or link per organizer |
-| ADM-03 | PARTIAL | P2 | M | `createdByUserId` exists for admin paths only; no filter/report; organizer paths and history unattributed |
+| EVT-12 | **DONE** (2026-10-09; §P) | P2 | S | Public links in event list/editor only for PUBLISHED or previously published ARCHIVED; draft preview is outside this task; evidence / blockers in §P |
+| ADM-01 | **DONE** (2026-10-09; §P) | P2 | S | Case/diacritic-insensitive organizer name search with loading/empty states and existing actions; evidence / blockers in §P |
+| ADM-02 | **DONE** (2026-10-09; §P) | P2 | S | Bulk organizer-associated event counts and URL/API filter navigation with clear action; separate from creator; evidence / blockers in §P |
+| ADM-03 | **DONE** (2026-10-09; §P) | P2 | M | Authenticated organizer/admin attribution; combined creator/Zagreb creation-date filters and per-account report; historical NULL remains Nepoznato; evidence / blockers in §P |
 | ADM-04 | NOT IMPLEMENTED | P3 | S | “Organizer portal” still in `organizer-shell.tsx:33`; mixed EN/HR copy |
 | NOT-01 | PARTIAL | P1 | S–M | Admin email on pending organizer event/source submissions; nothing on trusted auto-publish or edits |
 | NOT-02 | BUG STILL PRESENT | P2 | M | Monitored discoveries always unread (even already-imported); no mark-all; list-open marks all organizers read |
@@ -211,20 +211,24 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
   - `sameCalendarDay` uses server-local `getDate()` (`candidate-filters.ts:81–83`).
   - Weekly-series rows will repeatedly flag each other only if same day, which is fine.
 
-**EVT-12 — Admin opens public page/preview from list/editor**: NOT IMPLEMENTED · P2 · S
+**EVT-12 — Admin opens public page/preview from list/editor**: **DONE (2026-10-09; §P)** · P2 · S
+- The original baseline findings below are superseded by §P. Historical attribution is intentionally not inferred.
 - *Evidence:* no `/eventi/` href anywhere in `app/admin`, `src/components/admin`, `app/organizer`, `src/components/organizer`. The editor links only to source and source URL (`event-edit-form.tsx:296–310,559–568`).
 - *Missing:* “Otvori javnu stranicu” for PUBLISHED/ARCHIVED and a preview for drafts (drafts 404 publicly; preview needs an authenticated route or token).
 
 #### C — Admin, organizers, productivity
 
-**ADM-01 — Search organizers by name**: NOT IMPLEMENTED · P2 · S
+**ADM-01 — Search organizers by name**: **DONE (2026-10-09; §P)** · P2 · S
+- The original baseline findings below are superseded by §P. Historical attribution is intentionally not inferred.
 - `app/admin/organizers/page.tsx` renders the full list (`GET /api/admin/organizers`, unpaginated, `admin.service.ts:429–441`) with no search input. Client-side filter is enough at current scale.
 
-**ADM-02 — Events per organizer (list + count)**: PARTIAL · P2 · S
+**ADM-02 — Events per organizer (list + count)**: **DONE (2026-10-09; §P)** · P2 · S
+- The original baseline findings below are superseded by §P. Historical attribution is intentionally not inferred.
 - *Existing:* `GET /api/admin/events?organizerId=` and the generic field filter “organizer contains/equals” (`admin.service.ts:1008–1011,1116`). Organizer is a visible column in the events table. Users page shows `createdEvents` count per **user** (`app/admin/users/page.tsx:76,94`). That is not per organizer, and for organizer users it is always 0 (see ADM-03).
 - *Missing:* event count column and “Prikaži događaje” link on `/admin/organizers`; `organizerId` URL param is not wired into `/admin/events` page state (it reads `search`/`fieldFilters` only).
 
-**ADM-03 — Filter entries by author and date range; reliable `createdBy`**: PARTIAL · P2 · M
+**ADM-03 — Filter entries by author and date range; reliable `createdBy`**: **DONE (2026-10-09; §P)** · P2 · M
+- The original baseline findings below are superseded by §P. Historical attribution is intentionally not inferred.
 - *What `d137cf26` actually delivers:*
   - Schema: `Event.createdByUserId` (nullable FK, `ON DELETE SET NULL`), index `(createdByUserId, createdAt)` (`prisma/migrations/20260930090000_add_event_created_by`).
   - Set on these paths: admin manual create, weekly series, split-into-weekly (clones), duplicate, create-from-source/candidate (`admin.controller.ts`, `admin.service.ts:159–216,239–298,369–403,681–746`).
@@ -826,3 +830,27 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - New `/api/admin/event-revisions`, `/api/admin/event-revisions/1`, `/api/organizer/event-revisions/1` and `/api/admin/pending-counts` return **401 Missing bearer token**, confirming deployed guarded routing, not authenticated workflow success.
 - Web `/admin/event-revisions`, `/admin/event-revisions/1`, `/organizer/events`, `/organizer/events/1`, `/ovaj-vikend`, `/kalendar`, `/mapa`, `/eventi/tommy-emmanuel` and its `/calendar.ics` return **HTTP 200**. These are HTTP availability checks; admin/organizer shells still require client authentication. Public detail includes valid JSON-LD and ICS starts with `BEGIN:VCALENDAR`.
 - Public API feed remains **170 events**. Complete returned public records compare unchanged against the pre-push snapshot (no added/removed/changed records), including the separately reported historical timing errors. No production event writes or manual cache purges were performed.
+
+---
+
+## P. Admin productivity package — ADM-01 / ADM-02 / ADM-03 / EVT-12 (2026-10-09)
+
+### Implementation
+
+- Organizer name search operates on the complete existing organizer response; Croatian Č/Ć/Š/Ž accents and Đ are normalized for case-insensitive matching. Empty/loading/error states, editing, invitations, password reset and bulk actions remain available; selection is cleared on search changes to avoid hidden bulk deletions.
+- `GET /api/admin/organizers` includes `eventCount` via Prisma's bulk relation count. Counts include all statuses associated through `Event.organizerId`, independently of the creator account. “Prikaži događaje” opens `/admin/events?organizerId=...`; organizer, creator, date, search and column filters persist through API requests, pagination and editor return navigation. An explicit organizer-clear action preserves other filters.
+- Fixed the omitted authenticated `createdByUserId` in `OrganizerService.createEvent`. Admin manual, candidate import, duplication, weekly creation and split-clone paths already pass the acting admin. Original rows retain their creator during edits, publication and revision approval. Request bodies cannot choose a creator. Candidate/source import attribution means the admin who creates the Event, not an inferred original poster submitter.
+- Added exact creator selection (including `unknown` for NULL), inclusive creation-date ranges in Europe/Zagreb, and `GET /api/admin/events/creator-report`. The report compares all accounts for the selected period and other filters before the dedicated creator selector; zero-count accounts remain selectable, and totals distinguish current admin/organizer roles and unknown creators. No hard-coded staff identities, password hashes or per-row queries. Aggregates and account metadata use a consistent repeatable-read snapshot.
+- The event page uses a server route wrapper with request-specific query parameters and synchronizes external/back/forward URL navigation without remounting the form. Out-of-order list responses cannot overwrite newer filter results.
+- Added shared safe “Otvori javnu stranicu” actions in the event list and editor. Availability matches the public API: PUBLISHED, or ARCHIVED with `publishedAt`. Slugs are encoded; drafts, pending and rejected events have no public action. No authenticated draft-preview feature was introduced.
+- No Prisma schema/migration changes, historical attribution backfill, production event writes, full audit log, duplicate warning or notification cleanup. Existing `(createdByUserId, createdAt)` index is reused. Historical NULL/deleted-user creators remain “Nepoznato”. Organizer search continues to load the full organizer list, matching the existing unpaginated API.
+
+### Automated verification
+
+- Full API suite: **30 suites / 561 tests passed**, including **43 real PostgreSQL integration tests** (remaining suites use mocks). Isolated localhost:5442/revision_qa database only, hard allowlist, no fallback to application DATABASE_URL. Tests cover authenticated creation, spoofed attribution, organizer association vs creator, creator/creation-date combinations, named staff and zero counts, unknown historical attribution, generic creator-column filters, invalid filters, authorization and the existing transactional revision workflow. Revision approval explicitly preserves the original creator.
+- The same PostgreSQL suite passes with `TZ=Pacific/Honolulu`, including CET, CEST and both DST creation-date boundaries.
+- Full web suite: **37 files / 335 tests passed**. Search normalization, organizer counts/navigation/actions, empty/loading/error states, combined filter serialization/pagination/clear, external URL navigation, creator comparison and public link eligibility/safety are covered with jsdom component tests and helper tests. These are not browser viewport checks.
+- API/web typechecks and lint passed; both production builds passed. Web build is warning-free. Local API startup ran `prisma migrate deploy`: 23 existing migrations, none pending.
+- Compiled full AppModule HTTP smoke passed against isolated fixtures: authenticated organizer/admin creation, creator spoof protection, associated counts, combined list filters, report and role protection. Production writes: zero. Local production web HTTP route returns 200 and its serialized route props preserve organizer/creator/creation-date parameters; the auth shell intentionally hides controls until authentication.
+- **BLOCKED — desktop/mobile browser QA:** Browser skill runtime selection returned “No browser is available”; documented troubleshooting and discovery returned an empty browser list. No viewport/browser pass is claimed.
+- **BLOCKED — authenticated production search/count/report workflows:** no production admin session or infrastructure credentials available. No production records will be created/edited for QA. Deployment status and non-destructive public smoke evidence will be appended after pushing.

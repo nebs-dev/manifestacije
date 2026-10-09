@@ -55,7 +55,7 @@ export class OrganizerService {
   async createEvent(organizerId: number, dto: OrganizerEventDto, organizerEmail?: string, userId?: number) {
     const organizer = await this.prisma.organizer.findUniqueOrThrow({ where: { id: organizerId } });
     const status = organizer.status === "TRUSTED" ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW;
-    const event = await this.events.createFromDto(pickOrganizerEventInput(dto), { organizerId, status, sourceType: "ORGANIZER_FORM" });
+    const event = await this.events.createFromDto(pickOrganizerEventInput(dto), { organizerId, status, sourceType: "ORGANIZER_FORM", createdByUserId: userId });
 
     await this.notifyEventCreated(event, organizer.name, status, organizerEmail);
 

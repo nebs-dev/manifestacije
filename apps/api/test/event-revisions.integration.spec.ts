@@ -7,6 +7,8 @@ import { EventRevisionsService } from "../src/event-revisions/event-revisions.se
 import { revisionEventInclude } from "../src/event-revisions/revision-content";
 import { OrganizerService } from "../src/organizers/organizer.service";
 import { PublicFeedService } from "../src/public-feed/public-feed.service";
+import { AdminController } from "../src/admin/admin.controller";
+import { OrganizerClaimService } from "../src/organizer-claims/organizer-claim.service";
 import { AdminService } from "../src/admin/admin.service";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { UploadsService } from "../src/admin/uploads.service";
@@ -53,6 +55,8 @@ integration("EventRevision PostgreSQL workflow", () => {
   beforeAll(async () => {
     await prisma.$connect();
     // This database is disposable and contains synthetic fixtures only.
+    await prisma.eventDuplicateCandidate.deleteMany();
+    await prisma.eventSource.deleteMany();
     await prisma.event.deleteMany();
     await prisma.user.deleteMany();
     await prisma.organizer.deleteMany();
@@ -60,7 +64,7 @@ integration("EventRevision PostgreSQL workflow", () => {
     organizerId = org.id;
     otherId = (await prisma.organizer.create({ data: { name: "QA drugi", slug: "qa-drugi" } })).id;
     userId = (await prisma.user.create({ data: { email: "submitter@example.test", name: "QA autor", passwordHash: "unused", role: "ORGANIZER", organizerId } })).id;
-    adminId = (await prisma.user.create({ data: { email: "admin@example.test", name: "QA admin", passwordHash: "unused", role: "ADMIN" } })).id;
+    adminId = (await prisma.user.create({ data: { email: "admin@example.test", name: "Vanesa", passwordHash: "unused", role: "ADMIN" } })).id;
     regionId = (await prisma.region.upsert({ where: { slug: "qa-regija" }, update: {}, create: { name: "QA regija", slug: "qa-regija" } })).id;
     countyId = (await prisma.county.upsert({ where: { slug: "qa-zupanija" }, update: {}, create: { name: "QA županija", slug: "qa-zupanija", regionId } })).id;
     cityId = (await prisma.city.upsert({ where: { slug: "qa-grad" }, update: {}, create: { name: "QA grad", slug: "qa-grad", countyId, lat: 45, lng: 16 } })).id;
@@ -68,8 +72,9 @@ integration("EventRevision PostgreSQL workflow", () => {
     otherCategory = (await prisma.category.upsert({ where: { slug: "qa-festival" }, update: {}, create: { name: "QA festival", slug: "qa-festival" } })).id;
     const module = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: "isolated-revision-fixture-secret" })],
-      controllers: [OrganizerController, AdminEventRevisionsController, OrganizerEventRevisionsController, PublicFeedController],
+      controllers: [AdminController, OrganizerController, AdminEventRevisionsController, OrganizerEventRevisionsController, PublicFeedController],
       providers: [
+        { provide: AdminService, useValue: admin }, { provide: OrganizerClaimService, useValue: {} },
         { provide: PrismaService, useValue: prisma }, { provide: OrganizerService, useValue: organizer },
         { provide: EventRevisionsService, useValue: revisions }, { provide: PublicFeedService, useValue: feed }, { provide: UploadsService, useValue: {} },
       ],
@@ -85,7 +90,7 @@ integration("EventRevision PostgreSQL workflow", () => {
     await prisma.event.deleteMany();
     eventId = (await prisma.event.create({ data: {
       title: "Objavljeni koncert", slug: "qa-objavljeni-koncert", description: "Izvorni opis", status: "PUBLISHED", organizerId,
-      cityId, countyId, regionId, cityName: "QA grad", categoryId, isAllDay: false, isFree: false, isFeatured: true,
+      cityId, countyId, regionId, cityName: "QA grad", categoryId, isAllDay: false, isFree: false, isFeatured: true, createdByUserId: userId,
       startsAt: new Date("2099-09-05T18:00:00Z"), endsAt: new Date("2099-09-05T20:00:00Z"),
       publishedAt: new Date("2026-10-01T12:00:00Z"), priceText: "10 EUR", ticketUrl: "https://tickets.example.test",
       sourceUrl: "https://source.example.test", imageUrl: "https://images.example.test/poster.jpg", address: "Izvorna adresa", lat: 45, lng: 16,
@@ -93,6 +98,102 @@ integration("EventRevision PostgreSQL workflow", () => {
     } })).id;
   });
   afterAll(async () => { await app?.close(); await prisma.$disconnect(); });
+
+  it("records authenticated creators on organizer and admin HTTP creation, ignoring body attribution", async () => {
+    const dto = { title: "QA novi unos", description: "QA opis", cityId, categoryId, startsAt: "2099-07-10T20:00:00+02:00", createdByUserId: adminId };
+    const orgResponse = await request("/api/organizer/events", userId, "POST", { ...dto, organizerId: otherId });
+    expect(orgResponse.status).toBe(201);
+    const orgEvent = await orgResponse.json();
+    expect(orgEvent).toMatchObject({ createdByUserId: userId, organizerId, status: "PENDING_REVIEW" });
+    const adminResponse = await request("/api/admin/events", adminId, "POST", { ...dto, createdByUserId: userId, organizerId: otherId });
+    expect(adminResponse.status).toBe(201);
+    const adminEvent = await adminResponse.json();
+    expect(adminEvent).toMatchObject({ createdByUserId: adminId, organizerId: otherId });
+    await request(`/api/admin/events/${orgEvent.id}`, adminId, "PUT", { title: "Admin izmjena", createdByUserId: adminId });
+    await request(`/api/admin/events/${orgEvent.id}/approve`, adminId, "POST");
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: orgEvent.id } })).toMatchObject({ createdByUserId: userId, status: "PUBLISHED" });
+    await request(`/api/organizer/events/${adminEvent.id}`, userId, "PUT", { title: "Krađa", createdByUserId: userId });
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: adminEvent.id } })).toMatchObject({ createdByUserId: adminId, title: dto.title });
+  });
+
+  it("attributes newly duplicated and weekly-created events to the acting admin", async () => {
+    const duplicate = await request(`/api/admin/events/${eventId}/duplicate`, adminId, "POST");
+    expect(duplicate.status).toBe(201);
+    expect(await duplicate.json()).toMatchObject({ createdByUserId: adminId, status: "DRAFT" });
+    const series = await admin.createEvent({ title: "QA tjedni unos", cityId, categoryId, startsAt: "2099-07-10T18:00:00Z", repeatWeeklyUntil: "2099-07-24T18:00:00Z" }, adminId);
+    expect(await prisma.event.findMany({ where: { title: series.title }, select: { createdByUserId: true } })).toEqual(Array(3).fill({ createdByUserId: adminId }));
+    expect((await snapshot()).createdByUserId).toBe(userId);
+    const split = await admin.splitIntoWeeklySeries(eventId, { firstDate: "2099-07-10", repeatWeeklyUntil: "2099-07-24", startTime: "20:00" }, adminId);
+    expect((await snapshot()).createdByUserId).toBe(userId);
+    expect(await prisma.event.findMany({ where: { id: { in: split._seriesEventIds.slice(1) } }, select: { createdByUserId: true } })).toEqual(Array(2).fill({ createdByUserId: adminId }));
+  });
+
+  it("counts organizer association separately from creator and preserves filtering/pagination", async () => {
+    const created = await admin.createEvent({ title: "Admin za organizatora", cityId, categoryId, organizerId }, adminId);
+    await prisma.event.update({ where: { id: created.id }, data: { createdAt: new Date("2026-07-10T22:00:00Z") } });
+    await prisma.event.update({ where: { id: eventId }, data: { createdAt: new Date("2026-07-10T21:59:59.999Z") } });
+    const orgs = await (await request("/api/admin/organizers", adminId)).json();
+    expect(orgs.find((org: { id: number }) => org.id === organizerId)).toMatchObject({ eventCount: 2, hasUser: true });
+    expect(orgs.find((org: { id: number }) => org.id === otherId)).toMatchObject({ eventCount: 0 });
+    const list = await (await request(`/api/admin/events?organizerId=${organizerId}&pageSize=1&sortBy=createdAt&sortDir=asc`, adminId)).json();
+    expect(list).toMatchObject({ total: 2, pageCount: 1, pageSize: 10 });
+    expect(list.items[0]).toMatchObject({ id: eventId, createdBy: { id: userId } });
+    const filtered = await (await request(`/api/admin/events?organizerId=${organizerId}&createdByUserId=${adminId}&createdFrom=2026-07-11&createdTo=2026-07-11`, adminId)).json();
+    expect(filtered.total).toBe(1); expect(filtered.items[0].id).toBe(created.id);
+    expect((await admin.allEvents({ organizerId: String(otherId), createdByUserId: String(adminId) })).total).toBe(0);
+    expect((await admin.allEvents({ createdByUserId: String(adminId), createdTo: "2026-07-10" })).total).toBe(0);
+  });
+
+  it("reports selected-period counts for named admins, organizer accounts and unknown historical authors without backfill", async () => {
+    const andrijana = await prisma.user.create({ data: { email: "andrijana@example.test", name: "Andrijana", role: "ADMIN", passwordHash: "unused" } });
+    const base = { description: "QA", categoryId, organizerId, startsAt: new Date("2099-07-10T18:00:00Z"), createdAt: new Date("2026-01-10T23:00:00Z") };
+    await prisma.event.createMany({ data: [
+      { ...base, title: "Vanesa unos", slug: "qa-vanesa", createdByUserId: adminId },
+      { ...base, title: "Andrijana unos", slug: "qa-andrijana", createdByUserId: andrijana.id },
+      { ...base, title: "Nepoznati unos", slug: "qa-nepoznato", createdByUserId: null },
+    ] });
+    await prisma.event.update({ where: { id: eventId }, data: { createdAt: new Date("2026-01-11T22:59:59.999Z") } });
+    const query = `organizerId=${organizerId}&createdFrom=2026-01-11&createdTo=2026-01-11`;
+    const report = await (await request(`/api/admin/events/creator-report?${query}&createdByUserId=${adminId}`, adminId)).json();
+    expect(report).toMatchObject({ total: 4, adminCount: 2, organizerCount: 1, unknownCount: 1, organizer: { id: organizerId } });
+    expect(report.creators).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Vanesa", count: 1 }), expect.objectContaining({ name: "Andrijana", count: 1 }), expect.objectContaining({ id: userId, count: 1 }),
+    ]));
+    expect(JSON.stringify(report)).not.toContain("passwordHash");
+    const unknown = await admin.allEvents({ createdByUserId: "unknown", createdFrom: "2026-01-11", createdTo: "2026-01-11" });
+    expect(unknown.total).toBe(1); expect(unknown.items[0]).toMatchObject({ createdByUserId: null, createdBy: null });
+    expect((await admin.eventCreatorReport({ createdFrom: "2025-01-01", createdTo: "2025-01-01" })).creators).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Vanesa", count: 0 })]));
+    expect((await prisma.event.findUniqueOrThrow({ where: { slug: "qa-nepoznato" } })).createdByUserId).toBeNull();
+  });
+
+  it("applies existing creator column filters and null checks", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { createdByUserId: adminId } });
+    expect((await admin.allEvents({ fieldFilters: JSON.stringify([{ field: "createdBy", op: "contains", value: "vAnEsA" }]) })).total).toBe(1);
+    expect((await admin.allEvents({ fieldFilters: JSON.stringify([{ field: "createdBy", op: "empty" }]) })).total).toBe(0);
+    await prisma.event.update({ where: { id: eventId }, data: { createdByUserId: null } });
+    expect((await admin.allEvents({ fieldFilters: JSON.stringify([{ field: "createdBy", op: "empty" }]) })).total).toBe(1);
+  });
+
+  it.each(["2026-03-29", "2026-10-25"])("uses complete Zagreb creation dates across DST on %s", async date => {
+    const start = date === "2026-03-29" ? "2026-03-28T23:00:00Z" : "2026-10-24T22:00:00Z";
+    const end = date === "2026-03-29" ? "2026-03-29T21:59:59.999Z" : "2026-10-25T22:59:59.999Z";
+    for (const createdAt of [start, end]) {
+      await prisma.event.update({ where: { id: eventId }, data: { createdAt: new Date(createdAt) } });
+      expect((await admin.allEvents({ createdFrom: date, createdTo: date })).total).toBe(1);
+    }
+    await prisma.event.update({ where: { id: eventId }, data: { createdAt: new Date(new Date(end).getTime() + 1) } });
+    expect((await admin.allEvents({ createdFrom: date, createdTo: date })).total).toBe(0);
+  });
+
+  it.each(["organizerId=-1", "createdByUserId=abc", "createdFrom=2026-02-30", "createdFrom=2026-10-09&createdTo=2026-10-08"])("rejects invalid filters %s", async query => {
+    expect((await request(`/api/admin/events?${query}`, adminId)).status).toBe(400);
+    expect((await request(`/api/admin/events/creator-report?${query}`, adminId)).status).toBe(400);
+  });
+
+  it.each(["/api/admin/events/creator-report", "/api/admin/events", "/api/admin/organizers"])("keeps %s admin-only", async path => {
+    expect((await request(path)).status).toBe(401);
+    expect((await request(path, userId)).status).toBe(401);
+  });
 
   it("exercises authenticated organizer-to-admin HTTP approval with the real database and validation pipe", async () => {
     const before = await (await request("/api/public/events/qa-objavljeni-koncert")).json();
@@ -164,7 +265,7 @@ integration("EventRevision PostgreSQL workflow", () => {
     expect(decision.reviewedAt).toBeInstanceOf(Date);
     const after = await snapshot();
     expect(after).toMatchObject({ id: eventId, title: "Odobreni naslov", slug: before.slug, status: before.status, organizerId, isFeatured: true,
-      publishedAt: before.publishedAt, endsAt: null, isFree: null, priceText: null, ticketUrl: null, sourceUrl: null, imageUrl: null, lat: null, lng: null });
+      publishedAt: before.publishedAt, createdByUserId: userId, endsAt: null, isFree: null, priceText: null, ticketUrl: null, sourceUrl: null, imageUrl: null, lat: null, lng: null });
     expect(after.categories.map(row => row.categoryId)).toEqual([otherCategory]);
     expect(after.venue?.name).toBe("QA dvorana");
     expect(cache.revalidate.mock.calls).toEqual([["events"], ["taxonomy"]]);
@@ -224,7 +325,7 @@ integration("EventRevision PostgreSQL workflow", () => {
     await prisma.eventRevision.update({ where: { id: revision.id }, data: { proposed: { ...revision.proposed as object, slug: "stored-hijack", organizerId: otherId, status: "ARCHIVED", isFeatured: false } } });
     await approve(revision);
     const after = await snapshot();
-    for (const key of ["id", "slug", "organizerId", "status", "isFeatured", "publishedAt", "createdAt", "sourceType"] as const) expect(after[key]).toEqual(before[key]);
+    for (const key of ["id", "slug", "organizerId", "status", "isFeatured", "publishedAt", "createdAt", "sourceType", "createdByUserId"] as const) expect(after[key]).toEqual(before[key]);
   });
 
   it.each(["title", "categories", "owner"])("blocks approval against newer admin %s edits", async field => {

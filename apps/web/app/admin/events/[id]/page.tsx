@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { authedFetch } from "@/lib/admin/api"
 import { adaptEvent } from "@/lib/admin/adapters"
 import type { AdminEvent } from "@/lib/admin/types"
+import { PublicEventLink } from "@/components/admin/public-event-link"
 
 function safeReturnTo(value: string | undefined) {
   if (!value) return "/admin/events"
@@ -63,10 +64,10 @@ export default function EventDetailPage({
           { label: event.title },
         ]}
         actions={
-          <Button variant="outline" nativeButton={false} render={<Link href={returnTo} />}>
+          <div className="flex flex-wrap items-center gap-2"><PublicEventLink event={event} /><Button variant="outline" nativeButton={false} render={<Link href={returnTo} />}>
             <ArrowLeft data-icon="inline-start" />
             Natrag na listu
-          </Button>
+          </Button></div>
         }
       />
       <EventEditForm event={event} onUpdate={load} />

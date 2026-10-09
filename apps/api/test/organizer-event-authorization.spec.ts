@@ -112,7 +112,7 @@ describe("organizer event create authorization", () => {
   it.each(["CLAIMED", "VERIFIED"] as const)("%s organizer: owner, status, slug and featuring come from the server", async (organizerStatus) => {
     const { organizer, prisma } = fixture(organizerStatus);
 
-    await organizer.createEvent(OWN_ORGANIZER_ID, { ...ALLOWED, ...FORBIDDEN } as never);
+    await organizer.createEvent(OWN_ORGANIZER_ID, { ...ALLOWED, ...FORBIDDEN } as never, "creator@example.test", 71);
 
     const data = prisma.event.create.mock.calls[0][0].data;
     expect(data).toMatchObject({
@@ -124,7 +124,7 @@ describe("organizer event create authorization", () => {
       slug: "koncert-u-parku",
     });
     expect(data.publishedAt).toBeUndefined();
-    expect(data.createdByUserId).toBeUndefined();
+    expect(data.createdByUserId).toBe(71);
     expect(data.extractionConfidence).toBeUndefined();
   });
 

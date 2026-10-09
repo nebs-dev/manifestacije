@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, type ComponentProps } from "react"
+import Link from "next/link"
 import { Pencil, Plus, Check, X, Trash2, KeyRound, Eye, EyeOff, Send } from "lucide-react"
 import { toast } from "sonner"
 
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import { authedFetch } from "@/lib/admin/api"
 import { formatRelative } from "@/lib/admin/format"
+import { searchOrganizers } from "@/lib/admin/organizer-search"
 
 interface Organizer {
   id: number
@@ -32,6 +34,7 @@ interface Organizer {
   hasUser: boolean
   adminViewedAt: string | null
   createdAt: string
+  eventCount: number
 }
 
 type OrgForm = { name: string; email: string; websiteUrl: string; phone: string }
@@ -118,6 +121,7 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
         <TableCell><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+385..." className="h-8" /></TableCell>
         <TableCell />
         <TableCell />
+        <TableCell />
         <TableCell className="text-right">
           <div className="flex items-center justify-end gap-1">
             <Button size="icon-sm" variant="ghost" className="text-success" onClick={save} disabled={busy}><Check /></Button>
@@ -138,6 +142,10 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
       <TableCell className="max-w-40 truncate text-muted-foreground">{org.websiteUrl ?? "—"}</TableCell>
       <TableCell className="text-muted-foreground">{org.phone ?? "—"}</TableCell>
       <TableCell><StatusBadge status={org.status} /></TableCell>
+      <TableCell><div className="flex flex-col gap-1 whitespace-nowrap">
+        <span>{org.eventCount ?? 0}</span>
+        <Link className="text-xs text-primary underline" href={`/admin/events?organizerId=${org.id}`}>Prikaži događaje</Link>
+      </div></TableCell>
       <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">{formatRelative(org.createdAt)}</TableCell>
       <TableCell className="text-right">
         {resettingPw ? (
@@ -196,7 +204,7 @@ function AddRow({ onCreated }: { onCreated: () => void }) {
   if (!open) {
     return (
       <TableRow>
-        <TableCell colSpan={8}>
+        <TableCell colSpan={9}>
           <button onClick={() => setOpen(true)} className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <Plus className="size-3.5" /> Dodaj organizatora
           </button>
@@ -212,6 +220,7 @@ function AddRow({ onCreated }: { onCreated: () => void }) {
       <TableCell><Input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="email" className="h-8" /></TableCell>
       <TableCell><Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://..." className="h-8" /></TableCell>
       <TableCell><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+385..." className="h-8" /></TableCell>
+      <TableCell />
       <TableCell />
       <TableCell />
       <TableCell className="text-right">
@@ -233,6 +242,8 @@ export default function OrganizersPage() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const [inviteConfirming, setInviteConfirming] = useState(false)
   const [inviteBusy, setInviteBusy] = useState(false)
+  const [search, setSearch] = useState("")
+  const visibleOrganizers = searchOrganizers(organizers, search)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -240,13 +251,14 @@ export default function OrganizersPage() {
       const res = await authedFetch("/api/admin/organizers")
       if (!res.ok) { setError("Greška pri učitavanju."); return }
       setOrganizers(await res.json())
+      setError("")
     } catch { setError("Greška pri dohvaćanju.") }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const allSelected = organizers.length > 0 && organizers.every((o) => selected.has(o.id))
+  const allSelected = visibleOrganizers.length > 0 && visibleOrganizers.every((o) => selected.has(o.id))
 
   function toggle(id: number) {
     setSelected((prev) => {
@@ -258,7 +270,7 @@ export default function OrganizersPage() {
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(organizers.map((o) => o.id)))
+    setSelected(allSelected ? new Set() : new Set(visibleOrganizers.map((o) => o.id)))
     setConfirming(false)
   }
 
@@ -339,6 +351,14 @@ export default function OrganizersPage() {
           )
         }
       />
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input className="w-full sm:max-w-sm" aria-label="Pretraži organizatore po nazivu" placeholder="Pretraži organizatore po nazivu…" value={search} onChange={event => { setSearch(event.target.value); setSelected(new Set()); setConfirming(false) }} />
+          {search && <Button variant="ghost" onClick={() => { setSearch(""); setSelected(new Set()); setConfirming(false) }}>Očisti pretragu</Button>}
+          {!loading && !error && <span role="status" className="text-sm text-muted-foreground">{visibleOrganizers.length} od {organizers.length} organizatora</span>}
+        </div>
+        <p className="text-xs text-muted-foreground">Broj događaja prikazuje povezanost s profilom organizatora. Autor unosa prikazan je zasebno u popisu događaja.</p>
+      </div>
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
         <div className="flex flex-col gap-2">
           {selected.size > 0 && (
@@ -373,12 +393,14 @@ export default function OrganizersPage() {
                   <TableHead>Web</TableHead>
                   <TableHead>Telefon</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Povezani događaji</TableHead>
                   <TableHead className="text-right">Dodano</TableHead>
                   <TableHead className="text-right">Akcije</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {organizers.map((o) => (
+                {!visibleOrganizers.length && <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">{search ? "Nema organizatora koji odgovaraju pretrazi." : "Nema organizatora."}</TableCell></TableRow>}
+                {visibleOrganizers.map((o) => (
                   <OrgRow key={o.id} org={o} onChanged={load} selected={selected.has(o.id)} onToggle={() => toggle(o.id)} />
                 ))}
                 <AddRow onCreated={load} />

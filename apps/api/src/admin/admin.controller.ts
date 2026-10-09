@@ -4,7 +4,7 @@ import { EventStatus, UserRole } from "@prisma/client";
 import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser } from "../auth/auth.types";
-import { AdminService } from "./admin.service";
+import { AdminService, AdminEventListParams } from "./admin.service";
 import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
@@ -32,6 +32,7 @@ export class AdminController {
     @Query("sortDir") sortDir?: string,
     @Query("search") search?: string,
     @Query("organizerId") organizerId?: string,
+    @Query("createdByUserId") createdByUserId?: string,
     @Query("startsFrom") startsFrom?: string,
     @Query("startsTo") startsTo?: string,
     @Query("createdFrom") createdFrom?: string,
@@ -39,13 +40,14 @@ export class AdminController {
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
     @Query("fieldFilters") fieldFilters?: string,
-  ) { return this.admin.pendingEvents({ sortBy, sortDir, search, organizerId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
+  ) { return this.admin.pendingEvents({ sortBy, sortDir, search, organizerId, createdByUserId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
   @Get("events") events(
     @Query("sortBy") sortBy?: string,
     @Query("sortDir") sortDir?: string,
     @Query("search") search?: string,
     @Query("status") status?: string,
     @Query("organizerId") organizerId?: string,
+    @Query("createdByUserId") createdByUserId?: string,
     @Query("startsFrom") startsFrom?: string,
     @Query("startsTo") startsTo?: string,
     @Query("createdFrom") createdFrom?: string,
@@ -53,7 +55,8 @@ export class AdminController {
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
     @Query("fieldFilters") fieldFilters?: string,
-  ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
+  ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, createdByUserId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
+  @Get("events/creator-report") eventCreatorReport(@Query() params: AdminEventListParams) { return this.admin.eventCreatorReport(params); }
   @Post("events") createAdminEvent(@CurrentUser() user: AuthUser, @Body() dto: AdminEventDto) { return this.admin.createEvent(dto, user.id); }
   @Get("events/:id") event(@Param("id") id: string) { return this.admin.event(Number(id)); }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }

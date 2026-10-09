@@ -23,6 +23,7 @@ export type AdminEventListParams = {
   search?: string;
   status?: string;
   organizerId?: string;
+  createdByUserId?: string;
   startsFrom?: string;
   startsTo?: string;
   createdFrom?: string;
@@ -431,7 +432,7 @@ export class AdminService {
 
   async organizers() {
     const organizers = await this.prisma.organizer.findMany({
-      include: { _count: { select: { users: true } } },
+      include: { _count: { select: { users: true, events: true } } },
       orderBy: { createdAt: "desc" },
     });
     const unreadIds = organizers.filter((organizer) => !organizer.adminViewedAt && organizer._count.users > 0).map((organizer) => organizer.id);
@@ -441,7 +442,26 @@ export class AdminService {
     // hasUser is the real "claimed" signal — OrganizerStatus (VERIFIED/TRUSTED)
     // is an independent trust badge admins can set without the organizer
     // ever having actually registered.
-    return organizers.map(({ _count, ...organizer }) => ({ ...organizer, hasUser: _count.users > 0 }));
+    return organizers.map(({ _count, ...organizer }) => ({ ...organizer, hasUser: _count.users > 0, eventCount: _count.events }));
+  }
+
+  async eventCreatorReport(params: AdminEventListParams = {}) {
+    // Compare all creators for the selected period/other filters. The creator
+    // selector narrows the event list, not this comparison's population.
+    const where = this.eventListWhere(params);
+    delete where.createdByUserId;
+    const [groups, users, organizer] = await this.prisma.$transaction(async tx => {
+      const groups = await tx.event.groupBy({ by: ["createdByUserId"], orderBy: { createdByUserId: "asc" }, where, _count: { _all: true } });
+      const users = await tx.user.findMany({ select: { id: true, name: true, email: true, role: true, organizer: { select: { id: true, name: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] });
+      const organizer = typeof where.organizerId === "number" ? await tx.organizer.findUnique({ where: { id: where.organizerId }, select: { id: true, name: true } }) : null;
+      return [groups, users, organizer] as const;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    const counts = new Map(groups.map(group => [group.createdByUserId, group._count._all]));
+    const creators = users.map(user => ({ ...user, count: counts.get(user.id) ?? 0 }));
+    const unknownCount = counts.get(null) ?? 0;
+    return { creators, unknownCount, organizer, total: groups.reduce((sum, group) => sum + group._count._all, 0),
+      adminCount: creators.filter(user => user.role === "ADMIN").reduce((sum, user) => sum + user.count, 0),
+      organizerCount: creators.filter(user => user.role === "ORGANIZER").reduce((sum, user) => sum + user.count, 0) };
   }
 
   async createOrganizer(dto: OrganizerAdminDto) {
@@ -1011,10 +1031,8 @@ export class AdminService {
       where.status = params.status as EventStatus;
     }
 
-    const organizerId = params?.organizerId ? Number(params.organizerId) : NaN;
-    if (Number.isFinite(organizerId) && organizerId > 0) {
-      where.organizerId = organizerId;
-    }
+    if (params?.organizerId) where.organizerId = this.filterId(params.organizerId);
+    if (params?.createdByUserId) where.createdByUserId = params.createdByUserId === "unknown" ? null : this.filterId(params.createdByUserId);
 
     const search = params?.search?.trim();
     if (search) {
@@ -1120,6 +1138,10 @@ export class AdminService {
       }
       case "organizerId": return number("organizerId");
       case "organizer": return relationText("organizer");
+      case "createdBy": return { createdBy: { is: { OR: [
+        { name: op === "equals" ? { equals: rawValue, mode: "insensitive" } : { contains: rawValue, mode: "insensitive" } },
+        { email: op === "equals" ? { equals: rawValue, mode: "insensitive" } : { contains: rawValue, mode: "insensitive" } },
+      ] } } };
       case "venueId": return number("venueId");
       case "venue": return relationText("venue");
       case "cityName": return nullableText("cityName");
@@ -1168,6 +1190,7 @@ export class AdminService {
       : { OR: [{ [path]: null } as Prisma.EventWhereInput, { [path]: "" } as Prisma.EventWhereInput] };
     switch (field) {
       case "organizerId": return nullableScalar("organizerId");
+      case "createdBy": return nullableScalar("createdByUserId");
       case "organizer": return { organizerId: isNull };
       case "venueId": return nullableScalar("venueId");
       case "venue": return { venueId: isNull };
@@ -1196,16 +1219,29 @@ export class AdminService {
     const gte = this.parseAdminDate(from, "start");
     const lte = this.parseAdminDate(to, "end");
     if (!gte && !lte) return undefined;
+    if (gte && lte && gte > lte) throw new BadRequestException("Početak razdoblja mora biti prije završetka.");
     return { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
   }
 
   private parseAdminDate(value: string | undefined, edge: "start" | "end"): Date | undefined {
     if (!value) return undefined;
+    if (typeof value !== "string") throw new BadRequestException("Neispravan datum filtra.");
     const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    const date = dateOnly
-      ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), edge === "start" ? 0 : 23, edge === "start" ? 0 : 59, edge === "start" ? 0 : 59, edge === "start" ? 0 : 999)
-      : new Date(value);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    if (dateOnly) {
+      const year = Number(dateOnly[1]), month = Number(dateOnly[2]), day = Number(dateOnly[3]);
+      const calendar = new Date(Date.UTC(year, month - 1, day));
+      if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day) throw new BadRequestException("Neispravan datum filtra.");
+      return zagrebLocalToUtc(year, month, day, edge === "start" ? 0 : 23, edge === "start" ? 0 : 59, edge === "start" ? 0 : 59, edge === "start" ? 0 : 999);
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new BadRequestException("Neispravan datum filtra.");
+    return date;
+  }
+
+  private filterId(value: string) {
+    const id = Number(value);
+    if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) throw new BadRequestException("Neispravan identifikator filtra.");
+    return id;
   }
 
   private eventOrderBy(params?: AdminEventListParams): Prisma.EventOrderByWithRelationInput[] {

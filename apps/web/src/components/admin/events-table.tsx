@@ -31,14 +31,12 @@ import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminEvent, EventStatus } from "@/lib/admin/types"
+import { PublicEventLink } from "@/components/admin/public-event-link"
+import { eventFilterParams, type EventFilters, type FieldFilter } from "@/lib/admin/event-filters"
+export type { EventFilters, FieldFilter } from "@/lib/admin/event-filters"
 
 export type DateSortDirection = "asc" | "desc"
 export type EventSortBy = "startsAt" | "createdAt"
-export type EventFilters = {
-  search: string
-  fieldFilters: FieldFilter[]
-}
-export type FieldFilter = { id: string; field: string; op: string; value: string }
 export type EventColumnKey =
   | "title"
   | "slug"
@@ -503,13 +501,13 @@ export function EventsTable({
 
   const hasActiveFilters = Boolean(
     filters.search ||
-    filters.fieldFilters.length,
+    filters.fieldFilters.length || Object.entries(filters).some(([key, value]) => key !== "search" && key !== "fieldFilters" && Boolean(value)),
   )
 
   const returnTo = (() => {
-    const params = new URLSearchParams({ sortBy, sortDir: dateSort, page: String(pagination.page), pageSize: String(pagination.pageSize) })
-    if (filters.search.trim()) params.set("search", filters.search.trim())
-    if (filters.fieldFilters.length) params.set("fieldFilters", JSON.stringify(filters.fieldFilters))
+    const params = eventFilterParams(filters)
+    params.set("sortBy", sortBy); params.set("sortDir", dateSort)
+    params.set("page", String(pagination.page)); params.set("pageSize", String(pagination.pageSize))
     return `${basePath}?${params.toString()}`
   })()
 
@@ -1004,6 +1002,7 @@ export function EventsTable({
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       {renderRowActions?.(e)}
+                      <PublicEventLink event={e} />
                       <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/admin/events/${e.id}?returnTo=${encodeURIComponent(returnTo)}`} />}>
                         <Pencil data-icon="inline-start" />
                         Uredi
