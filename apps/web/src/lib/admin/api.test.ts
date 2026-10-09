@@ -55,10 +55,10 @@ describe("admin API helper", () => {
     expect(headers["Content-Type"]).toBeUndefined()
   })
 
-  it("clears tokens and redirects on 401 or 403", async () => {
+  it("clears tokens and redirects on 401", async () => {
     storage.setItem("adminToken", "jwt-token")
     storage.setItem("token", "legacy-token")
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 403 }))
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 401 }))
     const { authedFetch } = await import("./api")
 
     await authedFetch("/api/admin/events")
@@ -66,5 +66,18 @@ describe("admin API helper", () => {
     expect(storage.getItem("adminToken")).toBeNull()
     expect(storage.getItem("token")).toBeNull()
     expect(locationState.href).toBe("/admin/login")
+  })
+
+  // AUTH-01: a 403 is a business rule refusing one action, not an invalid
+  // session (the API answers 401 for bad/expired tokens and wrong roles).
+  it.each([403, 429, 500])("keeps the session on %i", async (status) => {
+    storage.setItem("adminToken", "jwt-token")
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status }))
+    const { authedFetch } = await import("./api")
+
+    await authedFetch("/api/admin/events")
+
+    expect(storage.getItem("adminToken")).toBe("jwt-token")
+    expect(locationState.href).not.toBe("/admin/login")
   })
 })

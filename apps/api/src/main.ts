@@ -2,6 +2,7 @@ import "dotenv/config";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
+import { configureTrustProxy } from "./common/trusted-proxy";
 
 function corsOrigin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
   if (!origin) return callback(null, true);
@@ -21,6 +22,8 @@ function corsOrigin(origin: string | undefined, callback: (error: Error | null, 
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const proxyHops = configureTrustProxy(app);
+  console.log(`[api] trust proxy hops: ${proxyHops}`);
   app.use(
     require("express").json({
       limit: "10mb",

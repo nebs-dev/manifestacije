@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { storeOrganizerSession } from "@/lib/organizer/auth"
+import { loginErrorMessage, SESSION_EXPIRED_MESSAGE } from "@/lib/session-check"
 
 function PasswordInput({ name, placeholder, required, autoComplete }: { name: string; placeholder?: string; required?: boolean; autoComplete?: string }) {
   const [show, setShow] = useState(false)
@@ -39,6 +40,12 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [claimSlug, setClaimSlug] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [notice, setNotice] = useState("")
+
+  // Read on the client so the page stays statically renderable.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("sesija") === "istekla") setNotice(SESSION_EXPIRED_MESSAGE)
+  }, [])
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -53,16 +60,17 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password: form.get("password") }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => null)
       if (!res.ok) {
-        if (data.code === "CLAIM_REQUIRED" && data.organizerSlug) {
+        if (data?.code === "CLAIM_REQUIRED" && data.organizerSlug) {
           setClaimSlug(data.organizerSlug)
           setError(data.message || "Ovaj organizator još nema postavljenu lozinku.")
           return
         }
-        setError(data.message || "Pogrešan email ili lozinka")
+        setError(loginErrorMessage(res.status, data))
         return
       }
+      setNotice("")
       if (data.user?.role !== "ORGANIZER" || data.user?.email?.toLowerCase() !== email) {
         setError("Ovaj email je admin račun. Za organizatora koristite drugi email.")
         return
@@ -85,7 +93,8 @@ export default function LoginPage() {
         <form id="organizer-login-form" onSubmit={submit} className="flex flex-col gap-3">
           <Input name="email" type="email" placeholder="Email" required autoComplete="email" />
           <PasswordInput name="password" placeholder="Lozinka" required autoComplete="current-password" />
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {notice && !error && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           {claimSlug && (
             <Link
               href={`/organizatori/${claimSlug}/preuzmi`}

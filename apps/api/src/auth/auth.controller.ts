@@ -6,9 +6,17 @@ import { CurrentUser } from "./auth.decorators";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { AuthUser } from "./auth.types";
 
+/** Brute-force window for password login and registration, per client IP. */
+export const LOGIN_THROTTLE = { ttl: 60_000, limit: 10 };
+/** Session checks run on every organizer/admin page load. They have their
+ *  own bucket (throttler keys are per route) and a limit ordinary navigation
+ *  never reaches, so browsing can neither hit a 429 nor eat into the login
+ *  attempt quota. */
+export const SESSION_CHECK_THROTTLE = { ttl: 60_000, limit: 300 };
+
 @Controller("auth")
 @UseGuards(ThrottlerGuard)
-@Throttle({ default: { ttl: 60_000, limit: 10 } })
+@Throttle({ default: LOGIN_THROTTLE })
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
@@ -23,6 +31,7 @@ export class AuthController {
   }
 
   @Get("me")
+  @Throttle({ default: SESSION_CHECK_THROTTLE })
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user.id);

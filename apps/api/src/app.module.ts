@@ -53,7 +53,10 @@ export class HealthController {
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 10 }],
+      errorMessage: "Previše zahtjeva. Pričekajte minutu pa pokušajte ponovno.",
+    }),
     ScheduleModule.forRoot(),
     JwtModule.register({
       global: true,

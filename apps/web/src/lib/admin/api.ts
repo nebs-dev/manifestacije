@@ -34,7 +34,10 @@ export async function authedFetch(path: string, init?: RequestInit): Promise<Res
       ...(init?.headers as Record<string, string> | undefined),
     },
   })
-  if (res.status === 401 || res.status === 403) {
+  // Only 401 means the token itself is invalid/expired. A 403 is a business
+  // rule refusing one action and 429/5xx are transient — none of those may
+  // end the admin session (AUTH-01).
+  if (res.status === 401 && token) {
     redirectToLogin()
   }
   return res

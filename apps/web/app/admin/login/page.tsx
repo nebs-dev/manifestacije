@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Eye, EyeOff } from "lucide-react"
+import { loginErrorMessage } from "@/lib/session-check"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 const TOKEN_KEY = "adminToken"
@@ -50,8 +51,8 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ email: form.email, password: form.password }),
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        setError((body as { message?: string }).message || "Pogrešan email ili lozinka.")
+        const body = await res.json().catch(() => null)
+        setError(loginErrorMessage(res.status, body))
         return
       }
       const data = (await res.json()) as { token: string; user: { role: string } }

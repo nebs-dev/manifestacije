@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useOrganizerAuth } from "@/hooks/use-organizer-auth"
+import { SESSION_UNAVAILABLE_MESSAGE } from "@/lib/session-check"
 import { Button } from "@/components/ui/button"
 import { CalendarPlus, List, LogOut, Link2 } from "lucide-react"
 
@@ -11,10 +12,14 @@ const PUBLIC_PATHS = ["/organizer/login", "/organizer/register"]
 export function OrganizerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isPublic = PUBLIC_PATHS.includes(pathname)
-  const { user, loading, logout } = useOrganizerAuth({ require: !isPublic })
+  const { user, status, loading, retry, logout } = useOrganizerAuth({ require: !isPublic })
 
   if (!isPublic && loading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Učitavanje…</div>
+  }
+
+  if (!isPublic && status === "signed-out") {
+    return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Preusmjeravanje na prijavu…</div>
   }
 
   if (isPublic) {
@@ -58,6 +63,12 @@ export function OrganizerShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-4xl px-4 py-8">
+        {status === "unavailable" && (
+          <div role="status" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+            <span>{SESSION_UNAVAILABLE_MESSAGE}</span>
+            <Button type="button" variant="outline" size="sm" onClick={retry}>Pokušaj ponovno</Button>
+          </div>
+        )}
         {children}
       </main>
     </div>

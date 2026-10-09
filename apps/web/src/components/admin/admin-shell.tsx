@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
-import { authedFetch, getToken, clearToken } from "@/lib/admin/api"
+import { getToken, clearToken } from "@/lib/admin/api"
+import { checkSession, resetSessionCheckCache, SESSION_UNAVAILABLE_MESSAGE } from "@/lib/session-check"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { AdminTopbar } from "@/components/admin/admin-topbar"
 
@@ -26,6 +27,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [user, setUser] = useState<AdminUser | null>(null)
   const [checking, setChecking] = useState(true)
+  const [unavailable, setUnavailable] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   const isLogin = pathname === "/admin/login"
 
@@ -45,52 +48,39 @@ export function AdminShell({ children }: { children: ReactNode }) {
     let alive = true
 
     async function checkAuth() {
-      const token = getToken()
-      if (!token) {
+      const result = await checkSession(getToken())
+      if (!alive) return
+      const signOut = () => {
+        clearToken()
+        resetSessionCheckCache()
         setCachedUser(null)
         router.replace("/admin/login")
+      }
+      if (result.kind === "invalid") return signOut()
+      if (result.kind === "unavailable") {
+        // 429 / server error / network failure: the token may be perfectly
+        // valid, so keep it (and the cached user, if any) and offer a retry.
+        setUnavailable(true)
+        setChecking(false)
         return
       }
-      try {
-        const res = await authedFetch("/api/auth/me")
-        if (!alive) return
-        if (res.status === 401 || res.status === 403) {
-          clearToken()
-          setCachedUser(null)
-          router.replace("/admin/login")
-          return
-        }
-        if (!res.ok) {
-          // Server error or restarting — keep cached user, don't logout
-          if (alive) setChecking(false)
-          return
-        }
-        const data = (await res.json()) as AdminUser
-        if (data.role !== "ADMIN") {
-          clearToken()
-          setCachedUser(null)
-          router.replace("/admin/login")
-          return
-        }
-        if (alive) {
-          setUser(data)
-          setCachedUser(data)
-        }
-      } catch {
-        // Network error (API server restarting) — keep cached user if we have one
-        if (alive && !cached) {
-          clearToken()
-          setCachedUser(null)
-          router.replace("/admin/login")
-        }
-      } finally {
-        if (alive) setChecking(false)
-      }
+      if (result.user.role !== "ADMIN") return signOut()
+      const data = result.user as AdminUser
+      setUnavailable(false)
+      setUser(data)
+      setCachedUser(data)
+      setChecking(false)
     }
 
     checkAuth()
     return () => { alive = false }
-  }, [isLogin, router])
+  }, [isLogin, router, attempt])
+
+  const retry = () => {
+    resetSessionCheckCache()
+    setChecking(true)
+    setAttempt((value) => value + 1)
+  }
 
   if (isLogin) {
     return <>{children}</>
@@ -107,7 +97,19 @@ export function AdminShell({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!user) return null
+  if (!user) {
+    if (!unavailable) return null
+    return (
+      <div className="flex h-screen items-center justify-center bg-background px-4">
+        <div role="status" className="flex max-w-sm flex-col items-center gap-3 text-center text-sm text-muted-foreground">
+          <p>{SESSION_UNAVAILABLE_MESSAGE}</p>
+          <button type="button" onClick={retry} className="rounded-md border border-border px-3 py-1.5 text-foreground hover:bg-muted">
+            Pokušaj ponovno
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">

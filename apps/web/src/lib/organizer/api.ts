@@ -1,10 +1,15 @@
 import { API_URL } from "@/lib/api"
-import { ORG_TOKEN_KEY } from "@/lib/organizer/auth"
+import { clearOrganizerSession, ORG_TOKEN_KEY } from "@/lib/organizer/auth"
+import { resetSessionCheckCache } from "@/lib/session-check"
 
-export function orgFetch(path: string, init?: RequestInit): Promise<Response> {
+/** Authenticated organizer API call. A 401 means the token is no longer
+ *  valid (expired, revoked, wrong role): the session is cleared and the user
+ *  sent to log in again. Any other status — including 429 and 5xx — is
+ *  returned to the caller and never ends the session (AUTH-01). */
+export async function orgFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = typeof window !== "undefined" ? localStorage.getItem(ORG_TOKEN_KEY) : null
   const isFormData = init?.body instanceof FormData
-  return fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...(!isFormData ? { "Content-Type": "application/json" } : {}),
@@ -12,6 +17,12 @@ export function orgFetch(path: string, init?: RequestInit): Promise<Response> {
       ...(init?.headers as Record<string, string> | undefined),
     },
   })
+  if (res.status === 401 && token && typeof window !== "undefined") {
+    clearOrganizerSession()
+    resetSessionCheckCache()
+    window.location.assign("/organizer/login?sesija=istekla")
+  }
+  return res
 }
 
 export type City = { id: number; name: string; county: { name: string; region: { name: string } } }
