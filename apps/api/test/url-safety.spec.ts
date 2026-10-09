@@ -125,8 +125,8 @@ describe("URL fields in request DTOs", () => {
 
 function organizerFixture() {
   const current = {
-    id: 1, title: "Postojeći", slug: "postojeci", status: EventStatus.PUBLISHED, organizerId: 7, isFeatured: false,
-    publishedAt: new Date(), cityId: 1, regionId: 1, startsAt: new Date("2099-09-05T12:00:00Z"), endsAt: null, occurrences: [],
+    id: 1, title: "Postojeći", slug: "postojeci", status: EventStatus.PENDING_REVIEW, organizerId: 7, isFeatured: false,
+    publishedAt: null, cityId: 1, regionId: 1, startsAt: new Date("2099-09-05T12:00:00Z"), endsAt: null, occurrences: [],
   };
   const prisma: any = {
     event: {

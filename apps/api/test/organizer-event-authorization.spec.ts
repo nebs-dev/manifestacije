@@ -42,7 +42,7 @@ const globalPipe = new ValidationPipe({ whitelist: true, transform: true });
 const viaPipe = (payload: object, metatype: new () => object) =>
   globalPipe.transform(payload, { type: "body", metatype, data: "" });
 
-function fixture(organizerStatus: "CLAIMED" | "VERIFIED" | "TRUSTED" = "CLAIMED", existingStatus: EventStatus = EventStatus.PUBLISHED) {
+function fixture(organizerStatus: "CLAIMED" | "VERIFIED" | "TRUSTED" = "CLAIMED", existingStatus: EventStatus = EventStatus.PENDING_REVIEW) {
   const current = {
     id: 1, title: "Postojeći", slug: "postojeci", status: existingStatus, organizerId: OWN_ORGANIZER_ID, isFeatured: false,
     publishedAt: existingStatus === EventStatus.PUBLISHED ? new Date() : null,
@@ -156,12 +156,11 @@ describe("organizer event update authorization", () => {
     }
   });
 
-  it("still sends a published event back to review even if the body asks for PUBLISHED", async () => {
-    const { organizer, prisma } = fixture("TRUSTED");
+  it("fails closed if published revision handling is unavailable, without unpublishing", async () => {
+    const { organizer, prisma } = fixture("TRUSTED", EventStatus.PUBLISHED);
 
-    await organizer.updateEvent(OWN_ORGANIZER_ID, 1, { title: "Ispravak", status: "PUBLISHED" } as never);
-
-    expect(prisma.event.update.mock.calls[0][0].data.status).toBe(EventStatus.PENDING_REVIEW);
+    await expect(organizer.updateEvent(OWN_ORGANIZER_ID, 1, { title: "Ispravak", status: "PUBLISHED" } as never)).rejects.toThrow("Pregled");
+    expect(prisma.event.update).not.toHaveBeenCalled();
   });
 
   it("rejects editing another organizer's event without writing anything", async () => {

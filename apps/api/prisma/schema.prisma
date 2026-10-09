@@ -27,6 +27,12 @@ enum EventStatus {
   ARCHIVED
 }
 
+enum EventRevisionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum EventSourceType {
   EMAIL
   URL
@@ -123,6 +129,8 @@ model User {
   organizerId        Int?
   organizer          Organizer? @relation(fields: [organizerId], references: [id])
   createdEvents      Event[]   @relation("EventCreatedBy")
+  submittedEventRevisions EventRevision[] @relation("RevisionSubmittedBy")
+  reviewedEventRevisions EventRevision[] @relation("RevisionReviewedBy")
   /// Incremented on password reset to invalidate all previously issued JWTs
   /// (JwtAuthGuard rejects tokens whose authVersion doesn't match this value).
   authVersion        Int       @default(0)
@@ -159,6 +167,7 @@ model Organizer {
   status       OrganizerStatus @default(UNCLAIMED)
   users        User[]
   events       Event[]
+  eventRevisions EventRevision[]
   sources      EventSource[]
   monitoredSources MonitoredSource[]
   emailContacts EmailContact[]
@@ -320,6 +329,7 @@ model Event {
   category             Category  @relation(fields: [categoryId], references: [id])
   categories           EventCategory[]
   occurrences          EventOccurrence[]
+  revisions            EventRevision[]
   startsAt             DateTime
   endsAt               DateTime?
   isAllDay             Boolean   @default(false)
@@ -354,6 +364,36 @@ model EventOccurrence {
 
   @@index([eventId, startsAt])
   @@index([eventId, endsAt])
+}
+
+model EventRevision {
+  id                Int                 @id @default(autoincrement())
+  eventId           Int
+  event             Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizerId       Int
+  organizer         Organizer           @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  submittedByUserId Int?
+  submittedBy       User?               @relation("RevisionSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  reviewedByUserId  Int?
+  reviewedBy        User?               @relation("RevisionReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  status            EventRevisionStatus @default(PENDING)
+  version           Int                 @default(1)
+  baseUpdatedAt     DateTime
+  baseFingerprint   String
+  original          Json
+  proposed          Json
+  submittedAt       DateTime            @default(now())
+  reviewedAt        DateTime?
+  rejectionReason   String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([status, submittedAt])
+  @@index([eventId, status])
+  @@index([organizerId])
+  @@index([submittedByUserId])
+  @@index([reviewedByUserId])
+  // SQL migration additionally enforces one PENDING revision per event.
 }
 
 model EventSource {

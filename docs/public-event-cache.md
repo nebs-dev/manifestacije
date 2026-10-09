@@ -36,7 +36,8 @@ operations invalidating more than one tag can incur multiple bounded deliveries.
 | Delete, bulk date shift | Fire-and-forget | Awaited for public events |
 | Bulk category add/remove | Missing | Awaited when affected events have public output |
 | Trusted organizer auto-publication | Missing | Shared EventsService |
-| Organizer edit: published to pending | Missing | Shared EventsService checks previous status |
+| Organizer proposal submission, replacement or rejection | Previously unpublished live event | No public writes or invalidation; published version stays visible |
+| Organizer revision approval | No revision model | Transactional content/schedule/category write, then awaited events and taxonomy invalidation |
 | Organizer profile/status/claim | Missing | Awaited events invalidation; also expires organizer cache |
 | City/category edits | Missing | Awaited events and taxonomy invalidation |
 | Shared venue edited while saving a draft | Missing | Checks for other public events using that venue |
@@ -121,7 +122,7 @@ without admin mutations. Existing API adapter fallback behavior remains unchange
 5. Repeat through admin publish, unpublish/archive and bulk category change using
    an appropriate test event. Confirm discovery presence/removal/category routing.
    Archived detail pages can intentionally remain available. Verify trusted
-   organizer publication and published-to-pending edit in a preview environment
+   organizer publication and published revision submission/approval/rejection in an isolated environment
    with the same deployment configuration.
 6. Restore the original event fields/status through admin; require the same logs
    and fresh public content. Record deploy IDs and measured save-to-visible times.

@@ -34,6 +34,7 @@ export type OrgEvent = {
   startsAt: string
   city: { name: string } | null
   category: { name: string } | null
+  revisions?: Array<{ id: number; version: number; submittedAt: string }>
 }
 
 export type OrgSource = {

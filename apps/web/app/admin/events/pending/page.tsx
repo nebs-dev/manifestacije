@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { usePathname, useRouter } from "next/navigation"
+import Link from "next/link"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { PendingEventsTable } from "@/components/admin/pending-events-table"
@@ -120,6 +121,7 @@ export default function PendingEventsPage({
           { label: "Događaji na čekanju" },
         ]}
       />
+      <Link className="mb-4 inline-block text-primary underline" href="/admin/event-revisions">Pregledaj izmjene već objavljenih događaja</Link>
       {loading && !hasLoaded ? (
         <TableLoadingState />
       ) : error && !hasLoaded ? (

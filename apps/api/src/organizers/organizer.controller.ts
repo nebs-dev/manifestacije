@@ -53,7 +53,7 @@ export class OrganizerController {
 
   @Put("events/:id")
   updateEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: OrganizerEventDto) {
-    return this.organizer.updateEvent(requireOrganizerId(user), Number(id), dto);
+    return this.organizer.updateEvent(requireOrganizerId(user), Number(id), dto, user.id);
   }
 
   @Delete("events/:id")

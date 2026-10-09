@@ -159,3 +159,21 @@ describe("maskEmail via LogEmailProvider", () => {
     expect(result).toEqual({ provider: "log" });
   });
 });
+
+describe("revision email templates", () => {
+  it("distinguishes revision notifications and escapes proposed content and rejection reasons", async () => {
+    await withEnv({ ADMIN_NOTIFICATION_EMAIL: "admin@example.test" }, async () => {
+      const service = new EmailService();
+      const send = jest.fn().mockResolvedValue({ provider: "log" });
+      (service as unknown as { provider: unknown }).provider = { send };
+      await service.sendAdminEventRevision({ title: "<script>bad</script>", organizerName: "<b>Udruga</b>", reviewUrl: "https://manifestacije.hr/admin/event-revisions/3", webUrl: "https://manifestacije.hr" }, 7);
+      expect(send.mock.calls[0][0]).toMatchObject({ to: "admin@example.test", subject: expect.stringContaining("Izmjene događaja") });
+      expect(send.mock.calls[0][0].html).not.toContain("<script>");
+      expect(send.mock.calls[0][0].html).toContain("&lt;b&gt;Udruga&lt;/b&gt;");
+      await service.sendEventRevisionDecision("submitter@example.test", { title: "Koncert", approved: false, reason: "<img src=x onerror=bad>", webUrl: "https://manifestacije.hr" }, 7);
+      expect(send.mock.calls[1][0]).toMatchObject({ to: "submitter@example.test", subject: "Izmjene odbijene: Koncert", tags: expect.arrayContaining([{ name: "template", value: "event_revision_decision" }]) });
+      expect(send.mock.calls[1][0].html).not.toContain("<img src=x");
+      expect(send.mock.calls[1][0].text).toContain("Objavljena verzija nije promijenjena.");
+    });
+  });
+});

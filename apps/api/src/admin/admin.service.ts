@@ -52,7 +52,7 @@ export class AdminService {
 
   async pendingCounts(params?: { sourcesSince?: string; eventsSince?: string }) {
     const eventsSinceDate = params?.eventsSince ? new Date(params.eventsSince) : undefined;
-    const [sources, events, organizers] = await Promise.all([
+    const [sources, events, organizers, revisions] = await Promise.all([
       this.prisma.eventSource.count({
         where: {
           status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] },
@@ -72,8 +72,9 @@ export class AdminService {
           users: { some: {} },
         },
       }),
+      this.prisma.eventRevision.count({ where: { status: "PENDING" } }),
     ]);
-    return { sources, events, organizers };
+    return { sources, events, organizers, revisions };
   }
 
   async bulkAssignCategory(eventIds: number[], categoryId: number, action: "add" | "remove") {

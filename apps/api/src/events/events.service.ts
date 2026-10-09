@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { EventStatus, EventSourceKind, OrganizerStatus } from "@prisma/client";
+import { EventStatus, EventSourceKind, OrganizerStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { findOrCreateCity } from "../common/city-resolver";
@@ -94,8 +94,9 @@ export class EventsService {
     return event;
   }
 
-  async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }) {
-    const current = await this.prisma.event.findUnique({ where: { id }, include: { occurrences: true } });
+  async updateEvent(id: number, dto: Partial<EventUpsertDto> & { status?: EventStatus }, transaction?: Prisma.TransactionClient) {
+    const db = transaction ?? this.prisma;
+    const current = await db.event.findUnique({ where: { id }, include: { occurrences: true } });
     if (!current) throw new NotFoundException("Event not found");
     const urls = this.safeUrlFields(dto, current);
     const hasScheduleInput = "startsAt" in dto || "endsAt" in dto || "isAllDay" in dto;
@@ -106,7 +107,7 @@ export class EventsService {
     const occurrences = dto.occurrences ? this.normalizeOccurrences(dto.occurrences) : undefined;
     if (occurrences) this.assertOccurrenceOwnership(currentOccurrences.map((item) => item.id), occurrences);
     const schedule = occurrences ? this.summarizeOccurrences(occurrences) : null;
-    const city = await this.resolveCityForWrite(dto, current);
+    const city = await this.resolveCityForWrite(dto, current, db, Boolean(transaction));
     this.assertPublishableLocation(dto.status, city, current);
 
     let slug: string | undefined;
@@ -114,7 +115,7 @@ export class EventsService {
       const normalized = slugify(dto.slug);
       if (!normalized) throw new BadRequestException("Slug ne može biti prazan.");
       if (normalized !== current.slug) {
-        const taken = await this.prisma.event.findUnique({ where: { slug: normalized } });
+        const taken = await db.event.findUnique({ where: { slug: normalized } });
         if (taken && taken.id !== id) throw new BadRequestException("Taj slug je već zauzet.");
         slug = normalized;
       }
@@ -142,7 +143,7 @@ export class EventsService {
       if (dto.organizerId === null) {
         data.organizerId = null;
       } else if (dto.organizerId !== undefined) {
-        const organizer = await this.prisma.organizer.findUnique({ where: { id: dto.organizerId } });
+        const organizer = await db.organizer.findUnique({ where: { id: dto.organizerId } });
         if (!organizer) throw new BadRequestException("Unknown organizerId");
         data.organizerId = organizer.id;
       }
@@ -158,10 +159,10 @@ export class EventsService {
     if ("venueName" in dto) {
       if (dto.venueName) {
         const effectiveCityId = city?.id ?? current.cityId;
-        const venueCity = city ?? (effectiveCityId ? await this.prisma.city.findUnique({ where: { id: effectiveCityId } }) : null);
+        const venueCity = city ?? (effectiveCityId ? await db.city.findUnique({ where: { id: effectiveCityId } }) : null);
         if (venueCity) {
           const venueSlug = slugify(dto.venueName);
-          const venue = await this.prisma.venue.upsert({
+          const venue = await db.venue.upsert({
             where: { slug_cityId: { slug: venueSlug, cityId: venueCity.id } },
             update: { address: dto.address, lat: dto.lat, lng: dto.lng },
             create: { name: dto.venueName, slug: venueSlug, cityId: venueCity.id, address: dto.address, lat: dto.lat, lng: dto.lng },
@@ -175,7 +176,7 @@ export class EventsService {
     Object.keys(data).forEach((key) => data[key] === undefined && delete data[key]);
     let event;
     if (occurrences) {
-      event = await this.prisma.$transaction(async (tx) => {
+      const writeSchedule = async (tx: Prisma.TransactionClient) => {
         const retainedIds = occurrences.flatMap((item) => item.id ? [item.id] : []);
         await tx.eventOccurrence.deleteMany({
           where: { eventId: id, ...(retainedIds.length ? { id: { notIn: retainedIds } } : {}) },
@@ -197,22 +198,26 @@ export class EventsService {
           data,
           include: { occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] } },
         });
-      });
+      };
+      event = transaction ? await writeSchedule(transaction) : await this.prisma.$transaction(writeSchedule);
     } else {
-      event = await this.prisma.event.update({ where: { id }, data });
+      event = await db.event.update({ where: { id }, data });
     }
 
     // If categoryIds supplied, replace EventCategory rows
     if (dto.categoryIds?.length) {
-      await this.prisma.eventCategory.deleteMany({ where: { eventId: id } });
+      await db.eventCategory.deleteMany({ where: { eventId: id } });
       for (const [idx, catId] of dto.categoryIds.entries()) {
-        await this.prisma.eventCategory.upsert({
+        await db.eventCategory.upsert({
           where: { eventId_categoryId: { eventId: id, categoryId: catId } },
           update: {},
           create: { eventId: id, categoryId: catId, source: "MANUAL" },
         });
       }
     }
+
+    // The caller owns transaction commit and post-commit side effects.
+    if (transaction) return event;
 
     const changed = Object.keys(data).length > 0 || Boolean(dto.categoryIds?.length) || Boolean(occurrences);
     if ((changed && (hasPublicEventOutput(current) || hasPublicEventOutput(event))) ||
@@ -228,6 +233,59 @@ export class EventsService {
       { status: EventStatus.PUBLISHED },
       { status: EventStatus.ARCHIVED, publishedAt: { not: null } },
     ] } })) > 0;
+  }
+
+  /** Used only after a caller-owned transaction has committed. */
+  async afterTransactionalUpdate(id: number, checkSharedVenue = false) {
+    if (checkSharedVenue) {
+      const event = await this.prisma.event.findUnique({ where: { id }, select: { venueId: true } });
+      if (event?.venueId && await this.hasPublicVenueEvents(event.venueId)) await this.revalidate.revalidate("events");
+    }
+    // Duplicate detection is advisory and must not turn a committed revision
+    // into a failed request (or trigger an organizer retry of the decision).
+    await this.duplicates.detectForEvent(id).catch(() => undefined);
+  }
+
+  /** Pure validation/normalization for a proposal. No event, venue, taxonomy,
+   * duplicate or cache writes are permitted before review. */
+  normalizeRevisionContent(dto: EventUpsertDto, current: {
+    ticketUrl: string | null; sourceUrl: string | null; imageUrl: string | null;
+    occurrences: { id: number }[];
+  }): EventUpsertDto {
+    const normalized = { ...dto };
+    const urls = this.safeUrlFields(dto, current);
+    for (const field of ["ticketUrl", "sourceUrl", "imageUrl"] as const) {
+      if (urls[field] !== undefined) normalized[field] = urls[field];
+    }
+    if (!dto.title?.trim() || !dto.description?.trim()) throw new BadRequestException("Naziv i opis su obavezni.");
+    if (typeof dto.isAllDay !== "boolean" || (dto.isFree !== null && typeof dto.isFree !== "boolean")) {
+      throw new BadRequestException("Neispravni podaci o događaju.");
+    }
+    if (dto.occurrences?.length) {
+      const rows = this.normalizeOccurrences(dto.occurrences);
+      this.assertOccurrenceOwnership(current.occurrences.map(row => row.id), rows);
+      const summary = this.summarizeOccurrences(rows);
+      normalized.occurrences = rows.map(row => ({ ...row, startsAt: row.startsAt.toISOString(), endsAt: row.endsAt?.toISOString() ?? null }));
+      normalized.startsAt = summary.startsAt.toISOString();
+      normalized.endsAt = summary.endsAt?.toISOString() ?? null;
+      normalized.isAllDay = summary.isAllDay;
+    } else {
+      const [row] = this.normalizeOccurrences([{ startsAt: dto.startsAt || "", endsAt: dto.endsAt, isAllDay: dto.isAllDay }]);
+      normalized.startsAt = row.startsAt.toISOString();
+      normalized.endsAt = row.endsAt?.toISOString() ?? null;
+    }
+    return normalized;
+  }
+
+  /** Read-only location preview, using the same address precedence as writes.
+   * Unknown city names stay proposals; taxonomy is created only on approval. */
+  async previewRevisionLocation(dto: EventUpsertDto, original: EventUpsertDto, db: Prisma.TransactionClient) {
+    const addressCity = dto.address && dto.address !== original.address ? await this.findKnownCityInText(dto.address, db) : null;
+    const nameChanged = dto.cityName !== original.cityName;
+    const city = addressCity ?? (nameChanged && dto.cityName?.trim()
+      ? await db.city.findFirst({ where: { OR: [{ name: { equals: dto.cityName.trim(), mode: "insensitive" } }, { slug: slugify(dto.cityName) }] } })
+      : null);
+    if (city) { dto.cityId = city.id; dto.cityName = city.name; }
   }
 
   private normalizeOccurrences(input: EventOccurrenceDto[]): NormalizedOccurrence[] {
@@ -353,16 +411,18 @@ export class EventsService {
   private async resolveCityForWrite(
     dto: Partial<EventUpsertDto>,
     current?: { cityId?: number | null; cityName?: string | null; regionId?: number | null; status?: EventStatus },
+    db: Prisma.TransactionClient = this.prisma,
+    transactional = false,
   ) {
     const hasPreciseLocationChange = "address" in dto || "lat" in dto || "lng" in dto || Boolean(dto.countyName || dto.regionSlug);
     const addressCity = dto.address && hasPreciseLocationChange
-      ? await this.findKnownCityInText(dto.address)
+      ? await this.findKnownCityInText(dto.address, db)
       : null;
     const explicitCityName = dto.cityName?.trim();
     const preferCityName = Boolean(addressCity || explicitCityName);
 
     if (!preferCityName && dto.cityId) {
-      return this.resolveCity({ cityId: dto.cityId });
+      return this.resolveCity({ cityId: dto.cityId }, db, transactional);
     }
 
     const cityName = addressCity?.name ?? explicitCityName ?? (
@@ -374,7 +434,7 @@ export class EventsService {
         cityName,
         countyName: dto.countyName,
         regionSlug: dto.regionSlug,
-      });
+      }, db, transactional);
     }
 
     if (!hasPreciseLocationChange && current?.cityId) {
@@ -384,14 +444,14 @@ export class EventsService {
     return null;
   }
 
-  private async resolveCity(dto: Pick<EventUpsertDto, "cityId" | "cityName" | "countyName" | "regionSlug">) {
+  private async resolveCity(dto: Pick<EventUpsertDto, "cityId" | "cityName" | "countyName" | "regionSlug">, db: Prisma.TransactionClient = this.prisma, transactional = false) {
     if (dto.cityId) {
-      const city = await this.prisma.city.findUnique({ where: { id: dto.cityId }, include: { county: true } });
+      const city = await db.city.findUnique({ where: { id: dto.cityId }, include: { county: true } });
       if (!city) throw new BadRequestException("Unknown cityId");
       return city;
     }
     const name = dto.cityName?.trim() || "Nepoznato";
-    return findOrCreateCity(this.prisma, name, dto.countyName, dto.regionSlug, async () => {
+    return findOrCreateCity(db, name, dto.countyName, dto.regionSlug, transactional ? undefined : async () => {
       await this.revalidate.revalidate("events");
       await this.revalidate.revalidate("taxonomy");
     });
@@ -410,10 +470,10 @@ export class EventsService {
     });
   }
 
-  private async findKnownCityInText(value: string) {
+  private async findKnownCityInText(value: string, db: Prisma.TransactionClient = this.prisma) {
     const text = this.normalizeKey(value);
     if (!text) return null;
-    const cities = await this.prisma.city.findMany({ include: { county: true } });
+    const cities = await db.city.findMany({ include: { county: true } });
     return cities
       .sort((a, b) => b.name.length - a.name.length)
       .find((city) => text.split(",").map((part) => part.trim()).includes(this.normalizeKey(city.name)) || text.includes(` ${this.normalizeKey(city.name)}`) || text.endsWith(this.normalizeKey(city.name)))

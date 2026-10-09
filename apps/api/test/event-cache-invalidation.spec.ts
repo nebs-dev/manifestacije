@@ -122,11 +122,11 @@ describe("public event mutation invalidation", () => {
     await organizer.createEvent(1, { title: "New", cityId: 1, categoryId: 1 } as never);
     expect(cache.revalidate).toHaveBeenCalledTimes(1);
   });
-  it("organizer edit published to pending invalidates", async () => {
-    const { organizer, cache } = fixture();
-    const result = await organizer.updateEvent(1, 1, { title: "Review edit" });
-    expect(result.status).toBe(EventStatus.PENDING_REVIEW);
-    expect(cache.revalidate).toHaveBeenCalledWith("events");
+  it("published organizer edits cannot invalidate or unpublish without revision handling", async () => {
+    const { organizer, cache, prisma } = fixture();
+    await expect(organizer.updateEvent(1, 1, { title: "Review edit" })).rejects.toThrow();
+    expect(cache.revalidate).not.toHaveBeenCalled();
+    expect(prisma.event.update).not.toHaveBeenCalled();
   });
   it("waits for delivery but preserves committed mutation on delivery failure", async () => {
     const { admin, cache, prisma } = fixture();

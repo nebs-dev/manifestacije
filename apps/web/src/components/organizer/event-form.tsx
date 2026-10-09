@@ -16,7 +16,7 @@ import { EventImagePicker, type EventImageValue } from "@/components/admin/event
 import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 import { buildOrganizerEventBody, invalidLegacyUrl, organizerUrlError } from "@/lib/organizer/event-form-model"
 
-type EventData = {
+export type EventData = {
   title?: string
   description?: string
   startsAt?: string
@@ -78,7 +78,7 @@ function LegacyUrlWarning({ value, initial, allowContactLinks = false }: { value
   )
 }
 
-export function OrganizerEventForm({ eventId, initial }: { eventId?: number; initial?: EventData }) {
+export function OrganizerEventForm({ eventId, initial, published = false }: { eventId?: number; initial?: EventData; published?: boolean }) {
   const router = useRouter()
   const [categories, setCategories] = useState<Category[]>([])
   const [categoryIds, setCategoryIds] = useState<number[]>(
@@ -147,7 +147,7 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       cityName: location?.cityName || undefined,
       categoryId: primaryCategoryId,
       categoryIds: categoryIds.length ? categoryIds : undefined,
-      venueName: String(form.get("venueName") || "") || undefined,
+      venueName: String(form.get("venueName") || "") || (eventId && initial?.venueName ? "" : undefined),
       ...(location ? { address: location.address, lat: location.lat || undefined, lng: location.lng || undefined } : {}),
     }
     try {
@@ -159,7 +159,7 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
         toast.error("Greška", { description: msg })
         return
       }
-      toast.success(eventId ? "Event ažuriran" : "Event poslan na pregled")
+      toast.success(eventId && published ? "Izmjene su poslane na pregled. Trenutačno objavljena verzija ostaje vidljiva." : eventId ? "Event ažuriran" : "Event poslan na pregled")
       router.push("/organizer/events")
     } catch {
       toast.error("Greška pri spajanju na server")
@@ -173,7 +173,7 @@ export function OrganizerEventForm({ eventId, initial }: { eventId?: number; ini
       <Card>
         <CardHeader>
           <CardTitle>Osnovni podaci</CardTitle>
-          <CardDescription>Podaci su usklađeni s admin unosom.</CardDescription>
+          <CardDescription>{published ? "Izmjene se šalju na pregled. Trenutačno objavljena verzija ostaje vidljiva do odobrenja." : "Podaci su usklađeni s admin unosom."}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Field label="Naziv događaja">

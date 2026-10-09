@@ -12,6 +12,7 @@ import { adminNewSubmissionSubject, adminNewSubmissionHtml, adminNewSubmissionTe
 import { passwordResetSubject, passwordResetHtml, passwordResetText, type PasswordResetData } from "./templates/password-reset.template";
 import { organizerClaimSubject, organizerClaimHtml, organizerClaimText, type OrganizerClaimData } from "./templates/organizer-claim.template";
 import { adminNewOrganizerSubject, adminNewOrganizerHtml, adminNewOrganizerText, type AdminNewOrganizerData } from "./templates/admin-new-organizer.template";
+import { adminEventRevisionHtml, adminEventRevisionText, eventRevisionDecisionHtml, eventRevisionDecisionText, type AdminEventRevisionData, type EventRevisionDecisionData } from "./templates/event-revision.template";
 
 /**
  * The only email entry point the rest of the app should use. Every send*
@@ -127,6 +128,16 @@ export class EmailService {
       text: adminNewOrganizerText(data),
       relatedId,
     });
+  }
+
+  async sendAdminEventRevision(data: AdminEventRevisionData, relatedId?: number): Promise<void> {
+    await this.dispatch({ template: "admin_event_revision", to: this.config.adminNotificationEmail,
+      subject: `Izmjene događaja čekaju pregled: ${data.title}`, html: adminEventRevisionHtml(data), text: adminEventRevisionText(data), relatedId });
+  }
+
+  async sendEventRevisionDecision(to: string, data: EventRevisionDecisionData, relatedId?: number): Promise<void> {
+    await this.dispatch({ template: "event_revision_decision", to,
+      subject: `Izmjene ${data.approved ? "odobrene" : "odbijene"}: ${data.title}`, html: eventRevisionDecisionHtml(data), text: eventRevisionDecisionText(data), relatedId });
   }
 
   /** Throws on failure (unlike the other send* methods) — ForgotPassword needs

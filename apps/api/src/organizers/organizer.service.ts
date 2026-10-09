@@ -1,5 +1,6 @@
 import { RevalidateService } from "../admin/revalidate.service";
-import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
+import { EventRevisionsService } from "../event-revisions/event-revisions.service";
 import { EventStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
@@ -20,7 +21,8 @@ export class OrganizerService {
     private readonly duplicates: DuplicatesService,
     private readonly email: EmailService,
     private readonly contacts: ResendContactsService,
-    private readonly revalidate: RevalidateService
+    private readonly revalidate: RevalidateService,
+    @Optional() private readonly revisions?: EventRevisionsService
   ) {}
 
   profile(organizerId: number) {
@@ -42,6 +44,7 @@ export class OrganizerService {
         venue: true,
         categories: { include: { category: true } },
         occurrences: { orderBy: [{ startsAt: "asc" }, { id: "asc" }] },
+        revisions: { where: { status: "PENDING" }, select: { id: true, version: true, submittedAt: true }, take: 1 },
       },
       orderBy: { startsAt: "asc" },
     });
@@ -127,9 +130,11 @@ export class OrganizerService {
     return this.prisma.event.delete({ where: { id } });
   }
 
-  async updateEvent(organizerId: number, id: number, dto: OrganizerEventDto) {
+  async updateEvent(organizerId: number, id: number, dto: OrganizerEventDto, userId?: number) {
     const event = await this.prisma.event.findFirst({ where: { id, organizerId } });
     if (!event) throw new BadRequestException("Event not found for organizer");
+    if (this.revisions) return this.revisions.saveOrganizerEdit(id, organizerId, userId, pickOrganizerEventInput(dto));
+    if (event.status === EventStatus.PUBLISHED || event.publishedAt) throw new ServiceUnavailableException("Pregled izmjena trenutačno nije dostupan.");
     return this.events.updateEvent(id, { ...pickOrganizerEventInput(dto), status: EventStatus.PENDING_REVIEW });
   }
 

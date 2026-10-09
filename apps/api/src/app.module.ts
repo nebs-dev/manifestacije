@@ -15,6 +15,8 @@ import { RevalidateService } from "./admin/revalidate.service";
 import { AiEventParserService } from "./ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "./duplicates/duplicates.service";
 import { EventsService } from "./events/events.service";
+import { EventRevisionsService } from "./event-revisions/event-revisions.service";
+import { AdminEventRevisionsController, OrganizerEventRevisionsController } from "./event-revisions/event-revisions.controller";
 import { UploadsService } from "./admin/uploads.service";
 import { EmailService } from "./email/email.service";
 import { ResendContactsService } from "./contacts/resend-contacts.service";
@@ -36,14 +38,23 @@ export class HealthController {
   @Get()
   async health() {
     let db: "ok" | "error" = "ok";
+    let eventRevisions: "ready" | "unavailable" = "unavailable";
     try {
       await this.prisma.$queryRaw`SELECT 1`;
     } catch {
       db = "error";
     }
+    if (db === "ok") {
+      try {
+        await this.prisma.$queryRaw`SELECT "id", "version", "baseFingerprint", "original", "proposed", "reviewedAt" FROM "EventRevision" LIMIT 0`;
+        const rows = await this.prisma.$queryRaw<{ ready: boolean }[]>`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'EventRevision' AND indexname = 'EventRevision_one_pending_per_event') AS ready`;
+        if (rows[0]?.ready) eventRevisions = "ready";
+      } catch { /* Read-only readiness check; never expose database details. */ }
+    }
     return {
-      ok: db === "ok",
+      ok: db === "ok" && eventRevisions === "ready",
       db,
+      eventRevisions,
       uptime: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
       env: process.env.NODE_ENV ?? "development",
@@ -64,7 +75,7 @@ export class HealthController {
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController],
+  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
   providers: [
     PrismaService,
     AuthService,
@@ -76,6 +87,7 @@ export class HealthController {
     AiEventParserService,
     DuplicatesService,
     EventsService,
+    EventRevisionsService,
     EmailService,
     ResendContactsService,
     OrganizerClaimService,

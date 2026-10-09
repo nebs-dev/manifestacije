@@ -18,8 +18,10 @@ const viaPipe = (payload: object) => globalPipe.transform(payload, { type: "body
 
 function fixture(overrides: Record<string, unknown> = {}) {
   const current = {
-    id: 1, title: "Koncert", slug: "koncert", status: EventStatus.PUBLISHED, organizerId: OWN, isFeatured: false,
-    publishedAt: new Date(), cityId: 1, regionId: 1, cityName: "Osijek",
+    // Direct persistence covers never-published submissions. Published clears
+    // are covered against PostgreSQL in event-revisions.integration.spec.ts.
+    id: 1, title: "Koncert", slug: "koncert", status: EventStatus.PENDING_REVIEW, organizerId: OWN, isFeatured: false,
+    publishedAt: null, cityId: 1, regionId: 1, cityName: "Osijek",
     startsAt: new Date("2099-09-05T16:00:00Z"), endsAt: new Date("2099-09-05T20:00:00Z"), isAllDay: false,
     priceText: "10 EUR", ticketUrl: "https://www.entrio.hr/event/1", sourceUrl: "https://udruga.hr/koncert",
     imageUrl: "https://res.cloudinary.com/demo/image/upload/a.jpg", occurrences: [] as unknown[],

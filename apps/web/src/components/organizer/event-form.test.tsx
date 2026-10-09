@@ -6,8 +6,9 @@ import { OrganizerEventForm } from "./event-form"
 
 const orgFetch = vi.hoisted(() => vi.fn())
 const toastError = vi.hoisted(() => vi.fn())
+const toastSuccess = vi.hoisted(() => vi.fn())
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }))
-vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }))
+vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }))
 vi.mock("@/lib/organizer/api", () => ({ orgFetch }))
 vi.mock("@/components/ui/location-autocomplete", () => ({ LocationAutocomplete: () => null }))
 
@@ -43,6 +44,18 @@ const submit = async () => { await act(async () => { container.querySelector("fo
 const sentBody = () => JSON.parse(orgFetch.mock.calls[0][1].body)
 
 describe("organizer event form (EVT-06)", () => {
+  it("submits an empty venue name to clear an existing published venue", async () => {
+    await act(async () => root.render(<OrganizerEventForm eventId={1} initial={{ ...initial, venueName: "Dvorana" }} published />))
+    const venue = container.querySelector('input[name="venueName"]') as HTMLInputElement
+    venue.value = ""
+    await submit()
+    expect(sentBody().venueName).toBe("")
+  })
+  it("confirms published proposals while explaining that the public version remains visible", async () => {
+    await act(async () => root.render(<OrganizerEventForm eventId={1} initial={initial} published />))
+    await submit()
+    expect(toastSuccess).toHaveBeenLastCalledWith("Izmjene su poslane na pregled. Trenutačno objavljena verzija ostaje vidljiva.")
+  })
   it("warns about a stored invalid link and never renders it as a link", async () => {
     await render()
     expect(container.textContent).toContain("Spremljena poveznica nije valjana i ne prikazuje se na stranici.")

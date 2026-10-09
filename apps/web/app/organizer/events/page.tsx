@@ -102,7 +102,7 @@ export default function OrganizerEventsPage() {
         <div className="flex flex-col gap-2">
           {events.map((ev) => (
             <Link key={ev.id} href={`/organizer/events/${ev.id}`}
-              className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/30">
+              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/30 sm:flex-nowrap">
               <div className="min-w-0">
                 <p className="truncate font-medium">{ev.title}</p>
                 <p className="text-sm text-muted-foreground">
@@ -110,6 +110,7 @@ export default function OrganizerEventsPage() {
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {Boolean(ev.revisions?.length) && <span className="rounded-full bg-warning/15 px-2.5 py-0.5 text-xs text-warning">Izmjene na pregledu</span>}
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[ev.status] ?? "bg-muted text-muted-foreground"}`}>
                   {STATUS_LABEL[ev.status] ?? ev.status}
                 </span>

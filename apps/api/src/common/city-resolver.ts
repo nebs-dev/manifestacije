@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, Prisma } from "@prisma/client";
 import { slugify, uniqueSlug } from "./slug";
 import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionNameFromSlug, regionSlugForCounty, type GeoLookupResult } from "./croatia-geo";
 
@@ -11,7 +11,7 @@ import { KNOWN_REGION_SLUGS, lookupCityGeo, normalizeCountyName, regionNameFromS
  * coverage area).
  */
 export async function resolveCountyAndRegion(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   options: { countyName?: string; regionName?: string; geo?: GeoLookupResult | null }
 ) {
   const cleanRegionSlug = options.regionName ? slugify(options.regionName) : undefined;
@@ -44,7 +44,7 @@ export async function resolveCountyAndRegion(
  * (fixing existing events) so both use identical resolution logic.
  */
 export async function findOrCreateCity(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   name: string,
   countyName?: string,
   regionName?: string,

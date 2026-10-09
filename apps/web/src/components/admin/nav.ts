@@ -26,6 +26,7 @@ export const navItems: NavItem[] = [
   { label: "Sources", href: "/admin/sources", icon: Link2 },
   { label: "Monitored sources", href: "/admin/monitored-sources", icon: Radar },
   { label: "Pending events", href: "/admin/events/pending", icon: Clock },
+  { label: "Izmjene događaja", href: "/admin/event-revisions", icon: Clock },
   { label: "Events", href: "/admin/events", icon: CalendarDays, exact: true },
   { label: "Organizers", href: "/admin/organizers", icon: Users },
   { label: "Claim requests", href: "/admin/organizer-claims", icon: UserCheck },

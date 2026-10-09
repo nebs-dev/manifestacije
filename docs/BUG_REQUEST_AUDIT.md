@@ -13,8 +13,8 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **6** | EVT-04, EVT-05, EVT-06, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M; runtime limitations in §M) |
-| **PARTIAL** | **12** | EVT-02, EVT-08, EVT-09, EVT-10, EVT-11, ADM-02, ADM-03, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
+| **DONE** | **7** | EVT-02, EVT-04, EVT-05, EVT-06, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M/§O; runtime limitations recorded there) |
+| **PARTIAL** | **11** | EVT-08, EVT-09, EVT-10, EVT-11, ADM-02, ADM-03, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
 | **NOT IMPLEMENTED** | **8** | AUTH-03, EVT-01, EVT-03, EVT-07, EVT-12, ADM-01, ADM-04, PUB-06 |
 | **BUG STILL PRESENT** | **1** | NOT-02 |
 | **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
@@ -54,7 +54,7 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | AUTH-03 | NOT IMPLEMENTED | P2 | S | No `info@` contact on login/register/forgot/reset; raw English API errors shown |
 | AUTH-04 | UNKNOWN / NEEDS RUNTIME | P1 | S | Welcome email is sent in code (tested); delivery unverified, same pipeline as AUTH-02 |
 | EVT-01 | NOT IMPLEMENTED | P3 | L | No PDF/DOC ingestion; uploads are image-only |
-| EVT-02 | PARTIAL | P1 | M | Organizer edit exists; forces re-review but unpublishes live event; DTO over-exposure; no admin notice/diff |
+| EVT-02 | **DONE** (2026-10-09; §O) | P1 | M | Separate revisions retain the published version; transactional approval, conflict detection, Croatian review UI and notifications; deployment evidence / blockers in §O |
 | EVT-03 | NOT IMPLEMENTED | P2 | M | Plain text only (paragraphs preserved); no bold/links |
 | EVT-04 | **DONE** (2026-10-09; §M) | P1 | M | Timezone-aware parsing; source date/time evidence validation; missing/ambiguous times require review. Live provider smoke BLOCKED (401); see §M |
 | EVT-05 | **DONE** (2026-10-09; §M) | P1 | S–M | Croatian month mapping and deterministic evidence checks reject September/October confusion; mocked screenshot regressions pass; see §M |
@@ -130,7 +130,8 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 - *Missing:* PDF/DOCX ingestion (Anthropic API accepts PDF documents natively; DOCX needs conversion), file storage, page-chunking for long schedules, per-candidate moderation at scale, duplicate control against existing events. Reuse: the existing candidate review UI (`parsed-candidate-card.tsx`).
 - *Decision required* (scope, who may upload, moderation load).
 
-**EVT-02 — Organizer edits; published edits go back to review**: PARTIAL · P1 · M
+**EVT-02 — Organizer edits; published edits go back to review**: **DONE (2026-10-09; §O)** · P1 · M
+- The findings below describe the original audit baseline and are superseded by §O. All organizer edits to a previously published event now require a separate revision; TRUSTED status does not bypass revision review.
 - *Existing:* `PUT /api/organizer/events/:id` → `OrganizerService.updateEvent` checks ownership, forces `status: PENDING_REVIEW` (`organizers/organizer.service.ts:129–133`). Cache invalidation on published→pending is covered (`test/event-cache-invalidation.spec.ts:125`). Organizer can delete only DRAFT/PENDING (`:119–127`).
 - *Broken / risky:*
   1. **[FIXED & DEPLOYED 2026-10-09 — `6c27f7c5`, see §J]** **Over-exposed DTO:** `EventUpsertDto` exposes `slug`, `organizerId` and `isFeatured` (`events/event.dto.ts:33,66,93`), and global `ValidationPipe({ whitelist: true })` keeps decorated fields. `EventsService.updateEvent` applies them (`events.service.ts:112–150`). An organizer can therefore move an event to another organizer or to none (it then disappears from their own list), set `isFeatured`, or rename the slug. On create, `isFeatured` is also honored (`events.service.ts:63`); a TRUSTED organizer's event is auto-published, so it would go live as featured.
@@ -783,3 +784,40 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - GitHub statuses for that exact SHA report **SUCCESS** for [Vercel EXpvUAvMwtXjjHkzJTQ6UR5rxdbg](https://vercel.com/nebsdevs-projects/manifestacije/EXpvUAvMwtXjjHkzJTQ6UR5rxdbg) at **11:08:00 UTC** and [Railway 83e12744-9c2a-4acd-a041-a2e9207302d3](https://railway.com/project/c5834314-f293-494d-8ddd-d314b010a1ff/service/29608be2-c13d-471a-acba-c1c89bf0bfe5?id=83e12744-9c2a-4acd-a041-a2e9207302d3&environmentId=9d8d51e2-e78f-43fb-84f5-1342fc743ffc) at **11:08:45 UTC**.
 - Read-only production smoke: `/admin/sources`, `/organizer/submit-link`, and `/eventi/tommy-emmanuel` return **HTTP 200**. Railway health at **11:08:45 UTC** reports `ok=true`, `db=ok`, `env=production`, uptime **2 seconds**, consistent with the deployment restart. Public feed still returns **170 events**; startsAt/endsAt/isAllDay for all four investigated discrepant records compare unchanged with the pre-deployment snapshot. These checks prove route availability and healthy deployment, not authenticated OCR.
 - Evidence artifacts: `/tmp/manifestacije-time-qa/ai-deployment-status.json`, `ai-health.json`, `ai-after-events.json`, page HTML/headers, `historical-suspects.json`, synthetic poster fixtures and downloaded public images. Deployment verification is recorded in a documentation-only follow-up commit; no amend or force push. **Production real-provider extraction, provider credentials/logs, authenticated storage upload, complete historical database audit and browser QA remain BLOCKED.**
+
+
+## O. EVT-02 — Published event revision workflow (2026-10-09)
+
+**Status: DONE for implementation and automated workflow verification.** Deployment verification is recorded below once the focused commit is pushed. The earlier EVT-02/E6 findings describe the pre-fix behavior.
+
+### Architecture and business rule
+
+- Organizer edits previously wrote `PENDING_REVIEW` onto the live Event, removing it from public listings; the admin bell only considered event creation time, and there was no proposed-version storage or diff.
+- `EventRevision` stores complete original/proposed content JSON (including explicit nulls and occurrence IDs/endpoints), parent/organizer, submitting account, base timestamp and a fingerprint of the Event and its related rows, revision version, PENDING/APPROVED/REJECTED status, submission/review timestamps, reviewing admin and optional rejection reason.
+- The additive `20261009120000_add_event_revisions` migration creates the enum, table, foreign keys and indexes without rewriting Event/EventOccurrence records. A partial unique index permits only one PENDING proposal per event. Re-submission replaces that proposal and increments its version; an identical retry creates no additional notification.
+- Published (and previously published) events retain status, public identity, slug, publication date, content, schedule and related records during submission/replacement/rejection. Public detail, listing, calendar, weekend, map, SEO/JSON-LD and ICS consumers continue reading Event/EventOccurrence; no public reader merges proposals.
+- Serializable transactions and a consistent parent-event row lock protect submission/review. Approval requires both the viewed proposal version and an unchanged event fingerprint (including ownership, status, venue, categories and occurrences). Newer admin edits or replaced proposals produce Croatian 409 conflicts; double decisions have no repeated side effects. Organizers must review and resubmit against changed published data.
+- Approval applies only the reviewed content differences through the existing URL/schedule validation and organizer allowlist, in the same transaction as the review decision. Unchanged shared venues/taxonomy are not rewritten by title-only approvals. Address-derived known-city changes are previewed in the diff. Protected fields never come from proposal JSON. Slug/ID/publication date/status remain unchanged.
+- Only after approval commits are `events` and `taxonomy` cache tags invalidated; submission and rejection never invalidate public caches. Duplicate detection remains advisory after committed content writes. Never-published draft/submission editing retains its existing workflow.
+
+### Organizer, admin and notifications
+
+- Organizer list shows “Izmjene na pregledu”. Edit initially loads published content, lets the organizer view their proposal and explicitly load it for further editing, and confirms: “Izmjene su poslane na pregled. Trenutačno objavljena verzija ostaje vidljiva.” Optional cleared fields remain explicit nulls; an existing venue can also be cleared.
+- `/admin/event-revisions` lists organizer, original event title and submission time. Detail shows field-by-field original/proposed values for content, schedule/occurrences, location, price, links, image and categories, with Zagreb-local timestamps. It offers “Odobri izmjene”, “Odbij izmjene” and an optional rejection reason. Conflict responses require a fresh review; changed published data remains blocked until resubmission.
+- Admin bell includes every pending revision independently of last-seen Event.createdAt, refreshes periodically/on decisions, and links to revision review. The existing pending-events screen also links to the revision queue.
+- Submission sends a distinct admin revision notification. Decisions send distinct approved/rejected-change messages only to the actual submitting User while still linked to that organizer. Scraped `Organizer.email` is never a revision recipient, and ordinary first-publication email is not resent. Email failures occur after commit and do not corrupt operations. Real provider delivery remains unverified.
+
+### Automated verification and limitations
+
+- Isolated PostgreSQL 16 on localhost:5442/revision_qa, synthetic users/events only: all 23 migrations applied successfully; `prisma migrate status` reports up to date. Integration tests refuse any other database hostname/port/name and never use the application's DATABASE_URL.
+- Full API: **30 suites, 547 tests passed**, including **29 real-PostgreSQL workflow checks**. Coverage includes authenticated organizer/admin HTTP routes and validation/role guards, unchanged public detail/list/calendar/weekend/map feeds, proposal replacement, exact diff/nulls, single-day/overnight/multi-day/all-day/DST schedules, occurrence addition/edit/removal, ownership/protected fields, intervening and concurrent admin edits, concurrent approve/reject, SQL uniqueness, transactional rollback, cache calls, submitting-account recipient and email failure handling. Existing tests that expected unpublishing were updated. External email and cache transport are mocked in the revision integration suite; existing transport tests remain in the full suite.
+- The 29 database workflow checks also pass with `TZ=Pacific/Honolulu`, independently of the development machine's Europe/Zagreb timezone.
+- Full web: **35 files, 316 tests passed**, including admin diff/actions/version conflict, cleared values, Croatian/Zagreb rendering, escaped proposal content, notification count behavior, published-first organizer form/proposal loading and exact confirmation text. These are component/unit tests, not visual browser QA.
+- API typecheck/lint and production build, web ESLint/typecheck and production build passed. New admin and organizer routes appear in the optimized build. The actual compiled AppModule also passed an isolated authenticated HTTP submit → review/count → approve smoke, retaining the public version during review. The migration-aware production startup completed and health reported `eventRevisions=ready`. Startup testing exposed an undeclared direct Express import; the API now declares the same Express 4.22.1 already used by Nest in the lockfile (no version upgrade).
+- **BLOCKED — desktop/mobile browser QA:** browser connector setup/selection returned “No browser is available”; documented troubleshooting discovery returned an empty browser list. No screenshots or visual interaction checks are claimed.
+- **BLOCKED — authenticated production mutation/cache/email chain:** no production organizer/admin session or Railway/Vercel account access. No real production event was created, edited or approved for QA. Deployment schema readiness and public read-only smoke are checked separately below.
+- The separate historical Saša Matić, Tommy Emmanuel and Rock Balade data corrections remain untouched.
+
+### Deployment verification
+
+Pending focused commit/push and non-destructive deployment checks.
