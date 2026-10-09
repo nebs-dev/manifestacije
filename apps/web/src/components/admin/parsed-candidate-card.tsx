@@ -1,5 +1,6 @@
 "use client"
 
+import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -149,12 +150,22 @@ export function ParsedCandidateCard({
     )
   }
 
+  let duplicateInput = null
+  try {
+    const schedule = scheduleRowsToApi(scheduleRows)
+    if (isPending) duplicateInput = duplicateCheckInput({ title: form.title, cityName: location?.cityName || form.city, venueName: form.venueName,
+      address: location?.address || form.address, sourceUrl: form.sourceUrl.trim() || null, ...schedule[0], occurrences: candidate.occurrences?.length || scheduleRows.length > 1 ? schedule : undefined })
+  } catch { /* Incomplete parsed schedule remains for review. */ }
+  const duplicates = useEventDuplicateCheck(duplicateInput, authedFetch, "/api/admin/duplicates/check")
+
   async function createEvent(publish = false) {
     setBusy(true)
     try {
       const primaryCategoryId = selectedCategoryIds[0]
       const schedule = scheduleRowsToApi(scheduleRows)
       const first = schedule[0]
+      if (!await duplicates.beforeSave({ title: form.title, cityName: location?.cityName || form.city, venueName: form.venueName,
+        address: location?.address || form.address, sourceUrl: form.sourceUrl.trim() || null, ...first, occurrences: candidate.occurrences?.length || scheduleRows.length > 1 ? schedule : undefined })) return
       const res = await authedFetch(
         `/api/admin/event-sources/${candidate.sourceId}/create-event`,
         {
@@ -237,7 +248,7 @@ export function ParsedCandidateCard({
   ].filter(Boolean).join(" · ")
 
   return (
-    <Card className={isIgnored ? "opacity-50" : undefined}>
+    <Card onInputCapture={duplicates.cancelPending} onChangeCapture={duplicates.cancelPending} className={isIgnored ? "opacity-50" : undefined}>
       {/* Collapsed header — always visible */}
       <button
         type="button"
@@ -271,6 +282,7 @@ export function ParsedCandidateCard({
         </div>
       </button>
 
+      <div className="px-5 pb-3">{duplicates.warning}</div>
       {/* Expanded body */}
       {open && <>
       <Separator />
@@ -289,7 +301,7 @@ export function ParsedCandidateCard({
               <TriangleAlert className="size-4 shrink-0 text-warning" aria-hidden />
               <span className="font-semibold text-warning">Vjerojatno već uvezen</span>
               <span className="text-muted-foreground">
-                Postoji event istog naslova i datuma.
+                Postoji događaj sličnog naslova i rasporeda.
               </span>
               <Link
                 href={`/admin/events/${candidate._existingEventId}`}

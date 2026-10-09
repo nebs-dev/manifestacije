@@ -13,6 +13,7 @@ import { AdminController } from "./admin/admin.controller";
 import { AdminService } from "./admin/admin.service";
 import { RevalidateService } from "./admin/revalidate.service";
 import { AiEventParserService } from "./ai-parser/ai-event-parser.service";
+import { AdminDuplicateCheckController, OrganizerDuplicateCheckController } from "./duplicates/duplicates.controller";
 import { DuplicatesService } from "./duplicates/duplicates.service";
 import { EventsService } from "./events/events.service";
 import { EventRevisionsService } from "./event-revisions/event-revisions.service";
@@ -75,7 +76,7 @@ export class HealthController {
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
+  controllers: [AdminDuplicateCheckController, OrganizerDuplicateCheckController, HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
   providers: [
     PrismaService,
     AuthService,

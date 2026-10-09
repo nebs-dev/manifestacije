@@ -198,7 +198,7 @@ describe("already-imported flagging", () => {
   // Real similarity metric, stub prisma: the query is not what needs proving,
   // the match rule is.
   const duplicates = new DuplicatesService(null as never);
-  const existing = [{ id: 244, title: "Twisti Club powered by BIC: Plaža iz mašte", startsAt: new Date("2026-08-15T20:00:00+02:00"), cityName: "Osijek" }];
+  const existing = [{ id: 244, status: "PUBLISHED", title: "Twisti Club powered by BIC: Plaža iz mašte", startsAt: new Date("2026-08-15T20:00:00+02:00"), cityName: "Osijek" }];
   // Captures the where clause so the status exclusion is asserted, not assumed.
   let lastWhere: Record<string, unknown> | undefined;
   const prisma = { event: { findMany: async (args: { where: Record<string, unknown> }) => { lastWhere = args.where; return existing } } };
@@ -237,9 +237,8 @@ describe("already-imported flagging", () => {
     expect((await flagOf({ city: "Vinkovci" }))._existingEventId).toBeUndefined();
   });
 
-  it("does not flag a merely similar title", async () => {
-    // 0.75 overlap — under the threshold, so treated as a different event.
-    expect((await flagOf({ title: "Twisti Club powered by BIC: Plaza" }))._existingEventId).toBeUndefined();
+  it("flags explainable near-matches before import", async () => {
+    expect((await flagOf({ title: "Twisti Club powered by BIC: Plaza" }))._existingEventId).toBe(244);
   });
 
   it("does not flag a candidate with no date, since there is nothing to compare", async () => {
@@ -250,10 +249,10 @@ describe("already-imported flagging", () => {
     expect((await flagOf({ city: "" }))._existingEventId).toBe(244);
   });
 
-  it("ignores rejected and archived events, which the admin already turned down", async () => {
+  it("only exposes public records, including previously published archives", async () => {
     await flagOf({});
 
-    expect(lastWhere?.status).toEqual({ notIn: ["REJECTED", "ARCHIVED"] });
+    expect(lastWhere?.OR).toEqual([{ status: "PUBLISHED" }, { status: "ARCHIVED", publishedAt: { not: null } }]);
   });
 });
 

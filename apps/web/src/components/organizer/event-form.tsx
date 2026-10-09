@@ -1,5 +1,6 @@
 "use client"
 
+import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
 import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -93,6 +94,8 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
   const [priceText, setPriceText] = useState(initial?.priceText ?? "")
   const [ticketUrl, setTicketUrl] = useState(initial?.ticketUrl ?? "")
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? "")
+  const [title, setTitle] = useState(initial?.title || "")
+  const [venueName, setVenueName] = useState(initial?.venueName || "")
   const [loading, setLoading] = useState(false)
   const occurrenceBacked = Boolean(initial?.occurrences?.length)
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>(() => scheduleRowsFromEvent({
@@ -101,6 +104,14 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
     isAllDay: initial?.isAllDay,
     occurrences: initial?.occurrences,
   }))
+
+  let duplicateInput = null
+  try {
+    const schedule = scheduleRowsToApi(scheduleRows)
+    if (!eventId) duplicateInput = duplicateCheckInput({ title, venueName, cityName: location?.cityName, address: location?.address, sourceUrl,
+      ...schedule[0], occurrences: scheduleRows.length > 1 ? schedule : undefined })
+  } catch { /* Incomplete schedule. */ }
+  const duplicates = useEventDuplicateCheck(duplicateInput, orgFetch, "/api/organizer/duplicates/check")
 
   useEffect(() => {
     fetch(`${API_URL}/api/public/categories`)
@@ -151,6 +162,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
       ...(location ? { address: location.address, lat: location.lat || undefined, lng: location.lng || undefined } : {}),
     }
     try {
+      if (!eventId && !await duplicates.beforeSave(body)) return
       const res = eventId
         ? await orgFetch(`/api/organizer/events/${eventId}`, { method: "PUT", body: JSON.stringify(body) })
         : await orgFetch("/api/organizer/events", { method: "POST", body: JSON.stringify(body) })
@@ -169,7 +181,8 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
   }
 
   return (
-    <form id="event-form" onSubmit={submit} className="flex flex-col gap-6">
+    <form id="event-form" onInputCapture={duplicates.cancelPending} onChangeCapture={duplicates.cancelPending} onSubmit={submit} className="flex flex-col gap-6">
+      {duplicates.warning}
       <Card>
         <CardHeader>
           <CardTitle>Osnovni podaci</CardTitle>
@@ -177,7 +190,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Field label="Naziv događaja">
-            <Input name="title" defaultValue={initial?.title} placeholder="npr. Jazz večer u Galeriji" />
+            <Input name="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="npr. Jazz večer u Galeriji" />
           </Field>
           <Field label="Opis">
             <Textarea name="description" defaultValue={initial?.description} rows={5} placeholder="Opišite događaj…" />
@@ -194,7 +207,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
             </Field>
           </div>
           <Field label="Naziv mjesta / dvorane">
-            <Input name="venueName" defaultValue={initial?.venueName} placeholder="npr. Galerija Waldinger" />
+            <Input name="venueName" value={venueName} onChange={e => setVenueName(e.target.value)} placeholder="npr. Galerija Waldinger" />
           </Field>
           <div className="sm:col-span-2">
             <Field label="Precizna lokacija">

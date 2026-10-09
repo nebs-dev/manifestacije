@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, ForbiddenException, NotFoundExc
 import { Test } from "@nestjs/testing";
 import { JwtModule, JwtService } from "@nestjs/jwt";
 import { PrismaClient } from "@prisma/client";
+import { AdminDuplicateCheckController, OrganizerDuplicateCheckController } from "../src/duplicates/duplicates.controller";
+import { DuplicatesService } from "../src/duplicates/duplicates.service";
 import { EventsService } from "../src/events/events.service";
 import { EventRevisionsService } from "../src/event-revisions/event-revisions.service";
 import { revisionEventInclude } from "../src/event-revisions/revision-content";
@@ -36,7 +38,8 @@ integration("EventRevision PostgreSQL workflow", () => {
   const revisions = new EventRevisionsService(prisma as never, events, cache as never, email as never);
   const organizer = new OrganizerService(prisma as never, events, {} as never, duplicates as never, email as never, {} as never, cache as never, revisions);
   const feed = new PublicFeedService(prisma as never);
-  const admin = new AdminService(prisma as never, events, {} as never, duplicates as never, cache as never, email as never, {} as never);
+  const parser = { parseBatchWithLlm: jest.fn(), extractJsonLdEvents: jest.fn() };
+  const admin = new AdminService(prisma as never, events, parser as never, duplicates as never, cache as never, email as never, {} as never);
   let organizerId: number, otherId: number, userId: number, adminId: number, categoryId: number, otherCategory: number, cityId: number, regionId: number, countyId: number;
   let eventId: number;
   let app: INestApplication, baseUrl: string, jwt: JwtService;
@@ -72,9 +75,9 @@ integration("EventRevision PostgreSQL workflow", () => {
     otherCategory = (await prisma.category.upsert({ where: { slug: "qa-festival" }, update: {}, create: { name: "QA festival", slug: "qa-festival" } })).id;
     const module = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: "isolated-revision-fixture-secret" })],
-      controllers: [AdminController, OrganizerController, AdminEventRevisionsController, OrganizerEventRevisionsController, PublicFeedController],
+      controllers: [AdminDuplicateCheckController, OrganizerDuplicateCheckController, AdminController, OrganizerController, AdminEventRevisionsController, OrganizerEventRevisionsController, PublicFeedController],
       providers: [
-        { provide: AdminService, useValue: admin }, { provide: OrganizerClaimService, useValue: {} },
+        { provide: DuplicatesService, useValue: new DuplicatesService(prisma as never) }, { provide: AdminService, useValue: admin }, { provide: OrganizerClaimService, useValue: {} },
         { provide: PrismaService, useValue: prisma }, { provide: OrganizerService, useValue: organizer },
         { provide: EventRevisionsService, useValue: revisions }, { provide: PublicFeedService, useValue: feed }, { provide: UploadsService, useValue: {} },
       ],
@@ -87,6 +90,8 @@ integration("EventRevision PostgreSQL workflow", () => {
     jest.clearAllMocks();
     email.sendAdminEventRevision.mockResolvedValue(undefined);
     email.sendEventRevisionDecision.mockResolvedValue(undefined);
+    await prisma.eventDuplicateCandidate.deleteMany();
+    await prisma.eventSource.deleteMany();
     await prisma.event.deleteMany();
     eventId = (await prisma.event.create({ data: {
       title: "Objavljeni koncert", slug: "qa-objavljeni-koncert", description: "Izvorni opis", status: "PUBLISHED", organizerId,
@@ -98,6 +103,97 @@ integration("EventRevision PostgreSQL workflow", () => {
     } })).id;
   });
   afterAll(async () => { await app?.close(); await prisma.$disconnect(); });
+
+  const duplicateInput = () => ({ title: "Objavljeni koncert", startsAt: "2099-09-05T20:00:00+02:00", cityId });
+  it("checks duplicates through authenticated HTTP without mutating events, sources, taxonomy, cache or review queue", async () => {
+    const before = await snapshot(), count = await prisma.event.count();
+    const found = await request("/api/admin/duplicates/check", adminId, "POST", duplicateInput());
+    expect(found.status).toBe(201); expect((await found.json()).matches[0]).toMatchObject({ id: eventId, title: before.title, href: `/admin/events/${eventId}` });
+    expect(await snapshot()).toEqual(before); expect(await prisma.event.count()).toBe(count);
+    expect(await prisma.eventDuplicateCandidate.count()).toBe(0); expect(await prisma.eventSource.count()).toBe(0);
+    expect(cache.revalidate).not.toHaveBeenCalled(); expect(duplicates.detectForEvent).not.toHaveBeenCalled();
+    // Advisory: the user may knowingly submit the same content anyway.
+    expect((await request("/api/organizer/events", userId, "POST", { ...duplicateInput(), categoryId, description: "Svjestan nastavak" })).status).toBe(201);
+    expect(await prisma.event.count()).toBe(count + 1);
+  });
+
+  it("protects foreign draft details even when an organizer spoofs owner/role fields", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { status: "DRAFT", organizerId: otherId, publishedAt: null } });
+    const response = await request("/api/organizer/duplicates/check", userId, "POST", { ...duplicateInput(), organizerId: otherId, role: "ADMIN" });
+    expect(response.status).toBe(201); expect(await response.json()).toEqual({ matches: [], hiddenMatch: true });
+    const adminResult = await (await request("/api/admin/duplicates/check", adminId, "POST", duplicateInput())).json();
+    expect(adminResult.matches[0].id).toBe(eventId);
+    await prisma.event.update({ where: { id: eventId }, data: { organizerId } });
+    const own = await (await request("/api/organizer/duplicates/check", userId, "POST", duplicateInput())).json();
+    expect(own.matches[0].href).toBe(`/organizer/events/${eventId}`);
+    await prisma.event.update({ where: { id: eventId }, data: { organizerId: otherId, status: "PUBLISHED" } });
+    const pub = await (await request("/api/organizer/duplicates/check", userId, "POST", duplicateInput())).json();
+    expect(pub.matches[0].href).toBe("/eventi/qa-objavljeni-koncert"); expect(pub.hiddenMatch).toBe(false);
+  });
+
+  it("guards both duplicate-check endpoints and rejects malformed/oversized input", async () => {
+    for (const endpoint of ["/api/admin/duplicates/check", "/api/organizer/duplicates/check"]) {
+      expect((await request(endpoint, undefined, "POST", duplicateInput())).status).toBe(401);
+      expect((await request(endpoint, endpoint.includes("/admin/") ? userId : adminId, "POST", duplicateInput())).status).toBe(401);
+    }
+    expect((await request("/api/admin/duplicates/check", adminId, "POST", { ...duplicateInput(), title: "a".repeat(501) })).status).toBe(400);
+    expect((await request("/api/admin/duplicates/check", adminId, "POST", { ...duplicateInput(), occurrences: Array(53).fill({ startsAt: "2099-09-05T18:00:00Z" }) })).status).toBe(400);
+    await prisma.user.update({ where: { id: userId }, data: { organizerId: null } });
+    expect((await request("/api/organizer/duplicates/check", userId, "POST", duplicateInput())).status).toBe(403);
+    await prisma.user.update({ where: { id: userId }, data: { organizerId } });
+  });
+
+  const sourceFixture = async (count = 1, legacy = false) => {
+    const candidate = { title: "QA uvoz Đurđevačka večer", description: "QA opis", startsAt: "2099-07-10T18:00:00Z", endsAt: "", city: "QA grad", category: "qa-koncert", venueName: "", address: "", organizerName: "", sourceUrl: "", imageUrl: "", warnings: ["Ručno pregledano"], missingFields: [], confidence: 0.9, _status: "pending" };
+    return prisma.eventSource.create({ data: { type: "MANUAL", organizerId, rawText: "QA fixture", parsedJson: legacy ? candidate : { sourceUrl: "", sourceType: "batch", sourceImageUrl: "https://images.example.test/source.jpg", customMetadata: "sačuvano", candidates: Array.from({ length: count }, (_, i) => ({ ...candidate, title: `${candidate.title} ${i}` })) } } });
+  };
+
+  it.each([false, true])("serializes repeated/concurrent imports of one %s candidate atomically", async legacy => {
+    const source = await sourceFixture(1, legacy), before = await prisma.event.count();
+    const decisions = await Promise.all([request(`/api/admin/event-sources/${source.id}/create-event`, adminId, "POST", {}), request(`/api/admin/event-sources/${source.id}/create-event`, adminId, "POST", {})]);
+    expect(decisions.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(await prisma.event.count()).toBe(before + 1);
+    const stored = await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } });
+    expect(stored.status).toBe("LINKED");
+    const parsed = stored.parsedJson as { candidates?: Array<{ _status: string; _eventId: number }> };
+    const imported = await prisma.event.findUniqueOrThrow({ where: { id: legacy ? stored.eventId! : parsed.candidates![0]._eventId } });
+    expect(imported.createdByUserId).toBe(adminId);
+    expect((await request(`/api/admin/event-sources/${source.id}/create-event`, adminId, "POST", {})).status).toBe(409);
+    expect(duplicates.detectForEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves all candidate decisions/source metadata during concurrent imports of different candidates", async () => {
+    const source = await sourceFixture(2);
+    const results = await Promise.all([0, 1].map(candidateIndex => request(`/api/admin/event-sources/${source.id}/create-event`, adminId, "POST", { candidateIndex })));
+    expect(results.map(r => r.status)).toEqual([201, 201]);
+    const stored = await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } });
+    expect(stored.parsedJson).toMatchObject({ customMetadata: "sačuvano", sourceImageUrl: "https://images.example.test/source.jpg", candidates: [expect.objectContaining({ _status: "created", warnings: ["Ručno pregledano"] }), expect.objectContaining({ _status: "created" })] });
+    expect(stored.status).toBe("LINKED");
+    expect((await request(`/api/admin/event-sources/${source.id}/ignore-candidate`, adminId, "POST", { candidateIndex: 0 })).status).toBe(409);
+  });
+
+  it("rolls back event and candidate changes together if import fails", async () => {
+    const source = await sourceFixture(), before = await prisma.event.count();
+    await expect(admin.createEventFromSource(source.id, 0, { categoryIds: [categoryId, 2147483000] }, false, adminId)).rejects.toThrow();
+    expect(await prisma.event.count()).toBe(before);
+    expect((await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } })).parsedJson).toEqual(source.parsedJson);
+    expect(cache.revalidate).not.toHaveBeenCalled(); expect(duplicates.detectForEvent).not.toHaveBeenCalled();
+  });
+
+  it("reparse retains processed candidate status/index and legacy organizer responses hide stored private hints", async () => {
+    const source = await sourceFixture(2);
+    await admin.createEventFromSource(source.id, 0, undefined, false, adminId);
+    await admin.ignoreCandidate(source.id, 1);
+    const before = await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } });
+    parser.parseBatchWithLlm.mockResolvedValue(before.parsedJson);
+    const after = await admin.reparseSource(source.id);
+    expect(after.parsedJson).toEqual(before.parsedJson); expect(after.status).toBe("LINKED");
+    const parsed = before.parsedJson as { candidates: Record<string, unknown>[] };
+    await prisma.eventSource.update({ where: { id: source.id }, data: { parsedJson: { ...parsed, candidates: parsed.candidates.map(c => ({ ...c, _existingEventId: 123456 })) } } });
+    const listed = await organizer.listSources(organizerId);
+    expect(JSON.stringify(listed)).not.toContain("123456");
+    expect((await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } })).parsedJson).toMatchObject({ candidates: [expect.objectContaining({ _existingEventId: 123456 }), expect.anything()] });
+  });
 
   it("records authenticated creators on organizer and admin HTTP creation, ignoring body attribution", async () => {
     const dto = { title: "QA novi unos", description: "QA opis", cityId, categoryId, startsAt: "2099-07-10T20:00:00+02:00", createdByUserId: adminId };

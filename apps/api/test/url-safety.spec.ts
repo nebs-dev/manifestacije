@@ -213,6 +213,7 @@ describe("admin candidate approval drops unsafe parsed links", () => {
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
     const uploads = { uploadEventImageFromUrl: jest.fn().mockResolvedValue(null) };
+    Object.assign(prisma, { $queryRaw: jest.fn().mockResolvedValue([]), $transaction: (work: (tx: typeof prisma) => unknown) => work(prisma) });
     const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploads as never);
 
     await service.createEventFromSource(1, 0);
@@ -222,7 +223,7 @@ describe("admin candidate approval drops unsafe parsed links", () => {
       ticketUrl: undefined,
       sourceUrl: "https://www.entrio.hr/izvor",
       imageUrl: undefined,
-    }), expect.any(Object));
+    }), expect.any(Object), expect.anything());
   });
 });
 

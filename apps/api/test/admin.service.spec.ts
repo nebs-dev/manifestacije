@@ -6,6 +6,13 @@ import { ParsedEventCandidate, ParsedSourceResult } from "../src/ai-parser/ai-ev
 // returning null makes AdminService keep the original image URL.
 const uploadsStub = { uploadEventImageFromUrl: async () => null };
 
+function transactionalPrisma<T extends object>(prisma: T) {
+  const value = prisma as T & { $transaction?: unknown; $queryRaw?: unknown };
+  if (!value.$transaction) value.$transaction = (work: (tx: T) => unknown) => work(prisma);
+  if (!value.$queryRaw) value.$queryRaw = jest.fn().mockResolvedValue([]);
+  return prisma;
+}
+
 function candidate(overrides: Partial<ParsedEventCandidate> = {}): ParsedEventCandidate {
   return {
     title: "Ljetni koncert",
@@ -78,11 +85,11 @@ describe("AdminService ingestion workflow", () => {
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, undefined, false, 91);
 
-    expect(events.createFromDto).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ createdByUserId: 91 }));
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ createdByUserId: 91 }), expect.anything());
   });
 
   it("passes the creating admin to manually created events", async () => {
@@ -176,7 +183,7 @@ describe("AdminService ingestion workflow", () => {
       category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0);
 
@@ -184,7 +191,7 @@ describe("AdminService ingestion workflow", () => {
       cityId: undefined,
       categoryId: 22,
       startsAt: undefined,
-    }), expect.any(Object));
+    }), expect.any(Object), expect.anything());
   });
 
   it("creates event from candidate with taxonomy, organizer and image fields, then marks candidate created", async () => {
@@ -201,7 +208,7 @@ describe("AdminService ingestion workflow", () => {
       },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     const created = await service.createEventFromSource(1, 0, { startsAt: "2026-07-05T19:00:00.000Z" });
 
@@ -211,7 +218,7 @@ describe("AdminService ingestion workflow", () => {
       categoryId: 22,
       startsAt: "2026-07-05T19:00:00.000Z",
       imageUrl: "https://source.example/image.jpg",
-    }), expect.objectContaining({ organizerId: 33, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }));
+    }), expect.objectContaining({ organizerId: 33, status: EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION" }), expect.anything());
     const updatedParsed = prisma.eventSource.update.mock.calls[0][0].data.parsedJson as ParsedSourceResult;
     expect(updatedParsed.candidates[0]._status).toBe("created");
     expect(updatedParsed.candidates[0]._eventId).toBe(44);
@@ -243,7 +250,7 @@ describe("AdminService ingestion workflow", () => {
     };
     jest.spyOn(global, "fetch").mockRejectedValueOnce(new Error("offline"));
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0);
 
@@ -268,14 +275,14 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 55 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, { categoryIds: [44, 45] });
 
     expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({
       categoryId: 44,
       categoryIds: [44, 45],
-    }), expect.any(Object));
+    }), expect.any(Object), expect.anything());
     const updatedParsed = prisma.eventSource.update.mock.calls[0][0].data.parsedJson as ParsedSourceResult;
     expect(updatedParsed.candidates[0].category).toBe("glazba");
   });
@@ -292,11 +299,11 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, { isAllDay: true });
 
-    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ isAllDay: true }), expect.any(Object));
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ isAllDay: true }), expect.any(Object), expect.anything());
   });
 
   it("falls back to the source's own URL when the candidate override doesn't touch sourceUrl", async () => {
@@ -311,11 +318,11 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0);
 
-    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: "https://source.example/original" }), expect.any(Object));
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: "https://source.example/original" }), expect.any(Object), expect.anything());
   });
 
   it("does not fall back to the source's own URL when the admin explicitly clears sourceUrl", async () => {
@@ -330,11 +337,11 @@ describe("AdminService ingestion workflow", () => {
       organizer: { findMany: jest.fn().mockResolvedValue([{ id: 33, name: "TZ Osijek" }]) },
     };
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
-    const service = new AdminService(prisma as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.createEventFromSource(1, 0, { sourceUrl: null });
 
-    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: undefined }), expect.any(Object));
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: undefined }), expect.any(Object), expect.anything());
   });
 
   it("ignores a candidate while preserving missingFields and warnings", async () => {
@@ -345,7 +352,7 @@ describe("AdminService ingestion workflow", () => {
         update: jest.fn().mockResolvedValue({ id: 1 }),
       },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+    const service = new AdminService(transactionalPrisma(prisma) as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
 
     await service.ignoreCandidate(1, 0);
 

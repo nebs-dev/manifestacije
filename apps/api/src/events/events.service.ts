@@ -21,30 +21,31 @@ type NormalizedOccurrence = {
 export class EventsService {
   constructor(private readonly prisma: PrismaService, private readonly duplicates: DuplicatesService, private readonly revalidate: RevalidateService) {}
 
-  async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind; createdByUserId?: number }) {
+  async createFromDto(dto: EventUpsertDto, opts: { organizerId?: number | null; status?: EventStatus; sourceType?: EventSourceKind; createdByUserId?: number }, transaction?: Prisma.TransactionClient) {
+    const db = transaction ?? this.prisma;
     const urls = this.safeUrlFields(dto);
     const title = dto.title?.trim() || "Novi događaj";
     const description = dto.description?.trim() || title;
-    const city = await this.resolveCityForWrite(dto);
+    const city = await this.resolveCityForWrite(dto, undefined, db, Boolean(transaction));
     this.assertPublishableLocation(opts.status || EventStatus.PENDING_REVIEW, city);
-    const category = await this.resolveCategory(dto.categoryId ?? undefined);
+    const category = await this.resolveCategory(dto.categoryId ?? undefined, db);
     let venueId: number | undefined;
     let point: { lat?: number; lng?: number; address?: string } = { lat: dto.lat, lng: dto.lng, address: dto.address };
     if (dto.venueName && city) {
       const venueSlug = slugify(dto.venueName);
-      const existing = await this.prisma.venue.findUnique({ where: { slug_cityId: { slug: venueSlug, cityId: city.id } } });
+      const existing = await db.venue.findUnique({ where: { slug_cityId: { slug: venueSlug, cityId: city.id } } });
       point = await this.resolvePoint(dto, city, existing);
-      const venue = await this.prisma.venue.upsert({
+      const venue = await db.venue.upsert({
         where: { slug_cityId: { slug: venueSlug, cityId: city.id } },
         update: { address: point.address, lat: point.lat, lng: point.lng },
         create: { name: dto.venueName, slug: venueSlug, cityId: city.id, address: point.address, lat: point.lat, lng: point.lng }
       });
       venueId = venue.id;
     }
-    const slug = await uniqueSlug(title, async (s) => !!(await this.prisma.event.findUnique({ where: { slug: s } })));
+    const slug = await uniqueSlug(title, async (s) => !!(await db.event.findUnique({ where: { slug: s } })));
     const occurrences = dto.occurrences ? this.normalizeOccurrences(dto.occurrences) : undefined;
     const schedule = occurrences ? this.summarizeOccurrences(occurrences) : null;
-    const event = await this.prisma.event.create({
+    const event = await db.event.create({
       data: {
         title,
         slug,
@@ -82,15 +83,16 @@ export class EventsService {
       ? dto.categoryIds
       : [category.id];
     for (const [idx, catId] of allCategoryIds.entries()) {
-      await this.prisma.eventCategory.upsert({
+      await db.eventCategory.upsert({
         where: { eventId_categoryId: { eventId: event.id, categoryId: catId } },
         update: {},
         create: { eventId: event.id, categoryId: catId, source: "MANUAL" },
       });
     }
 
+    if (transaction) return event;
     if (hasPublicEventOutput(event) || (venueId && await this.hasPublicVenueEvents(venueId))) await this.revalidate.revalidate("events");
-    await this.duplicates.detectForEvent(event.id);
+    try { await this.duplicates.detectForEvent(event.id); } catch { /* advisory; creation already succeeded */ }
     return event;
   }
 
@@ -457,13 +459,13 @@ export class EventsService {
     });
   }
 
-  private async resolveCategory(categoryId?: number) {
+  private async resolveCategory(categoryId?: number, db: Prisma.TransactionClient = this.prisma) {
     if (categoryId) {
-      const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+      const category = await db.category.findUnique({ where: { id: categoryId } });
       if (!category) throw new BadRequestException("Unknown categoryId");
       return category;
     }
-    return this.prisma.category.upsert({
+    return db.category.upsert({
       where: { slug: "ostalo" },
       update: {},
       create: { name: "Ostalo", slug: "ostalo", sortOrder: 999 },

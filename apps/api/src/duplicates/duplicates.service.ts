@@ -1,3 +1,4 @@
+import { DuplicateInput, duplicateSlots, matchDuplicate, publicDuplicate, titleSimilarity } from "./duplicate-matching";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -5,32 +6,52 @@ import { PrismaService } from "../prisma/prisma.service";
 export class DuplicatesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async detectForEvent(eventId: number) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { venue: true } });
-    if (!event) return [];
-    const others = await this.prisma.event.findMany({ where: { id: { not: eventId }, cityId: event.cityId } });
-    const created = [];
-    for (const other of others) {
-      const score = this.score(event, other);
-      // Title similarity alone caps at 0.55, so this threshold is only ever
-      // reachable together with a same-day match (+0.25) or shared
-      // organizer/sourceUrl — lowering it doesn't risk flagging same-titled
-      // events on different days as duplicates. Was 0.72, which missed
-      // same-day near-duplicates differing by one filler word (e.g. "DJ
-      // Beach Session..." vs "Beach Session...") by a hair.
-      if (score >= 0.65) {
-        const a = Math.min(event.id, other.id);
-        const b = Math.max(event.id, other.id);
-        created.push(
-          await this.prisma.eventDuplicateCandidate.upsert({
-            where: { eventAId_eventBId: { eventAId: a, eventBId: b } },
-            update: { score, reason: "similar title/date/city/source" },
-            create: { eventAId: a, eventBId: b, score, reason: "similar title/date/city/source" }
-          })
-        );
-      }
+  async candidates(input: DuplicateInput, excludeId?: number) {
+    if (input.cityId && !input.cityName) {
+      const city = await this.prisma.city.findUnique({ where: { id: input.cityId }, select: { name: true } });
+      input = { ...input, cityName: city?.name };
     }
-    return created;
+    const slots = duplicateSlots(input);
+    if (!input.title?.trim() || !slots.length) return [];
+    const from = new Date(Math.min(...slots.map(row => row.start.getTime())) - 86400000);
+    const to = new Date(Math.max(...slots.map(row => row.end.getTime())) + 86400000);
+    const events = await this.prisma.event.findMany({ where: {
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      AND: [
+        { status: { not: "REJECTED" } },
+        { OR: [{ status: { not: "ARCHIVED" } }, { publishedAt: { not: null } }] },
+        { OR: [
+          { startsAt: { gte: from, lte: to } }, { startsAt: { lte: to }, endsAt: { gte: from } },
+          { occurrences: { some: { OR: [{ startsAt: { gte: from, lte: to } }, { startsAt: { lte: to }, endsAt: { gte: from } }] } } },
+        ] },
+      ],
+    }, include: { venue: true, city: true, occurrences: true } });
+    return events.flatMap(event => { const match = matchDuplicate(input, event); return match ? [{ event, ...match }] : []; })
+      .sort((a, b) => b.score - a.score || a.event.id - b.event.id);
+  }
+
+  /** Read-only. Private matches produce only a boolean, never IDs, scores,
+   * reasons, dates, location or counts in an organizer response. */
+  async check(input: DuplicateInput, organizerId?: number) {
+    const found = await this.candidates(input);
+    const visible = found.filter(row => organizerId === undefined || publicDuplicate(row.event) || row.event.organizerId === organizerId);
+    return { matches: visible.slice(0, 5).map(({ event, score, reasons, startsAt, endsAt, isAllDay }) => ({
+      id: event.id, title: event.title, startsAt, endsAt, isAllDay,
+      cityName: event.city?.name || event.cityName || null, venueName: event.venue?.name || null,
+      address: event.venue?.address || event.address || null, score, reasons,
+      href: organizerId === undefined ? `/admin/events/${event.id}` : event.organizerId === organizerId ? `/organizer/events/${event.id}` : `/eventi/${encodeURIComponent(event.slug)}`,
+    })), hiddenMatch: visible.length < found.length };
+  }
+
+  async detectForEvent(eventId: number) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { venue: true, city: true, occurrences: true } });
+    if (!event || event.status === "REJECTED") return [];
+    const matches = await this.candidates({ ...event, cityName: event.city?.name || event.cityName, venueName: event.venue?.name }, eventId);
+    return Promise.all(matches.map(({ event: other, score, reasons }) => {
+      const eventAId = Math.min(event.id, other.id), eventBId = Math.max(event.id, other.id), reason = reasons.join(" · ");
+      return this.prisma.eventDuplicateCandidate.upsert({ where: { eventAId_eventBId: { eventAId, eventBId } },
+        update: { score, reason }, create: { eventAId, eventBId, score, reason } });
+    }));
   }
 
   list() {
@@ -45,22 +66,5 @@ export class DuplicatesService {
     return this.prisma.eventDuplicateCandidate.update({ where: { id }, data: { status: "DISMISSED" } });
   }
 
-  private score(a: { title: string; startsAt: Date; organizerId: number | null; sourceUrl: string | null }, b: typeof a) {
-    let score = this.titleSimilarity(a.title, b.title) * 0.55;
-    const dayDiff = Math.abs(a.startsAt.getTime() - b.startsAt.getTime()) / (24 * 60 * 60 * 1000);
-    if (dayDiff < 1) score += 0.25;
-    if (a.organizerId && a.organizerId === b.organizerId) score += 0.1;
-    if (a.sourceUrl && a.sourceUrl === b.sourceUrl) score += 0.25;
-    return Math.min(score, 1);
-  }
-
-  /** Public so the source-monitoring flag uses the same notion of "same
-   *  title" the Duplicates screen does, rather than a second definition
-   *  that could disagree with it. */
-  titleSimilarity(a: string, b: string) {
-    const aw = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
-    const bw = new Set(b.toLowerCase().split(/\W+/).filter(Boolean));
-    const overlap = [...aw].filter((w) => bw.has(w)).length;
-    return overlap / Math.max(aw.size, bw.size, 1);
-  }
+  titleSimilarity(a: string, b: string) { return titleSimilarity(a, b); }
 }

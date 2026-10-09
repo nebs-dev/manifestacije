@@ -13,8 +13,8 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **11** | EVT-02, EVT-04, EVT-05, EVT-06, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M/§O/§P; runtime limitations recorded there) |
-| **PARTIAL** | **9** | EVT-08, EVT-09, EVT-10, EVT-11, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
+| **DONE** | **12** | EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M/§O/§P/§Q; runtime limitations recorded there) |
+| **PARTIAL** | **8** | EVT-08, EVT-09, EVT-10, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
 | **NOT IMPLEMENTED** | **6** | AUTH-03, EVT-01, EVT-03, EVT-07, ADM-04, PUB-06 |
 | **BUG STILL PRESENT** | **1** | NOT-02 |
 | **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
@@ -60,10 +60,10 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | EVT-05 | **DONE** (2026-10-09; §M) | P1 | S–M | Croatian month mapping and deterministic evidence checks reject September/October confusion; mocked screenshot regressions pass; see §M |
 | EVT-06 | **DONE** (2026-10-09, `62759b51`) | P1 | S | Fixed & deployed: explicit null clears, end date/time editing, legacy-link-safe saves — see §K |
 | EVT-07 | NOT IMPLEMENTED | P2 | M–L | One `imageUrl` per event; one screenshot per parse |
-| EVT-08 | PARTIAL | P2 | M | Admin “reparse” exists but takes no new input, overwrites candidates/status; screenshots not stored |
+| EVT-08 | PARTIAL | P2 | M | Admin reparse still takes no extra input; reviewed decisions/source metadata now retained (§Q); supplemental screenshot workflow remains outside scope |
 | EVT-09 | PARTIAL | P2 | S | Edit form has price/category; list inline-edit lacks price; no “unknown” price state |
 | EVT-10 | PARTIAL (DECISION) | P2 | S | Admin create **already defaults to Besplatno**; organizer form defaults to paid; no “Nepoznato” |
-| EVT-11 | PARTIAL | P1 | M | Post-save duplicate queue + “Vjerojatno već uvezen” on parsed candidates; no pre-save warning in forms |
+| EVT-11 | **DONE** (2026-10-09; §Q) | P1 | M | Shared read-only pre-save warnings in admin/organizer/candidate creation; privacy-safe matching and atomic candidate import; evidence / blockers in §Q |
 | EVT-12 | **DONE** (2026-10-09; §P) | P2 | S | Public links in event list/editor only for PUBLISHED or previously published ARCHIVED; draft preview is outside this task; evidence / blockers in §P |
 | ADM-01 | **DONE** (2026-10-09; §P) | P2 | S | Case/diacritic-insensitive organizer name search with loading/empty states and existing actions; evidence / blockers in §P |
 | ADM-02 | **DONE** (2026-10-09; §P) | P2 | S | Bulk organizer-associated event counts and URL/API filter navigation with clear action; separate from creator; evidence / blockers in §P |
@@ -198,7 +198,8 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
   - Public display maps `null` → not free (`public-api.ts:400`) → shows **“Naplata”** (`data.ts:899–901`), so unknown prices are presented as paid.
 - *Recommendation:* do not widen “Besplatno” as a default. Introduce an explicit “Nepoznato” state end-to-end (form tri-state, public label e.g. “Cijena: provjerite kod organizatora”), and decide whether to reset the admin default.
 
-**EVT-11 — Duplicate warning at entry**: PARTIAL · P1 · M
+**EVT-11 — Duplicate warning at entry**: **DONE (2026-10-09; §Q)** · P1 · M
+- The baseline findings below are superseded by §Q.
 - *Existing:*
   - Post-save `DuplicatesService.detectForEvent` writes candidates to `/admin/duplicates` (`duplicates/duplicates.service.ts:8–34`).
   - Parsed candidates get `_existingEventId` (`ai-parser/candidate-filters.ts:42–79`), shown as “Vjerojatno već uvezen” with a link (`parsed-candidate-card.tsx:253–298`).
@@ -392,7 +393,7 @@ None qualify as DONE under the audit rule (code **and** test/proof of the reques
 | EVT-08 | Admin reparse | Additional input; merge preserving edits and candidate status; persist screenshots; organizer access |
 | EVT-09 | Edit-form fields, inline category/date/status | Inline price; tri-state price |
 | EVT-10 | Admin default Besplatno; nullable DB column | Decide; “Nepoznato” in forms and public label; align admin/organizer defaults |
-| EVT-11 | Post-save duplicate queue; candidate “already imported” | Pre-save warning in all create paths incl. organizer; Unicode-aware tokenizer; venue + status in scoring |
+| EVT-11 | **DONE** (2026-10-09; §Q) | Shared pre-save matcher/warnings, organizer privacy, atomic candidate imports; verification blockers in §Q |
 | ADM-02 | Organizer filter on events API/table | Counts + link on organizers page; URL param wiring |
 | ADM-03 | `createdByUserId` for admin paths, column, user count | Organizer path; filter; report; backfill decision; updatedBy/publishedBy/audit log |
 | NOT-01 | Admin email for pending organizer events/sources | Trusted auto-publish + edits; per-type bell; server-side last-seen |
@@ -864,3 +865,31 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - Live `/admin/events?organizerId=4&createdByUserId=unknown&createdFrom=2026-10-01` returns 200 with these exact serialized route props. `/admin/organizers`, `/ovaj-vikend`, public detail `/eventi/6-mammothfest-povratak-u-ledeno-doba` and its calendar export return 200. Public detail includes Event JSON-LD; export contains VCALENDAR/VEVENT. The new report endpoint returns 401 without admin authentication.
 - Public API feed snapshots immediately before/after deployment are identical: **170 events**, no changed records. No production POST/PUT/DELETE requests, source submissions, attribution backfills or real event mutations were performed.
 - **DONE:** ADM-01, ADM-02, ADM-03, EVT-12. Remaining scoped verification blockers: desktop/mobile browser runtime unavailable, and authenticated production workflows unavailable without an admin session. Historical creators remain unknown; attribution distinguishes Event creation from poster/source submission and later editing/approval.
+
+---
+
+## Q. EVT-11 — Advisory duplicate warnings before creation (2026-10-09)
+
+### Implementation
+
+- One deterministic matcher now powers authenticated `POST /api/admin/duplicates/check`, `POST /api/organizer/duplicates/check`, parsed-candidate public hints and the existing post-save duplicate review queue. Checks are read-only: no event, source, taxonomy, queue or public cache mutations. Existing dismissed/merged pair decisions survive rescoring.
+- Replaced Unicode-unaware tokenization with Unicode letters/numbers and Croatian case/diacritic normalization, including Đ. Distinctive title overlap must be at least 70%; explicit city/venue conflicts veto matches. Generic titles require an exact normalized title, precise venue and near-identical timed start. Separate venues at the same street address remain separate.
+- Compare real timestamp/occurrence slots with Europe/Zagreb calendar boundaries, never an occurrence envelope. Timed starts within 30 minutes, overlapping highly similar multi-day events and overlapping all-day dates can warn; later performances and different weekly dates do not match merely because the title repeats. Weekly creation checks expand the same maximum 52 UTC-week increments as the existing creation implementation. CET/CEST, the repeated DST hour, year boundaries and midnight-spanning schedules have regressions; timezone-less ambiguous timestamps are not silently interpreted.
+- Admin manual creation, organizer creation and edited parsed-candidate import share a Croatian warning panel with matched title, Zagreb date/time, location, reasons and an internal record link. Checks debounce 600 ms while typing and run afresh before saving. Explicit actions open the existing record, continue anyway or return to editing. If a check is unavailable, explicit continuation remains possible. Edits during confirmation cancel the captured proposal; duplicate save clicks and stale/unmounted responses cannot approve it. Candidate warnings remain visible on collapsed review cards.
+- Organizer responses disclose only public records or events owned by the authenticated organizer. Other private matches produce only `hiddenMatch: true`, with no private IDs, dates, titles, locations, counts or reasons. Request owner/role fields cannot change disclosure. Historical candidate hints are stripped from organizer source responses without changing stored review metadata.
+- Candidate import locks its EventSource row and commits Event creation and the candidate decision together. Repeated/concurrent import of the same processed batch or legacy candidate returns 409 rather than creating another Event; different candidates retain both decisions. Reparse/ignore use the same lock and preserve reviewed candidates, indexes and source metadata. New sources containing a similar existing event remain advisory and can be intentionally imported. Cache, duplicate queue and existing publication notification side effects follow commit; advisory/cache failures cannot undo a committed import.
+- No schema/migration changes, automatic merges/deletes, historical record correction, guessed attribution or production event changes. URL safety, organizer ownership, protected fields, schedule storage and EventRevision behavior remain covered by the existing suites.
+
+### Automated verification
+
+- Full API suite: **30 suites / 596 tests passed**, including **51 real PostgreSQL integration tests**, against isolated `localhost:5442/revision_qa` only. The database suite refuses other URLs and never falls back to the application DATABASE_URL. Includes read-only authenticated checks, role/owner spoofing, private/public/owned matches, request bounds, advisory continuation, concurrent same/different candidate imports, rollback, metadata retention and existing authorization/revision regressions. Pure matcher tests cover Croatian Unicode, false positives, statuses, locations, performances, weekly expansion, occurrences, all-day/multi-day/overnight, winter/summer/DST/year dates and reparse decisions.
+- The complete suite also passed with `TZ=Pacific/Honolulu` before the final additional distinct-venue reparse regression; the final pure matcher/PostgreSQL suites also passed there (**2 suites / 79 tests**). No mocked database result is presented as a real database pass.
+- Full web suite: **38 files / 349 tests passed**. jsdom tests exercise all three actual creation forms, preview debounce, stale results, fresh final checks, matching details/internal links, hidden warning, no-match continuation, check failure, cancel/continue, edited proposals, unmount and double save. These are component interaction tests, not browser viewport QA.
+- API/web typechecks, lint and production builds passed without lint warnings. Local startup ran all 23 existing migrations with none pending. Built full AppModule authenticated HTTP smoke passed against synthetic isolated fixtures: shared endpoints, Croatian matching, privacy/authorization, no check mutations, advisory Event creation, concurrent candidate import and source metadata retention. Production writes: zero.
+- **BLOCKED — desktop/mobile browser QA:** Browser skill selection returned “No browser is available”; documented troubleshooting and one discovery call returned an empty list. No browser/viewport pass is claimed.
+- **BLOCKED — authenticated production duplicate warnings/import flows:** no production admin/organizer session or infrastructure/database credentials are available. Authenticated behavior is verified locally; production checks are limited to deployed route protection, build assets and public read-only smoke checks.
+
+### Deployment evidence
+
+- Pending focused commit/push and deployment verification; exact SHA, host status and non-destructive smoke results will be appended after deployment.
+- Matching is intentionally advisory, not a uniqueness constraint. Materially different titles or incorrect/missing source dates/locations can evade a warning; close performances within the documented 30-minute tolerance can require manual judgment. Existing historical duplicates are not merged or removed.

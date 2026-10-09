@@ -285,8 +285,8 @@ export class OrganizerService {
     }
   }
 
-  listSources(organizerId: number) {
-    return this.prisma.eventSource.findMany({
+  async listSources(organizerId: number) {
+    const sources = await this.prisma.eventSource.findMany({
       where: { organizerId },
       select: {
         id: true,
@@ -298,6 +298,17 @@ export class OrganizerService {
         parsedJson: true,
       },
       orderBy: { createdAt: "desc" },
+    });
+    // Old computed hints may predate disclosure rules. Never return another
+    // organizer's private record ID from historical parser metadata.
+    return sources.map(source => {
+      const parsed = source.parsedJson as { candidates?: Record<string, unknown>[]; _existingEventId?: unknown } | null;
+      if (!parsed || typeof parsed !== "object") return source;
+      const { _existingEventId: _rootHint, ...safeParsed } = parsed;
+      if (!Array.isArray(parsed.candidates)) return { ...source, parsedJson: safeParsed };
+      return { ...source, parsedJson: { ...safeParsed, candidates: parsed.candidates.map(candidate => {
+        const { _existingEventId: _hint, ...content } = candidate; return content;
+      }) } };
     });
   }
 

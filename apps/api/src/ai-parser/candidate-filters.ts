@@ -3,14 +3,8 @@ import { ParsedSourceResult } from "./ai-event-parser.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 
+import { duplicateSlots, matchDuplicate, normalizeDuplicateText } from "../duplicates/duplicate-matching";
 import { zagrebDateKey } from "../common/zagreb-time";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-// How alike two titles must read before a candidate is flagged as already
-// imported. Set high on purpose: the flag is only a warning, but a wrong one
-// invites the admin to skip a genuinely new event, while a missed one just
-// means a duplicate the Duplicates screen already catches.
-const ALREADY_IMPORTED_TITLE_SIMILARITY = 0.8;
 
 /** Nobody reviewing parsed candidates wants events that already happened —
  *  drop anything clearly over. Uses endsAt when present so a still-running
@@ -32,64 +26,45 @@ export function dropPastCandidates(parsed: ParsedSourceResult): ParsedSourceResu
   return { ...parsed, candidates };
 }
 
-/**
- * Marks candidates that look like an event we already published.
- *
- * Advisory only — nothing downstream reads the flag, and `_status` is left
- * untouched so every candidate stays importable. The matching is
- * deliberately strict (same calendar day, near-identical title, same city
- * when both are known): the expensive mistake is claiming something is a
- * duplicate when it is not, because that invites the admin to skip a real
- * new event. Anything uncertain is left unflagged and simply looks new.
- */
-export async function flagAlreadyImported(
-  prisma: PrismaService,
-  duplicates: DuplicatesService,
-  parsed: ParsedSourceResult
-): Promise<ParsedSourceResult> {
-  const dated = parsed.candidates
-    .map((candidate, index) => ({ index, at: new Date(candidate.startsAt) }))
-    .filter((entry) => !Number.isNaN(entry.at.getTime()));
-  if (dated.length === 0) return parsed;
+/** Shared deterministic matching for public already-imported hints. Existing
+ * manual decisions/metadata are retained; only pending computed hints refresh. */
+export async function flagAlreadyImported(prisma: PrismaService, _duplicates: DuplicatesService, parsed: ParsedSourceResult): Promise<ParsedSourceResult> {
+  const inputs = parsed.candidates.map(candidate => ({ ...candidate, cityName: candidate.city }));
+  const slots = inputs.flatMap(duplicateSlots);
+  if (!slots.length) return parsed;
+  const existing = await prisma.event.findMany({ where: {
+    OR: [{ status: EventStatus.PUBLISHED }, { status: EventStatus.ARCHIVED, publishedAt: { not: null } }],
+    AND: [{ OR: [
+      { startsAt: { lte: new Date(Math.max(...slots.map(row => row.end.getTime())) + 86400000) },
+        OR: [{ endsAt: { gte: new Date(Math.min(...slots.map(row => row.start.getTime())) - 86400000) } }, { startsAt: { gte: new Date(Math.min(...slots.map(row => row.start.getTime())) - 86400000) } }] },
+      { occurrences: { some: { startsAt: { gte: new Date(Math.min(...slots.map(row => row.start.getTime())) - 86400000), lte: new Date(Math.max(...slots.map(row => row.end.getTime())) + 86400000) } } } },
+    ] }],
+  }, include: { venue: true, city: true, occurrences: true } });
+  return { ...parsed, candidates: parsed.candidates.map((candidate, index) => {
+    if (candidate._status === "created" || candidate._status === "ignored") return candidate;
+    const { _existingEventId: _oldHint, ...rest } = candidate;
+    const match = existing.map(event => ({ event, match: matchDuplicate(inputs[index], event) }))
+      .filter(row => row.match).sort((a, b) => b.match!.score - a.match!.score || a.event.id - b.event.id)[0];
+    return match ? { ...rest, _existingEventId: match.event.id } : rest;
+  }) };
+}
 
-  const times = dated.map((entry) => entry.at.getTime());
-  const existing = await prisma.event.findMany({
-    where: {
-      startsAt: {
-        gte: new Date(Math.min(...times) - DAY_MS),
-        lte: new Date(Math.max(...times) + DAY_MS),
-      },
-      // A rejected or archived event is not a reason to wave the admin off
-      // this candidate — they turned that one down, so the listing offering
-      // it again is a decision to make afresh, not a duplicate to skip.
-      status: { notIn: [EventStatus.REJECTED, EventStatus.ARCHIVED] },
-    },
-    select: { id: true, title: true, startsAt: true, cityName: true },
+/** Retain reviewed candidates and their indexes so reparsing cannot reopen a
+ * created/ignored item or make an open review card import a different item. */
+export function retainCandidateDecisions(previous: unknown, fresh: ParsedSourceResult): ParsedSourceResult {
+  const old = previous as ParsedSourceResult | null;
+  if (!Array.isArray(old?.candidates)) return fresh;
+  const remaining = [...fresh.candidates];
+  const candidates = old.candidates.map(candidate => {
+    const index = remaining.findIndex(next => normalizeDuplicateText(next.title) === normalizeDuplicateText(candidate.title)
+      && ((next.startsAt === candidate.startsAt
+        && normalizeDuplicateText(next.city) === normalizeDuplicateText(candidate.city)
+        && normalizeDuplicateText(next.venueName) === normalizeDuplicateText(candidate.venueName)) || !!matchDuplicate({ ...next, cityName: next.city }, {
+        ...candidate, id: 0, slug: "", status: "PUBLISHED", city: undefined, cityName: candidate.city,
+      })));
+    const replacement = index >= 0 ? remaining.splice(index, 1)[0] : null;
+    if (candidate._status === "created" || candidate._status === "ignored" || !replacement) return candidate;
+    return { ...candidate, ...replacement, _status: candidate._status };
   });
-  if (existing.length === 0) return parsed;
-
-  const candidates = [...parsed.candidates];
-  for (const { index, at } of dated) {
-    const candidate = candidates[index];
-    const match = existing.find((event) =>
-      sameCalendarDay(event.startsAt, at)
-      && sameCityWhenKnown(event.cityName, candidate.city)
-      && duplicates.titleSimilarity(event.title, candidate.title) >= ALREADY_IMPORTED_TITLE_SIMILARITY);
-    if (match) candidates[index] = { ...candidate, _existingEventId: match.id };
-  }
-
-  return { ...parsed, candidates };
-}
-
-function sameCalendarDay(a: Date, b: Date): boolean {
-  return zagrebDateKey(a) === zagrebDateKey(b);
-}
-
-/** An unknown city on either side is not evidence of a different event, so
- *  it must not veto an otherwise convincing match. */
-function sameCityWhenKnown(a: string | null, b: string): boolean {
-  const left = a?.trim().toLowerCase();
-  const right = b?.trim().toLowerCase();
-  if (!left || !right) return true;
-  return left === right;
+  return { ...old, ...fresh, candidates: [...candidates, ...remaining] };
 }

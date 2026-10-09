@@ -9,7 +9,7 @@ import { safeHttpUrlOrUndefined } from "../common/safe-url";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
-import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
+import { dropPastCandidates, flagAlreadyImported, retainCandidateDecisions } from "../ai-parser/candidate-filters";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
@@ -695,16 +695,33 @@ export class AdminService {
       || await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl });
     result = dropPastCandidates(result);
     result = await flagAlreadyImported(this.prisma, this.duplicates, result);
-    const { confidence, status } = this.sourceMetaFromResult(result);
-    return this.prisma.eventSource.update({
-      where: { id },
-      data: { parsedJson: result as object, confidence, status },
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      const current = await tx.eventSource.findUniqueOrThrow({ where: { id } });
+      const retained = retainCandidateDecisions(current.parsedJson, result);
+      const { confidence, status } = this.sourceMetaFromResult(retained);
+      const allDone = retained.candidates.length > 0 && retained.candidates.every(c => c._status === "created" || c._status === "ignored");
+      return tx.eventSource.update({ where: { id }, data: { parsedJson: retained as object, confidence,
+        status: current.eventId || allDone ? "LINKED" : status } });
     });
   }
 
   async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto, publish = false, createdByUserId?: number) {
-    const source = await this.prisma.eventSource.findUnique({ where: { id } });
-    if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
+    const result = await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      return this.importCandidate(tx, id, candidateIndex, candidateOverride, publish, createdByUserId);
+    }, { timeout: 60000 });
+    // External side effects follow commit; retries cannot recreate this candidate.
+    for (const tag of ["events", "taxonomy"] as const) { try { await this.revalidate.revalidate(tag); } catch { /* already committed */ } }
+    try { await this.duplicates.detectForEvent(result.event.id); } catch { /* advisory */ }
+    if (publish && result.event.organizerId) await this.notifyOrganizerOfStatusChange(result.event.id, EventStatus.PUBLISHED);
+    return result;
+  }
+
+  private async importCandidate(db: Prisma.TransactionClient, id: number, candidateIndex: number, candidateOverride?: CandidateOverrideDto, publish = false, createdByUserId?: number) {
+    const source = await db.eventSource.findUnique({ where: { id } });
+    if (!source?.parsedJson) throw new BadRequestException("Izvor nema obrađene podatke.");
+    if (source.eventId || source.status === "LINKED") throw new ConflictException("Izvor je već obrađen.");
 
     const parsedJson = source.parsedJson as Record<string, unknown>;
     let originalCandidate: ParsedEventCandidate;
@@ -719,8 +736,8 @@ export class AdminService {
         throw new BadRequestException(`Invalid candidateIndex ${candidateIndex} (source has ${candidates.length} candidates)`);
       }
       const c = candidates[candidateIndex];
-      if (c._status === "created") throw new BadRequestException("Candidate already has a created event");
-      if (c._status === "ignored") throw new BadRequestException("Candidate is marked as ignored");
+      if (c._status === "created") throw new ConflictException("Kandidat već ima kreiran događaj.");
+      if (c._status === "ignored") throw new ConflictException("Kandidat je označen kao zanemaren.");
       originalCandidate = c;
     } else {
       // Legacy single-event format
@@ -729,14 +746,14 @@ export class AdminService {
 
     candidate = { ...originalCandidate, ...this.cleanCandidateOverride(candidateOverride) };
 
-    const city = candidate.city ? await this.findOrCreateCity(candidate.city, candidate.county, candidate.region) : null;
+    const city = candidate.city ? await this.findOrCreateCity(candidate.city, candidate.county, candidate.region, db) : null;
     const categoryIds = candidateOverride?.categoryIds?.length ? candidateOverride.categoryIds : undefined;
     const category = categoryIds?.[0]
-      ? await this.prisma.category.findUnique({ where: { id: categoryIds[0] } })
-      : await this.findOrCreateCategory(candidate.category);
+      ? await db.category.findUnique({ where: { id: categoryIds[0] } })
+      : await this.findOrCreateCategory(candidate.category, db);
     if (categoryIds?.[0] && !category) throw new BadRequestException(`Category '${categoryIds[0]}' not found in taxonomy`);
 
-    const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName);
+    const organizerId = source.organizerId ?? await this.findOrCreateOrganizerId(candidate.organizerName, db);
     const imageUrl = await this.rehostCandidateImage(candidate.imageUrl);
 
     const event = await this.events.createFromDto(
@@ -769,7 +786,7 @@ export class AdminService {
         lng: candidate.lng ?? undefined,
         imageUrl: imageUrl || undefined,
       },
-      { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION", createdByUserId }
+      { organizerId, status: publish ? EventStatus.PUBLISHED : EventStatus.PENDING_REVIEW, sourceType: "URL_SUBMISSION", createdByUserId }, db
     );
 
     if (isBatchFormat) {
@@ -789,40 +806,41 @@ export class AdminService {
           : c
       );
       const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
-      await this.prisma.eventSource.update({
+      await db.eventSource.update({
         where: { id },
         data: { parsedJson: { ...result, candidates: updatedCandidates } as object, status: allDone ? "LINKED" : "PARSED" },
       });
     } else {
-      await this.prisma.eventSource.update({ where: { id }, data: { eventId: event.id, status: "LINKED" } });
+      await db.eventSource.update({ where: { id }, data: { eventId: event.id, status: "LINKED" } });
     }
 
-    if (publish) {
-      if (event.organizerId) await this.notifyOrganizerOfStatusChange(event.id, EventStatus.PUBLISHED);
-    }
     return { event, candidateIndex };
   }
 
   async ignoreCandidate(id: number, candidateIndex: number) {
-    const source = await this.prisma.eventSource.findUnique({ where: { id } });
-    if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      const source = await db.eventSource.findUnique({ where: { id } });
+      if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
 
-    const parsedJson = source.parsedJson as Record<string, unknown>;
-    const result = parsedJson as ParsedSourceResult;
-    if (!Array.isArray(result.candidates)) throw new BadRequestException("Source is not in batch format");
+      const parsedJson = source.parsedJson as Record<string, unknown>;
+      const result = parsedJson as ParsedSourceResult;
+      if (!Array.isArray(result.candidates)) throw new BadRequestException("Source is not in batch format");
 
-    if (candidateIndex < 0 || candidateIndex >= result.candidates.length) {
-      throw new BadRequestException(`Invalid candidateIndex ${candidateIndex}`);
-    }
+      if (candidateIndex < 0 || candidateIndex >= result.candidates.length) {
+        throw new BadRequestException(`Invalid candidateIndex ${candidateIndex}`);
+      }
 
-    const updatedCandidates = result.candidates.map((c, i) =>
-      i === candidateIndex ? { ...c, _status: "ignored" as const } : c
-    );
-    const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
+      if (result.candidates[candidateIndex]._status === "created") throw new ConflictException("Kandidat već ima kreiran događaj.");
+      const updatedCandidates = result.candidates.map((c, i) =>
+        i === candidateIndex ? { ...c, _status: "ignored" as const } : c
+      );
+      const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
 
-    return this.prisma.eventSource.update({
-      where: { id },
-      data: { parsedJson: { ...result, candidates: updatedCandidates } as object, status: allDone ? "LINKED" : "PARSED" },
+      return db.eventSource.update({
+        where: { id },
+        data: { parsedJson: { ...result, candidates: updatedCandidates } as object, status: allDone ? "LINKED" : "PARSED" },
+      });
     });
   }
 
@@ -1287,7 +1305,7 @@ export class AdminService {
     return uploaded?.imageUrl ?? url;
   }
 
-  private async findOrCreateOrganizerId(name?: string): Promise<number | undefined> {
+  private async findOrCreateOrganizerId(name?: string, db: Prisma.TransactionClient = this.prisma): Promise<number | undefined> {
     const cleaned = name?.trim();
     if (!cleaned) return undefined;
 
@@ -1295,7 +1313,7 @@ export class AdminService {
     const isCreditLine = names.length > 1;
     const primary = names[0];
 
-    const existing = await this.findOrganizerByName(primary);
+    const existing = await this.findOrganizerByName(primary, db);
     if (existing) return existing;
 
     // A credit line ("A, B & C") names several parties, not one organiser.
@@ -1305,8 +1323,8 @@ export class AdminService {
     // already known, leave it empty for the admin to resolve.
     if (isCreditLine) return undefined;
 
-    const slug = await uniqueSlug(primary, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
-    const organizer = await this.prisma.organizer.create({ data: { name: primary, slug, status: OrganizerStatus.UNCLAIMED } });
+    const slug = await uniqueSlug(primary, async (s) => !!(await db.organizer.findUnique({ where: { slug: s } })));
+    const organizer = await db.organizer.create({ data: { name: primary, slug, status: OrganizerStatus.UNCLAIMED } });
     return organizer.id;
   }
 
@@ -1315,10 +1333,10 @@ export class AdminService {
    *  ("Centar za kulturu Đakovo" vs "Centar za kulturu Dakovo"). The table is
    *  small enough to compare in memory, and Postgres can't apply this
    *  normalisation in a query without an expression index. */
-  private async findOrganizerByName(name: string): Promise<number | undefined> {
+  private async findOrganizerByName(name: string, db: Prisma.TransactionClient = this.prisma): Promise<number | undefined> {
     const target = this.normalizeOrganizerName(name);
     if (!target) return undefined;
-    const all = await this.prisma.organizer.findMany({ select: { id: true, name: true } });
+    const all = await db.organizer.findMany({ select: { id: true, name: true } });
     return all.find((o) => this.normalizeOrganizerName(o.name) === target)?.id;
   }
 
@@ -1347,14 +1365,14 @@ export class AdminService {
     return parts.length > 1 ? parts : [withoutAsides || value.trim()];
   }
 
-  private findOrCreateCity(name: string, countyName?: string, regionName?: string) {
-    return findOrCreateCity(this.prisma, name, countyName, regionName);
+  private findOrCreateCity(name: string, countyName?: string, regionName?: string, db: Prisma.TransactionClient = this.prisma) {
+    return findOrCreateCity(db, name, countyName, regionName);
   }
 
-  private async findOrCreateCategory(category?: string | null) {
+  private async findOrCreateCategory(category?: string | null, db: Prisma.TransactionClient = this.prisma) {
     const cleaned = category?.trim();
     if (cleaned) {
-      const existing = await this.prisma.category.findFirst({
+      const existing = await db.category.findFirst({
         where: {
           OR: [
             { slug: { equals: cleaned, mode: "insensitive" } },
@@ -1364,7 +1382,7 @@ export class AdminService {
       });
       if (existing) return existing;
     }
-    return this.prisma.category.upsert({
+    return db.category.upsert({
       where: { slug: "ostalo" },
       update: {},
       create: { name: "Ostalo", slug: "ostalo", sortOrder: 999 },

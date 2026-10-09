@@ -16,6 +16,7 @@ import { EventImagePicker, type EventImageValue } from "@/components/admin/event
 import { authedFetch } from "@/lib/admin/api"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus } from "@/lib/admin/status"
 import type { AdminOrganizer, EventStatus } from "@/lib/admin/types"
+import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
 import { EventScheduleEditor, emptyScheduleRow, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 
 type Category = { id: number; name: string; slug: string }
@@ -48,6 +49,14 @@ export function EventCreateForm() {
   })
   const [image, setImage] = useState<EventImageValue>({ imageUrl: "" })
 
+  let duplicateInput = null
+  try {
+    const schedule = scheduleRowsToApi(scheduleRows)
+    duplicateInput = duplicateCheckInput({ ...form, cityId: form.cityId ? Number(form.cityId) : undefined, ...schedule[0], occurrences: scheduleRows.length > 1 ? schedule : undefined,
+      repeatWeeklyUntil: form.repeatWeekly && form.repeatWeeklyUntil ? new Date(form.repeatWeeklyUntil).toISOString() : undefined })
+  } catch { /* Incomplete schedule: check once a real date/time is available. */ }
+  const duplicates = useEventDuplicateCheck(duplicateInput, authedFetch, "/api/admin/duplicates/check")
+
   useEffect(() => {
     let alive = true
     Promise.all([
@@ -74,9 +83,7 @@ export function EventCreateForm() {
       if (form.repeatWeekly && scheduleRows.length !== 1) throw new Error("Tjedno ponavljanje podržava samo jedan početni termin.")
       const schedule = scheduleRowsToApi(scheduleRows)
       const first = schedule[0]
-      const res = await authedFetch("/api/admin/events", {
-        method: "POST",
-        body: JSON.stringify({
+      const body = {
           title: form.title,
           description: form.description,
           cityId: form.cityId ? Number(form.cityId) : undefined,
@@ -97,8 +104,9 @@ export function EventCreateForm() {
           sourceUrl: form.sourceUrl || undefined,
           status: toApiEventStatus(form.status),
           imageUrl: image.imageUrl || undefined,
-        }),
-      })
+      }
+      if (!await duplicates.beforeSave(body)) return
+      const res = await authedFetch("/api/admin/events", { method: "POST", body: JSON.stringify(body) })
       if (!res.ok) throw new Error(await res.text())
       const event = await res.json() as { id: number; _seriesCount?: number }
       const message = event._seriesCount && event._seriesCount > 1
@@ -113,7 +121,8 @@ export function EventCreateForm() {
   }
 
   return (
-    <form id="admin-event-create-form" onSubmit={(e) => { e.preventDefault(); void save() }} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <form id="admin-event-create-form" onInputCapture={duplicates.cancelPending} onChangeCapture={duplicates.cancelPending} onSubmit={(e) => { e.preventDefault(); void save() }} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="lg:col-span-3">{duplicates.warning}</div>
       <div className="flex flex-col gap-6 lg:col-span-2">
         <Card>
           <CardHeader>
