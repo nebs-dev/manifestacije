@@ -83,13 +83,18 @@ function PasswordInput({ value, onChange, placeholder, className, onKeyDown, aut
   )
 }
 
-function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChanged: () => void; selected: boolean; onToggle: () => void }) {
+function OrgRow({ org, onChanged, onViewed, selected, onToggle }: { org: Organizer; onChanged: () => void; onViewed: (id: number) => void; selected: boolean; onToggle: () => void }) {
   const [editing, setEditing] = useState(false)
   async function viewOrganizer() {
     try {
       const response = await authedFetch(`/api/admin/organizers/${org.id}`)
       if (!response.ok) throw new Error()
-      setEditing(true); onChanged(); window.dispatchEvent(new Event("admin-notifications-changed"))
+      setEditing(true); onViewed(org.id); window.dispatchEvent(new Event("admin-notifications-changed"))
+      const url = new URL(window.location.href)
+      if (url.searchParams.get("organizerId") === String(org.id)) {
+        url.searchParams.delete("organizerId")
+        window.history.replaceState(window.history.state, "", url.pathname + url.search)
+      }
     } catch { toast.error("Organizatora nije moguće otvoriti.") }
   }
   useEffect(() => {
@@ -414,7 +419,7 @@ export default function OrganizersPage() {
               <TableBody>
                 {!visibleOrganizers.length && <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">{search ? "Nema organizatora koji odgovaraju pretrazi." : "Nema organizatora."}</TableCell></TableRow>}
                 {visibleOrganizers.map((o) => (
-                  <OrgRow key={o.id} org={o} onChanged={load} selected={selected.has(o.id)} onToggle={() => toggle(o.id)} />
+                  <OrgRow key={o.id} org={o} onChanged={load} onViewed={(id) => setOrganizers(current => current.map(item => item.id === id ? { ...item, adminViewedAt: new Date().toISOString() } : item))} selected={selected.has(o.id)} onToggle={() => toggle(o.id)} />
                 ))}
                 <AddRow onCreated={load} />
               </TableBody>

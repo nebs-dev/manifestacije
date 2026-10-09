@@ -46,6 +46,29 @@ async function input(label: string, value: string, tag = "input") {
 }
 
 describe("organizer list", () => {
+  it("opens an individual editor without reloading/unmounting the list or repeating reads", async () => {
+    await render(<OrganizersPage />)
+    await act(async () => (container.querySelectorAll('button[aria-label="Uredi"]')[1] as HTMLButtonElement).click())
+    expect(container.querySelector('input[value="Zagreb"]')).not.toBeNull()
+    expect(api.mock.calls.map(([path]) => path)).toEqual(["/api/admin/organizers", "/api/admin/organizers/5"])
+    await render(<OrganizersPage />)
+    expect(api).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('input[value="Zagreb"]')).not.toBeNull()
+  })
+  it("consumes the organizer deep link once and preserves the named editor across parent renders", async () => {
+    const original = window.location.pathname + window.location.search
+    window.history.replaceState(null, "", "/admin/organizers?organizerId=5")
+    try {
+      await render(<OrganizersPage />)
+      expect(container.querySelector('input[value="Zagreb"]')).not.toBeNull()
+      expect(window.location.search).toBe("")
+      expect(api.mock.calls.map(([path]) => path)).toEqual(["/api/admin/organizers", "/api/admin/organizers/5"])
+      await render(<OrganizersPage />)
+      expect(api).toHaveBeenCalledTimes(2)
+      expect(container.querySelector('input[value="Zagreb"]')).not.toBeNull()
+    } finally { window.history.replaceState(null, "", original) }
+  })
+
   it("searches Croatian names, keeps event counts/actions and links to association filters", async () => {
     await render(<OrganizersPage />)
     await input("Pretraži organizatore po nazivu", "SUSUR durdevac")
