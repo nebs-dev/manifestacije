@@ -788,7 +788,7 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 
 ## O. EVT-02 — Published event revision workflow (2026-10-09)
 
-**Status: DONE for implementation and automated workflow verification.** Deployment verification is recorded below once the focused commit is pushed. The earlier EVT-02/E6 findings describe the pre-fix behavior.
+**Status: DONE — implemented, automated checks passed, deployed to Railway/Vercel.** Production schema readiness and read-only checks passed; authenticated production and browser limitations are explicit below. The earlier EVT-02/E6 findings describe the pre-fix behavior.
 
 ### Architecture and business rule
 
@@ -820,4 +820,9 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 
 ### Deployment verification
 
-Pending focused commit/push and non-destructive deployment checks.
+- Implementation commit **`63f871742586bc2dd8cb107c920bd7473a72a01f`** pushed to existing `main` without force-pushing. Unrelated `docs/project/*` edits and the untracked backlog document were excluded.
+- GitHub deployment statuses for that exact SHA: **SUCCESS** for [Vercel AKZ6Vjbc67HSh6kpf7oHMhrkTfHe](https://vercel.com/nebsdevs-projects/manifestacije/AKZ6Vjbc67HSh6kpf7oHMhrkTfHe) at **11:50:23 UTC** and [Railway 79878e7c-3c05-4a86-8aa6-5155fe5b3a40](https://railway.com/project/c5834314-f293-494d-8ddd-d314b010a1ff/service/29608be2-c13d-471a-acba-c1c89bf0bfe5?id=79878e7c-3c05-4a86-8aa6-5155fe5b3a40&environmentId=9d8d51e2-e78f-43fb-84f5-1342fc743ffc) at **11:51:37 UTC**.
+- Production `/api/health` at **11:52:03 UTC**: `ok=true`, `db=ok`, `eventRevisions=ready`, `env=production`, uptime **25 seconds**. The new read-only readiness query successfully selects revision columns and verifies the named partial unique index in the current schema. This confirms the required production schema exists; direct migration-ledger/log inspection is unavailable without infrastructure/database credentials.
+- New `/api/admin/event-revisions`, `/api/admin/event-revisions/1`, `/api/organizer/event-revisions/1` and `/api/admin/pending-counts` return **401 Missing bearer token**, confirming deployed guarded routing, not authenticated workflow success.
+- Web `/admin/event-revisions`, `/admin/event-revisions/1`, `/organizer/events`, `/organizer/events/1`, `/ovaj-vikend`, `/kalendar`, `/mapa`, `/eventi/tommy-emmanuel` and its `/calendar.ics` return **HTTP 200**. These are HTTP availability checks; admin/organizer shells still require client authentication. Public detail includes valid JSON-LD and ICS starts with `BEGIN:VCALENDAR`.
+- Public API feed remains **170 events**. Complete returned public records compare unchanged against the pre-push snapshot (no added/removed/changed records), including the separately reported historical timing errors. No production event writes or manual cache purges were performed.
