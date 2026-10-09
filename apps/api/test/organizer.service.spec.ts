@@ -42,6 +42,7 @@ function emailMock() {
     sendEventSubmitted: jest.fn(),
     sendEventPublished: jest.fn(),
     sendAdminNewSubmission: jest.fn(),
+    sendAdminAutoPublished: jest.fn(),
   };
 }
 
@@ -286,5 +287,41 @@ describe("OrganizerService createEvent", () => {
     await service.createEvent(7, {} as never, "organizer@example.hr", 42);
 
     expect(contacts.syncEventSubmitter).toHaveBeenCalledWith("organizer@example.hr", "EVENT_SUBMISSION", organizer, 42);
+  });
+});
+
+describe("OrganizerService notification email triggers", () => {
+  const event = { id: 51, title: "Novi događaj", slug: "novi-dogadaj", startsAt: new Date("2099-10-10T12:00:00Z"), cityName: "Zagreb" };
+  function fixture(status: string) {
+    const prisma = { organizer: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 7, name: "Udruga", status, email: "scraped@example.test" }) } };
+    const email = emailMock(), events = { createFromDto: jest.fn().mockResolvedValue(event) };
+    const service = new OrganizerService(prisma as never, events as never, {} as never, {} as never, email as never, contactsMock() as never, {} as never);
+    return { service, email, events };
+  }
+  it("sends one trusted publication notice to admin and one confirmation to the authenticated organizer", async () => {
+    const { service, email, events } = fixture("TRUSTED");
+    await service.createEvent(7, {} as never, "signed-in@example.test", 42);
+    expect(events.createFromDto).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ status: "PUBLISHED", createdByUserId: 42 }));
+    expect(email.sendAdminAutoPublished).toHaveBeenCalledTimes(1);
+    expect(email.sendAdminAutoPublished).toHaveBeenCalledWith(expect.objectContaining({ title: event.title, adminEventUrl: "https://manifestacije.hr/admin/events/51", publicEventUrl: "https://manifestacije.hr/eventi/novi-dogadaj" }), 51);
+    expect(email.sendAdminNewSubmission).not.toHaveBeenCalled();
+    expect(email.sendEventSubmitted).not.toHaveBeenCalled();
+    expect(email.sendEventPublished).toHaveBeenCalledWith("signed-in@example.test", expect.anything(), 51);
+  });
+  it("preserves the pending-submission email without sending a publication email", async () => {
+    const { service, email } = fixture("VERIFIED");
+    await service.createEvent(7, {} as never, "signed-in@example.test", 42);
+    expect(email.sendAdminNewSubmission).toHaveBeenCalledTimes(1); expect(email.sendAdminAutoPublished).not.toHaveBeenCalled();
+    expect(email.sendEventSubmitted).toHaveBeenCalledTimes(1); expect(email.sendEventPublished).not.toHaveBeenCalled();
+  });
+  it("never emails scraped or unclaimed profile addresses", async () => {
+    const { service, email } = fixture("TRUSTED");
+    await service.createEvent(7, {} as never, undefined, 42);
+    expect(email.sendEventPublished).not.toHaveBeenCalled(); expect(email.sendEventSubmitted).not.toHaveBeenCalled();
+    expect(email.sendAdminAutoPublished).toHaveBeenCalledTimes(1);
+  });
+  it("keeps creation successful if the admin email dependency fails", async () => {
+    const { service, email } = fixture("TRUSTED"); email.sendAdminAutoPublished.mockRejectedValue(new Error("Provider unavailable"));
+    await expect(service.createEvent(7, {} as never, undefined, 42)).resolves.toEqual(event);
   });
 });

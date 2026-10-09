@@ -177,3 +177,24 @@ describe("revision email templates", () => {
     });
   });
 });
+
+describe("trusted publication admin email", () => {
+  it("uses the configured recipient, distinct template and escaped content", async () => {
+    await withEnv({ ADMIN_NOTIFICATION_EMAIL: "staff@example.test", EMAIL_DELIVERY_MODE: "log", NODE_ENV: "test" }, async () => {
+      const service = new EmailService(), provider = { send: jest.fn().mockResolvedValue({ provider: "log" }) };
+      (service as unknown as { provider: unknown }).provider = provider;
+      await service.sendAdminAutoPublished({ title: "<script>bad</script>", organizerName: "Udruga", adminEventUrl: "https://example.test/admin/events/51", publicEventUrl: "https://example.test/eventi/test", webUrl: "https://example.test" }, 51);
+      expect(provider.send).toHaveBeenCalledTimes(1);
+      expect(provider.send).toHaveBeenCalledWith(expect.objectContaining({ to: "staff@example.test", subject: "Automatski objavljen događaj: <script>bad</script>", tags: expect.arrayContaining([{ name: "template", value: "admin_auto_published" }]) }));
+      expect(provider.send.mock.calls[0][0].html).toContain("&lt;script&gt;");
+      expect(provider.send.mock.calls[0][0].html).not.toContain("<script>");
+    });
+  });
+  it("absorbs real provider interface failures without claiming delivery", async () => {
+    await withEnv({ EMAIL_DELIVERY_MODE: "log", NODE_ENV: "test" }, async () => {
+      const service = new EmailService(), provider = { send: jest.fn().mockRejectedValue(new Error("Resend failed")) };
+      (service as unknown as { provider: unknown }).provider = provider;
+      await expect(service.sendAdminAutoPublished({ title: "Test", organizerName: "Udruga", adminEventUrl: "https://example.test", publicEventUrl: "https://example.test", webUrl: "https://example.test" }, 1)).resolves.toBeUndefined();
+    });
+  });
+});

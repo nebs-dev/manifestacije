@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
 import { CurrentUser, Roles } from "../auth/auth.decorators";
@@ -20,10 +20,7 @@ export class AdminController {
     private readonly claims: OrganizerClaimService
   ) {}
 
-  @Get("pending-counts") pendingCounts(
-    @Query("sourcesSince") sourcesSince?: string,
-    @Query("eventsSince") eventsSince?: string
-  ) { return this.admin.pendingCounts({ sourcesSince, eventsSince }); }
+  @Get("pending-counts") @Header("Cache-Control", "private, no-store") pendingCounts(@CurrentUser() user: AuthUser) { return this.admin.pendingCounts(user.id); }
   @Post("events/bulk-categories") bulkCategories(@Body() body: { eventIds: number[]; categoryId: number; action: "add" | "remove" }) { return this.admin.bulkAssignCategory(body.eventIds, body.categoryId, body.action); }
   @Post("events/bulk-status") bulkStatus(@Body() dto: BulkStatusDto) { return this.admin.bulkSetStatus(dto.eventIds, dto.status); }
   @Post("events/bulk-shift-dates") bulkShiftDates(@Body() dto: BulkShiftDatesDto) { return this.admin.bulkShiftDates(dto.eventIds, dto.days); }
@@ -58,7 +55,11 @@ export class AdminController {
   ) { return this.admin.allEvents({ sortBy, sortDir, search, status, organizerId, createdByUserId, startsFrom, startsTo, createdFrom, createdTo, page, pageSize, fieldFilters }); }
   @Get("events/creator-report") eventCreatorReport(@Query() params: AdminEventListParams) { return this.admin.eventCreatorReport(params); }
   @Post("events") createAdminEvent(@CurrentUser() user: AuthUser, @Body() dto: AdminEventDto) { return this.admin.createEvent(dto, user.id); }
-  @Get("events/:id") event(@Param("id") id: string) { return this.admin.event(Number(id)); }
+  @Get("events/:id") @Header("Cache-Control", "private, no-store") async event(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    const event = await this.admin.event(Number(id));
+    if (event) await this.admin.markItemViewed(user.id, "event", Number(id));
+    return event;
+  }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }
   @Post("events/:id/approve") approve(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
   @Post("events/:id/reject") reject(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.REJECTED); }
@@ -68,7 +69,12 @@ export class AdminController {
   @Post("events/:id/split-weekly") splitWeekly(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: SplitWeeklySeriesDto) { return this.admin.splitIntoWeeklySeries(Number(id), dto, user.id); }
   @Delete("events/:id") deleteEvent(@Param("id") id: string) { return this.admin.deleteEvent(Number(id)); }
 
-  @Get("organizers") organizers() { return this.admin.organizers(); }
+  @Get("organizers") @Header("Cache-Control", "private, no-store") organizers(@CurrentUser() user: AuthUser) { return this.admin.organizers(user.id); }
+  @Get("organizers/:id") @Header("Cache-Control", "private, no-store") async organizer(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    const organizer = await this.admin.organizer(Number(id));
+    await this.admin.markItemViewed(user.id, "organizer", Number(id));
+    return organizer;
+  }
   @Post("organizers") createOrganizer(@Body() dto: OrganizerAdminDto) { return this.admin.createOrganizer(dto); }
   @Put("organizers/:id") updateOrganizer(@Param("id") id: string, @Body() dto: OrganizerAdminDto) { return this.admin.updateOrganizer(Number(id), dto); }
   @Post("organizers/:id/verify") verify(@Param("id") id: string) { return this.admin.setOrganizerStatus(Number(id), "VERIFIED"); }
@@ -98,10 +104,14 @@ export class AdminController {
   }
 
   // Literal routes must be declared before parametric :id routes
-  @Get("event-sources") eventSources(@Query("page") page?: string, @Query("pageSize") pageSize?: string) { return this.admin.eventSources({ page, pageSize }); }
+  @Get("event-sources") @Header("Cache-Control", "private, no-store") eventSources(@CurrentUser() user: AuthUser, @Query("page") page?: string, @Query("pageSize") pageSize?: string) { return this.admin.eventSources({ page, pageSize }, user.id); }
   @Post("event-sources/manual-email") manualEmail(@Body() dto: ManualEmailDto) { return this.admin.createManualEmail(dto); }
   @Post("event-sources/parse-url") parseUrl(@Body() dto: ParseUrlDto) { return this.admin.parseUrl(dto); }
-  @Get("event-sources/:id") getEventSource(@Param("id") id: string) { return this.admin.getSource(Number(id)); }
+  @Get("event-sources/:id") @Header("Cache-Control", "private, no-store") async getEventSource(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    const source = await this.admin.getSource(Number(id));
+    if (source) await this.admin.markItemViewed(user.id, "source", Number(id));
+    return source;
+  }
   @Put("event-sources/:id") updateEventSource(@Param("id") id: string, @Body() dto: UpdateEventSourceDto) { return this.admin.updateEventSource(Number(id), dto); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
   @Post("event-sources/:id/create-event") createEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {

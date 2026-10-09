@@ -5,5 +5,8 @@ import { UploadsService } from "./uploads.service";
 import { RevalidateService } from "./revalidate.service";
 import { EmailService } from "../email/email.service";
 
-@Module({ controllers: [AdminController], providers: [AdminService, UploadsService, RevalidateService, EmailService] })
+import { NotificationsService } from "./notifications.service";
+import { NotificationsController } from "./notifications.controller";
+
+@Module({ controllers: [AdminController, NotificationsController], providers: [NotificationsService, AdminService, UploadsService, RevalidateService, EmailService] })
 export class AdminModule {}

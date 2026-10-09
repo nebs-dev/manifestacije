@@ -41,6 +41,7 @@ export default function EventDetailPage({
       if (!res.ok) { setError("Događaj nije pronađen."); return }
       const data = await res.json() as Record<string, unknown>
       setEvent(adaptEvent(data))
+      window.dispatchEvent(new Event("admin-notifications-changed"))
     } catch {
       setError("Greška pri dohvaćanju događaja.")
     } finally {

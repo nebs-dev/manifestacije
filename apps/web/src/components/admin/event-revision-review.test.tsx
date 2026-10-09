@@ -86,7 +86,7 @@ describe("event revision review", () => {
     api.mockResolvedValue({ ok: true, json: async () => ({ events: 0, sources: 0, organizers: 0, revisions: 2 }) })
     await act(async () => root.render(<AdminTopbar />))
     const link = container.querySelector("a")!
-    expect(link.getAttribute("href")).toBe("/admin/event-revisions")
+    expect(link.getAttribute("href")).toBe("/admin/notifications")
     expect(container.textContent).toContain("2")
     await act(async () => { link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })) })
     expect(container.textContent).toContain("2")

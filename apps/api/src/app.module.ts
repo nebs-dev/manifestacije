@@ -27,6 +27,9 @@ import { ResendWebhookController } from "./webhooks/resend-webhook.controller";
 import { MonitoredSourcesController } from "./monitored-sources/monitored-sources.controller";
 import { MonitoredSourcesService } from "./monitored-sources/monitored-sources.service";
 
+import { NotificationsService } from "./admin/notifications.service";
+import { NotificationsController } from "./admin/notifications.controller";
+
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 if (process.env.NODE_ENV === "production" && jwtSecret === "dev-secret-change-me") {
   throw new Error("JWT_SECRET must be set to a non-default value in production");
@@ -39,6 +42,7 @@ export class HealthController {
   @Get()
   async health() {
     let db: "ok" | "error" = "ok";
+    let notifications: "ready" | "unavailable" = "unavailable";
     let eventRevisions: "ready" | "unavailable" = "unavailable";
     try {
       await this.prisma.$queryRaw`SELECT 1`;
@@ -52,8 +56,17 @@ export class HealthController {
         if (rows[0]?.ready) eventRevisions = "ready";
       } catch { /* Read-only readiness check; never expose database details. */ }
     }
+    if (db === "ok") {
+      try {
+        await this.prisma.$queryRaw`SELECT "key", "kind", "entityId" FROM "ActiveAdminNotification" LIMIT 0`;
+        await this.prisma.$queryRaw`SELECT "userId", "key", "readAt" FROM "AdminNotificationRead" LIMIT 0`;
+        const [row] = await this.prisma.$queryRaw<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM pg_trigger WHERE tgname IN ('admin_notification_user', 'admin_notification_event', 'admin_notification_source') AND NOT tgisinternal AND tgenabled <> 'D'`;
+        if (row.count === 3) notifications = "ready";
+      } catch { /* Additive schema readiness, no user data returned. */ }
+    }
     return {
-      ok: db === "ok" && eventRevisions === "ready",
+      notifications,
+      ok: db === "ok" && eventRevisions === "ready" && notifications === "ready",
       db,
       eventRevisions,
       uptime: Math.floor(process.uptime()),
@@ -76,13 +89,14 @@ export class HealthController {
       signOptions: { expiresIn: "7d" }
     })
   ],
-  controllers: [AdminDuplicateCheckController, OrganizerDuplicateCheckController, HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
+  controllers: [NotificationsController, AdminDuplicateCheckController, OrganizerDuplicateCheckController, HealthController, AuthController, PublicFeedController, OrganizerController, AdminController, OrganizerClaimController, ResendWebhookController, MonitoredSourcesController, AdminEventRevisionsController, OrganizerEventRevisionsController],
   providers: [
     PrismaService,
     AuthService,
     PublicFeedService,
     OrganizerService,
     AdminService,
+    NotificationsService,
     RevalidateService,
     UploadsService,
     AiEventParserService,

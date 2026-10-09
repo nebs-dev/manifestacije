@@ -19,7 +19,7 @@ export function EventRevisionReview({ id }: { id: number }) {
     authedFetch(`/api/admin/event-revisions/${id}`).then(async response => {
       if (!response.ok) throw new Error(await revisionApiError(response))
       const data = await response.json()
-      if (active) setRevision(data)
+      if (active) { setRevision(data); window.dispatchEvent(new Event("admin-notifications-changed")) }
     }).catch(error => { if (active) setError(error.message) })
     return () => { active = false }
   }, [id, refresh])

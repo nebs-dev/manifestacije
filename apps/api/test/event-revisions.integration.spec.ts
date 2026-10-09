@@ -1,3 +1,5 @@
+import { NotificationsService } from "../src/admin/notifications.service";
+import { NotificationsController } from "../src/admin/notifications.controller";
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { JwtModule, JwtService } from "@nestjs/jwt";
@@ -34,13 +36,14 @@ integration("EventRevision PostgreSQL workflow", () => {
   const cache = { revalidate: jest.fn().mockResolvedValue(true) };
   const duplicates = { detectForEvent: jest.fn().mockResolvedValue(undefined) };
   const email = { webUrl: "https://example.test", sendAdminEventRevision: jest.fn(), sendEventRevisionDecision: jest.fn(), sendEventPublished: jest.fn() };
+  const notifications = new NotificationsService(prisma as never);
   const events = new EventsService(prisma as never, duplicates as never, cache as never);
   const revisions = new EventRevisionsService(prisma as never, events, cache as never, email as never);
   const organizer = new OrganizerService(prisma as never, events, {} as never, duplicates as never, email as never, {} as never, cache as never, revisions);
   const feed = new PublicFeedService(prisma as never);
   const parser = { parseBatchWithLlm: jest.fn(), extractJsonLdEvents: jest.fn() };
   const admin = new AdminService(prisma as never, events, parser as never, duplicates as never, cache as never, email as never, {} as never);
-  let organizerId: number, otherId: number, userId: number, adminId: number, categoryId: number, otherCategory: number, cityId: number, regionId: number, countyId: number;
+  let organizerId: number, otherId: number, userId: number, adminId: number, secondAdminId: number, categoryId: number, otherCategory: number, cityId: number, regionId: number, countyId: number;
   let eventId: number;
   let app: INestApplication, baseUrl: string, jwt: JwtService;
   const request = (path: string, user?: number, method = "GET", body?: object) => fetch(`${baseUrl}${path}`, {
@@ -68,6 +71,7 @@ integration("EventRevision PostgreSQL workflow", () => {
     otherId = (await prisma.organizer.create({ data: { name: "QA drugi", slug: "qa-drugi" } })).id;
     userId = (await prisma.user.create({ data: { email: "submitter@example.test", name: "QA autor", passwordHash: "unused", role: "ORGANIZER", organizerId } })).id;
     adminId = (await prisma.user.create({ data: { email: "admin@example.test", name: "Vanesa", passwordHash: "unused", role: "ADMIN" } })).id;
+    secondAdminId = (await prisma.user.create({ data: { email: "andrijana-notifications@example.test", name: "Andrijana", passwordHash: "unused", role: "ADMIN" } })).id;
     regionId = (await prisma.region.upsert({ where: { slug: "qa-regija" }, update: {}, create: { name: "QA regija", slug: "qa-regija" } })).id;
     countyId = (await prisma.county.upsert({ where: { slug: "qa-zupanija" }, update: {}, create: { name: "QA županija", slug: "qa-zupanija", regionId } })).id;
     cityId = (await prisma.city.upsert({ where: { slug: "qa-grad" }, update: {}, create: { name: "QA grad", slug: "qa-grad", countyId, lat: 45, lng: 16 } })).id;
@@ -75,8 +79,9 @@ integration("EventRevision PostgreSQL workflow", () => {
     otherCategory = (await prisma.category.upsert({ where: { slug: "qa-festival" }, update: {}, create: { name: "QA festival", slug: "qa-festival" } })).id;
     const module = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: "isolated-revision-fixture-secret" })],
-      controllers: [AdminDuplicateCheckController, OrganizerDuplicateCheckController, AdminController, OrganizerController, AdminEventRevisionsController, OrganizerEventRevisionsController, PublicFeedController],
+      controllers: [NotificationsController, AdminDuplicateCheckController, OrganizerDuplicateCheckController, AdminController, OrganizerController, AdminEventRevisionsController, OrganizerEventRevisionsController, PublicFeedController],
       providers: [
+        { provide: NotificationsService, useValue: notifications },
         { provide: DuplicatesService, useValue: new DuplicatesService(prisma as never) }, { provide: AdminService, useValue: admin }, { provide: OrganizerClaimService, useValue: {} },
         { provide: PrismaService, useValue: prisma }, { provide: OrganizerService, useValue: organizer },
         { provide: EventRevisionsService, useValue: revisions }, { provide: PublicFeedService, useValue: feed }, { provide: UploadsService, useValue: {} },
@@ -88,6 +93,8 @@ integration("EventRevision PostgreSQL workflow", () => {
   });
   beforeEach(async () => {
     jest.clearAllMocks();
+    await prisma.adminNotificationRead.deleteMany();
+    await prisma.adminNotification.deleteMany();
     email.sendAdminEventRevision.mockResolvedValue(undefined);
     email.sendEventRevisionDecision.mockResolvedValue(undefined);
     await prisma.eventDuplicateCandidate.deleteMany();
@@ -103,6 +110,124 @@ integration("EventRevision PostgreSQL workflow", () => {
     } })).id;
   });
   afterAll(async () => { await app?.close(); await prisma.$disconnect(); });
+
+  const noticeList = async (user = adminId) => (await request("/api/admin/notifications", user)).json() as Promise<{ items: { key: string; kind: string; readAt: string | null; entityId: number; href: string; requiresAction: boolean }[]; total: number }>;
+  const noticeCounts = async (user = adminId) => (await request("/api/admin/notifications/counts", user)).json();
+  const pendingSubmission = () => prisma.event.create({ data: { title: "Nova prijava", description: "Opis", categoryId, slug: `qa-pending-${Date.now()}`, startsAt: new Date("2099-10-10T12:00:00Z"), organizerId, createdByUserId: userId, sourceType: "ORGANIZER_FORM", status: "PENDING_REVIEW" } });
+  const discovery = (candidates: object[]) => prisma.eventSource.create({ data: { type: "SCRAPE_DISCOVERY", status: "PARSED", parsedJson: { candidates } } });
+
+  describe("per-admin notifications", () => {
+    it("records new registration once and opening the list does not mark it read", async () => {
+      const org = await prisma.organizer.create({ data: { name: "Nova registracija", slug: "qa-new-registration" } });
+      const user = await prisma.user.create({ data: { email: "new-registration@example.test", name: "Nova", role: "ORGANIZER", passwordHash: "unused", organizerId: org.id } });
+      try {
+        await request("/api/admin/organizers", adminId);
+        expect((await noticeList()).items).toEqual([expect.objectContaining({ kind: "organizer", readAt: null, href: `/admin/organizers?organizerId=${org.id}`, requiresAction: false })]);
+        const detail = await request(`/api/admin/organizers/${org.id}`, adminId); expect(detail.status).toBe(200);
+        expect((await noticeCounts()).unread).toBe(0); expect((await noticeCounts(secondAdminId)).unread).toBe(1);
+        expect(await prisma.organizer.findUnique({ where: { id: org.id } })).toMatchObject({ adminViewedAt: null, status: "UNCLAIMED" });
+        await prisma.user.update({ where: { id: user.id }, data: { name: "Promjena profila" } });
+        expect(await prisma.adminNotification.count({ where: { kind: "organizer", entityId: org.id } })).toBe(1);
+      } finally { await prisma.user.delete({ where: { id: user.id } }); await prisma.organizer.delete({ where: { id: org.id } }); }
+    });
+    it("keeps reads independent for Vanesa and Andrijana across sessions and requests", async () => {
+      await pendingSubmission(); const [item] = (await noticeList()).items;
+      const response = await request("/api/admin/notifications/read", adminId, "POST", { key: item.key, userId: secondAdminId }); expect(response.status).toBe(201);
+      expect((await noticeList()).items[0].readAt).not.toBeNull();
+      expect((await noticeList(secondAdminId)).items[0].readAt).toBeNull();
+      expect((await noticeCounts()).unread).toBe(0); expect((await noticeCounts()).pending).toBe(1);
+      expect((await noticeCounts(secondAdminId)).unread).toBe(1);
+    });
+    it("viewing one event reads only that event without publishing it", async () => {
+      const event = await pendingSubmission(); await discovery([{ title: "Za pregled" }]);
+      expect((await request(`/api/admin/events/${event.id}`, adminId)).status).toBe(200);
+      expect((await noticeCounts()).unread).toBe(1); expect((await noticeCounts()).pending).toBe(2);
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).status).toBe("PENDING_REVIEW");
+      expect((await noticeCounts(secondAdminId)).unread).toBe(2);
+    });
+    it("mark-all affects only the authenticated admin and arrivals after it remain unread", async () => {
+      await pendingSubmission(); await discovery([{ title: "Novi kandidat" }]);
+      expect((await request("/api/admin/notifications/read-all", adminId, "POST", { userId: secondAdminId })).status).toBe(201);
+      expect((await noticeCounts()).unread).toBe(0); expect((await noticeCounts()).pending).toBe(2);
+      expect((await noticeCounts(secondAdminId)).unread).toBe(2);
+      await discovery([{ title: "Kasniji kandidat" }]); expect((await noticeCounts()).unread).toBe(1);
+    });
+    it("handles repeated and concurrent individual/bulk reads idempotently", async () => {
+      await pendingSubmission(); await discovery([{ title: "Novi kandidat" }]); const [item] = (await noticeList()).items;
+      const results = await Promise.all(Array.from({ length: 12 }, (_, i) => request(`/api/admin/notifications/${i % 2 ? "read-all" : "read"}`, adminId, "POST", { key: item.key })));
+      expect(results.every(response => response.status === 201)).toBe(true);
+      expect(await prisma.adminNotificationRead.count({ where: { userId: adminId } })).toBe(2);
+      const firstRead = (await noticeList()).items[0].readAt;
+      await request("/api/admin/notifications/read", adminId, "POST", { key: item.key });
+      expect((await noticeList()).items[0].readAt).toEqual(firstRead);
+      expect((await noticeCounts(secondAdminId)).unread).toBe(2);
+    });
+    it("suppresses imported/ignored monitored candidates and legacy imported metadata", async () => {
+      await discovery([{ _existingEventId: eventId }, { _status: "created" }, { _status: "ignored" }]);
+      await discovery([]);
+      await prisma.eventSource.create({ data: { type: "SCRAPE_DISCOVERY", status: "NEEDS_REVIEW", parsedJson: { title: "Legacy", _existingEventId: eventId } } });
+      expect((await noticeCounts()).unread).toBe(0);
+      const mixed = await discovery([{ _existingEventId: eventId }, { title: "Treba pregled" }]);
+      expect((await noticeCounts()).categories.discovery).toMatchObject({ unread: 1, pending: 1 });
+      await prisma.eventSource.update({ where: { id: mixed.id }, data: { parsedJson: { candidates: [{ _status: "created" }, { _status: "ignored" }] } } });
+      expect((await noticeCounts()).unread).toBe(0);
+    });
+    it("reads a source individually and stops counting completed sources", async () => {
+      const source = await prisma.eventSource.create({ data: { organizerId, type: "URL", status: "NEW", sourceUrl: "https://example.test" } });
+      await discovery([{ title: "Drugi" }]);
+      expect((await noticeCounts()).categories.source.unread).toBe(1);
+      expect((await request(`/api/admin/event-sources/${source.id}`, adminId)).status).toBe(200);
+      expect((await noticeCounts()).unread).toBe(1); expect((await noticeCounts(secondAdminId)).unread).toBe(2);
+      expect((await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } })).adminViewedAt).toBeNull();
+      await prisma.eventSource.update({ where: { id: source.id }, data: { status: "LINKED", eventId } });
+      expect((await noticeCounts(secondAdminId)).pending).toBe(1);
+    });
+    it("distinguishes trusted auto-publications and avoids notices from admin and routine updates", async () => {
+      const published = await prisma.event.create({ data: { title: "Pouzdani događaj", description: "Opis", categoryId, slug: "qa-trusted-notice", startsAt: new Date(), status: "PUBLISHED", organizerId, createdByUserId: userId, sourceType: "ORGANIZER_FORM", publishedAt: new Date() } });
+      expect((await noticeList()).items).toEqual([expect.objectContaining({ kind: "autoPublished", requiresAction: false, href: `/admin/events/${published.id}` })]);
+      expect((await noticeCounts()).pending).toBe(0);
+      await prisma.event.update({ where: { id: published.id }, data: { title: "Ažuriran naslov" } });
+      await prisma.eventSource.create({ data: { type: "MANUAL", adminViewedAt: new Date() } });
+      await prisma.event.create({ data: { title: "Admin kopija", slug: "qa-admin-copy", description: "QA", categoryId, startsAt: new Date(), status: "PUBLISHED", organizerId, createdByUserId: adminId, sourceType: "ORGANIZER_FORM" } });
+      expect((await noticeList()).total).toBe(1);
+      expect((await noticeList()).items[0]).toMatchObject({ title: "Ažuriran naslov" });
+    });
+    it("reuses pending revision notifications with separate versioned read state", async () => {
+      const revision = await submit();
+      expect((await noticeList()).items).toEqual([expect.objectContaining({ kind: "revision", key: `revision:${revision.id}:1` })]);
+      expect((await request(`/api/admin/event-revisions/${revision.id}`, adminId)).status).toBe(200);
+      expect((await noticeCounts()).unread).toBe(0); expect((await noticeCounts()).revisions).toBe(1);
+      expect((await noticeCounts(secondAdminId)).unread).toBe(1);
+      await organizer.updateEvent(organizerId, eventId, { title: "Zamijenjen prijedlog" }, userId);
+      expect((await noticeCounts()).unread).toBe(1); expect((await noticeList()).total).toBe(1);
+      expect((await request("/api/admin/notifications/read", adminId, "POST", { key: `revision:${revision.id}:1` })).status).toBe(404);
+      const current = await prisma.eventRevision.findUniqueOrThrow({ where: { id: revision.id } }); await approve(current);
+      expect((await noticeCounts()).unread).toBe(0); expect((await noticeCounts()).revisions).toBe(0);
+    });
+    it("removes reviewed event submissions from counts even for admins who did not read them", async () => {
+      const event = await pendingSubmission(); expect((await noticeCounts()).pending).toBe(1);
+      await prisma.event.update({ where: { id: event.id }, data: { status: "REJECTED" } });
+      expect((await noticeList()).total).toBe(0); expect((await noticeCounts(secondAdminId)).unread).toBe(0);
+    });
+    it("guards every route and rejects invalid keys/page parameters without state writes", async () => {
+      await pendingSubmission();
+      for (const [path, method] of [["", "GET"], ["/counts", "GET"], ["/read", "POST"], ["/read-all", "POST"]]) {
+        expect((await request(`/api/admin/notifications${path}`, undefined, method)).status).toBe(401);
+        expect((await request(`/api/admin/notifications${path}`, userId, method)).status).toBe(401);
+      }
+      for (const key of ["x' OR 1=1", "notice:0", "revision:1", "notice:1;DELETE"]) expect((await request("/api/admin/notifications/read", adminId, "POST", { key })).status).toBe(400);
+      expect((await request("/api/admin/notifications/read", adminId, "POST", { key: "notice:999999999" })).status).toBe(404);
+      expect((await request("/api/admin/notifications?page=-1", adminId)).status).toBe(400);
+      expect(await prisma.adminNotificationRead.count()).toBe(0);
+    });
+    it("paginates notifications with complete counts and no shared list-open writes", async () => {
+      for (let i = 0; i < 35; i++) await discovery([{ title: `Kandidat ${i}` }]);
+      const first = await noticeList(); const second = await (await request("/api/admin/notifications?page=2", adminId)).json();
+      expect(first.items).toHaveLength(30); expect(second.items).toHaveLength(5); expect(first.total).toBe(35);
+      expect(new Set([...first.items, ...second.items].map(item => item.key)).size).toBe(35);
+      expect((await noticeCounts()).unread).toBe(35); expect(await prisma.adminNotificationRead.count()).toBe(0);
+    });
+  });
 
   const duplicateInput = () => ({ title: "Objavljeni koncert", startsAt: "2099-09-05T20:00:00+02:00", cityId });
   it("checks duplicates through authenticated HTTP without mutating events, sources, taxonomy, cache or review queue", async () => {
@@ -501,7 +626,7 @@ integration("EventRevision PostgreSQL workflow", () => {
 
   it("includes revisions in pending counts even after the admin last-seen cutoff", async () => {
     await submit();
-    expect(await admin.pendingCounts({ eventsSince: "2999-01-01T00:00:00Z" })).toMatchObject({ revisions: 1, events: 0 });
+    expect(await admin.pendingCounts(adminId)).toMatchObject({ revisions: 1, events: 0 });
     expect((await revisions.listPending()).items[0]).toMatchObject({ eventId, organizer: { name: "QA organizator" }, submittedBy: { email: "submitter@example.test" } });
   });
 

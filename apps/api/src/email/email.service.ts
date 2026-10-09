@@ -1,3 +1,4 @@
+import { adminAutoPublishedSubject, adminAutoPublishedHtml, adminAutoPublishedText, type AdminAutoPublishedData } from "./templates/admin-auto-published.template";
 import { Injectable, Logger } from "@nestjs/common";
 import { loadEmailConfig, type EmailConfig } from "./email.config";
 import type { EmailProvider } from "./providers/email-provider.interface";
@@ -117,6 +118,11 @@ export class EmailService {
       text: adminNewSubmissionText(data),
       relatedId,
     });
+  }
+
+  async sendAdminAutoPublished(data: AdminAutoPublishedData, relatedId: number): Promise<void> {
+    await this.dispatch({ template: "admin_auto_published", to: this.config.adminNotificationEmail,
+      subject: adminAutoPublishedSubject(data), html: adminAutoPublishedHtml(data), text: adminAutoPublishedText(data), relatedId });
   }
 
   async sendAdminNewOrganizer(data: AdminNewOrganizerData, relatedId?: number): Promise<void> {

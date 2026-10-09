@@ -7,7 +7,7 @@ describe("HealthController", () => {
   let prisma: { $queryRaw: jest.Mock };
 
   beforeEach(async () => {
-    prisma = { $queryRaw: jest.fn().mockResolvedValue([{ "?column?": 1, ready: true }]) };
+    prisma = { $queryRaw: jest.fn().mockResolvedValue([{ "?column?": 1, ready: true, count: 3 }]) };
     const module = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [{ provide: PrismaService, useValue: prisma }],
@@ -20,6 +20,7 @@ describe("HealthController", () => {
     expect(result.ok).toBe(true);
     expect(result.db).toBe("ok");
     expect(result.eventRevisions).toBe("ready");
+    expect(result.notifications).toBe("ready");
     expect(typeof result.uptime).toBe("number");
     expect(result.timestamp).toMatch(/^\d{4}-/);
   });
@@ -27,6 +28,11 @@ describe("HealthController", () => {
   it("reports an incomplete revision migration", async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{}]).mockRejectedValueOnce(new Error("missing table"));
     expect(await controller.health()).toMatchObject({ ok: false, db: "ok", eventRevisions: "unavailable" });
+  });
+
+  it("reports missing notification migration or disabled capture triggers", async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ ready: true }]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 2 }]);
+    expect(await controller.health()).toMatchObject({ ok: false, db: "ok", notifications: "unavailable" });
   });
 
   it("returns ok=false when db is down", async () => {

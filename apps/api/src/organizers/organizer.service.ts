@@ -113,6 +113,10 @@ export class OrganizerService {
           },
           event.id
         );
+      } else {
+        await this.email.sendAdminAutoPublished({ title: event.title, organizerName,
+          adminEventUrl: `${this.email.webUrl}/admin/events/${event.id}`,
+          publicEventUrl: `${this.email.webUrl}/eventi/${event.slug}`, webUrl: this.email.webUrl }, event.id);
       }
     } catch {
       // EmailService.send* already catches provider errors; this guards against

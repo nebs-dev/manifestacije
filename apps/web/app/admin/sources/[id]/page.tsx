@@ -28,6 +28,7 @@ export default function SourceDetailPage({
       const data = await res.json() as Record<string, unknown>
       setSource(adaptEventSource(data))
       setCandidates(adaptEventSourceCandidates(data))
+      window.dispatchEvent(new Event("admin-notifications-changed"))
     } catch {
       setError("Greška pri dohvaćanju izvora.")
     } finally {

@@ -477,7 +477,7 @@ describe("AdminService.setEventStatus organizer notifications", () => {
       slug: "ljetni-koncert",
       startsAt: new Date("2026-07-04T18:00:00.000Z"),
       cityName: "Osijek",
-      organizer: { email: "organizer@example.hr" },
+      organizer: { email: "scraped@example.hr", users: [{ id: 7, email: "organizer@example.hr" }] },
     };
     return {
       event: {
@@ -564,6 +564,14 @@ describe("AdminService.setEventStatus organizer notifications", () => {
     expect(email.sendEventPublished).not.toHaveBeenCalled();
   });
 
+  it("never sends publication/rejection mail to scraped addresses on an unclaimed profile", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.PENDING_REVIEW, event: { id: 5, title: "Scraped", organizer: { email: "scraped@example.hr", users: [] } } });
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn() } as never, email as never, uploadsStub as never);
+    await service.setEventStatus(5, EventStatus.PUBLISHED);
+    expect(email.sendEventPublished).not.toHaveBeenCalled(); expect(email.sendEventRejected).not.toHaveBeenCalled();
+  });
+
   it("does not send a notification for statuses other than PUBLISHED/REJECTED (e.g. ARCHIVED)", async () => {
     const prisma = makePrisma({ currentStatus: EventStatus.PUBLISHED });
     const revalidate = { revalidate: jest.fn() };
@@ -607,10 +615,7 @@ describe("AdminService.organizers", () => {
       { id: 1, name: "Claimed via user", status: "UNCLAIMED", adminViewedAt: null, hasUser: true, eventCount: 3 },
       { id: 2, name: "Verified but never registered", status: "VERIFIED", adminViewedAt: new Date("2026-07-21T10:00:00Z"), hasUser: false, eventCount: 0 },
     ]);
-    expect(prisma.organizer.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: [1] } },
-      data: { adminViewedAt: expect.any(Date) },
-    });
+    expect(prisma.organizer.updateMany).not.toHaveBeenCalled();
   });
 });
 

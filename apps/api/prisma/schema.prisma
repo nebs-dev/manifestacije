@@ -134,6 +134,7 @@ model User {
   /// Incremented on password reset to invalidate all previously issued JWTs
   /// (JwtAuthGuard rejects tokens whose authVersion doesn't match this value).
   authVersion        Int       @default(0)
+  notificationReads AdminNotificationRead[]
   passwordResetTokens PasswordResetToken[]
   emailContacts      EmailContact[]
   createdAt          DateTime  @default(now())
@@ -497,4 +498,24 @@ model IngestionJob {
   error     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Small notification ledger. Workflow truth remains in the related domain row.
+model AdminNotification {
+  id        Int      @id @default(autoincrement())
+  kind      String
+  entityId  Int
+  createdAt DateTime @default(now())
+
+  @@unique([kind, entityId])
+  @@index([createdAt, id])
+}
+
+model AdminNotificationRead {
+  userId    Int
+  key       String
+  readAt    DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
 }

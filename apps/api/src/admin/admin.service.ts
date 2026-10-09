@@ -1,5 +1,5 @@
 import { candidateNeedsReview } from "../ai-parser/date-evidence";
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
@@ -16,6 +16,8 @@ import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto,
 import { hasPublicEventOutput, RevalidateService } from "./revalidate.service";
 import { shiftZagrebCalendarDays, zagrebLocalToUtc } from "../common/weekend";
 import { UploadsService } from "./uploads.service";
+
+import { NotificationsService } from "./notifications.service";
 
 export type AdminEventListParams = {
   sortBy?: string;
@@ -49,33 +51,19 @@ export class AdminService {
     private readonly revalidate: RevalidateService,
     private readonly email: EmailService,
     private readonly uploads: UploadsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
-  async pendingCounts(params?: { sourcesSince?: string; eventsSince?: string }) {
-    const eventsSinceDate = params?.eventsSince ? new Date(params.eventsSince) : undefined;
-    const [sources, events, organizers, revisions] = await Promise.all([
-      this.prisma.eventSource.count({
-        where: {
-          status: { in: ["NEW", "PARSED", "NEEDS_REVIEW"] },
-          adminViewedAt: null,
-        },
-      }),
-      this.prisma.event.count({
-        where: {
-          status: EventStatus.PENDING_REVIEW,
-          sourceType: "ORGANIZER_FORM",
-          ...(eventsSinceDate ? { createdAt: { gte: eventsSinceDate } } : {}),
-        },
-      }),
-      this.prisma.organizer.count({
-        where: {
-          adminViewedAt: null,
-          users: { some: {} },
-        },
-      }),
-      this.prisma.eventRevision.count({ where: { status: "PENDING" } }),
-    ]);
-    return { sources, events, organizers, revisions };
+  async pendingCounts(userId: number) {
+    return (this.notifications || new NotificationsService(this.prisma)).counts(userId);
+  }
+
+  async markItemViewed(userId: number, kind: "event" | "source" | "organizer", id: number) {
+    return (this.notifications || new NotificationsService(this.prisma)).readEntity(userId, kind, id);
+  }
+
+  async organizer(id: number) {
+    return this.prisma.organizer.findUniqueOrThrow({ where: { id } });
   }
 
   async bulkAssignCategory(eventIds: number[], categoryId: number, action: "add" | "remove") {
@@ -347,8 +335,9 @@ export class AdminService {
    *  or delivery error) must never break the caller's status-change operation. */
   private async notifyOrganizerOfStatusChange(eventId: number, status: typeof EventStatus.PUBLISHED | typeof EventStatus.REJECTED): Promise<void> {
     try {
-      const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { organizer: true } });
-      const organizerEmail = event?.organizer?.email;
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { organizer: { include: { users: { where: { role: "ORGANIZER" }, orderBy: { id: "asc" }, select: { id: true, email: true } } } } } });
+      const organizerEmail = event?.organizer?.users.find(user => user.id === event.createdByUserId)?.email
+        || event?.organizer?.users[0]?.email;
       if (!event || !organizerEmail) return;
 
       const shared = {
@@ -430,19 +419,22 @@ export class AdminService {
     return duplicated;
   }
 
-  async organizers() {
+  async organizers(userId?: number) {
     const organizers = await this.prisma.organizer.findMany({
       include: { _count: { select: { users: true, events: true } } },
       orderBy: { createdAt: "desc" },
     });
-    const unreadIds = organizers.filter((organizer) => !organizer.adminViewedAt && organizer._count.users > 0).map((organizer) => organizer.id);
-    if (unreadIds.length) {
-      await this.prisma.organizer.updateMany({ where: { id: { in: unreadIds } }, data: { adminViewedAt: new Date() } });
-    }
     // hasUser is the real "claimed" signal — OrganizerStatus (VERIFIED/TRUSTED)
     // is an independent trust badge admins can set without the organizer
     // ever having actually registered.
-    return organizers.map(({ _count, ...organizer }) => ({ ...organizer, hasUser: _count.users > 0, eventCount: _count.events }));
+    const reads = userId ? await this.prisma.$queryRaw<{ entityId: number; readAt: Date | null; createdAt: Date }[]>`
+      SELECT n."entityId", n."createdAt", r."readAt" FROM "ActiveAdminNotification" n
+      LEFT JOIN "AdminNotificationRead" r ON r."key" = n."key" AND r."userId" = ${userId} WHERE n."kind" = 'organizer'` : [];
+    const byId = new Map(reads.map(row => [row.entityId, row.readAt]));
+    const registeredAt = new Map(reads.map(row => [row.entityId, row.createdAt]));
+    return organizers.map(({ _count, ...organizer }) => ({ ...organizer,
+      ...(userId ? { registeredAt: registeredAt.get(organizer.id) ?? null, adminViewedAt: byId.has(organizer.id) ? byId.get(organizer.id) : organizer.createdAt } : {}),
+      hasUser: _count.users > 0, eventCount: _count.events }));
   }
 
   async eventCreatorReport(params: AdminEventListParams = {}) {
@@ -542,7 +534,7 @@ export class AdminService {
   /** Paginated because the list only grows: every parsed URL, screenshot and
    *  monitored-source check adds a row, and the flat take: 200 it replaces
    *  both truncated silently and shipped 200 rows to the browser at once. */
-  async eventSources(params?: { page?: string; pageSize?: string }) {
+  async eventSources(params?: { page?: string; pageSize?: string }, userId?: number) {
     const page = this.parsePositiveInt(params?.page, 1, 1, 10_000);
     const pageSize = this.parsePositiveInt(params?.pageSize, 25, 10, 100);
     const [items, total] = await this.prisma.$transaction([
@@ -554,19 +546,18 @@ export class AdminService {
       }),
       this.prisma.eventSource.count(),
     ]);
+    if (userId) {
+      const reads = await this.prisma.$queryRaw<{ entityId: number; readAt: Date | null }[]>`
+        SELECT n."entityId", r."readAt" FROM "ActiveAdminNotification" n
+        LEFT JOIN "AdminNotificationRead" r ON r."key" = n."key" AND r."userId" = ${userId}
+        WHERE n."kind" IN ('source', 'discovery') AND n."entityId" IN (${Prisma.join(items.length ? items.map(item => item.id) : [-1])})`;
+      const byId = new Map(reads.map(row => [row.entityId, row.readAt]));
+      for (const item of items) item.adminViewedAt = byId.has(item.id) ? byId.get(item.id)! : item.createdAt;
+    }
     return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   async getSource(id: number) {
-    const source = await this.prisma.eventSource.findUnique({ where: { id } });
-    if (!source) return null;
-    if (!source.adminViewedAt) {
-      return this.prisma.eventSource.update({
-        where: { id },
-        data: { adminViewedAt: new Date() },
-        include: { event: true, organizer: true },
-      });
-    }
     return this.prisma.eventSource.findUnique({ where: { id }, include: { event: true, organizer: true } });
   }
 

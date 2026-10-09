@@ -13,10 +13,10 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **12** | EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05 (implementation/test evidence in §K/§M/§O/§P/§Q; runtime limitations recorded there) |
-| **PARTIAL** | **8** | EVT-08, EVT-09, EVT-10, NOT-01, NOT-03, NOT-04, PUB-02, SEO-02 |
+| **DONE** | **15** | EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05, NOT-01, NOT-02, NOT-04 (implementation/test evidence in §K/§M/§O/§P/§Q/§R; runtime limitations recorded there) |
+| **PARTIAL** | **6** | EVT-08, EVT-09, EVT-10, NOT-03, PUB-02, SEO-02 |
 | **NOT IMPLEMENTED** | **6** | AUTH-03, EVT-01, EVT-03, EVT-07, ADM-04, PUB-06 |
-| **BUG STILL PRESENT** | **1** | NOT-02 |
+| **BUG STILL PRESENT** | **0** | — |
 | **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
 | **Total** | **33** | |
 
@@ -69,10 +69,10 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | ADM-02 | **DONE** (2026-10-09; §P) | P2 | S | Bulk organizer-associated event counts and URL/API filter navigation with clear action; separate from creator; evidence / blockers in §P |
 | ADM-03 | **DONE** (2026-10-09; §P) | P2 | M | Authenticated organizer/admin attribution; combined creator/Zagreb creation-date filters and per-account report; historical NULL remains Nepoznato; evidence / blockers in §P |
 | ADM-04 | NOT IMPLEMENTED | P3 | S | “Organizer portal” still in `organizer-shell.tsx:33`; mixed EN/HR copy |
-| NOT-01 | PARTIAL | P1 | S–M | Admin email on pending organizer event/source submissions; nothing on trusted auto-publish or edits |
-| NOT-02 | BUG STILL PRESENT | P2 | M | Monitored discoveries always unread (even already-imported); no mark-all; list-open marks all organizers read |
+| NOT-01 | **DONE — implementation** (§R) | P1 | S–M | Six notification categories; pending submissions/revisions and trusted auto-publication email; actual Resend delivery remains BLOCKED |
+| NOT-02 | **DONE** (§R) | P2 | M | Per-admin receipts, individual/bulk reads, filtered imported discoveries; read and workflow states independent |
 | NOT-03 | PARTIAL | P2 | S | “Objavljeno” email with public link exists; no social-share prompt; sent to `Organizer.email`, not the submitter |
-| NOT-04 | PARTIAL | P2 | S | Email + bold unread row exist; delivery unverified; read-state coarse |
+| NOT-04 | **DONE — implementation** (§R) | P2 | S | Registration email preserved; per-admin rows/bell, individual destination and registration date; actual delivery remains BLOCKED |
 | PUB-01 | UNKNOWN / NEEDS RUNTIME | P1 | S | Mobile stacked layout implemented (UX Batch 1); never browser-validated; deploy status unknown |
 | PUB-02 | PARTIAL | P1 | S–M | Date/view kept in URL + “Natrag na kalendar”; scroll position lost (forced scroll to day header) |
 | PUB-03 | **DONE** (2026-10-09; §M) | P1 | S | Finished days/occurrences excluded, midnight-safe rendering/cache keys, active overnight shown once; see §M |
@@ -262,7 +262,7 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 
 #### D — Notifications
 
-**NOT-01 — Admin notified of new organizer event (+ email to info@)**: PARTIAL · P1 · S–M
+**NOT-01 — Admin notified of new organizer event (+ email to info@)**: DONE — implementation (§R; delivery unverified; findings below are historical) · P1 · S–M
 - *Existing:*
   - `sendAdminNewSubmission` to `ADMIN_NOTIFICATION_EMAIL` (default `info@manifestacije.hr`, `email.config.ts:37`) for organizer manual events in PENDING_REVIEW (`organizer.service.ts:100–112`) and every organizer source submission (`:261–273`), and for claim requests needing review.
   - In-app bell with sources/events/organizers counts (`admin-topbar.tsx`).
@@ -274,7 +274,7 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
   - Monitored-source discoveries are not emailed (arguably correct), but they inflate the bell.
   - Imports vs. submissions vs. discoveries are not distinguished in the bell (single “sources” number).
 
-**NOT-02 — Read/unread clarity, bold new, mark all as read; no false unread from monitored items**: BUG STILL PRESENT · P2 · M
+**NOT-02 — Read/unread clarity, bold new, mark all as read; no false unread from monitored items**: DONE (§R; findings below are historical) · P2 · M
 - *Existing:* bold/tinted unread rows for sources (`source-table.tsx:217,230`) and organizers (`organizers/page.tsx:132–136`). Opening a source marks it read (`admin.service.ts:537–546`). Admin-created parses are pre-marked read (`:568,634`).
 - *Defects:*
   - Monitored-source discoveries are created with `adminViewedAt = null` (`monitored-sources.service.ts:717–733`) even when **every** candidate is flagged `_existingEventId` (already imported). That is a false unread in exactly the case the backlog describes (`:357–362`).
@@ -292,7 +292,7 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
   - The approval path sends to `Organizer.email` (profile email), not the submitting user's login email. If the organizer profile has no email nothing is sent; if it is a scraped/public address of an **unclaimed** organizer, admin-created published events email a third party who never submitted (`notifyOrganizerOfStatusChange` only checks `organizer.email`).
   - Re-approval after an organizer edit re-sends “Vaš događaj je objavljen”.
 
-**NOT-04 — Admin notified when a new organizer registers**: PARTIAL · P2 · S
+**NOT-04 — Admin notified when a new organizer registers**: DONE — implementation (§R; delivery unverified; findings below are historical) · P2 · S
 - *Existing:* `sendAdminNewOrganizer` on register (`auth.service.ts:51–64`) and on completed claim (`organizer-claim.service.ts:176–188`), with name, email and timestamp. Unread organizer rows are bold, and the bell counts organizers with a user and no `adminViewedAt`. Tests: `auth.spec.ts`, `organizer-claim.service.spec.ts`.
 - *Missing:* delivery verification (same pipeline as AUTH-02); read state is cleared for all on list open (NOT-02); no registration timestamp column labeled as such (only “Dodano”).
 
@@ -899,3 +899,38 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - Public detail includes Event JSON-LD and valid VCALENDAR/VEVENT output; `/ovaj-vikend`, `/kalendar`, `/admin/duplicates` and `/organizer/submit-link` return 200. Complete public API snapshots before/after deployment compare identical: **170 events**, zero added/removed/changed public records. Only GET requests and unauthenticated POSTs to the new read-only check endpoints were used; no production event/source mutations, imports, merges, deletes or cache purges.
 - **DONE: EVT-11.** Remaining verification blockers are browser viewport QA and authenticated production interaction; both are explicitly excluded from passed claims.
 - Matching is intentionally advisory, not a uniqueness constraint. Materially different titles or incorrect/missing source dates/locations can evade a warning; close performances within the documented 30-minute tolerance can require manual judgment. Existing historical duplicates are not merged or removed.
+
+
+---
+
+## R. Admin notifications — NOT-01 / NOT-02 / NOT-04 (2026-10-09)
+
+**Status: implementation DONE; all automated checks passed.** Deployment evidence follows below. Actual Resend delivery, authenticated production interaction and browser viewport QA remain explicitly BLOCKED; implementation status does not claim those checks succeeded. AUTH-02 and NOT-03 are unchanged.
+
+### Behavior and persistence
+
+- The bell opens `/admin/notifications`, with Croatian labels for new organizer registrations, organizer event submissions, pending EventRevisions, organizer-submitted sources, monitored discoveries requiring review, and trusted-organizer auto-publications. Rows link to the exact event/source/revision or open the named organizer editor. Empty/loading/error states, pagination (30 rows), responsive wrapping, refresh, individual “Označi kao pročitano” and bulk “Označi sve kao pročitano” are available.
+- Bell badge = this admin's unread active notifications. Separate category counts/statuses show items still awaiting review; reading never approves, rejects, imports or publishes. Registration and trusted-publication notices are informational. Completed/rejected/deleted workflow records disappear from the active feed/counts even for admins who never read them.
+- Additive migration `20261009140000_admin_notifications`: `AdminNotification` creation ledger, `AdminNotificationRead` receipts keyed by authenticated user + notice key, three insert-only capture triggers and one read-only active view. Creation capture commits atomically with domain creation; ordinary updates/reparsing/status toggles do not emit new notices. Organizer-originated events require the actual organizer creator account, so admin weekly clones cannot become false auto-publications. Admin-created manual/URL sources have no submitting organizer and do not emit organizer notices.
+- EventRevisions reuse the existing pending queue and existing email trigger. No second revision ledger entry or duplicate email path; read keys include the proposal version, so a replaced proposal becomes unread while the pending workflow count remains one. Detail reads safely tolerate a concurrently replaced/decided revision without reading its successor.
+- Organizer/source lists are read-only and project the authenticated admin's receipts into the existing row styling. Individual detail requests mark only that entity read. Legacy shared `adminViewedAt` columns remain for backward compatibility but no longer control authenticated read state. Event localStorage last-seen timestamps are ignored. Registration dates refer to the first actual organizer account registration, independently of scraper profile creation.
+- Monitored sources containing only created/ignored/already-imported (`_existingEventId`) candidates are excluded, including legacy single-candidate metadata and empty batches. Mixed batches remain actionable until their outstanding candidates are processed. The source/Event records and duplicate-detection decisions are not rewritten for notification cleanup.
+- Receipt inserts are parameterized and scoped solely to the authenticated admin; request body/query IDs cannot select another user's state. Unique keys and conflict handling make repeated/concurrent individual/bulk actions safe. Mark-all uses a single statement snapshot; subsequent arrivals remain unread. Lists/counts use bulk SQL, no per-row database fetches; pagination is bounded, responses are `private, no-store`. Bell refresh is at most once per minute plus relevant local changes/focus, skips hidden documents, bounds requests to 15 seconds and prevents overlapping polling.
+- Existing records are seeded into the ledger without assigning one admin's old shared/browser read history to another. Existing actionable records and registered organizers therefore initially have no per-admin receipt. Historical auto-publications are not guessed or backfilled. Domain timestamps/statuses remain untouched. Mark-all lets each admin establish their own baseline.
+
+### Email audit and changes
+
+- Preserved registration welcome/admin messages, pending organizer event/source submission messages, EventRevision submission/decision messages and the existing configured `ADMIN_NOTIFICATION_EMAIL` recipient path.
+- Added one distinct `admin_auto_published` email at trusted organizer event creation, with accurate informational wording and event/public links. It does not also send the pending-submission admin email. Routine updates/admin publication/scrapes do not send this new template; publication of an existing revision keeps the existing revision email path.
+- Auditing found that existing admin publication/rejection confirmations used `Organizer.email`, which could contain scraped contact data. These now choose the matching registered organizer creator account, with the first registered organizer account as the historical fallback. Unclaimed profiles without registered organizer accounts receive no message. Organizer submission confirmations continue using the authenticated submitter address, never a scraped profile address.
+- Email provider/dependency failures remain non-fatal to committed events/submissions/registrations. Tests mock providers or use local log mode; none prove Resend acceptance or inbox delivery. No digest, recovery flow, marketing or social-sharing changes.
+
+### Verification
+
+- Full API: **30 suites / 616 tests PASS**, including **63 real PostgreSQL integration checks**. New cases cover Vanesa/Andrijana independently, individual views, mark-all and subsequent arrivals, concurrent/repeated reads, spoofed user IDs, all six kinds, candidate filtering, reviewed counts, revision replacement/approval, bounded pagination and role/authentication guards. Existing organizer authorization, EventRevision, duplicate detection/import, creator reporting and event workflow tests remain green.
+- Full web: **39 files / 357 tests PASS**. New jsdom interaction checks cover labels/statuses/destinations, unread styling, individual/bulk actions, saving/load failures, empty/loading states, pending revisions after reading and ignoring browser timestamps. These are component tests, not real-browser QA.
+- API/web/shared lint and typechecks PASS; API/web/shared production builds PASS. Isolated PostgreSQL 16 on `127.0.0.1:5442/revision_qa`, hard allowlisted integration URL, no fallback to app/production DB. All **24 migrations** apply on a fresh disposable schema; `prisma migrate status` reports up to date. A separate rolled-back historical schema replayed the first 23 migrations, inserted old registered/read source fixtures, applied this migration and verified independent initial receipts, imported filtering and preservation of legacy timestamps.
+- Built local production web `/admin/notifications` returns HTTP 200; this is route availability, not authenticated browser interaction.
+- Built full AppModule authenticated HTTP smoke PASS using isolated synthetic fixtures and log-only email: actual registration, trusted publication, pending creation, published-event revision, organizer source and monitored-source categories; exact six unread/four pending counts, two admins, source detail read, mark-all scope, unchanged pending count, protected routes and `notifications: ready` health readiness. Evidence: `/tmp/manifestacije-notifications-runtime.json`. No production writes or cache purges.
+- **BLOCKED — browser desktop/mobile QA:** CUA discovery returned `browsers: []`; creating an in-app browser returned `Browser is not available: iab`. No connected automated browser or viewport pass is claimed; no manual testing is assigned to the user.
+- **BLOCKED — authenticated production verification and real Resend delivery:** no authenticated production admin/organizer session or infrastructure/provider access is available. Do not mutate real production notification state for QA. Public deployment/schema/guard/build checks are separate evidence and do not prove authenticated workflow or email delivery.

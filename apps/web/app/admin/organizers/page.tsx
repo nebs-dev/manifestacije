@@ -33,6 +33,7 @@ interface Organizer {
   status: string
   hasUser: boolean
   adminViewedAt: string | null
+  registeredAt?: string | null
   createdAt: string
   eventCount: number
 }
@@ -84,6 +85,18 @@ function PasswordInput({ value, onChange, placeholder, className, onKeyDown, aut
 
 function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChanged: () => void; selected: boolean; onToggle: () => void }) {
   const [editing, setEditing] = useState(false)
+  async function viewOrganizer() {
+    try {
+      const response = await authedFetch(`/api/admin/organizers/${org.id}`)
+      if (!response.ok) throw new Error()
+      setEditing(true); onChanged(); window.dispatchEvent(new Event("admin-notifications-changed"))
+    } catch { toast.error("Organizatora nije moguće otvoriti.") }
+  }
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("organizerId") === String(org.id)) void viewOrganizer()
+    // Open the named organizer once; list refreshes must not reopen it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.id])
   const [resettingPw, setResettingPw] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [form, setForm] = useState<OrgForm>({ name: org.name, email: org.email ?? "", websiteUrl: org.websiteUrl ?? "", phone: org.phone ?? "" })
@@ -146,7 +159,7 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
         <span>{org.eventCount ?? 0}</span>
         <Link className="text-xs text-primary underline" href={`/admin/events?organizerId=${org.id}`}>Prikaži događaje</Link>
       </div></TableCell>
-      <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">{formatRelative(org.createdAt)}</TableCell>
+      <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground">{formatRelative(org.registeredAt || org.createdAt)}</TableCell>
       <TableCell className="text-right">
         {resettingPw ? (
           <div className="flex items-center justify-end gap-1">
@@ -163,7 +176,7 @@ function OrgRow({ org, onChanged, selected, onToggle }: { org: Organizer; onChan
           </div>
         ) : (
           <div className="flex items-center justify-end gap-1">
-            <IconAction label="Uredi" onClick={() => setEditing(true)}><Pencil /></IconAction>
+            <IconAction label="Uredi" onClick={viewOrganizer}><Pencil /></IconAction>
             <IconAction label="Resetiraj lozinku" onClick={() => setResettingPw(true)}><KeyRound /></IconAction>
             {!org.hasUser && org.email && (
               <ConfirmIconAction
@@ -394,7 +407,7 @@ export default function OrganizersPage() {
                   <TableHead>Telefon</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Povezani događaji</TableHead>
-                  <TableHead className="text-right">Dodano</TableHead>
+                  <TableHead className="text-right">Registracija / dodano</TableHead>
                   <TableHead className="text-right">Akcije</TableHead>
                 </TableRow>
               </TableHeader>
