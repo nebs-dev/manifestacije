@@ -172,6 +172,14 @@ integration("EventRevision PostgreSQL workflow", () => {
       await prisma.eventSource.update({ where: { id: mixed.id }, data: { parsedJson: { candidates: [{ _status: "created" }, { _status: "ignored" }] } } });
       expect((await noticeCounts()).unread).toBe(0);
     });
+    it("keeps empty organizer submissions reviewable while empty monitored batches stay quiet", async () => {
+      const source = await prisma.eventSource.create({ data: { organizerId, type: "MANUAL", status: "NEEDS_REVIEW", rawText: "Sadržaj za ručni pregled", parsedJson: { candidates: [] } } });
+      await discovery([]);
+      expect((await noticeCounts()).categories.source).toMatchObject({ unread: 1, pending: 1 });
+      expect((await noticeCounts()).categories.discovery).toMatchObject({ unread: 0, pending: 0 });
+      await prisma.eventSource.update({ where: { id: source.id }, data: { status: "REJECTED" } });
+      expect((await noticeList()).total).toBe(0);
+    });
     it("reads a source individually and stops counting completed sources", async () => {
       const source = await prisma.eventSource.create({ data: { organizerId, type: "URL", status: "NEW", sourceUrl: "https://example.test" } });
       await discovery([{ title: "Drugi" }]);
