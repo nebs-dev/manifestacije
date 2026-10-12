@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { breadcrumbsToJsonLd } from "./event-jsonld"
-import { cityEventSummaries, citySeoFields, citySlugForEvent } from "./seo-taxonomy"
+import { cityEventSummaries, cityGenitivePhrase, citySeoFields, citySlugForEvent, regionGenitivePhrase } from "./seo-taxonomy"
 import { kamoZaVikendSeo } from "./weekend-seo"
 
 const osijekEvent = {
@@ -54,7 +54,9 @@ describe("city discovery SEO", () => {
   it("builds indexable Osijek metadata with a self canonical", () => {
     const metadata = citySeoFields("osijek", [osijekEvent], "https://manifestacije.hr")
 
-    expect(metadata.title).toBe("Događanja u Osijeku – danas, ovaj vikend i uskoro | Manifestacije")
+    expect(metadata.title).toBe("Događanja u Osijeku – digitalni kalendar Osijeka | Manifestacije")
+    expect(metadata.description.startsWith("Digitalni kalendar Osijeka: ")).toBe(true)
+    expect(metadata.description).not.toContain("za Osijeku")
     expect(metadata.description).toContain("koncerata")
     expect(metadata.description).toContain("festivala")
     expect(metadata.description).toContain("kazališta")
@@ -130,5 +132,15 @@ describe("city discovery SEO", () => {
     const { default: robots } = await import("../../app/robots")
 
     expect(JSON.stringify(robots().rules)).not.toContain("/gradovi")
+  })
+})
+
+describe("SEO-02 digital calendar phrasing", () => {
+  it("uses natural genitive forms for cities and the Slavonia–Baranja region", () => {
+    expect(cityGenitivePhrase("osijek", "Osijek")).toBe("Osijeka")
+    expect(cityGenitivePhrase("vinkovci", "Vinkovci")).toBe("Vinkovaca")
+    expect(cityGenitivePhrase("karanac", "Karanac")).toBe("grada Karanac")
+    expect(regionGenitivePhrase("slavonija-i-baranja", "Slavonija i Baranja")).toBe("Slavonije i Baranje")
+    expect(regionGenitivePhrase("nepoznata", "Nepoznata")).toBe("regije Nepoznata")
   })
 })

@@ -55,6 +55,54 @@ const cityLocative: Record<string, string> = {
   dubrovnik: "Dubrovniku",
 }
 
+// Genitive forms for "digitalni kalendar Osijeka / Slavonije i Baranje" (SEO-02).
+const cityGenitive: Record<string, string> = {
+  osijek: "Osijeka",
+  zagreb: "Zagreba",
+  rijeka: "Rijeke",
+  varazdin: "Varaždina",
+  vukovar: "Vukovara",
+  vinkovci: "Vinkovaca",
+  dakovo: "Đakova",
+  nasice: "Našica",
+  cepin: "Čepina",
+  ilok: "Iloka",
+  valpovo: "Valpova",
+  kutjevo: "Kutjeva",
+  bilje: "Bilja",
+  batina: "Batine",
+  rovinj: "Rovinja",
+  pula: "Pule",
+  split: "Splita",
+  zadar: "Zadra",
+  dubrovnik: "Dubrovnika",
+}
+
+const regionGenitive: Record<string, string> = {
+  "slavonija-i-baranja": "Slavonije i Baranje",
+  slavonija: "Slavonije i Baranje",
+  "zagreb-i-okolica": "Zagreba i okolice",
+  zagreb: "Zagreba i okolice",
+  dalmacija: "Dalmacije",
+  "istra-i-kvarner": "Istre i Kvarnera",
+  istra: "Istre i Kvarnera",
+  kvarner: "Istre i Kvarnera",
+  "sredisnja-hrvatska": "središnje Hrvatske",
+  sredisnja: "središnje Hrvatske",
+  "lika-i-gorski-kotar": "Like i Gorskog kotara",
+  lika: "Like i Gorskog kotara",
+  "medimurje-i-zagorje": "Međimurja i Zagorja",
+  medimurje: "Međimurja i Zagorja",
+}
+
+export function cityGenitivePhrase(slug: string, name: string): string {
+  return cityGenitive[slug] || `grada ${name}`
+}
+
+export function regionGenitivePhrase(slug: string, name: string): string {
+  return regionGenitive[slug] || `regije ${name}`
+}
+
 export type SeoCategoryLink = {
   slug: string
   name: string
@@ -129,11 +177,12 @@ export function cityEventSummaries(events: CroEvent[]): CityEventSummary[] {
 export function citySeoFields(slug: string, events: CroEvent[], webUrl: string) {
   const name = cityName(slug, events)
   const location = cityLocationPhrase(slug, name)
-  const title = `Događanja u ${location} – danas, ovaj vikend i uskoro | Manifestacije`
-  const description = `Digitalni kalendar događanja za ${location}: pregled koncerata, festivala, kazališta, radionica, događanja za djecu i besplatnih događanja u ${location}. Pronađi aktualne termine, lokacije i programe.`
+  const genitive = cityGenitivePhrase(slug, name)
+  const title = `Događanja u ${location} – digitalni kalendar ${genitive} | Manifestacije`
+  const description = `Digitalni kalendar ${genitive}: pregled koncerata, festivala, kazališta, radionica, događanja za djecu i besplatnih događanja u ${location}. Pronađi aktualne termine, lokacije i programe.`
   const canonical = `${webUrl}/gradovi/${slug}`
 
-  return { name, location, title, description, canonical }
+  return { name, location, genitive, title, description, canonical }
 }
 
 export function regionName(slug: string, regions: PublicRegion[] = []): string {

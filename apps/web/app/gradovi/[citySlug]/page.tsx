@@ -29,7 +29,7 @@ export default async function CityPage({ params }: { params: { citySlug: string 
     fetchEvents({ city: params.citySlug }),
     fetchCategories(),
   ]);
-  const { name, location } = citySeoFields(params.citySlug, events, WEB_URL);
+  const { name, location, genitive } = citySeoFields(params.citySlug, events, WEB_URL);
   const categoryLinks = categoryLinksForEvents(
     events,
     categories,
@@ -57,7 +57,7 @@ export default async function CityPage({ params }: { params: { citySlug: string 
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-accent-foreground">Grad</p>
         <h1 className="mt-2 font-heading text-3xl font-semibold md:text-4xl">Događanja u {location}</h1>
         <p className="mb-8 mt-2 text-muted-foreground">
-          Digitalni kalendar događanja za {location} — {events.length} događanja, manifestacija i evenata
+          Digitalni kalendar {genitive} — {events.length} događanja, manifestacija i evenata
         </p>
         <SeoLinkBlock title={`Popularno u ${location}`} links={categoryLinks} />
         <ResultsGrid events={events} />

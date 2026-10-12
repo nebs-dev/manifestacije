@@ -1,14 +1,25 @@
 import { discoveryParams } from "@/lib/discovery-filters"
 import type { Metadata } from "next"
+import Link from "next/link"
 import { CalendarExplorer } from "@/components/public/calendar-explorer"
 import { SiteFooter } from "@/components/public/site-footer"
 import { SiteHeader } from "@/components/public/site-header"
-import { fetchEvents, type PublicFilters } from "@/lib/public-api"
+import { fetchEvents, WEB_URL, type PublicFilters } from "@/lib/public-api"
 
 export const metadata: Metadata = {
   title: "Digitalni kalendar događanja",
-  description: "Digitalni kalendar događanja za Slavoniju i Baranju — pregledaj dogadanja po danima, tjednima i mjesecima.",
+  description: "Digitalni kalendar događanja i manifestacija u Slavoniji i Baranji – Osijek, Đakovo, Vinkovci, Vukovar i okolica. Pregledaj događanja po danima, tjednima i mjesecima.",
+  // Date, view and filter query variants all describe the same calendar page.
+  alternates: { canonical: `${WEB_URL}/kalendar` },
 }
+
+const CALENDAR_PLACE_LINKS = [
+  { href: "/gradovi/osijek", label: "Događanja u Osijeku" },
+  { href: "/gradovi/dakovo", label: "Događanja u Đakovu" },
+  { href: "/gradovi/vinkovci", label: "Događanja u Vinkovcima" },
+  { href: "/gradovi/vukovar", label: "Događanja u Vukovaru" },
+  { href: "/regije/slavonija-i-baranja", label: "Manifestacije u Slavoniji i Baranji" },
+]
 
 function str(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v
@@ -65,6 +76,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
           <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">
             Digitalni kalendar događanja za Slavoniju i Baranju - po danima, tjednima i mjesecima. Listaj agendu, skoči na vikend ili pronađi besplatna događanja za cijelu obitelj.
           </p>
+          <nav aria-label="Događanja po mjestima" className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {CALENDAR_PLACE_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="font-medium text-primary hover:underline">{link.label}</Link>
+            ))}
+          </nav>
         </header>
 
         <CalendarExplorer events={results} initialYear={year} initialMonth={month} initialDate={selectedDate} initialView={selectedView} />

@@ -8,7 +8,7 @@ import { ResultsGrid } from "@/components/public/results-grid";
 import { SeoLinkBlock } from "@/components/public/seo-link-block";
 import { fetchCategories, fetchEvents, fetchRegions, WEB_URL } from "@/lib/public-api";
 import { breadcrumbsToJsonLd, eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
-import { categoryLinksForEvents, cityLinksForEvents, regionImage, regionLocationPhrase, regionName } from "@/lib/seo-taxonomy";
+import { categoryLinksForEvents, cityLinksForEvents, regionGenitivePhrase, regionImage, regionLocationPhrase, regionName } from "@/lib/seo-taxonomy";
 
 export async function generateMetadata({ params }: { params: { regionSlug: string } }): Promise<Metadata> {
   const [events, regions] = await Promise.all([
@@ -17,8 +17,9 @@ export async function generateMetadata({ params }: { params: { regionSlug: strin
   ]);
   const name = regionName(params.regionSlug, regions);
   const location = regionLocationPhrase(params.regionSlug, name);
-  const title = `Digitalni kalendar događanja u ${location}`;
-  const description = `Digitalni kalendar događanja za ${location}: koncerti, festivali, manifestacije i eventi. Pronađi aktualne termine, lokacije i programe.`;
+  const genitive = regionGenitivePhrase(params.regionSlug, name);
+  const title = `Digitalni kalendar ${genitive} – manifestacije i događanja`;
+  const description = `Manifestacije i događanja u ${location}: koncerti, festivali, sajmovi i eventi na jednom mjestu. Digitalni kalendar ${genitive} s aktualnim terminima, lokacijama i programima.`;
   return {
     title,
     description,
@@ -69,7 +70,7 @@ export default async function RegionPage({ params }: { params: { regionSlug: str
             <Link href="/regije" className="inline-flex items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm hover:bg-ink-foreground/15">
               <ArrowLeft className="size-4" /> Regije
             </Link>
-            <h1 className="mt-6 max-w-2xl font-heading text-4xl font-semibold md:text-6xl">Digitalni kalendar događanja u {location}</h1>
+            <h1 className="mt-6 max-w-2xl font-heading text-4xl font-semibold md:text-6xl">Digitalni kalendar {regionGenitivePhrase(params.regionSlug, name)}</h1>
             <p className="mt-4 max-w-2xl text-pretty text-ink-foreground/80">
               Manifestacije, eventi i događaji u {location}.
             </p>
