@@ -738,4 +738,59 @@ integration("EventRevision PostgreSQL workflow", () => {
     await approve(revision);
     expect(await snapshot()).toMatchObject({ cityId: otherCity.id, cityName: "QA drugi grad", address: "Ulica 1, QA drugi grad" });
   });
+
+  describe("organizer submissions survive AI failure (P1-B)", () => {
+    const submitEmail = { webUrl: "https://example.test", sendEventSubmitted: jest.fn(), sendAdminNewSubmission: jest.fn() };
+    const submitter = () => new OrganizerService(prisma as never, events, parser as never, duplicates as never, submitEmail as never, { syncEventSubmitter: jest.fn() } as never, cache as never, revisions);
+    const parsed = (title: string) => ({ sourceUrl: "", sourceType: "single", candidates: [{
+      title, description: "Opis", startsAt: "2099-11-20T20:00:00", endsAt: "", venueName: "Dvorana", address: "", city: "QA grad", county: "", region: "",
+      category: "QA koncert", isFree: true, priceText: "", ticketUrl: "", sourceUrl: "", organizerName: "", imageUrl: "", confidence: 0.9, missingFields: [], warnings: [], _status: "pending",
+    }] });
+    const unavailable = () => Object.assign(new Error("unavailable"), { getStatus: () => 503 });
+
+    it("stores the submission in PostgreSQL, exposes it to admins, and lets an admin re-parse the stored poster", async () => {
+      parser.parseBatchWithLlm.mockRejectedValueOnce(unavailable());
+      const out = await submitter().submitSource(organizerId, { rawText: "Plakat koncerta", screenshotBase64: "cG9zdGVy", screenshotMediaType: "image/png" }, "submitter@example.test", userId);
+      expect(out).toMatchObject({ parseStatus: "pending_review", status: "NEEDS_REVIEW" });
+      const row = await prisma.eventSource.findUniqueOrThrow({ where: { id: out.id } });
+      expect(row).toMatchObject({ organizerId, rawText: "Plakat koncerta", status: "NEEDS_REVIEW" });
+      expect(row.parsedJson).toMatchObject({ candidates: [], parseError: expect.any(String), pendingScreenshot: { mediaType: "image/png", base64: "cG9zdGVy" } });
+      expect(await prisma.event.count({ where: { title: "QA parsirani plakat" } })).toBe(0);
+
+      const list = await (await request("/api/admin/event-sources", adminId)).json();
+      const listed = list.items.find((item: { id: number }) => item.id === out.id);
+      expect(listed.parsedJson).toMatchObject({ hasPendingScreenshot: true, parseError: expect.any(String) });
+      expect(JSON.stringify(listed)).not.toContain("cG9zdGVy");
+      const detail = await (await request(`/api/admin/event-sources/${out.id}`, adminId)).json();
+      expect(detail.parsedJson.pendingScreenshot).toEqual({ mediaType: "image/png", base64: "cG9zdGVy" });
+      expect(JSON.stringify(await organizer.listSources(organizerId))).not.toContain("cG9zdGVy");
+
+      parser.parseBatchWithLlm.mockResolvedValueOnce(parsed("QA parsirani plakat"));
+      const reparsed = await admin.reparseSource(out.id);
+      expect(parser.parseBatchWithLlm).toHaveBeenLastCalledWith(expect.objectContaining({ screenshotBase64: "cG9zdGVy", screenshotMediaType: "image/png" }));
+      expect(reparsed.parsedJson).toMatchObject({ submissionKey: expect.any(String), candidates: [expect.objectContaining({ title: "QA parsirani plakat" })] });
+      expect(reparsed.parsedJson).not.toHaveProperty("parseError");
+      expect(reparsed.parsedJson).not.toHaveProperty("pendingScreenshot");
+      expect(await prisma.event.count({ where: { title: "QA parsirani plakat" } })).toBe(0);
+    });
+
+    it("serializes concurrent identical submissions into one row and retries the failed parse in place", async () => {
+      parser.parseBatchWithLlm.mockRejectedValue(unavailable());
+      const service = submitter();
+      const dto = { sourceUrl: "https://facebook.com/events/qa-p1b", rawText: "Koncert 20.11." };
+      const results = await Promise.all([1, 2, 3].map(() => service.submitSource(organizerId, dto, undefined, userId)));
+      expect(new Set(results.map((r) => r.id)).size).toBe(1);
+      expect(await prisma.eventSource.count({ where: { organizerId } })).toBe(1);
+
+      parser.parseBatchWithLlm.mockReset().mockResolvedValueOnce(parsed("QA ponovljeni"));
+      const retry = await service.submitSource(organizerId, dto, undefined, userId);
+      expect(retry).toMatchObject({ id: results[0].id, parseStatus: "parsed", alreadySubmitted: true });
+      expect(await prisma.eventSource.count({ where: { organizerId } })).toBe(1);
+      expect(submitEmail.sendAdminNewSubmission).toHaveBeenCalledTimes(1);
+      // Another organizer sending identical content still gets their own row.
+      parser.parseBatchWithLlm.mockResolvedValueOnce(parsed("QA drugi organizator"));
+      await service.submitSource(otherId, dto);
+      expect(await prisma.eventSource.count()).toBe(2);
+    });
+  });
 });

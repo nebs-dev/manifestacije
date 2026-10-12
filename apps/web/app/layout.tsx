@@ -69,8 +69,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <RouteProgress />
         </Suspense>
         {children}
+        {gaId && <Suspense fallback={null}><PublicAnalytics gaId={gaId} /></Suspense>}
       </body>
-      {gaId && <Suspense fallback={null}><PublicAnalytics gaId={gaId} /></Suspense>}
     </html>
   );
 }

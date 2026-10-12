@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { adaptEvent, adaptEventSourceCandidates } from "./adapters"
+import { adaptEvent, adaptEventSource, adaptEventSourceCandidates } from "./adapters"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus, toUiEventStatus } from "./status"
 
 describe("admin adapters", () => {
@@ -120,5 +120,16 @@ describe("admin adapters", () => {
     expect(toApiEventStatus("rejected")).toBe("REJECTED")
     expect(toApiEventStatus("archived")).toBe("ARCHIVED")
     expect(EVENT_STATUS_OPTIONS.map((o) => o.value)).not.toContain("approved")
+  })
+})
+
+describe("adaptEventSource unparsed submissions", () => {
+  it("exposes the parse error and an inline poster only for allowed image types", () => {
+    const pending = adaptEventSource({ id: 5, status: "NEEDS_REVIEW", parsedJson: { candidates: [], parseError: "Automatska obrada trenutačno nije dostupna.", pendingScreenshot: { mediaType: "image/png", base64: "cG9zdGVy" } } })
+    expect(pending.parseError).toBe("Automatska obrada trenutačno nije dostupna.")
+    expect(pending.pendingScreenshotSrc).toBe("data:image/png;base64,cG9zdGVy")
+    expect(adaptEventSource({ id: 6, parsedJson: { pendingScreenshot: { mediaType: "image/svg+xml", base64: "PHN2Zz4=" } } }).pendingScreenshotSrc).toBeUndefined()
+    expect(adaptEventSource({ id: 7, parsedJson: { pendingScreenshot: { mediaType: "image/png", base64: "x\" onerror=" } } }).pendingScreenshotSrc).toBeUndefined()
+    expect(adaptEventSource({ id: 8, parsedJson: { candidates: [] } }).parseError).toBeUndefined()
   })
 })

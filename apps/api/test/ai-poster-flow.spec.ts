@@ -21,9 +21,16 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
   let create: jest.Mock;
   const originalEnv = process.env;
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSuoAAAAASUVORK5CYII=", "base64");
-  const prisma = {
+  let stored: Record<string, unknown> = {};
+  const prisma: Record<string, unknown> & { eventSource: Record<string, jest.Mock> } = {
     event: { findMany: jest.fn().mockResolvedValue([]) },
-    eventSource: { create: jest.fn().mockImplementation(async ({ data }) => ({ id: 1, ...data })) },
+    eventSource: {
+      create: jest.fn().mockImplementation(async ({ data }) => (stored = { id: 1, ...data })),
+      findFirst: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockImplementation(async ({ data }) => (stored = { ...stored, ...data })),
+    },
+    $executeRaw: jest.fn().mockResolvedValue(0),
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown): Promise<unknown> => fn(prisma as unknown)),
   };
 
   beforeAll(async () => {
@@ -86,14 +93,25 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
       });
     });
 
-    it(`${path}: returns sanitized provider auth errors and creates no source`, async () => {
+    it(`${path}: sanitizes provider auth errors${path.includes("organizer") ? " and keeps the organizer submission for review" : " and creates no source"}`, async () => {
       create.mockRejectedValue({ status: 401, message: "synthetic-key" });
       const response = await fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         screenshotBase64: png.toString("base64"), screenshotMediaType: "image/png",
       }) });
-      expect(response.status).toBe(503);
-      expect(await response.text()).not.toContain("synthetic-key");
-      expect(prisma.eventSource.create).not.toHaveBeenCalled();
+      const body = await response.text();
+      expect(body).not.toContain("synthetic-key");
+      if (!path.includes("organizer")) {
+        // Admin manual parsing reports the failure immediately; nothing is lost.
+        expect(response.status).toBe(503);
+        expect(prisma.eventSource.create).not.toHaveBeenCalled();
+        return;
+      }
+      // P1-B: organizer submissions are stored before parsing and kept on failure.
+      expect(response.status).toBe(201);
+      expect(JSON.parse(body)).toMatchObject({ parseStatus: "pending_review", status: "NEEDS_REVIEW" });
+      expect(prisma.eventSource.create).toHaveBeenCalledTimes(1);
+      expect(stored.parsedJson).toMatchObject({ candidates: [], parseError: expect.stringContaining("nije dostupna"),
+        pendingScreenshot: { mediaType: "image/png", base64: png.toString("base64") } });
     });
   }
 

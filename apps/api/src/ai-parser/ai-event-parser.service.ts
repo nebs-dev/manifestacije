@@ -668,7 +668,10 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       : `URL stranice: ${sourceUrl}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}\n\nSadržaj stranice:\n${truncated}`;
     userContent.push({ type: "text", text: textPrompt });
 
-    const client = new Anthropic({ apiKey });
+    // Bounded so a stalled provider surfaces as a handled failure (callers keep
+    // the source for review) instead of a request hanging for the SDK default
+    // of 10 minutes per attempt. Large listings stay well within this limit.
+    const client = new Anthropic({ apiKey, timeout: 180_000, maxRetries: 1 });
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 16384,

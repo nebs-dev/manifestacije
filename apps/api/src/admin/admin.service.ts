@@ -10,6 +10,7 @@ import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { dropPastCandidates, flagAlreadyImported, retainCandidateDecisions } from "../ai-parser/candidate-filters";
+import { parsedWithEvidence, readEvidence, SCREENSHOT_MEDIA_TYPES, withoutInlinePoster } from "../ai-parser/source-evidence";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
@@ -561,6 +562,8 @@ export class AdminService {
       const byId = new Map(reads.map(row => [row.entityId, row.readAt]));
       for (const item of items) item.adminViewedAt = byId.has(item.id) ? byId.get(item.id)! : item.createdAt;
     }
+    // Inline poster bytes (failed-parse fallback) are only needed on the detail page.
+    for (const item of items) item.parsedJson = withoutInlinePoster(item.parsedJson);
     return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
@@ -689,19 +692,39 @@ export class AdminService {
       }
     }
 
-    let result = (rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
-      || await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl });
+    // A stored poster stays the primary evidence on re-parse, as on submit.
+    const evidence = readEvidence(source.parsedJson);
+    const screenshot = evidence.pendingScreenshot ?? await this.fetchStoredPoster(evidence.sourceImageUrl);
+
+    let result = (!screenshot && rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+      || await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl, screenshotBase64: screenshot?.base64, screenshotMediaType: screenshot?.mediaType });
     result = dropPastCandidates(result);
     result = await flagAlreadyImported(this.prisma, this.duplicates, result);
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
       const current = await tx.eventSource.findUniqueOrThrow({ where: { id } });
-      const retained = retainCandidateDecisions(current.parsedJson, result);
+      const retained = parsedWithEvidence(retainCandidateDecisions(current.parsedJson, result), readEvidence(current.parsedJson));
       const { confidence, status } = this.sourceMetaFromResult(retained);
       const allDone = retained.candidates.length > 0 && retained.candidates.every(c => c._status === "created" || c._status === "ignored");
       return tx.eventSource.update({ where: { id }, data: { parsedJson: retained as object, confidence,
         status: current.eventId || allDone ? "LINKED" : status } });
     });
+  }
+
+  /** Re-reads an organizer poster only from our own Cloudinary storage, never an arbitrary URL. */
+  private async fetchStoredPoster(url?: string): Promise<{ base64: string; mediaType: string } | undefined> {
+    if (!url) return undefined;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" || parsed.hostname !== "res.cloudinary.com") return undefined;
+      const res = await fetch(parsed, { signal: AbortSignal.timeout(12000) });
+      const mediaType = (res.headers.get("content-type") || "").split(";")[0].trim();
+      if (!res.ok || !SCREENSHOT_MEDIA_TYPES.has(mediaType)) return undefined;
+      const bytes = Buffer.from(await res.arrayBuffer());
+      return bytes.length <= 5 * 1024 * 1024 ? { base64: bytes.toString("base64"), mediaType } : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async createEventFromSource(id: number, candidateIndex = 0, candidateOverride?: CandidateOverrideDto, publish = false, createdByUserId?: number) {

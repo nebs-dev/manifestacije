@@ -6,6 +6,7 @@ import { AlertTriangle, ImagePlus, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { orgFetch } from "@/lib/organizer/api"
+import { submissionMessage } from "@/lib/organizer/submission"
 import { useOrganizerAuth } from "@/hooks/use-organizer-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -131,7 +132,8 @@ export default function SubmitLinkPage() {
         body: JSON.stringify(body),
       })
       if (!res.ok) { toast.error("Greška", { description: await res.text() }); return }
-      toast.success("Poslano na pregled! Admin će obraditi vaš zahtjev.")
+      const message = submissionMessage(await res.json().catch(() => ({})))
+      toast.success(message.title, message.description ? { description: message.description } : undefined)
       router.refresh()
       router.push("/organizer/events")
     } catch {

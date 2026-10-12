@@ -37,6 +37,10 @@ export interface EventSource {
   adminViewedAt: string | null
   rawText?: string
   sourceImageUrl?: string
+  /** Poster kept inline when parsing failed and no uploaded copy exists (data: URL). */
+  pendingScreenshotSrc?: string
+  /** Why automatic parsing did not complete; the source is kept for review. */
+  parseError?: string
   organizerName: string | null
   organizerEmail: string | null
   firstCandidateTitle?: string

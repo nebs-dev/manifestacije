@@ -4,7 +4,8 @@ import { toUiEventStatus } from "./status"
 type BE = Record<string, unknown>
 
 export function adaptEventSource(src: BE): EventSource {
-  const parsedJson = src.parsedJson as { candidates?: BE[]; title?: string; sourceImageUrl?: string } | null
+  const parsedJson = src.parsedJson as { candidates?: BE[]; title?: string; sourceImageUrl?: string; parseError?: string; pendingScreenshot?: { mediaType?: string; base64?: string } } | null
+  const shot = parsedJson?.pendingScreenshot
   const organizer = src.organizer as BE | null
   const firstCandidateTitle = (parsedJson?.candidates?.[0]?.title as string) || parsedJson?.title || undefined
   return {
@@ -20,6 +21,9 @@ export function adaptEventSource(src: BE): EventSource {
     adminViewedAt: (src.adminViewedAt as string | null) ?? null,
     rawText: (src.rawText as string) ?? undefined,
     sourceImageUrl: parsedJson?.sourceImageUrl,
+    pendingScreenshotSrc: shot?.base64 && /^image\/(jpeg|png|webp|gif)$/.test(shot.mediaType ?? "") && /^[A-Za-z0-9+/]+=*$/.test(shot.base64)
+      ? `data:${shot.mediaType};base64,${shot.base64}` : undefined,
+    parseError: typeof parsedJson?.parseError === "string" ? parsedJson.parseError : undefined,
     organizerName: (organizer?.name as string) ?? null,
     organizerEmail: (organizer?.email as string) ?? null,
     firstCandidateTitle,

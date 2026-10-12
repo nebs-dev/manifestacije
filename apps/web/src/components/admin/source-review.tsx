@@ -139,7 +139,7 @@ export function SourceReview({
   const [tab, setTab] = useState<Tab>("pending")
   const [search, setSearch] = useState("")
   const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
-  const sourceImageSrc = safeExternalUrl(source.sourceImageUrl)
+  const sourceImageSrc = safeExternalUrl(source.sourceImageUrl) ?? source.pendingScreenshotSrc
   const [savingUrl, setSavingUrl] = useState(false)
   const [reparsing, setReparsing] = useState(false)
 
@@ -240,6 +240,15 @@ export function SourceReview({
         </CardContent>
       </Card>
 
+      {source.parseError && (
+        <Card role="status" className="border-warning/40 bg-warning/10">
+          <CardHeader>
+            <CardTitle className="font-heading text-base">Automatska obrada nije dovršena</CardTitle>
+            <CardDescription>{source.parseError}</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       {/* Source image evidence */}
       {sourceImageSrc && (
         <Card>
@@ -256,9 +265,11 @@ export function SourceReview({
               unoptimized
               className="max-h-[520px] w-full rounded-lg border object-contain"
             />
-            <a href={sourceImageSrc} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+            {!sourceImageSrc.startsWith("data:") && (
+              <a href={sourceImageSrc} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
               Otvori sliku izvora
             </a>
+            )}
           </CardContent>
         </Card>
       )}

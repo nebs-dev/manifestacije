@@ -1,16 +1,20 @@
 import { RevalidateService } from "../admin/revalidate.service";
 import { BadRequestException, ForbiddenException, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { EventRevisionsService } from "../event-revisions/event-revisions.service";
-import { EventStatus, EventSourceType, EmailContactSource } from "@prisma/client";
+import { EventStatus, EventSourceStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
+import { parseFailureReason, parsedWithEvidence, pendingSourceJson, readEvidence, SCREENSHOT_MEDIA_TYPES, submissionKey, withoutInlinePoster } from "../ai-parser/source-evidence";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
 import { OrganizerEventDto, OrganizerProfileDto, SubmitSourceDto, pickOrganizerEventInput } from "./organizer.dto";
+
+/** Same organizer + same content within this window is treated as a retry of one submission. */
+const SUBMISSION_DEDUPE_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class OrganizerService {
@@ -189,46 +193,90 @@ export class OrganizerService {
     }
 
     const useLlm = Boolean(dto.useLlm || hasScreenshot || isFacebook);
-    // The attached poster is primary evidence; page metadata may describe a
-    // different event or an old schedule and must not bypass image extraction.
-    let result = (!hasScreenshot && rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
-      || (useLlm
-        ? await this.parser.parseBatchWithLlm({
-            rawText,
-            rawHtml,
-            sourceUrl,
-            screenshotBase64: dto.screenshotBase64,
-            screenshotMediaType: dto.screenshotMediaType,
-            contextHint: dto.contextHint,
-          })
-        : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl }));
-    result = dropPastCandidates(result);
-    result = await flagAlreadyImported(this.prisma, this.duplicates, result);
+    const sourceImageUrl = dto.sourceImageUrl || undefined;
+    const key = submissionKey({ sourceUrl, rawText: dto.rawText?.trim() || undefined, screenshotBase64: dto.screenshotBase64, sourceImageUrl });
 
-    if (fetchWarnings.length) {
-      result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
-    }
-    if (subPageWarning) {
-      result.candidates.forEach((c) => c.warnings.push(subPageWarning!));
-    }
-
-    const parsed = dto.sourceImageUrl ? { ...result, sourceImageUrl: dto.sourceImageUrl } : result;
-    const { confidence, status } = this.sourceMetaFromResult(result, isFacebook);
-
-    const source = await this.prisma.eventSource.create({
-      data: {
-        organizerId,
-        type: sourceUrl ? EventSourceType.URL : EventSourceType.MANUAL,
-        sourceUrl,
-        rawText,
-        rawHtml,
-        parsedJson: parsed as object,
-        confidence,
-        status,
-      }
+    // Persist before parsing (P1-B): an AI outage, timeout or bad response must
+    // never lose what the organizer sent. The same content from the same
+    // organizer within a day resolves to one row, so retries and double
+    // submits cannot create duplicates.
+    const { source: stored, created } = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`source:${organizerId}:${key}`}, 0))`;
+      const existing = await tx.eventSource.findFirst({
+        where: { organizerId, createdAt: { gte: new Date(Date.now() - SUBMISSION_DEDUPE_MS) }, parsedJson: { path: ["submissionKey"], equals: key } },
+        orderBy: { id: "desc" },
+      });
+      if (existing) return { source: existing, created: false };
+      const source = await tx.eventSource.create({
+        data: {
+          organizerId,
+          type: sourceUrl ? EventSourceType.URL : EventSourceType.MANUAL,
+          sourceUrl,
+          rawText,
+          rawHtml,
+          parsedJson: pendingSourceJson(sourceUrl, { submissionKey: key, sourceImageUrl }) as object,
+          confidence: 0,
+          status: EventSourceStatus.NEW,
+        },
+      });
+      return { source, created: true };
     });
 
-    const firstCandidate = result.candidates[0];
+    const evidence = readEvidence(stored.parsedJson);
+    // A retry only re-runs a parse that previously failed; a parsed or
+    // in-flight submission is returned as it is.
+    if (!created && !evidence.parseError) return { ...stored, parseStatus: stored.status === EventSourceStatus.NEW ? "processing" : "parsed", alreadySubmitted: true };
+
+    let source: typeof stored;
+    let parseStatus: "parsed" | "pending_review";
+    try {
+      let result = (!hasScreenshot && rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
+        || (useLlm
+          ? await this.parser.parseBatchWithLlm({
+              rawText,
+              rawHtml,
+              sourceUrl,
+              screenshotBase64: dto.screenshotBase64,
+              screenshotMediaType: dto.screenshotMediaType,
+              contextHint: dto.contextHint,
+            })
+          : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl }));
+      result = dropPastCandidates(result);
+      result = await flagAlreadyImported(this.prisma, this.duplicates, result);
+
+      if (fetchWarnings.length) {
+        result.candidates.forEach((c) => c.warnings.push(...fetchWarnings));
+      }
+      if (subPageWarning) {
+        result.candidates.forEach((c) => c.warnings.push(subPageWarning!));
+      }
+
+      const { confidence, status } = this.sourceMetaFromResult(result, isFacebook);
+      source = await this.prisma.eventSource.update({
+        where: { id: stored.id },
+        data: { parsedJson: parsedWithEvidence(result, evidence) as object, confidence, status },
+      });
+      parseStatus = "parsed";
+    } catch (error) {
+      // Keep the submission for manual review or an admin re-parse. Poster
+      // bytes are kept only when there is no uploaded copy to re-read.
+      const pendingScreenshot = hasScreenshot && !sourceImageUrl && SCREENSHOT_MEDIA_TYPES.has(dto.screenshotMediaType!)
+        ? { mediaType: dto.screenshotMediaType!, base64: dto.screenshotBase64! }
+        : evidence.pendingScreenshot;
+      source = await this.prisma.eventSource.update({
+        where: { id: stored.id },
+        data: {
+          parsedJson: pendingSourceJson(sourceUrl, { ...evidence, pendingScreenshot, parseError: parseFailureReason(error) }) as object,
+          confidence: 0,
+          status: EventSourceStatus.NEEDS_REVIEW,
+        },
+      });
+      parseStatus = "pending_review";
+    }
+
+    if (!created) return { ...source, parseStatus, alreadySubmitted: true };
+
+    const firstCandidate = parseStatus === "parsed" ? (source.parsedJson as ParsedSourceResult).candidates[0] : undefined;
     const titleOrSource = firstCandidate?.title || sourceUrl || "Zaprimljeni sadržaj";
 
     await this.notifySourceSubmitted(source.id, organizerId, titleOrSource, firstCandidate, sourceUrl, organizerEmail);
@@ -244,7 +292,7 @@ export class OrganizerService {
       }
     }
 
-    return source;
+    return { ...source, parseStatus, alreadySubmitted: false };
   }
 
   /** Never throws — organizer/admin notification failures must never fail source submission. */
@@ -306,7 +354,7 @@ export class OrganizerService {
     // Old computed hints may predate disclosure rules. Never return another
     // organizer's private record ID from historical parser metadata.
     return sources.map(source => {
-      const parsed = source.parsedJson as { candidates?: Record<string, unknown>[]; _existingEventId?: unknown } | null;
+      const parsed = withoutInlinePoster(source.parsedJson) as { candidates?: Record<string, unknown>[]; _existingEventId?: unknown } | null;
       if (!parsed || typeof parsed !== "object") return source;
       const { _existingEventId: _rootHint, ...safeParsed } = parsed;
       if (!Array.isArray(parsed.candidates)) return { ...source, parsedJson: safeParsed };
