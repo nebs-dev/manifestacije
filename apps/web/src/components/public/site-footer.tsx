@@ -82,6 +82,11 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
+                <Link href="/prosli-dogadaji" className="text-ink-foreground/80 transition-colors hover:text-accent">
+                  Prošli događaji
+                </Link>
+              </li>
+              <li>
                 <Link href="/mapa" className="text-ink-foreground/80 transition-colors hover:text-accent">
                   Karta
                 </Link>

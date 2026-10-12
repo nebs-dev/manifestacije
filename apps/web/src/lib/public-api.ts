@@ -209,6 +209,16 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   return fetchApi<ApiEvent[]>(path, filters.when === "ovaj-vikend" ? 0 : 300, ["events"]).then((rows) => mapApiEvents(rows, !filters.q?.trim())).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
 }
 
+export type PastEventsPage = { items: CroEvent[]; total: number; page: number; pageSize: number; pageCount: number }
+
+/** Past events archive (PUB-06); classification happens in the API. */
+export async function fetchPastEvents(page = 1, pageSize = 24): Promise<PastEventsPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+  const data = await fetchApi<{ items: ApiEvent[]; total: number; page: number; pageSize: number; pageCount: number }>(`/api/public/past-events?${params}`, 3600, ["events"])
+  const now = new Date()
+  return { ...data, items: data.items.map((event) => toCroEvent(event, now)) }
+}
+
 export async function fetchEvent(slug: string) {
   const event = await fetchApi<ApiEvent | null>(`/api/public/events/${slug}`).catch(() => null)
   if (event) return toCroEvent(event)

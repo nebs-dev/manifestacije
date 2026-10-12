@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${WEB_URL}/danas` },
     { url: `${WEB_URL}/ovaj-vikend` },
     { url: `${WEB_URL}/kalendar` },
+    { url: `${WEB_URL}/prosli-dogadaji` },
     { url: `${WEB_URL}/mapa` },
     { url: `${WEB_URL}/gradovi` },
     { url: `${WEB_URL}/regije` },

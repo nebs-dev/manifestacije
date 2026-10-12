@@ -113,6 +113,26 @@ export class PublicFeedService {
     return this.rankSearchResults(events, search).slice(0, 500);
   }
 
+  /**
+   * Past events archive (PUB-06): publicly visible events that the upcoming
+   * feed no longer shows. endedWhere() is the clause-by-clause complement of
+   * publicVisibilityWhere(), so occurrences, all-day, overnight and
+   * Zagreb-day/DST handling stay consistent with every other public listing.
+   */
+  async pastEvents(query: Record<string, string | undefined>) {
+    const page = Math.min(Math.max(Number.parseInt(query.page ?? "1", 10) || 1, 1), 1000);
+    const pageSize = Math.min(Math.max(Number.parseInt(query.pageSize ?? "24", 10) || 24, 6), 48);
+    const where: Prisma.EventWhereInput = {
+      OR: [{ status: EventStatus.PUBLISHED }, { status: EventStatus.ARCHIVED, publishedAt: { not: null } }],
+      ...this.endedWhere(new Date()),
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.event.findMany({ where, select: eventListSelect, orderBy: [{ startsAt: "desc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.event.count({ where }),
+    ]);
+    return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
   async event(slug: string) {
     return this.prisma.event.findFirst({
       where: {
@@ -344,6 +364,30 @@ export class PublicFeedService {
           ],
         },
       ],
+    };
+  }
+
+  /**
+   * Null-safe complement of publicVisibilityWhere (a plain NOT would drop rows
+   * whose endsAt is NULL, because NULL comparisons are neither true nor false).
+   */
+  private endedWhere(now: Date): Prisma.EventWhereInput {
+    const { start } = this.zagrebDayRange(now);
+    const ended = {
+      OR: [
+        { isAllDay: false, endsAt: { not: null, lte: now } },
+        { isAllDay: true, endsAt: { not: null, lt: start } },
+        { isAllDay: false, endsAt: null, startsAt: { lt: now } },
+        { isAllDay: true, endsAt: null, startsAt: { lt: start } },
+      ],
+    };
+    return {
+      AND: [{
+        OR: [
+          { occurrences: { some: {}, every: ended } },
+          { AND: [{ occurrences: { none: {} } }, ended] },
+        ],
+      }],
     };
   }
 

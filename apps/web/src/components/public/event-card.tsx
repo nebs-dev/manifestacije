@@ -18,9 +18,11 @@ interface EventCardProps {
   imageSizes?: string
   returnTo?: string
   related?: boolean
+  /** Shown in the past events archive (PUB-06). */
+  ended?: boolean
 }
 
-export function EventCard({ event, className, displayDate, priorityImage, imageSizes, returnTo, related }: EventCardProps) {
+export function EventCard({ event, className, displayDate, priorityImage, imageSizes, returnTo, related, ended }: EventCardProps) {
   const dateForCard = eventCardDateDisplay(event.date, displayDate)
   const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   const href = returnTo ? `/eventi/${event.slug}?returnTo=${encodeURIComponent(returnTo)}` : `/eventi/${event.slug}`
@@ -52,7 +54,9 @@ export function EventCard({ event, className, displayDate, priorityImage, imageS
           <DateBadge date={dateForCard.date} size="md" />
         </div>
         <div className="absolute right-4 top-4">
-          <PriceBadge free={event.free} price={event.price} />
+          {ended
+            ? <span className="rounded-full bg-ink/80 px-3 py-1 text-xs font-semibold text-ink-foreground backdrop-blur">Završeno</span>
+            : <PriceBadge free={event.free} price={event.price} />}
         </div>
       </div>
 

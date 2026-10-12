@@ -10,6 +10,11 @@ export class PublicFeedController {
     return this.feed.events(query);
   }
 
+  @Get("past-events")
+  pastEvents(@Query() query: Record<string, string | undefined>) {
+    return this.feed.pastEvents(query);
+  }
+
   @Get("events/:slug")
   event(@Param("slug") slug: string) {
     return this.feed.event(slug);

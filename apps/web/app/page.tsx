@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prioritizeFreshEvents } from "@/lib/event-order";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
@@ -98,6 +99,15 @@ export default async function Home() {
               <EventRail events={free} />
             </section>
           )}
+          <section className="pb-14 md:pb-20">
+            <Link href="/prosli-dogadaji" className="group flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-6 py-5 transition-colors hover:border-primary/40">
+              <span>
+                <span className="block font-heading text-lg font-semibold">Prošli događaji</span>
+                <span className="block text-sm text-muted-foreground">Pogledajte što je sve prošlo kroz naše ruke.</span>
+              </span>
+              <span className="text-sm font-medium text-primary group-hover:underline">Otvori arhivu →</span>
+            </Link>
+          </section>
         </div>
 
         <OrganizerCta />

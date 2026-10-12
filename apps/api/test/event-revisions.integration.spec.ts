@@ -749,6 +749,46 @@ integration("EventRevision PostgreSQL workflow", () => {
     expect((await snapshot()).description).toBe(markdown);
   });
 
+  it("lists only ended public events in the past archive, newest first and paginated (PUB-06)", async () => {
+    const h = 3600_000, now = Date.now();
+    const zagrebMidnight = (offsetDays: number) => {
+      const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zagreb" }).format(new Date(now + offsetDays * 24 * h));
+      const [y, m, d] = day.split("-").map(Number);
+      const probe = new Date(Date.UTC(y, m - 1, d));
+      const offset = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zagreb", hour: "2-digit", hourCycle: "h23" }).format(probe));
+      return new Date(probe.getTime() - offset * h);
+    };
+    const base = { description: "Opis", organizerId, cityId, countyId, regionId, categoryId, cityName: "QA grad" };
+    const make = (slug: string, data: Record<string, unknown>) => prisma.event.create({ data: { ...base, title: slug, slug, status: "PUBLISHED", publishedAt: new Date(now - 30 * 24 * h), ...data } as never });
+    await make("qa-past-overnight-ended", { startsAt: new Date(now - 6 * h), endsAt: new Date(now - h) });
+    await make("qa-past-overnight-running", { startsAt: new Date(now - 3 * h), endsAt: new Date(now + h) });
+    await make("qa-past-yesterday-allday", { startsAt: zagrebMidnight(-1), isAllDay: true });
+    await make("qa-past-today-allday", { startsAt: zagrebMidnight(0), isAllDay: true });
+    await make("qa-past-multiday-running", { startsAt: new Date(now - 72 * h), endsAt: new Date(now + 48 * h) });
+    await make("qa-past-old-single", { startsAt: new Date(now - 240 * h) });
+    await make("qa-past-occurrence-future", { startsAt: new Date(now - 100 * h), occurrences: { create: [{ startsAt: new Date(now - 100 * h) }, { startsAt: new Date(now + 100 * h) }] } });
+    await make("qa-past-occurrences-done", { startsAt: new Date(now - 200 * h), occurrences: { create: [{ startsAt: new Date(now - 200 * h) }, { startsAt: new Date(now - 150 * h), endsAt: new Date(now - 149 * h) }] } });
+    await make("qa-past-archived-published", { startsAt: new Date(now - 300 * h), status: "ARCHIVED" });
+    await make("qa-past-archived-never-public", { startsAt: new Date(now - 300 * h), status: "ARCHIVED", publishedAt: null });
+    await make("qa-past-draft", { startsAt: new Date(now - 300 * h), status: "DRAFT", publishedAt: null });
+    await make("qa-past-rejected", { startsAt: new Date(now - 300 * h), status: "REJECTED", publishedAt: null });
+
+    const response = await request("/api/public/past-events?page=1&pageSize=6");
+    expect(response.status).toBe(200);
+    const first = await response.json();
+    const second = await (await request("/api/public/past-events?page=2&pageSize=6")).json();
+    const slugs = [...first.items, ...second.items].map((e: { slug: string }) => e.slug);
+    expect(slugs).toEqual(["qa-past-overnight-ended", "qa-past-yesterday-allday", "qa-past-occurrences-done", "qa-past-old-single", "qa-past-archived-published"]);
+    expect(first).toMatchObject({ total: 5, page: 1, pageSize: 6, pageCount: 1 });
+    expect(second.items).toEqual([]);
+    // Upcoming feed never includes them.
+    const upcoming = (await (await request("/api/public/events")).json()).map((e: { slug: string }) => e.slug);
+    for (const slug of slugs) expect(upcoming).not.toContain(slug);
+    expect(upcoming).toEqual(expect.arrayContaining(["qa-past-overnight-running", "qa-past-today-allday", "qa-past-multiday-running", "qa-past-occurrence-future"]));
+    // Bounded page size.
+    expect((await (await request("/api/public/past-events?pageSize=100000")).json()).pageSize).toBe(48);
+  });
+
   describe("organizer submissions survive AI failure (P1-B)", () => {
     const submitEmail = { webUrl: "https://example.test", sendEventSubmitted: jest.fn(), sendAdminNewSubmission: jest.fn() };
     const submitter = () => new OrganizerService(prisma as never, events, parser as never, duplicates as never, submitEmail as never, { syncEventSubmitter: jest.fn() } as never, cache as never, revisions);
