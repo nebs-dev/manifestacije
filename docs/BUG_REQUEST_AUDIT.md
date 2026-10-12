@@ -1210,3 +1210,104 @@ These close the delivery portion of **AUTH-02/04** for the observed messages. De
   - anonymous email history → 401;
   - 133 public events, unchanged.
 - No external Resend/Railway configuration changed, no emails sent, no accounts or event data modified.
+
+
+## Y. Final stabilization batch (2026-10-12)
+
+Scope: release-readiness P1-1/P1-2 and P2-2/P2-3/P2-4 (`docs/RELEASE_READINESS_2026_10.md`), plus Resend webhook secret configuration. Continued from `13e57ae5`.
+
+### Task 1 — P1 defects: PASS
+
+**P1-A: hydration error #418.**
+- **Reproduced** before the fix with a local production build and dummy `NEXT_PUBLIC_GA_ID`: #418 on every page tested, 7/7 (log `hydration-before.log`).
+- **Cause:** `app/layout.tsx` rendered `<PublicAnalytics>` after `</body>`.
+- **Fix:** render it inside `<body>`, after `{children}`.
+- **Local verification, after the fix:** 33/33 page/viewport checks at 1366/390/360 show no hydration or console errors. The gtag script and `dataLayer` config are present on public pages and absent on admin, organizer and password-reset routes. The existing exclusion rule is unchanged.
+- **Production verification:** see the deployment section below.
+
+**P1-B: organizer submissions lost on AI failure.**
+- `OrganizerService.submitSource` now persists the `EventSource` (status `NEW`, a `submissionKey` content hash, and the uploaded poster URL) **before** any parser call.
+- On any parse failure the row is kept as `NEEDS_REVIEW`. That covers provider error, invalid or missing credential, timeout or connection reset, an unparseable response, and a 400 content error.
+  - The row keeps `parsedJson.parseError`, a Croatian reason with no provider details.
+  - It also keeps `pendingScreenshot` (the poster bytes), only when no uploaded copy exists and the type is jpeg/png/webp/gif.
+  - Organizer and admin notifications are still sent, and the API returns 201 with `parseStatus: "pending_review"`.
+- **Idempotency:** the same organizer plus the same content within 24 h maps to one row, under `pg_advisory_xact_lock`. A retry re-parses a previously failed row in place; a parsed or in-flight row is returned unchanged (`alreadySubmitted: true`). No repeat notifications are sent.
+- **Admin side:**
+  - The source page shows "Automatska obrada nije dovršena" with the reason, and the retained poster.
+  - "Ponovno parsiraj" reuses the stored poster: inline bytes, or re-read from `res.cloudinary.com` only.
+  - Success clears the pending state.
+  - List endpoints omit the inline poster bytes.
+- **Anthropic client:** now bounded to 180 s with one retry. Previously the SDK default was 10 min per attempt with 2 retries.
+- **Organizer messages (Croatian):** "Poslano na pregled!…", "Zahtjev je spremljen i poslan na pregled. Automatska obrada trenutačno nije uspjela…", or "Ovaj sadržaj je već zaprimljen.".
+- Nothing is ever published automatically. Ownership, moderation, admin manual parsing (which still reports a 503 immediately, with nothing lost) and duplicate checks are unchanged. **No schema change.**
+- **Browser QA, all with MOCKED Anthropic** (a local stub switching between ok/529/401/connection-reset/unparseable modes; real local NestJS/PostgreSQL/Next production builds; synthetic organizer): **11/11 PASS** at 1366/390/360.
+  - Success path.
+  - Each failure mode retained, with an accurate toast.
+  - Poster with no upload storage keeps its bytes.
+  - Retry while the provider is still down → same row.
+  - Retry after recovery → same row, parsed from the poster.
+  - Double-click → one row.
+  - Nothing published.
+- **Admin:**
+  - The retained poster renders and the failure notice shows at 1366 and 390.
+  - Admin re-parse after recovery succeeds and clears the notice.
+  - A missing credential (API restarted without a key) → 201, `NEEDS_REVIEW`, with the reason stored.
+- **Live Anthropic parsing was not exercised.** The production provider remains unverified, but submissions no longer depend on it to be kept.
+
+### Task 2 — P2 UI: PASS
+
+- **Mobile admin navigation:** below 768px a "Otvori izbornik" button opens a dialog drawer that reuses the sidebar (all 15 sections). Focus moves to "Zatvori izbornik" and is trapped. Escape, backdrop, selection and route change close it, and focus returns to the menu button. Desktop is unchanged. Section labels stay as they were; Croatian naming remains backlog **ADM-04**.
+- **Location suggestions — real cause:**
+  - The list is `position: fixed`, which is needed to escape the `overflow-hidden` Card, but its coordinates were measured only at render.
+  - Nothing re-measured on scroll. Admin pages scroll inside `<main>` rather than the window, so window listeners alone would not have helped.
+  - There was no flip or height limit near the viewport bottom, and no handling of the mobile visual viewport.
+
+  **Fix:**
+  - Re-measure on capture-phase scroll, resize and `visualViewport` changes.
+  - Flip above when there is more room; cap the height to the visible space.
+  - Hide while the field is off-screen.
+  - Add combobox/listbox semantics with ArrowUp/Down, Enter and Escape. Mouse/touch selection and geocoding are unchanged.
+- **Headings:**
+  - `/mapa`: `sr-only` H1 "Karta događanja".
+  - `/organizer/login`: card title is now an H1, "Prijava" plus `sr-only` " organizatora".
+  - `/organizer/register`: same pattern, "Registracija organizatora".
+  - Visual size and weight are unchanged (16px/500).
+- **Browser QA, real Chrome:** **70/70 PASS** at 320/360/390/430/1366, plus **12/12** focused checks.
+  - The drawer opens and closes and the focus trap works.
+  - All 15 sections were navigated through the drawer at every mobile width, with no overflow.
+  - Near-bottom suggestions open fully visible and attached to the field.
+  - Window scroll and admin `<main>` scroll move the list with the field (80 px scroll → list moved 80 px). Keyboard and tap selection work.
+  - Each of the three pages has a single H1.
+  - No console or hydration errors.
+
+### Tests
+
+- **API 32 suites / 712 tests PASS** (704 + 8), including PostgreSQL integration on isolated `127.0.0.1:5442/revision_qa`. The new cases cover:
+  - persistence before parsing;
+  - concurrent identical submissions serialized to one row;
+  - in-place retry;
+  - admin re-parse from the stored poster;
+  - list payloads stripped of poster bytes;
+  - the updated poster HTTP contract.
+- **Web 46 files / 450 tests PASS** (440 + 10). Workspace lint/typecheck and the full production build PASS.
+
+### Task 3 — Resend webhook secret: BLOCKED (configuration), tracking PENDING
+
+- **Available tooling:** no Railway CLI, token or connector. The only Resend credential is the local `.env` key. Retrieving the endpoint's signing secret through that key would put the secret in model context, and Railway variables cannot be written from this environment. Per instructions no secret was generated, copied or requested, and nothing in Resend or Railway was changed.
+- **Production state (safe probe, 10:58 UTC):**
+  - an unsigned `POST /api/webhooks/resend` returns 401 bare "Unauthorized", the controller's *missing-secret* branch, so `RESEND_WEBHOOK_SECRET` is still **not set**;
+  - health is OK.
+- **Remaining configuration step (dashboard, owner approval):** copy the existing enabled endpoint's signing secret into Railway as `RESEND_WEBHOOK_SECRET`. Resend retries earlier 401 deliveries after that.
+- **How to verify afterwards:** the same unsigned probe returns "Invalid signature", and real delivery events show 2xx in Resend with statuses moving past "accepted" in `/admin/email-deliveries`. `emailTracking: ready` in `/api/health` is **not** evidence of end-to-end tracking.
+
+Evidence: `/tmp/manifestacije-stab-2026-10/` (scripts, logs, screenshots), `/tmp/manifestacije-stab-production-browser.log`.
+
+### Deployment evidence
+
+- `e43ac209` (Task 1) and `0d7ac9f6` (Task 2) pushed to `main` without force. Exact-SHA **Railway SUCCESS** 10:51:14 UTC ([38146733](https://railway.com/project/c5834314-f293-494d-8ddd-d314b010a1ff/service/29608be2-c13d-471a-acba-c1c89bf0bfe5?id=38146733-9fd4-48c0-9aae-91d707574e88&environmentId=9d8d51e2-e78f-43fb-84f5-1342fc743ffc)) and **Vercel SUCCESS** 10:53:15 UTC ([7s1D6ZuscYfDDBLQwdvfLQSqCe5D](https://vercel.com/nebsdevs-projects/manifestacije/7s1D6ZuscYfDDBLQwdvfLQSqCe5D)).
+- **Production read-only browser smoke PASS 49/49**, real Chrome at 1366/430/390/360/320; GA collection requests blocked, so no analytics hits were sent:
+  - 9 public and auth pages: HTTP 200, **no React #418 or other runtime/console errors**, no horizontal overflow, exactly one H1;
+  - the gtag script loads and `dataLayer` is configured on public pages, and is absent on admin, organizer and password-reset routes;
+  - anonymous `/admin/events` → login.
+- Production API at 10:58 UTC: health OK (production, new instance), 138 public events (organic content; nothing created by QA).
+- Authenticated production organizer/admin flows, including the new drawer and the submission retention path, were not exercised because there are no authorized sessions and production writes are prohibited. They are verified locally on the same code.
