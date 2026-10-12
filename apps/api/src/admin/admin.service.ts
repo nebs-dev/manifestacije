@@ -589,8 +589,10 @@ export class AdminService {
     const parsed = (dto.useLlm || dto.screenshotBase64 || screenshots.length)
       ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl, screenshotBase64: dto.screenshotBase64, screenshotMediaType: dto.screenshotMediaType, screenshots, contextHint: dto.contextHint })
       : await this.parser.parseBatch({ rawText: dto.rawText, sourceUrl: dto.sourceUrl });
-    // Uploaded screenshots stay attached for review and later re-parsing (EVT-07).
-    const result = sourceImageUrls.length ? parsedWithEvidence(parsed, { sourceImageUrls }) : parsed;
+    // Screenshots stay attached for review and later re-parsing (EVT-07): by
+    // URL when uploaded, otherwise inline.
+    const unstored = (dto.screenshots ?? []).filter(shot => !shot.imageUrl).map(({ base64, mediaType }) => ({ base64, mediaType }));
+    const result = sourceImageUrls.length || unstored.length ? parsedWithEvidence(parsed, { sourceImageUrls, pendingScreenshots: unstored }) : parsed;
     const { confidence, status } = this.sourceMetaFromResult(result);
     return this.prisma.eventSource.create({
       data: {

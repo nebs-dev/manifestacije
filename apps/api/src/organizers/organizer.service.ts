@@ -232,6 +232,11 @@ export class OrganizerService {
     // in-flight submission is returned as it is.
     if (!created && !evidence.parseError) return { ...stored, parseStatus: stored.status === EventSourceStatus.NEW ? "processing" : "parsed", alreadySubmitted: true };
 
+    // Images without a stored copy are kept inline so review, supplements and
+    // retries can re-read them (EVT-07/08); uploaded ones are re-read by URL.
+    const unstored = screenshots.filter((shot) => !shot.imageUrl && SCREENSHOT_MEDIA_TYPES.has(shot.mediaType)).map(({ base64, mediaType }) => ({ base64, mediaType }));
+    const keptEvidence = { ...evidence, pendingScreenshots: unstored.length ? unstored : evidence.pendingScreenshots };
+
     let source: typeof stored;
     let parseStatus: "parsed" | "pending_review";
     try {
@@ -258,14 +263,13 @@ export class OrganizerService {
       const { confidence, status } = this.sourceMetaFromResult(result, isFacebook);
       source = await this.prisma.eventSource.update({
         where: { id: stored.id },
-        data: { parsedJson: parsedWithEvidence(result, evidence) as object, confidence, status },
+        data: { parsedJson: parsedWithEvidence(result, keptEvidence) as object, confidence, status },
       });
       parseStatus = "parsed";
     } catch (error) {
       // Keep the submission for manual review or an admin re-parse. Poster
       // bytes are kept only when there is no uploaded copy to re-read.
-      const unstored = screenshots.filter((shot) => !shot.imageUrl && SCREENSHOT_MEDIA_TYPES.has(shot.mediaType)).map(({ base64, mediaType }) => ({ base64, mediaType }));
-      const pendingScreenshots = unstored.length ? unstored : evidence.pendingScreenshots;
+      const pendingScreenshots = keptEvidence.pendingScreenshots;
       source = await this.prisma.eventSource.update({
         where: { id: stored.id },
         data: {

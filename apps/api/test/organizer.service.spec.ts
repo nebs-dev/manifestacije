@@ -145,6 +145,14 @@ describe("OrganizerService submitSource", () => {
       expect(unsupported.prisma.eventSource.last().parsedJson).not.toHaveProperty("pendingScreenshots");
     });
 
+    it("keeps un-uploaded posters as evidence after a successful parse too (EVT-07)", async () => {
+      const ok = setup(jest.fn().mockResolvedValue(parsedResult()))
+      await ok.service.submitSource(7, { screenshots: [{ base64: "cG9zdGVy", mediaType: "image/png" }, { base64: "ZHJ1Z2k=", mediaType: "image/jpeg", imageUrl: "https://res.cloudinary.com/demo/b.jpg" }] })
+      expect(ok.parser.parseBatchWithLlm).toHaveBeenCalledTimes(1)
+      expect(ok.prisma.eventSource.last()).toMatchObject({ status: "NEEDS_REVIEW", parsedJson: expect.objectContaining({
+        pendingScreenshots: [{ base64: "cG9zdGVy", mediaType: "image/png" }], sourceImageUrls: ["https://res.cloudinary.com/demo/b.jpg"] }) })
+    });
+
     it("a retry of the same content re-parses the same row once the provider recovers, without duplicates or repeat notices", async () => {
       const parse = jest.fn().mockRejectedValueOnce(unavailable()).mockResolvedValueOnce(parsedResult());
       const { prisma, email, service } = setup(parse);
