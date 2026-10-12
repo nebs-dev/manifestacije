@@ -1,6 +1,5 @@
 import { API_URL } from "@/lib/api"
 import { clearOrganizerSession, ORG_TOKEN_KEY } from "@/lib/organizer/auth"
-import { resetSessionCheckCache } from "@/lib/session-check"
 
 /** Authenticated organizer API call. A 401 means the token is no longer
  *  valid (expired, revoked, wrong role): the session is cleared and the user
@@ -17,9 +16,8 @@ export async function orgFetch(path: string, init?: RequestInit): Promise<Respon
       ...(init?.headers as Record<string, string> | undefined),
     },
   })
-  if (res.status === 401 && token && typeof window !== "undefined") {
+  if (res.status === 401 && token && typeof window !== "undefined" && localStorage.getItem(ORG_TOKEN_KEY) === token) {
     clearOrganizerSession()
-    resetSessionCheckCache()
     window.location.assign("/organizer/login?sesija=istekla")
   }
   return res
