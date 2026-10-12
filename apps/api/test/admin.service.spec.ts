@@ -520,6 +520,18 @@ describe("AdminService.setEventStatus organizer notifications", () => {
     expect(email.sendEventPublished).not.toHaveBeenCalled();
   });
 
+  it("does not re-announce an event that was published before, unpublished and published again", async () => {
+    const prisma = makePrisma({ currentStatus: EventStatus.ARCHIVED });
+    prisma.event.findUnique.mockReset()
+      .mockResolvedValueOnce({ status: EventStatus.ARCHIVED, publishedAt: new Date("2026-09-01T10:00:00Z") });
+    const email = makeEmail();
+    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn() } as never, email as never, uploadsStub as never);
+
+    await service.setEventStatus(5, EventStatus.PUBLISHED);
+
+    expect(email.sendEventPublished).not.toHaveBeenCalled();
+  });
+
   it("sends the rejected email when status actually transitions to REJECTED", async () => {
     const prisma = makePrisma({ currentStatus: EventStatus.PENDING_REVIEW });
     const revalidate = { revalidate: jest.fn() };

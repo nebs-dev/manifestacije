@@ -1,5 +1,6 @@
 "use client"
 
+import { OrganizerSharePanel } from "@/components/organizer/share-panel"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { orgFetch } from "@/lib/organizer/api"
@@ -49,6 +50,7 @@ export default function EditEventPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-heading text-2xl font-semibold">Uredi događaj</h1>
+      {event.status === "PUBLISHED" && typeof event.slug === "string" && <OrganizerSharePanel title={event.title as string} slug={event.slug} />}
       {pending && <div className="rounded-md border p-4 space-y-3">
         <p>Izmjene su na pregledu. Trenutačno objavljena verzija ostaje vidljiva.</p>
         <Button type="button" variant="outline" onClick={() => viewProposal(pending.id)}>Pogledaj predložene izmjene</Button>

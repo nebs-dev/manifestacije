@@ -1,4 +1,4 @@
-import { renderLayout, renderButton, escapeHtml } from "./email-layout";
+import { renderLayout, renderButton, renderSecondaryButton, escapeHtml } from "./email-layout";
 
 export interface EventPublishedData {
   eventTitle: string;
@@ -8,11 +8,20 @@ export interface EventPublishedData {
   webUrl: string;
 }
 
+/** Share targets for a published event; every user-controlled part is URL-encoded. */
+export function eventShareLinks(data: Pick<EventPublishedData, "eventTitle" | "publicEventUrl">): { facebook: string; whatsapp: string } {
+  return {
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.publicEventUrl)}`,
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(`${data.eventTitle} — ${data.publicEventUrl}`)}`,
+  };
+}
+
 export function eventPublishedSubject(data: Pick<EventPublishedData, "eventTitle">): string {
   return `Vaš događaj je objavljen: ${data.eventTitle}`;
 }
 
 export function eventPublishedHtml(data: EventPublishedData): string {
+  const share = eventShareLinks(data);
   const details = [
     data.eventDateLabel ? `<strong>Datum:</strong> ${escapeHtml(data.eventDateLabel)}` : null,
     data.eventLocationLabel ? `<strong>Lokacija:</strong> ${escapeHtml(data.eventLocationLabel)}` : null,
@@ -23,6 +32,9 @@ export function eventPublishedHtml(data: EventPublishedData): string {
     <p style="margin:0 0 16px;">Sjajne vijesti — vaš događaj <strong>${escapeHtml(data.eventTitle)}</strong> je objavljen i sada je vidljiv svim posjetiteljima Manifestacije.hr.</p>
     ${details ? `<p style="margin:0 0 16px;">${details}</p>` : ""}
     ${renderButton("Pogledaj objavu", data.publicEventUrl)}
+    <p style="margin:0 0 12px;"><strong>Podijelite događaj</strong> — što više ljudi za njega čuje, to bolje. Jednim klikom pošaljite ga prijateljima i pratiteljima:</p>
+    <div style="margin:0 0 8px;">${renderSecondaryButton("Podijeli na Facebooku", share.facebook)}${renderSecondaryButton("Pošalji na WhatsApp", share.whatsapp)}</div>
+    <p style="margin:0 0 16px;color:#6b7280;font-size:13px;">Ili kopirajte poveznicu: <a href="${escapeHtml(data.publicEventUrl)}" style="color:#1a2238;word-break:break-all;">${escapeHtml(data.publicEventUrl)}</a></p>
     <p style="margin:16px 0 0;">Imate još događaja? Slobodno nam pošaljite sljedeći — postupak je isti.</p>
     <p style="margin:16px 0 0;color:#6b7280;font-size:13px;">Pitanja: info@manifestacije.hr</p>
   `;
@@ -37,6 +49,16 @@ export function eventPublishedText(data: EventPublishedData): string {
   ];
   if (data.eventDateLabel) lines.push(`Datum: ${data.eventDateLabel}`);
   if (data.eventLocationLabel) lines.push(`Lokacija: ${data.eventLocationLabel}`);
-  lines.push("", "Imate još događaja? Pošaljite nam sljedeći na isti način.", "", "Pitanja: info@manifestacije.hr");
+  const share = eventShareLinks(data);
+  lines.push(
+    "",
+    "Podijelite događaj s prijateljima i pratiteljima:",
+    `Facebook: ${share.facebook}`,
+    `WhatsApp: ${share.whatsapp}`,
+    "",
+    "Imate još događaja? Pošaljite nam sljedeći na isti način.",
+    "",
+    "Pitanja: info@manifestacije.hr",
+  );
   return lines.join("\n");
 }

@@ -54,7 +54,18 @@ export function renderButton(label: string, url: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
   <tr>
     <td style="background-color:${AMBER};border-radius:8px;">
-      <a href="${url}" style="display:inline-block;padding:12px 24px;color:#101820;font-weight:600;font-size:14px;text-decoration:none;">${escapeHtml(label)}</a>
+      <a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 24px;color:#101820;font-weight:600;font-size:14px;text-decoration:none;">${escapeHtml(label)}</a>
+    </td>
+  </tr>
+</table>`;
+}
+
+/** Secondary, outlined link-button; table-based so Outlook keeps padding and borders. */
+export function renderSecondaryButton(label: string, url: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="display:inline-table;margin:0 8px 8px 0;">
+  <tr>
+    <td style="border:1px solid #d1d5db;border-radius:8px;">
+      <a href="${escapeHtml(url)}" style="display:inline-block;padding:10px 16px;color:${TEXT};font-weight:600;font-size:13px;text-decoration:none;">${escapeHtml(label)}</a>
     </td>
   </tr>
 </table>`;

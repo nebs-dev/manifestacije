@@ -88,7 +88,7 @@ export class AdminService {
   async bulkSetStatus(eventIds: number[], status: EventStatus) {
     const publicChange = await this.hasPublicEvents(eventIds);
     const changedIds = (status === EventStatus.PUBLISHED || status === EventStatus.REJECTED)
-      ? (await this.prisma.event.findMany({ where: { id: { in: eventIds }, status: { not: status } }, select: { id: true } })).map((e) => e.id)
+      ? (await this.prisma.event.findMany({ where: { id: { in: eventIds }, status: { not: status }, ...(status === EventStatus.PUBLISHED ? { publishedAt: null } : {}) }, select: { id: true } })).map((e) => e.id)
       : [];
 
     const result = await this.prisma.event.updateMany({
@@ -325,7 +325,10 @@ export class AdminService {
     // Awaited (not voided) because notifyOrganizerOfStatusChange never throws — it
     // catches its own errors internally — so awaiting it can't fail this operation,
     // and doing so keeps status-change notifications deterministic for tests.
-    if (statusChanged && (status === EventStatus.PUBLISHED || status === EventStatus.REJECTED)) {
+    // The publication email (with share links) is sent once, on first
+    // publication; re-publishing after an unpublish does not announce it again.
+    const firstPublication = status === EventStatus.PUBLISHED && !current?.publishedAt;
+    if (statusChanged && (firstPublication || status === EventStatus.REJECTED)) {
       await this.notifyOrganizerOfStatusChange(result.id, status);
     }
 
