@@ -1200,3 +1200,13 @@ These close the delivery portion of **AUTH-02/04** for the observed messages. De
 
 - Webhook end-to-end in production: **BLOCKED** until steps 2–3 are applied and a real email occurs.
 - Post-deploy Contacts behavior: fewer 401s should be observable in Resend logs after the next registration or submission. Not triggered artificially.
+
+### Deployment evidence
+
+- `e0bb2667` pushed to `main` without force. Exact-SHA **Railway SUCCESS** 2026-10-12 09:49:27 UTC ([13feb864](https://railway.com/project/c5834314-f293-494d-8ddd-d314b010a1ff/service/29608be2-c13d-471a-acba-c1c89bf0bfe5?id=13feb864-acbc-4551-b4e5-317bddc91793&environmentId=9d8d51e2-e78f-43fb-84f5-1342fc743ffc)) and **Vercel SUCCESS** 09:49:32 UTC.
+- Post-deploy checks at 09:50 UTC (read-only):
+  - health OK, production, uptime 50 s (new instance);
+  - unsigned webhook `POST` → 401 "Unauthorized" (route live, secret not yet configured);
+  - anonymous email history → 401;
+  - 133 public events, unchanged.
+- No external Resend/Railway configuration changed, no emails sent, no accounts or event data modified.
