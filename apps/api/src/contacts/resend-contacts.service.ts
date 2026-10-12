@@ -5,6 +5,27 @@ import { PrismaService } from "../prisma/prisma.service";
 import { loadEmailConfig } from "../email/email.config";
 import { maskEmail } from "../email/providers/log-email.provider";
 
+interface ContactsApiError {
+  message: string;
+  name?: string;
+  statusCode?: number | null;
+}
+
+const PERMISSION_ERROR_NAMES = new Set(["restricted_api_key", "invalid_api_key", "missing_api_key"]);
+const PERMISSION_DENIED_MESSAGE = "Resend API key has no Contacts access";
+
+/** A sending-only key is rejected by every Contacts endpoint; retrying or falling back cannot succeed. */
+function isPermissionError(error: ContactsApiError): boolean {
+  return PERMISSION_ERROR_NAMES.has(error.name ?? "") || error.statusCode === 401 || error.statusCode === 403;
+}
+
+class ContactsPermissionError extends Error {}
+
+/** RESEND_CONTACTS_SYNC=disabled|false|off|0 turns off Resend Contacts calls; anything else keeps them on. */
+export function resendContactsSyncEnabled(value = process.env.RESEND_CONTACTS_SYNC): boolean {
+  return !["disabled", "false", "off", "0"].includes((value ?? "").trim().toLowerCase());
+}
+
 /** Subset of the Resend SDK's Contacts API actually used here. */
 interface ContactsClient {
   contacts: {
@@ -13,16 +34,16 @@ interface ContactsClient {
       unsubscribed?: boolean;
       firstName?: string;
       properties?: Record<string, string | number | null>;
-    }): Promise<{ data: { id: string } | null; error: { message: string } | null }>;
+    }): Promise<{ data: { id: string } | null; error: ContactsApiError | null }>;
     get(options: { email: string }): Promise<{
       data: { id: string; unsubscribed: boolean } | null;
-      error: { message: string } | null;
+      error: ContactsApiError | null;
     }>;
     update(options: {
       id: string;
       firstName?: string;
       properties?: Record<string, string | number | null>;
-    }): Promise<{ data: { id: string } | null; error: { message: string } | null }>;
+    }): Promise<{ data: { id: string } | null; error: ContactsApiError | null }>;
   };
 }
 
@@ -64,6 +85,9 @@ interface UpsertContactInput {
 export class ResendContactsService {
   private readonly logger = new Logger("ResendContactsService");
   private readonly client: ContactsClient | null;
+  // Set after Resend rejects the key for Contacts (e.g. a sending-only key),
+  // so one deployment does not keep issuing calls that cannot succeed.
+  private permissionDenied = false;
 
   constructor(private readonly prisma: PrismaService) {
     const config = loadEmailConfig();
@@ -71,8 +95,10 @@ export class ResendContactsService {
     // API when explicitly in resend delivery mode, never just because a key
     // happens to be set (e.g. local dev keeping RESEND_API_KEY around while
     // EMAIL_DELIVERY_MODE=log).
+    const enabled = resendContactsSyncEnabled();
+    if (!enabled && config.deliveryMode === "resend") this.logger.log("Resend contact sync disabled (RESEND_CONTACTS_SYNC); contacts are kept locally only");
     this.client =
-      config.deliveryMode === "resend" && config.resendApiKey
+      enabled && config.deliveryMode === "resend" && config.resendApiKey
         ? (new Resend(config.resendApiKey) as unknown as ContactsClient)
         : null;
   }
@@ -315,6 +341,10 @@ export class ResendContactsService {
       this.logger.log(`contacts sync skipped (no Resend client) email=${maskEmail(record.email)}`);
       return;
     }
+    if (this.permissionDenied) {
+      await this.markFailed(record.email, PERMISSION_DENIED_MESSAGE, false);
+      return;
+    }
 
     const properties: Record<string, string | number | null> = { source: record.source };
     const organizerId = record.organizerId ?? input.organizerId;
@@ -333,7 +363,7 @@ export class ResendContactsService {
           firstName: input.firstName,
           properties,
         });
-        if (error) throw new Error(error.message);
+        if (error) throw this.toError(error);
         await this.markSynced(record.email, record.resendContactId);
         return;
       }
@@ -344,21 +374,25 @@ export class ResendContactsService {
         firstName: input.firstName,
         properties,
       });
-      if (error || !data) throw new Error(error?.message || "Resend contact create failed");
+      if (error || !data) throw error ? this.toError(error) : new Error("Resend contact create failed");
       await this.markSynced(record.email, data.id);
     } catch (createErr) {
+      if (createErr instanceof ContactsPermissionError) {
+        await this.markFailed(record.email, createErr.message);
+        return;
+      }
       // Contact may already exist in Resend (conflict) — fetch and update it
       // instead, without ever passing `unsubscribed` so their subscription
       // state is left exactly as Resend already has it.
       try {
         const { data, error } = await this.client.contacts.get({ email: record.email });
-        if (error || !data) throw new Error(error?.message || String(createErr));
+        if (error || !data) throw error ? this.toError(error) : new Error(String(createErr));
         const { error: updateError } = await this.client.contacts.update({
           id: data.id,
           firstName: input.firstName,
           properties,
         });
-        if (updateError) throw new Error(updateError.message);
+        if (updateError) throw this.toError(updateError);
         // This get() is a pure read of Resend's existing truth for a contact
         // we didn't know about yet — mirroring it locally is not the same as
         // an action that resubscribes them, so it's safe to record here.
@@ -388,8 +422,18 @@ export class ResendContactsService {
     });
   }
 
-  private async markFailed(email: string, syncError: string): Promise<void> {
-    this.logger.error("contacts sync failed");
+  /** Permission failures disable further Contacts calls for this process and are logged once. */
+  private toError(error: ContactsApiError): Error {
+    if (!isPermissionError(error)) return new Error(error.message);
+    if (!this.permissionDenied) {
+      this.permissionDenied = true;
+      this.logger.warn(`${PERMISSION_DENIED_MESSAGE}; skipping further contact sync until restart. Set RESEND_CONTACTS_SYNC=disabled or use a key with Contacts access.`);
+    }
+    return new ContactsPermissionError(PERMISSION_DENIED_MESSAGE);
+  }
+
+  private async markFailed(email: string, syncError: string, log = true): Promise<void> {
+    if (log) this.logger.error("contacts sync failed");
     await this.prisma.emailContact.update({
       where: { email },
       data: { syncStatus: EmailContactSyncStatus.FAILED, syncError: syncError.slice(0, 500) },

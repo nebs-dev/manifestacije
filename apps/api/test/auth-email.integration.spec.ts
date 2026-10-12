@@ -42,8 +42,7 @@ integration("Authentication email PostgreSQL and HTTP workflow (synthetic provid
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const event = (type: string, messageId: string, at = new Date()) => ({ type, created_at: at.toISOString(), data: { email_id: messageId, subject: "DO NOT STORE", to: ["private@example.test"] } });
-  const webhook = (id: string, body: object, signature?: string) => {
-    const timestamp = String(Math.floor(Date.now() / 1000));
+  const webhook = (id: string, body: object, signature?: string, timestamp = String(Math.floor(Date.now() / 1000))) => {
     const sig = createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${id}.${timestamp}.${JSON.stringify(body)}`).digest("base64");
     return http("/webhooks/resend", "POST", body, undefined, { "svix-id": id, "svix-timestamp": timestamp, "svix-signature": signature ?? `v1,${sig}` });
   };
@@ -160,6 +159,38 @@ integration("Authentication email PostgreSQL and HTTP workflow (synthetic provid
     expect((await webhook("msg_invalid", { type: "email.bounced", created_at: "invalid", data: { email_id: "bad-message" } })).status).toBe(400);
     expect(await prisma.emailDeliveryEvent.count()).toBe(0);
   });
+  it("applies signed delivered, failed and bounced events over HTTP and ignores redelivered event ids", async () => {
+    const latest = async () => (await prisma.emailDelivery.findMany({ orderBy: { createdAt: "asc" } })).at(-1)!
+    await issue();
+    const delivered = (await latest()).messageId!;
+    expect((await webhook("msg_http_delivered", event("email.delivered", delivered))).status).toBe(201);
+    expect(await latest()).toMatchObject({ status: "delivered" });
+    // Svix redelivers with the same id; the stored event is not duplicated.
+    expect((await webhook("msg_http_delivered", event("email.delivered", delivered))).status).toBe(201);
+    expect(await prisma.emailDeliveryEvent.count({ where: { id: "msg_http_delivered" } })).toBe(1);
+
+    await issue();
+    const failed = (await latest()).messageId!;
+    expect((await webhook("msg_http_failed", event("email.failed", failed))).status).toBe(201);
+    expect(await latest()).toMatchObject({ status: "failed" });
+
+    await issue();
+    const bounced = (await latest()).messageId!;
+    expect((await webhook("msg_http_bounced", event("email.bounced", bounced))).status).toBe(201);
+    expect((await webhook("msg_http_late_delivered", event("email.delivered", bounced))).status).toBe(201);
+    expect(await latest()).toMatchObject({ status: "bounced" });
+  });
+  it("rejects stale timestamps and refuses all events while no webhook secret is configured", async () => {
+    const stale = String(Math.floor(Date.now() / 1000) - 10 * 60);
+    expect((await webhook("msg_stale", event("email.delivered", "stale-message"), undefined, stale)).status).toBe(401);
+    delete process.env.RESEND_WEBHOOK_SECRET;
+    try {
+      expect((await webhook("msg_no_secret", event("email.delivered", "no-secret-message"))).status).toBe(401);
+    } finally {
+      process.env.RESEND_WEBHOOK_SECRET = secret;
+    }
+    expect(await prisma.emailDeliveryEvent.count()).toBe(0);
+  });
   it("preserves signed contact webhooks and ignores engagement tracking", async () => {
     const body = { type: "contact.updated", data: { id: "contact-test" } };
     expect((await webhook("msg_contact", body)).status).toBe(201);
@@ -212,6 +243,9 @@ integration("Authentication email PostgreSQL and HTTP workflow (synthetic provid
     expect((await http("/admin/email-deliveries?userId=bad", "GET", undefined, adminId)).status).toBe(400);
     expect((await http("/admin/email-deliveries?userId=0", "GET", undefined, adminId)).status).toBe(400);
     expect((await http(`/admin/email-deliveries?userId=${adminId}`, "GET", undefined, adminId)).status).toBe(200);
+    // The admin page's default (unfiltered) view sends no userId.
+    const all = await http("/admin/email-deliveries", "GET", undefined, adminId);
+    expect(all.status).toBe(200); expect((await all.json()).items).toHaveLength(1);
   });
   it("admin reset selects only the organizer user and revokes sessions and reset links", async () => {
     const raw = await issue();

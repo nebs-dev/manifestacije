@@ -1,5 +1,5 @@
 import { EmailContactSource, EmailContactSyncStatus, OrganizerStatus, UserRole } from "@prisma/client";
-import { ResendContactsService } from "../src/contacts/resend-contacts.service";
+import { ResendContactsService, resendContactsSyncEnabled } from "../src/contacts/resend-contacts.service";
 
 /** In-memory stand-in for prisma.emailContact, keyed by normalized email — lets
  *  tests exercise real dedup/upsert behavior across repeated calls instead of
@@ -173,6 +173,95 @@ describe("ResendContactsService.upsertEligibleContact", () => {
 
     const row = rows.get("organizer@example.hr")!;
     expect(row.syncStatus).toBe(EmailContactSyncStatus.PENDING);
+  });
+});
+
+describe("ResendContactsService with a key that lacks Contacts access", () => {
+  const restricted = { data: null, error: { name: "restricted_api_key", statusCode: 401, message: "This API key is restricted to only send emails" } };
+
+  it("does not fall back to get+update after a permission error and records a safe FAILED state", async () => {
+    const { rows, table } = fakeEmailContactTable();
+    const client = contactsClientMock({ create: jest.fn().mockResolvedValue(restricted) });
+    const service = makeService(client, table);
+
+    await service.upsertEligibleContact({ email: "organizer@example.hr", source: EmailContactSource.REGISTRATION });
+
+    expect(client.create).toHaveBeenCalledTimes(1);
+    expect(client.get).not.toHaveBeenCalled();
+    expect(client.update).not.toHaveBeenCalled();
+    expect(rows.get("organizer@example.hr")).toMatchObject({ syncStatus: EmailContactSyncStatus.FAILED, syncError: "Resend API key has no Contacts access" });
+  });
+
+  it("stops calling the Contacts API for later triggers in the same process, keeping rows retryable", async () => {
+    const { rows, table } = fakeEmailContactTable();
+    const client = contactsClientMock({ create: jest.fn().mockResolvedValue(restricted) });
+    const service = makeService(client, table);
+
+    await service.upsertEligibleContact({ email: "first@example.hr", source: EmailContactSource.REGISTRATION });
+    await service.upsertEligibleContact({ email: "second@example.hr", source: EmailContactSource.EVENT_SUBMISSION });
+    await service.upsertEligibleContact({ email: "third@example.hr", source: EmailContactSource.SOURCE_SUBMISSION });
+
+    expect(client.create).toHaveBeenCalledTimes(1);
+    expect(client.get).not.toHaveBeenCalled();
+    for (const email of ["second@example.hr", "third@example.hr"]) {
+      expect(rows.get(email)).toMatchObject({ syncStatus: EmailContactSyncStatus.FAILED, syncError: "Resend API key has no Contacts access" });
+    }
+  });
+
+  it("treats a 403 from update of a known contact the same way", async () => {
+    const { rows, table } = fakeEmailContactTable();
+    const client = contactsClientMock({ update: jest.fn().mockResolvedValue({ data: null, error: { name: "invalid_access", statusCode: 403, message: "forbidden" } }) });
+    const service = makeService(client, table);
+    await table.create({ data: { email: "known@example.hr", source: EmailContactSource.REGISTRATION, resendContactId: "resend_9" } });
+
+    await service.upsertEligibleContact({ email: "known@example.hr", source: EmailContactSource.REGISTRATION });
+
+    expect(client.update).toHaveBeenCalledTimes(1);
+    expect(client.get).not.toHaveBeenCalled();
+    expect(rows.get("known@example.hr")).toMatchObject({ syncStatus: EmailContactSyncStatus.FAILED });
+  });
+
+  it("still uses the get+update fallback for non-permission create errors", async () => {
+    const { rows, table } = fakeEmailContactTable();
+    const client = contactsClientMock({
+      create: jest.fn().mockResolvedValue({ data: null, error: { name: "validation_error", statusCode: 422, message: "already exists" } }),
+      get: jest.fn().mockResolvedValue({ data: { id: "resend_7", unsubscribed: false }, error: null }),
+    });
+    const service = makeService(client, table);
+
+    await service.upsertEligibleContact({ email: "organizer@example.hr", source: EmailContactSource.REGISTRATION });
+
+    expect(client.get).toHaveBeenCalledTimes(1);
+    expect(rows.get("organizer@example.hr")).toMatchObject({ syncStatus: EmailContactSyncStatus.SYNCED, resendContactId: "resend_7" });
+  });
+});
+
+describe("RESEND_CONTACTS_SYNC", () => {
+  const saved = { ...process.env };
+  afterEach(() => { process.env = { ...saved }; });
+
+  it("is enabled unless explicitly disabled", () => {
+    expect(resendContactsSyncEnabled(undefined)).toBe(true);
+    expect(resendContactsSyncEnabled("")).toBe(true);
+    expect(resendContactsSyncEnabled("enabled")).toBe(true);
+    for (const value of ["disabled", "DISABLED", " false ", "off", "0"]) expect(resendContactsSyncEnabled(value)).toBe(false);
+  });
+
+  it("creates no Resend Contacts client when disabled, so syncs stay local and PENDING", async () => {
+    process.env.NODE_ENV = "test";
+    process.env.EMAIL_DELIVERY_MODE = "resend";
+    process.env.EMAIL_PROVIDER = "resend";
+    process.env.RESEND_API_KEY = "re_test_sending_only";
+    process.env.RESEND_CONTACTS_SYNC = "disabled";
+    const { rows, table } = fakeEmailContactTable();
+    const service = new ResendContactsService({ emailContact: table } as never);
+    expect((service as unknown as { client: unknown }).client).toBeNull();
+
+    await service.upsertEligibleContact({ email: "organizer@example.hr", source: EmailContactSource.REGISTRATION });
+    expect(rows.get("organizer@example.hr")).toMatchObject({ syncStatus: EmailContactSyncStatus.PENDING });
+
+    process.env.RESEND_CONTACTS_SYNC = "enabled";
+    expect((new ResendContactsService({ emailContact: table } as never) as unknown as { client: unknown }).client).not.toBeNull();
   });
 });
 

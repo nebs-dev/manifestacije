@@ -1146,3 +1146,57 @@ Follow-up to the limitation recorded in §U. Continued from main `e3d3dd20`; PUB
 - **Production smoke (read-only) PASS:** anonymous `/organizer/events` redirects to login without horizontal overflow at 320/360/390/430/1366px, with zero console errors. Log: `/tmp/manifestacije-org-overflow-production.log`.
 - **BLOCKED:** the authenticated production organizer list cannot be viewed because no authorized organizer session is available. The fix is proven locally on the same build.
 - **Final status: overflow fixed and deployed.**
+
+
+## X. Resend production integration follow-up (2026-10-12)
+
+Inputs: authenticated dashboard findings supplied by the owner:
+- Resend: 28/28 recent messages Delivered, including 3 welcome emails and the Schleis reset; domain verified; **no webhooks configured**; about 40 Contacts API 401s; `POST /emails` returns 200.
+- Railway: service online; no `RESEND_WEBHOOK_SECRET`.
+
+These close the delivery portion of **AUTH-02/04** for the observed messages. Delivery *tracking* stays unverified until webhooks are configured.
+
+### Webhook route: present in production, not missing
+
+- `ResendWebhookController` (`@Controller("webhooks")` + `@Post("resend")`) is registered directly in `AppModule.controllers` (the separate `WebhooksModule` is unused). With the global prefix `api` this is **`POST /api/webhooks/resend`**. It has been in `main` since `fea67aac`, and email tracking since `4c844c67`; both are ancestors of the deployed `b55a5045`/`f50278c6` (Railway SUCCESS).
+- Safe production probe, with no payload processed and no event stored:
+  - unsigned `POST` with `{}` → **401 `{"message":"Unauthorized"}`**. That is the controller's *missing-secret* branch; the invalid-signature branch returns "Invalid signature".
+  - Control `POST /api/webhooks/does-not-exist` → **404 "Cannot POST"**.
+  - The production `GET` 404 only means there is no GET handler.
+- A locally compiled `dist/main.js` boot logs `Mapped {/api/webhooks/resend, POST} route`. The missing line in the Railway boot logs is a log-view limitation, not a registration failure.
+- Raw body: `NestFactory.create(..., { rawBody: true })` plus `app.useBodyParser("json", { limit: "10mb" })` keeps exact bytes. Verified against the compiled production bootstrap with signed payloads containing whitespace and Croatian characters.
+- Signature: Svix HMAC-SHA256 over `id.timestamp.rawBody`, ±5 min tolerance, multiple `v1,` signatures accepted (key rotation), timing-safe compare. Without `RESEND_WEBHOOK_SECRET` every event is rejected with 401. The application still boots, and sending is unaffected.
+
+### Contacts API 401 — cause and fix
+
+- **Cause:** registration, organizer event/link submission and profile claim call `ResendContactsService`, which mirrors engaged organizers into a Resend audience (`fea67aac`). Production uses a **sending-only key**, so `contacts.create` returns 401 `restricted_api_key`. The code then also tried `contacts.get` as a conflict fallback, so every trigger produced **two** failed calls (≈20 triggers ≈ 40 failures). Business flows were never affected (all calls are non-fatal), and **no transactional email depends on Resend Contacts**. Local `EmailContact` rows, including unsubscribe state, are still recorded.
+- **Fix (no key-permission change):**
+  - New optional variable `RESEND_CONTACTS_SYNC=disabled` (also `false/off/0`; anything else or unset = enabled, the previous behavior). When disabled, no Contacts calls are made and contacts stay locally `PENDING`, so a later full-access key plus `pnpm --filter api contacts:retry-failed`/backfill can still sync them.
+  - Without the variable, the first permission error (`restricted_api_key`/`invalid_api_key`/`missing_api_key`/401/403) **skips the pointless `get` fallback** and stops further Contacts calls until restart. It logs one warning, and the rows are marked `FAILED` ("Resend API key has no Contacts access") and stay retryable. Other errors keep the existing conflict fallback.
+- Also fixed: `/admin/email-deliveries` returned 400 for its default unfiltered view (release-readiness P2-1). The global transforming `ValidationPipe` turned the absent `userId` into `NaN` ahead of `ParseIntPipe({ optional: true })`. The parameter is now parsed in the controller with the same 1…2147483647 validation. This is the admin screen that will show webhook outcomes.
+
+### Verification
+
+- Focused suites: **65/65** (contacts 29, including 6 new; signature unit tests; email integration 28, including 2 new HTTP cases: signed delivered/failed/bounced, redelivered event id stored once, late delivered cannot hide a bounce, stale timestamp and missing secret → 401, unfiltered admin history 200).
+- **API 32 suites / 704 tests PASS** (696 + 8), including the PostgreSQL integration suites on isolated `127.0.0.1:5442/revision_qa` (26 migrations). **Web 44 files / 440 tests PASS.** Workspace lint/typecheck and API/shared build PASS. No web code changed.
+- Compiled-binary E2E with a locally generated synthetic secret (0600 file, never printed) and synthetic messages:
+  - delivered → `delivered`;
+  - bounced, then a later delivered → stays `bounced`;
+  - failed → `failed`;
+  - same svix-id redelivered → stored once;
+  - `email.opened` ignored;
+  - tampered, stale and unsigned → 401;
+  - no subject or recipient persisted.
+- Startup safety: with `RESEND_CONTACTS_SYNC=disabled` or an unknown value, and with a malformed webhook secret, the API boots, `/api/health` is OK, and webhooks return 401 "Invalid signature".
+
+### Configuration checklist for Cowork (apply only after explicit owner approval)
+
+1. **Railway → API service → Variables:** add `RESEND_CONTACTS_SYNC=disabled`. Optional but recommended while the key is sending-only; the code already stops after one failure per deploy. Do not change `RESEND_API_KEY`.
+2. **Resend → Webhooks → Add endpoint:** URL `https://manifestacije-production.up.railway.app/api/webhooks/resend`. Events: `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.failed`, `email.suppressed`, `email.complained`. Leave out `email.opened`/`email.clicked` (ignored by design). Leave out `contact.*` unless Contacts sync is re-enabled with a key that has Contacts access.
+3. Copy the endpoint's **signing secret** (`whsec_…`) straight into **Railway → Variables → `RESEND_WEBHOOK_SECRET`**. Do not paste it into chat, docs or commits. Railway redeploys on variable change. Events sent between steps 2 and 3 get 401 and are retried automatically by Resend.
+4. After the redeploy: confirm `/api/health` is OK. Wait for the next **naturally occurring** email (no test sends). Then check that Resend → Webhooks shows 2xx attempts and that `/admin/email-deliveries` shows the status moving past "accepted".
+
+### Remaining production verification
+
+- Webhook end-to-end in production: **BLOCKED** until steps 2–3 are applied and a real email occurs.
+- Post-deploy Contacts behavior: fewer 401s should be observable in Resend logs after the next registration or submission. Not triggered artificially.
