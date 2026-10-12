@@ -108,7 +108,7 @@ export default function DashboardPage() {
       <PageHeader
         title="Nadzorna ploča"
         description="Pregled radnih redova za prikupljanje i moderiranje događaja."
-        breadcrumbs={[{ label: "Administracija" }, { label: "Dashboard" }]}
+        breadcrumbs={[{ label: "Administracija" }, { label: "Nadzorna ploča" }]}
         actions={
           <Button nativeButton={false} render={<Link href="/admin/sources" />}>
             <Link2 data-icon="inline-start" />

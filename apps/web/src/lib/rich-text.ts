@@ -30,10 +30,23 @@ export function parseRichText(source: string | null | undefined): Block[] {
     .split(/\n[ \t]*\n+/)
     .map((block) => block.split("\n").filter((line) => line.trim() !== ""))
     .filter((lines) => lines.length > 0)
-    .map((lines): Block => {
-      if (lines.every((line) => BULLET.test(line))) return { type: "ul", items: lines.map((line) => parseInline(line.replace(BULLET, ""))) }
-      if (lines.every((line) => NUMBERED.test(line))) return { type: "ol", items: lines.map((line) => parseInline(line.replace(NUMBERED, ""))) }
-      return { type: "p", lines: lines.map((line) => parseInline(line)) }
+    .flatMap((lines): Block[] => {
+      // Consecutive list lines form a list even without a blank line before
+      // them ("Program:" followed by "- item" lines), as people usually write.
+      const blocks: Block[] = []
+      for (const line of lines) {
+        const kind = BULLET.test(line) ? "ul" : NUMBERED.test(line) ? "ol" : "p"
+        const last = blocks.at(-1)
+        if (kind === "p") {
+          if (last?.type === "p") last.lines.push(parseInline(line))
+          else blocks.push({ type: "p", lines: [parseInline(line)] })
+        } else {
+          const item = parseInline(line.replace(kind === "ul" ? BULLET : NUMBERED, ""))
+          if (last?.type === kind) last.items.push(item)
+          else blocks.push({ type: kind, items: [item] })
+        }
+      }
+      return blocks
     })
 }
 

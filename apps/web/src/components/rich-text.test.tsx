@@ -24,6 +24,11 @@ describe("rich-text descriptions (EVT-03)", () => {
     expect(out).toMatch(/<a href="https:\/\/manifestacije\.hr\/eventi"[^>]*>https:\/\/manifestacije\.hr\/eventi<\/a>\./)
   })
 
+  it("starts a list right after a line without needing a blank line", () => {
+    expect(parseRichText("Program:\n- otvorenje\n- vodstvo\nKraj").map((b) => b.type)).toEqual(["p", "ul", "p"])
+    expect(richTextToPlain("Program:\n- otvorenje\n- vodstvo")).toBe("Program:\n\n• otvorenje\n• vodstvo")
+  })
+
   it("keeps legacy plain-text descriptions readable", () => {
     const legacy = "Koncert tamburaša.\nUlaz slobodan.\n\nDobrodošli svi!"
     expect(parseRichText(legacy)).toEqual([

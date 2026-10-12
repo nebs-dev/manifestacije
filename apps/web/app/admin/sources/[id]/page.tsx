@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 
 import { PageHeader } from "@/components/admin/page-header"
 import { SourceReview } from "@/components/admin/source-review"
@@ -20,14 +20,19 @@ export default function SourceDetailPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
+  const loaded = useRef(false)
   const load = useCallback(async () => {
-    setLoading(true)
+    // Only the first load shows the skeleton. Later refreshes (after a re-parse
+    // or supplement) keep the review mounted, so unsaved candidate edits and
+    // panel messages survive and new proposals appear in place (EVT-08).
+    if (!loaded.current) setLoading(true)
     try {
       const res = await authedFetch(`/api/admin/event-sources/${id}`)
       if (!res.ok) { setError("Izvor nije pronađen."); return }
       const data = await res.json() as Record<string, unknown>
       setSource(adaptEventSource(data))
       setCandidates(adaptEventSourceCandidates(data))
+      loaded.current = true
       window.dispatchEvent(new Event("admin-notifications-changed"))
     } catch {
       setError("Greška pri dohvaćanju izvora.")
