@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { navItems } from "@/components/admin/nav"
@@ -11,11 +12,12 @@ function isActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function AdminSidebar({ className }: { className?: string }) {
+export function AdminSidebar({ className, id, onNavigate, onClose }: { className?: string; id?: string; onNavigate?: () => void; onClose?: () => void }) {
   const pathname = usePathname()
 
   return (
     <aside
+      id={id}
       className={cn(
         "flex h-full w-60 shrink-0 flex-col border-r border-border bg-sidebar",
         className
@@ -31,9 +33,14 @@ export function AdminSidebar({ className }: { className?: string }) {
           </span>
           <span className="text-xs text-muted-foreground">Manifestacije</span>
         </div>
+        {onClose && (
+          <button type="button" onClick={onClose} aria-label="Zatvori izbornik" className="ml-auto inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X className="size-4" aria-hidden />
+          </button>
+        )}
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
+      <nav aria-label="Administracija" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
         {navItems.map((item) => {
           const active = isActive(pathname, item.href, item.exact)
           const Icon = item.icon
@@ -42,6 +49,7 @@ export function AdminSidebar({ className }: { className?: string }) {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 active

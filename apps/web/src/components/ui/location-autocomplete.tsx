@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { MapPin, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { compactLocationLabel, compactLocationParts } from "@/lib/location-display"
@@ -65,6 +65,8 @@ export function LocationAutocomplete({
   const [saved, setSaved] = useState<SavedVenue[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [active, setActive] = useState(-1)
+  const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -112,8 +114,28 @@ export function LocationAutocomplete({
     setOpen(false)
   }
 
-  // Calculate dropdown position at render time (always fresh, no stale state)
-  const inputRect = open && inputRef.current ? inputRef.current.getBoundingClientRect() : null
+  // Options in display order (remembered venues first) for keyboard selection.
+  const options = [
+    ...saved.map((v) => ({ key: `s-${v.label}-${v.lat}-${v.lng}`, label: compactLocationLabel(v.label), saved: true,
+      choose: () => pick(v.label, v.lat, v.lng, v.cityName, v.countyName, v.regionSlug) })),
+    ...results.map((r) => ({ key: `r-${r.place_id}`, label: label(r), saved: false,
+      choose: () => pick(label(r), parseFloat(r.lat), parseFloat(r.lon), r.address.city ?? r.address.town ?? r.address.village, r.address.state ?? r.address.county, r.address.regionSlug) })),
+  ]
+  const listOpen = open && options.length > 0
+  const anchor = useDropdownAnchor(inputRef, listOpen)
+  useEffect(() => { setActive(-1) }, [results, saved, open])
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape" && listOpen) { event.preventDefault(); setOpen(false); return }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (!options.length) return
+      event.preventDefault()
+      setOpen(true)
+      setActive((index) => event.key === "ArrowDown" ? (index + 1) % options.length : (index <= 0 ? options.length - 1 : index - 1))
+      return
+    }
+    if (event.key === "Enter" && listOpen && active >= 0) { event.preventDefault(); options[active]?.choose() }
+  }
 
   return (
     <div className={cn("relative", className)}>
@@ -123,7 +145,13 @@ export function LocationAutocomplete({
           ref={inputRef}
           value={query}
           disabled={disabled}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={listOpen}
+          aria-controls={listId}
+          aria-activedescendant={listOpen && active >= 0 ? `${listId}-${active}` : undefined}
           onChange={(e) => handleChange(e.target.value)}
+          onKeyDown={onKeyDown}
           onBlur={() => setTimeout(() => setOpen(false), 200)}
           onFocus={() => {
             if (results.length > 0 || saved.length > 0) setOpen(true)
@@ -142,48 +170,25 @@ export function LocationAutocomplete({
         )}
       </div>
 
-      {open && inputRect && (results.length > 0 || saved.length > 0) && (
-        <ul style={{
-          position: "fixed",
-          top: inputRect.bottom + 4,
-          left: inputRect.left,
-          width: inputRect.width,
-          zIndex: 9999,
-        }}
-          className="max-h-72 overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+      {listOpen && anchor && (
+        // Fixed so the list is not clipped by overflow-hidden cards; the anchor
+        // follows the input through window/container scroll and viewport changes.
+        <ul id={listId} role="listbox" aria-label="Prijedlozi lokacija" style={{ position: "fixed", left: anchor.left, width: anchor.width, maxHeight: anchor.maxHeight, zIndex: 9999,
+          ...(anchor.above ? { bottom: anchor.bottom } : { top: anchor.top }) }}
+          className="overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
         >
-          {saved.length > 0 && (
-            <>
-              <li className="px-3 py-1 text-xs font-medium text-muted-foreground">Zapamćene lokacije</li>
-              {saved.map((v, i) => (
-                <li key={`s${i}`}>
-                  <button type="button" onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pick(v.label, v.lat, v.lng, v.cityName, v.countyName, v.regionSlug)}
-                    className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
-                    <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    <span className="truncate">{compactLocationLabel(v.label)}</span>
-                  </button>
-                </li>
-              ))}
-              {results.length > 0 && (
-                <li className="mt-1 border-t border-border px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">Ostale lokacije</li>
+          {options.map((option, index) => (
+            <li key={option.key} role="presentation">
+              {index === 0 && option.saved && <p className="px-3 py-1 text-xs font-medium text-muted-foreground">Zapamćene lokacije</p>}
+              {!option.saved && index > 0 && options[index - 1].saved && (
+                <p className="mt-1 border-t border-border px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">Ostale lokacije</p>
               )}
-            </>
-          )}
-          {results.map((r) => (
-            <li key={r.place_id}>
-              <button type="button" onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(
-                  label(r),
-                  parseFloat(r.lat),
-                  parseFloat(r.lon),
-                  r.address.city ?? r.address.town ?? r.address.village,
-                  r.address.state ?? r.address.county,
-                  r.address.regionSlug,
-                )}
-                className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted">
-                <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary/70" />
-                <span className="truncate">{label(r)}</span>
+              <button type="button" id={`${listId}-${index}`} role="option" aria-selected={index === active} tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={option.choose}
+                className={cn("flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-muted", index === active && "bg-muted")}>
+                <MapPin className={cn("mt-0.5 size-3.5 shrink-0", option.saved ? "text-primary" : "text-primary/70")} />
+                <span className="truncate">{option.label}</span>
               </button>
             </li>
           ))}
@@ -191,4 +196,61 @@ export function LocationAutocomplete({
       )}
     </div>
   )
+}
+
+type DropdownAnchor = { left: number; width: number; top: number; bottom: number; maxHeight: number; above: boolean }
+
+/**
+ * Viewport position for a fixed dropdown under (or above) an input. Re-measured
+ * on any scroll (capture phase, so inner scroll containers such as the admin
+ * <main> count), resize and mobile visual-viewport changes. Opens upward when
+ * there is more room above, caps its height to the visible space, and returns
+ * null while the input itself is scrolled out of view.
+ */
+export function dropdownAnchor(rect: Pick<DOMRect, "top" | "bottom" | "left" | "width">, view: { top: number; bottom: number; layoutHeight: number }): DropdownAnchor | null {
+  if (rect.bottom < view.top || rect.top > view.bottom) return null
+  const gap = 4, margin = 8, preferred = 288, minimum = 120
+  const below = view.bottom - rect.bottom - gap - margin
+  const aboveSpace = rect.top - view.top - gap - margin
+  const above = below < Math.min(preferred, minimum + 80) && aboveSpace > below
+  return {
+    left: rect.left,
+    width: rect.width,
+    top: rect.bottom + gap,
+    bottom: view.layoutHeight - rect.top + gap,
+    maxHeight: Math.max(minimum, Math.min(preferred, above ? aboveSpace : below)),
+    above,
+  }
+}
+
+function useDropdownAnchor(inputRef: RefObject<HTMLInputElement | null>, open: boolean) {
+  const [anchor, setAnchor] = useState<DropdownAnchor | null>(null)
+  useLayoutEffect(() => {
+    if (!open) { setAnchor(null); return }
+    let frame = 0
+    const measure = () => {
+      const input = inputRef.current
+      if (!input) return
+      const vv = window.visualViewport
+      setAnchor(dropdownAnchor(input.getBoundingClientRect(), {
+        top: vv?.offsetTop ?? 0,
+        bottom: vv ? vv.offsetTop + vv.height : window.innerHeight,
+        layoutHeight: window.innerHeight,
+      }))
+    }
+    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure) }
+    measure()
+    window.addEventListener("scroll", schedule, true)
+    window.addEventListener("resize", schedule)
+    window.visualViewport?.addEventListener("resize", schedule)
+    window.visualViewport?.addEventListener("scroll", schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", schedule, true)
+      window.removeEventListener("resize", schedule)
+      window.visualViewport?.removeEventListener("resize", schedule)
+      window.visualViewport?.removeEventListener("scroll", schedule)
+    }
+  }, [inputRef, open])
+  return anchor
 }

@@ -88,7 +88,7 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <CardTitle>Prijava</CardTitle>
+        <CardTitle><h1>Prijava<span className="sr-only"> organizatora</span></h1></CardTitle>
       </CardHeader>
       <CardContent>
         <form id="organizer-login-form" onSubmit={submit} className="flex flex-col gap-3">

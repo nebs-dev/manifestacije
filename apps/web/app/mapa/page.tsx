@@ -14,6 +14,7 @@ export default async function MapPage() {
     <>
       <SiteHeader />
       <main>
+        <h1 className="sr-only">Karta događanja</h1>
         <DiscoveryExplorer events={events} />
       </main>
     </>

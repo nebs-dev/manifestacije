@@ -77,7 +77,7 @@ export function RegisterForm({ initialEmail = "" }: { initialEmail?: string }) {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <CardTitle>Registracija</CardTitle>
+        <CardTitle><h1>Registracija<span className="sr-only"> organizatora</span></h1></CardTitle>
         <CardDescription>Kreirajte organizatorski račun i dodajte svoje događaje besplatno.</CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { getToken, clearToken } from "@/lib/admin/api"
@@ -26,6 +26,28 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<AdminUser | null>(null)
+  // Mobile navigation drawer (below md the sidebar is hidden).
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false)
+    menuButtonRef.current?.focus()
+  }, [])
+  useEffect(() => { setMenuOpen(false) }, [pathname])
+  useEffect(() => {
+    if (menuOpen) drawerRef.current?.querySelector<HTMLElement>('[aria-label="Zatvori izbornik"]')?.focus()
+  }, [menuOpen])
+  function onDrawerKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") { event.preventDefault(); closeMenu(); return }
+    if (event.key !== "Tab") return
+    // Keep keyboard focus inside the open drawer.
+    const focusable = [...(drawerRef.current?.querySelectorAll<HTMLElement>("aside a, aside button") ?? [])]
+    if (!focusable.length) return
+    const first = focusable[0], last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+  }
   const [checking, setChecking] = useState(true)
   const [unavailable, setUnavailable] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -114,8 +136,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       <AdminSidebar className="hidden md:flex" />
+      {menuOpen && (
+        <div ref={drawerRef} className="fixed inset-0 z-50 flex md:hidden" role="dialog" aria-modal="true" aria-label="Administracijski izbornik" onKeyDown={onDrawerKeyDown}>
+          <button type="button" tabIndex={-1} aria-hidden className="absolute inset-0 bg-black/40" onClick={closeMenu} />
+          <AdminSidebar id="admin-mobile-nav" className="relative max-w-[85vw] shadow-xl" onNavigate={closeMenu} onClose={closeMenu} />
+        </div>
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminTopbar user={user} />
+        <AdminTopbar user={user} menuOpen={menuOpen} onOpenMenu={() => setMenuOpen(true)} menuButtonRef={menuButtonRef} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1600px] px-4 py-6 md:px-6 md:py-8">
             {children}

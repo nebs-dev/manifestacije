@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { LogOut, Bell } from "lucide-react"
+import { LogOut, Bell, Menu } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
@@ -11,7 +11,7 @@ import type { AdminUser } from "@/components/admin/admin-shell"
 
 type PendingCounts = { sources: number; events: number; organizers: number; revisions?: number; unread?: number; pending?: number }
 
-export function AdminTopbar({ user }: { user?: AdminUser | null }) {
+export function AdminTopbar({ user, menuOpen, onOpenMenu, menuButtonRef }: { user?: AdminUser | null; menuOpen?: boolean; onOpenMenu?: () => void; menuButtonRef?: React.Ref<HTMLButtonElement> }) {
   const router = useRouter()
   const [counts, setCounts] = useState<PendingCounts | null>(null)
 
@@ -46,6 +46,12 @@ export function AdminTopbar({ user }: { user?: AdminUser | null }) {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-6">
+      {onOpenMenu && (
+        <button ref={menuButtonRef} type="button" onClick={onOpenMenu} aria-label="Otvori izbornik" aria-expanded={menuOpen ?? false} aria-controls="admin-mobile-nav"
+          className="inline-flex size-9 items-center justify-center rounded-md hover:bg-muted md:hidden">
+          <Menu className="size-5" aria-hidden />
+        </button>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <Link href="/admin/notifications" aria-label="Obavijesti" title={counts ? `${totalPending} nepročitano · ${counts.pending ?? counts.revisions ?? 0} čeka pregled` : "Obavijesti"}>
           <span aria-label="Obavijesti" className="relative inline-flex size-9 items-center justify-center rounded-md hover:bg-muted">
