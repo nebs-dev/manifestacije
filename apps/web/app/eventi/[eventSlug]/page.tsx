@@ -1,4 +1,6 @@
 import { eventTimeLabel } from "@/lib/event-end"
+import { RichText } from "@/components/rich-text";
+import { richTextSummary } from "@/lib/rich-text";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -51,18 +53,18 @@ export async function generateMetadata({ params }: { params: { eventSlug: string
   if (!event) return { title: "Događanje nije pronađeno" };
   return {
     title: event.title,
-    description: event.description,
+    description: richTextSummary(event.description),
     openGraph: {
       type: "article",
       title: event.title,
-      description: event.description,
+      description: richTextSummary(event.description),
       images: event.image ? [{ url: event.image, alt: event.title }] : [],
       url: `${WEB_URL}/eventi/${event.slug}`,
     },
     twitter: {
       card: event.image ? "summary_large_image" : "summary",
       title: event.title,
-      description: event.description,
+      description: richTextSummary(event.description),
       images: event.image ? [event.image] : [],
     },
     alternates: { canonical: `${WEB_URL}/eventi/${event.slug}` }
@@ -212,11 +214,11 @@ export default async function EventDetailPage({
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_320px]">
             <article>
               <div className="space-y-4 text-pretty text-lg leading-relaxed text-foreground/90">
-                {event.description.split("\n\n").map((para, index) => <p key={index} className="whitespace-pre-line">{para}</p>)}
+                <RichText source={event.description} />
               </div>
               {event.longDescription !== event.description && (
                 <div className="mt-6 space-y-4 text-pretty leading-relaxed text-muted-foreground">
-                  {event.longDescription.split("\n\n").map((para, index) => <p key={index} className="whitespace-pre-line">{para}</p>)}
+                  <RichText source={event.longDescription} />
                 </div>
               )}
 

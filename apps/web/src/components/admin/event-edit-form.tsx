@@ -1,5 +1,6 @@
 "use client"
 
+import { RichTextEditor } from "@/components/rich-text-editor"
 import { PricingSelect } from "@/components/pricing-select"
 
 import { useEffect, useState } from "react"
@@ -348,11 +349,11 @@ export function EventEditForm({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="description">Opis</FieldLabel>
-                  <Textarea
+                  <RichTextEditor
                     id="description"
                     rows={5}
                     value={form.description}
-                    onChange={(e) => update("description", e.target.value)}
+                    onChange={(value) => update("description", value)}
                   />
                 </Field>
               </FieldGroup>

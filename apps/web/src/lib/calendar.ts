@@ -1,3 +1,4 @@
+import { richTextToPlain } from "./rich-text"
 import type { CroEvent } from "./data"
 import { effectiveOccurrences, eventForOccurrence } from "./event-schedule"
 
@@ -60,7 +61,7 @@ function allDayRange(event: CroEvent, start: string) {
 }
 
 function calendarDescription(event: CroEvent) {
-  const plain = stripHtml(event.description).trim().slice(0, MAX_DESCRIPTION_LENGTH)
+  const plain = richTextToPlain(stripHtml(event.description)).trim().slice(0, MAX_DESCRIPTION_LENGTH)
   const lines = [plain, `Organizator: ${event.organizer}`, `Više informacija: ${event.source}`]
   return lines.filter(Boolean).join("\n\n")
 }

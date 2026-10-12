@@ -1,3 +1,4 @@
+import { richTextSummary } from "./rich-text"
 import type { CroEvent } from "./data"
 
 type PostalAddress = {
@@ -165,7 +166,7 @@ export function eventToJsonLd(event: CroEvent, webUrl: string): EventJsonLd {
     "@context": "https://schema.org",
     "@type": "Event",
     name: event.title,
-    description: event.description,
+    description: richTextSummary(event.description, 5000),
     startDate,
     ...(endDate ? { endDate } : {}),
     eventStatus: "https://schema.org/EventScheduled",

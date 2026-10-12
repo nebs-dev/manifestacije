@@ -1,5 +1,6 @@
 "use client"
 
+import { RichTextEditor } from "@/components/rich-text-editor"
 import { PricingSelect } from "@/components/pricing-select"
 
 import { useEffect, useState } from "react"
@@ -134,7 +135,7 @@ export function EventCreateForm() {
           <CardContent>
             <FieldGroup>
               <Field><FieldLabel>Naziv</FieldLabel><Input value={form.title} onChange={(e) => update("title", e.target.value)} /></Field>
-              <Field><FieldLabel>Opis</FieldLabel><Textarea rows={5} value={form.description} onChange={(e) => update("description", e.target.value)} /></Field>
+              <Field><FieldLabel>Opis</FieldLabel><RichTextEditor rows={5} value={form.description} onChange={(value) => update("description", value)} /></Field>
               <Field>
                 <FieldLabel>Raspored</FieldLabel>
                 <EventScheduleEditor rows={scheduleRows} onChange={setScheduleRows} />

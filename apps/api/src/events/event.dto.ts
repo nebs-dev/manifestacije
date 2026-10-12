@@ -1,4 +1,5 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
+import { sanitizeDescriptionInput } from "../common/rich-text";
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
 import { NormalizeSafeHttpUrl } from "../common/safe-url";
 
@@ -34,6 +35,7 @@ export class EventContentDto {
 
   @IsString()
   @IsOptional()
+  @Transform(({ value }) => sanitizeDescriptionInput(value))
   description?: string;
 
   @Type(() => Number)

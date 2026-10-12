@@ -739,6 +739,16 @@ integration("EventRevision PostgreSQL workflow", () => {
     expect(await snapshot()).toMatchObject({ cityId: otherCity.id, cityName: "QA drugi grad", address: "Ulica 1, QA drugi grad" });
   });
 
+  it("keeps rich-text formatting through an organizer revision and approval, without HTML (EVT-03)", async () => {
+    const markdown = "**Program**\n\n- *Ulaz* besplatan\n- [Ulaznice](https://tickets.example.test/a?b=1&c=2)";
+    const response = await request(`/api/organizer/events/${eventId}`, userId, "PUT", { description: `${markdown}<script>alert(1)</script><iframe src="https://x.test"></iframe>` });
+    expect(response.status).toBe(200);
+    expect((await snapshot()).description).toBe("Izvorni opis");
+    const revision = await prisma.eventRevision.findFirstOrThrow({ where: { eventId, status: "PENDING" } });
+    await approve(revision);
+    expect((await snapshot()).description).toBe(markdown);
+  });
+
   describe("organizer submissions survive AI failure (P1-B)", () => {
     const submitEmail = { webUrl: "https://example.test", sendEventSubmitted: jest.fn(), sendAdminNewSubmission: jest.fn() };
     const submitter = () => new OrganizerService(prisma as never, events, parser as never, duplicates as never, submitEmail as never, { syncEventSubmitter: jest.fn() } as never, cache as never, revisions);

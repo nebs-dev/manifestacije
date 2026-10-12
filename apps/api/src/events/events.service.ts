@@ -1,3 +1,4 @@
+import { sanitizeDescriptionInput } from "../common/rich-text";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { EventStatus, EventSourceKind, OrganizerStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -25,7 +26,8 @@ export class EventsService {
     const db = transaction ?? this.prisma;
     const urls = this.safeUrlFields(dto);
     const title = dto.title?.trim() || "Novi događaj";
-    const description = dto.description?.trim() || title;
+    // Covers AI imports and every other write path, not only DTO-validated bodies (EVT-03).
+    const description = (sanitizeDescriptionInput(dto.description) as string | undefined)?.trim() || title;
     const city = await this.resolveCityForWrite(dto, undefined, db, Boolean(transaction));
     this.assertPublishableLocation(opts.status || EventStatus.PENDING_REVIEW, city);
     const category = await this.resolveCategory(dto.categoryId ?? undefined, db);
@@ -126,7 +128,7 @@ export class EventsService {
     const data: Record<string, unknown> = {
       title: dto.title,
       slug,
-      description: dto.description,
+      description: sanitizeDescriptionInput(dto.description) as string | undefined,
       categoryId: dto.categoryId,
       startsAt: schedule?.startsAt ?? (dto.startsAt ? new Date(dto.startsAt) : undefined),
       endsAt: schedule ? schedule.endsAt : dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : undefined,

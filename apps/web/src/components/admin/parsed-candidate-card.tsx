@@ -1,5 +1,6 @@
 "use client"
 
+import { RichTextEditor } from "@/components/rich-text-editor"
 import { PricingSelect } from "@/components/pricing-select"
 
 import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
@@ -363,7 +364,7 @@ export function ParsedCandidateCard({
           </Field>
           <div className="sm:col-span-2">
             <Field label="Opis">
-              <Textarea value={form.description} disabled={!isPending} onChange={(e) => setField("description", e.target.value)} rows={3} />
+              <RichTextEditor value={form.description} disabled={!isPending} onChange={(value) => setField("description", value)} rows={3} />
             </Field>
           </div>
         </div>

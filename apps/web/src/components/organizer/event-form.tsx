@@ -1,5 +1,6 @@
 "use client"
 
+import { RichTextEditor } from "@/components/rich-text-editor"
 import { PricingSelect } from "@/components/pricing-select"
 
 import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
@@ -195,7 +196,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
             <Input name="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="npr. Jazz večer u Galeriji" />
           </Field>
           <Field label="Opis">
-            <Textarea name="description" defaultValue={initial?.description} rows={5} placeholder="Opišite događaj…" />
+            <RichTextEditor name="description" defaultValue={initial?.description} rows={5} placeholder="Opišite događaj…" />
           </Field>
         </CardContent>
       </Card>

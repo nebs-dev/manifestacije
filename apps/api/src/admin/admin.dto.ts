@@ -1,5 +1,6 @@
 import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
+import { sanitizeDescriptionInput } from "../common/rich-text";
 import { EventStatus } from "@prisma/client";
 import { EventOccurrenceDto, EventUpsertDto } from "../events/event.dto";
 import { IsSafeHttpUrl } from "../common/safe-url";
@@ -88,7 +89,7 @@ export class ParseUrlDto {
 
 export class CandidateOverrideDto {
   @IsOptional() @IsString() title?: string;
-  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() @Transform(({ value }) => sanitizeDescriptionInput(value)) description?: string;
   @IsOptional() @IsString() startsAt?: string;
   @IsOptional() @IsString() endsAt?: string;
   @IsOptional() @IsBoolean() isAllDay?: boolean;

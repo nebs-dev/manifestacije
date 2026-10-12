@@ -1,4 +1,5 @@
 import { eventTimeLabel } from "@/lib/event-end"
+import { richTextSummary } from "@/lib/rich-text"
 import { MapPin } from "lucide-react"
 import type { CroEvent } from "@/lib/data"
 import { EventPoster } from "@/components/public/event-poster"
@@ -80,7 +81,7 @@ export function EventCard({ event, className, displayDate, priorityImage, imageS
         </div>
 
         <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-          {event.description}
+          {richTextSummary(event.description, 220)}
         </p>
 
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
