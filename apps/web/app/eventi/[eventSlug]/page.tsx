@@ -11,6 +11,7 @@ import { CategoryBadge, PriceBadge } from "@/components/public/badges";
 import { ShareButton } from "@/components/public/share-button";
 import { AddToCalendarButton } from "@/components/public/add-to-calendar-button";
 import { EventDetailTracking } from "@/components/public/event-detail-tracking";
+import { EventBackLink } from "@/components/public/event-back-link";
 import { TicketLink, MapLink } from "@/components/public/tracked-links";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
 import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
@@ -114,9 +115,9 @@ export default async function EventDetailPage({
         <section className="bg-ink text-ink-foreground">
           <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] lg:grid-rows-[1fr_auto] lg:gap-x-10 lg:gap-y-6 lg:px-8 lg:py-10">
             <div className="order-1 flex min-w-0 flex-col justify-end lg:col-start-2 lg:row-start-1 lg:pt-4">
-              <Link href={backLink.href} className="mb-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm text-ink-foreground transition-colors hover:bg-ink-foreground/15 lg:hidden">
+              <EventBackLink href={backLink.href} className="mb-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm text-ink-foreground transition-colors hover:bg-ink-foreground/15 lg:hidden">
                 <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
-              </Link>
+              </EventBackLink>
               <div className="flex flex-wrap items-center gap-2">
                 {eventCategories.map((category) => (
                   <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground" />
@@ -165,9 +166,9 @@ export default async function EventDetailPage({
                 title={event.title}
                 category={event.category}
               />
-              <Link href={backLink.href} className="absolute left-5 top-5 z-20 hidden items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 lg:inline-flex">
+              <EventBackLink href={backLink.href} className="absolute left-5 top-5 z-20 hidden items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 lg:inline-flex">
                 <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
-              </Link>
+              </EventBackLink>
             </div>
 
             <div className="order-3 flex flex-wrap items-center gap-3 lg:col-start-2 lg:row-start-2 lg:pb-4">

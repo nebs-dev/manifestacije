@@ -2,12 +2,13 @@
 
 import { eventTimeLabel } from "@/lib/event-end"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, SlidersHorizontal, X } from "lucide-react"
 import { ActiveFilters } from "./active-filters"
 import { trackEvent } from "@/lib/analytics"
+import { calendarEntryKey, rememberCalendarEntry, restoreCalendarEntry, takeCalendarEntry } from "@/lib/calendar-return"
 import { startProgress } from "@/lib/route-progress"
 import {
   buildMonthGrid,
@@ -131,15 +132,33 @@ export function CalendarExplorer({
   const daySections = visibleDays.filter((d) => groups[dateKey(d)] || dateKey(d) === selectedDay)
   const totalVisible = daySections.reduce((n, d) => n + (groups[dateKey(d)]?.length ?? 0), 0)
 
+  // Scroll to the selected day only on entry and on day/view changes. A return
+  // from event detail (Back or "Natrag na kalendar") restores the clicked entry
+  // instead, and reloads/history traversals keep their position (PUB-02).
+  const entryHandled = useRef(false)
+  const lastScrolled = useRef({ day: selectedDay, view, request: scrollRequest })
+  const pendingDayScroll = useRef(false)
   useEffect(() => {
+    const previous = lastScrolled.current
+    lastScrolled.current = { day: selectedDay, view, request: scrollRequest }
+    if (!entryHandled.current) {
+      entryHandled.current = true
+      const { kind, record } = takeCalendarEntry()
+      if (kind === "return" && record) restoreCalendarEntry(record)
+      else if (kind === "enter") pendingDayScroll.current = true
+    } else if (previous.day !== selectedDay || previous.view !== view || previous.request !== scrollRequest) {
+      pendingDayScroll.current = true
+    }
+    if (!pendingDayScroll.current) return
     const frame = requestAnimationFrame(() => {
+      pendingDayScroll.current = false
       document.getElementById(`day-${selectedDay}`)?.scrollIntoView({
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
         block: "start",
       })
     })
     return () => cancelAnimationFrame(frame)
-  }, [selectedDay, view, events, scrollRequest])
+  }, [selectedDay, view, scrollRequest])
 
   const calendarDate = selectedDay ?? dateKey(anchor)
   const returnTo = useMemo(() => {
@@ -305,7 +324,7 @@ export function CalendarExplorer({
                     <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">{list.length} termina</span>
                   </div>
                   {!list.length && <p className="rounded-2xl border border-dashed border-border p-6 text-muted-foreground">Nema termina za ovaj datum. Pokušaj drugi datum ili ublaži filtre.</p>}
-                  <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={`${e.slug}-${e.displayOccurrenceId ?? "legacy"}`} event={e} returnTo={returnTo} />)}</ul>
+                  <ul className="flex min-w-0 flex-col gap-3">{list.map((e) => <AgendaRow key={`${e.slug}-${e.displayOccurrenceId ?? "legacy"}`} event={e} entry={calendarEntryKey(key, e.slug, e.displayOccurrenceId)} returnTo={returnTo} />)}</ul>
                 </section>
               )
             })}
@@ -358,12 +377,20 @@ function Chip({ active, onClick, tone = "primary", children }: { active: boolean
   )
 }
 
-function AgendaRow({ event, returnTo }: { event: CroEvent; returnTo: string }) {
+function AgendaRow({ event, entry, returnTo }: { event: CroEvent; entry: string; returnTo: string }) {
   const multiDay = event.endDate && event.endDate !== event.date
   const locationLabel = publicAddressLine(event.address, event.city, event.venue) ?? event.city
   return (
     <li>
-      <PrefetchEventLink heroImage={event.heroImage ?? event.image} href={`/eventi/${event.slug}?from=kalendar&returnTo=${encodeURIComponent(returnTo)}`} className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
+      <PrefetchEventLink
+        heroImage={event.heroImage ?? event.image}
+        href={`/eventi/${event.slug}?from=kalendar&returnTo=${encodeURIComponent(returnTo)}`}
+        data-calendar-entry={entry}
+        onClick={(click) => {
+          if (click.button !== 0 || click.metaKey || click.ctrlKey || click.shiftKey || click.altKey) return
+          rememberCalendarEntry(entry, click.currentTarget, click.detail === 0)
+        }}
+        className="group grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-4 rounded-2xl border border-border/70 bg-card p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-poster sm:grid-cols-[6rem_minmax(0,1fr)] sm:p-3">
         <div className="relative aspect-square overflow-hidden rounded-xl">
           <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
             <EventPoster image={event.image} title={event.title} category={event.category} sizes="96px" />

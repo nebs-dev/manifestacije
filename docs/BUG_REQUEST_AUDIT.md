@@ -13,8 +13,8 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **18** | EVT-09, EVT-10, AUTH-03, EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05, NOT-01, NOT-02, NOT-04 (implementation/test evidence in §K/§M/§O/§P/§Q/§R/§S/§T; runtime limitations recorded there) |
-| **PARTIAL** | **4** | EVT-08, NOT-03, PUB-02, SEO-02 |
+| **DONE** | **19** | EVT-09, EVT-10, AUTH-03, EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-02, PUB-03, PUB-04, PUB-05, NOT-01, NOT-02, NOT-04 (implementation/test evidence in §K/§M/§O/§P/§Q/§R/§S/§T/§V; runtime limitations recorded there) |
+| **PARTIAL** | **3** | EVT-08, NOT-03, SEO-02 |
 | **NOT IMPLEMENTED** | **5** | EVT-01, EVT-03, EVT-07, ADM-04, PUB-06 |
 | **BUG STILL PRESENT** | **0** | — |
 | **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
@@ -74,7 +74,7 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | NOT-03 | PARTIAL | P2 | S | “Objavljeno” email with public link exists; no social-share prompt; sent to `Organizer.email`, not the submitter |
 | NOT-04 | **DONE — implementation** (§R) | P2 | S | Registration email preserved; per-admin rows/bell, individual destination and registration date; actual delivery remains BLOCKED |
 | PUB-01 | UNKNOWN / NEEDS RUNTIME | P1 | S | Mobile stacked layout implemented (UX Batch 1); never browser-validated; deploy status unknown |
-| PUB-02 | PARTIAL | P1 | S–M | Date/view kept in URL + “Natrag na kalendar”; scroll position lost (forced scroll to day header) |
+| PUB-02 | DONE (§V) | P1 | S–M | Date/view/filters kept in URL; Back and “Natrag na kalendar” restore the clicked event's viewport position (§V) |
 | PUB-03 | **DONE** (2026-10-09; §M) | P1 | S | Finished days/occurrences excluded, midnight-safe rendering/cache keys, active overnight shown once; see §M |
 | PUB-04 | **DONE** (2026-10-09; §M) | P1 | S–M | Next-morning end ≤06:00 and duration <24h stays with starting evening; both clocks shown, raw endpoints preserved; see §M |
 | PUB-05 | **DONE** (2026-10-09; §M) | P2 | S | Fresh starts precede continuing ranges in API, homepage and weekend; independent fresh query protects result cap; see §M |
@@ -308,7 +308,7 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 - *Explicitly unverified:* the UX Batch 1 report states “Manual browser validation remains pending because the browser runtime reported no available browser.” Whether the backlog report predates or postdates this deploy is unknown. Map depends on `NEXT_PUBLIC_CARTO_BASEMAP_KEY` at build time (`next.config.js` warns if missing).
 - *Runtime:* §G-5.
 
-**PUB-02 — Returning from event detail loses calendar month/date/position**: PARTIAL · P1 · S–M
+**PUB-02 — Returning from event detail loses calendar month/date/position**: DONE (2026-10-12; §V supersedes the findings below) · P1 · S–M
 - *Existing:*
   - Calendar date/view live in the URL (`datum`, `pogled`), and filters are preserved (`calendar-explorer.tsx:91–152`).
   - Agenda links carry `returnTo` (`:364`), and the detail page renders “Natrag na kalendar” (`app/eventi/[eventSlug]/page.tsx:38–41`).
@@ -404,7 +404,7 @@ None qualify as DONE under the audit rule (code **and** test/proof of the reques
 | NOT-01 | Admin email for pending organizer events/sources | Trusted auto-publish + edits; per-type bell; server-side last-seen |
 | NOT-03 | “Objavljeno” email with public link | Social prompt; recipient rule (submitter vs. profile email; no mail to unclaimed third parties) |
 | NOT-04 | Email + bold unread + bell count | Delivery proof; per-item read instead of list-open |
-| PUB-02 | URL state, return link | Scroll restoration to the clicked event |
+| PUB-02 | **DONE** (2026-10-12; §V) | Clicked-entry restoration for Back and “Natrag na kalendar”; see §V |
 | PUB-05 | **DONE** (2026-10-09; §M) | Fresh starts precede continuing ranges in API, homepage and weekend; independent fresh query protects result cap; see §M |
 | SEO-02 | Keyword copy | GSC validation |
 
@@ -1093,3 +1093,32 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - Authenticated production workflow remains **BLOCKED** by absent authorized organizer/admin sessions; original Schleis/Hoochy incidents remain **UNKNOWN / NEEDS RUNTIME**. Private Railway logs/account/schema-ledger access is unavailable; public deployment/health readiness and the unchanged local schema are independently verified. Vercel deployment dashboard access was available during this follow-up.
 - Evidence: `/tmp/manifestacije-navigation-deploy-536266b4.json`, `/tmp/manifestacije-navigation-production-before.json`, `/tmp/manifestacije-navigation-production-after.json` and browser history in the QA tool. Local API/web/proxy and disposable PostgreSQL are stopped; all synthetic data remains confined to the local QA database.
 - **Final scoped status: organizer post-login navigation DONE and deployed.** No migration or backfill. Full regression evidence preserves admin authentication, proxy/rate-limit security, pricing, notifications, email tracking and EventRevision workflows. The 13px mobile event-list action-row overflow noted above remains outside this focused authentication fix.
+
+
+## V. PUB-02 — Calendar return navigation (2026-10-12)
+
+**Implementation and local verification: DONE.** Continued from main `a9f178d5`. Deployment evidence follows the focused commit.
+
+### Reproduction and root cause
+
+- Before editing, automated real Chrome (production `next build`/`next start`, isolated NestJS + disposable PostgreSQL with 149 synthetic `qa-pub02-*` events) reproduced the defect: **45/51 scenarios FAIL**. Example: month view scrolled to `scrollY 8965` with the clicked event 504px from the viewport top; after Back the URL/month/filters were intact but the page was at `scrollY 709` (selected-day header) with the event 8758px below. "Natrag na kalendar", agenda view, month changes, filters, refresh and delayed loading behaved the same on desktop, 390px and 360px.
+- Three causes combine:
+  1. `calendar-explorer.tsx` ran a `scrollIntoView` to `#day-{datum}` on every mount and whenever `selectedDay`, `view` **or `events`** changed. Every return, refresh and filter result therefore jumped to the selected day header.
+  2. Next.js 14.2 dispatches popstate `ACTION_RESTORE` inside `startTransition` (`next/dist/client/components/app-router.js`). The browser's native restoration runs while the detail page is still rendered and is clamped to its shorter document, so native restoration cannot be relied on for this route.
+  3. "Natrag na kalendar" is a normal push to a new history entry. Next scrolls the new segment to the top and nothing remembered the previous position.
+
+### Focused fix
+
+- New `src/lib/calendar-return.ts`: activating an agenda entry stores one per-tab `sessionStorage` record (canonical calendar URL, day+slug+occurrence entry key, viewport offset, scroll position, keyboard flag). Modified/new-tab clicks are ignored. The record is overwritten by the next click and removed on the next calendar mount, so storage stays bounded to a single small record.
+- The record is armed only by a popstate that lands on that exact calendar URL (browser Back/Forward) or by the "Natrag na kalendar" link (`EventBackLink`, client wrapper around the existing link; URL/label/`safeReturnTo` unchanged). Query parameter order is canonicalized. Unarmed or non-matching records are discarded, so unrelated later visits never receive stale coordinates.
+- On return, the calendar puts the clicked entry back at the same viewport offset (`window.scrollTo`, `behavior: "instant"`), falling back to the stored scroll position if the entry is no longer rendered. Keyboard-initiated opens also restore focus to the link (`preventScroll`). Restoration runs in the mount effect after Next's own segment scroll; no timers, delays, polling or reloads.
+- The forced day scroll now runs only on a normal calendar entry (fresh visit/deep link, as before), explicit day/view selection, and in-calendar day changes. It no longer runs for returns, reloads or history traversal into the calendar, and filter-only data changes keep the reader's position. URL state, deep links, the existing missing-`datum` normalization and back/forward history are unchanged.
+
+### Verification
+
+- Browser QA after the fix (final build): **51/51 PASS** plus **11/11** supplementary checks, desktop 1366×900 and mobile **390×844** and **360×740**, zero console errors. Covered: month view far down → Back; → "Natrag na kalendar" (mouse and keyboard); agenda (`tjedan`) view; month changed via UI first; city + Besplatno filters; Back → Forward → Back; refresh keeps position; direct deep link still lands on the requested day; unrelated fresh calendar visit after opening an event gets the normal entry scroll, not the stale event position; RSC responses held 1.5s for both Back and Natrag; no horizontal overflow; no navigation/replace loop; day selection and in-calendar Back still scroll to the day; filter toggles keep position. Clicked entries returned within ≤2px of their original viewport offset. Back from an unrelated page (`/mapa`) also now keeps the calendar position.
+- **Web: 44 files / 440 tests PASS** (431 previous + 9 new `calendar-return.test.tsx` cases: Back restore, Natrag restore with reordered query, keyboard focus, stale-record rejection, mismatched-URL rejection, traversal without record, modified clicks, day-selection/filter behavior, unavailable storage). Also PASS under `TZ=UTC` and `TZ=America/New_York`. Local Node 26 exposes an experimental global `localStorage` that breaks 46 existing jsdom tests identically on clean `HEAD`; the suite was run with `NODE_OPTIONS=--no-experimental-webstorage` (no code change).
+- **API: 32 suites / 696 tests PASS**, including the PostgreSQL integration suites against isolated `127.0.0.1:5442/revision_qa` with all 26 migrations applied. No API changes.
+- Workspace lint, web typecheck and full workspace production build PASS.
+- Evidence: `/tmp/manifestacije-pub02-browser-before.log`, `/tmp/manifestacije-pub02-browser-after.log`, `/tmp/manifestacije-pub02-browser-extra.log`, `/tmp/manifestacije-pub02-qa.cjs`, `/tmp/manifestacije-pub02-fixtures.cjs`, `/tmp/manifestacije-pub02-api-tests.log`. Synthetic data exists only in the disposable local database.
+- **Not verified:** Safari/iOS WebKit (no WebKit runtime available; Chrome mobile emulation only). Pre-existing `docs/project/*` edits and the untracked backlog are excluded from the commit.
