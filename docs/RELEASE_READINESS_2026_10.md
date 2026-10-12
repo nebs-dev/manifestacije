@@ -201,3 +201,34 @@ The original findings above are preserved as recorded. Follow-up work (details i
 - Safari/iOS not tested.
 
 Development can shift to content, acquisition and real usage.
+
+---
+
+## Update — final feature batch (2026-10-12, afternoon)
+
+The findings above are preserved. Seven remaining requests were completed and deployed (details: `docs/BUG_REQUEST_AUDIT.md` §Z; editor guide: `docs/UREDNICKI_VODIC_NOVE_FUNKCIJE.md`):
+
+| ID | Status |
+|---|---|
+| ADM-04 | **DONE**: Croatian organizer/admin terminology |
+| NOT-03 | **DONE**: publication email with Facebook/WhatsApp sharing, sent once; organizer share panel |
+| SEO-02 | **DONE on-page**: ranking impact needs Search Console |
+| EVT-07 | **DONE**: up to 4 screenshots per parse, one AI request |
+| EVT-08 | **DONE**: supplemental re-parsing with field-by-field proposals |
+| EVT-03 | **DONE**: safe rich-text descriptions |
+| PUB-06 | **DONE**: past events archive |
+| EVT-01 | **DEFERRED** by owner decision |
+
+**Backlog:**
+- 29 DONE, 1 DEFERRED (EVT-01), 3 UNKNOWN / NEEDS RUNTIME (AUTH-01, SEO-01, ANA-01).
+- 0 partial, 0 not implemented, 0 known bugs.
+
+**Tests:** API 738 and web 465, all passing.
+
+**Production:** read-only smoke 25/25, no runtime or hydration errors.
+
+**Recommendation unchanged: READY WITH LIMITATIONS.** Remaining operational items:
+1. Set `RESEND_WEBHOOK_SECRET` in Railway (dashboard step) to activate delivery-status tracking.
+2. Verify live Anthropic parsing once in production (all AI behavior in this batch was tested with a mock).
+3. Search Console / GA4 review for SEO-01, SEO-02 and ANA-01.
+4. Evidence for the original Schleis/Hoochy login incidents (AUTH-01), if they recur.

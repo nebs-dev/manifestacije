@@ -13,12 +13,15 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **19** | EVT-09, EVT-10, AUTH-03, EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-02, PUB-03, PUB-04, PUB-05, NOT-01, NOT-02, NOT-04 (implementation/test evidence in §K/§M/§O/§P/§Q/§R/§S/§T/§V; runtime limitations recorded there) |
-| **PARTIAL** | **3** | EVT-08, NOT-03, SEO-02 |
-| **NOT IMPLEMENTED** | **5** | EVT-01, EVT-03, EVT-07, ADM-04, PUB-06 |
+| **DONE** | **29** | EVT-09, EVT-10, AUTH-02, AUTH-03, AUTH-04, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06, EVT-07, EVT-08, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, ADM-04, PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, NOT-01, NOT-02, NOT-03, NOT-04, SEO-02 (evidence in §K–§Z; runtime limitations recorded there) |
+| **PARTIAL** | **0** | — |
+| **DEFERRED (owner decision)** | **1** | EVT-01 |
+| **NOT IMPLEMENTED** | **0** | — |
 | **BUG STILL PRESENT** | **0** | — |
-| **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
+| **UNKNOWN / NEEDS RUNTIME** | **3** | AUTH-01, SEO-01, ANA-01 |
 | **Total** | **33** | |
+
+*Updated 2026-10-12 after the final feature batch (§Z). The original audit-time findings below are preserved.*
 
 **At audit time nothing could be closed as DONE** (EVT-06 has since been fixed and deployed; see §K). Several items have substantial code (email notifications, creator tracking, calendar URL state, mobile map layout) but each one either misses a requested part, depends on unverified production behavior, or retains a defect.
 
@@ -50,17 +53,17 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | ID | Status | Prio | Effort | One-line verdict |
 |---|---|---|---|---|
 | AUTH-01 | UNKNOWN / NEEDS RUNTIME | P0 | S (diagnose) / S–M (fix) | Post-login navigation fixed, verified and deployed (§U); original Schleis/Hoochy incidents still require production account/log evidence |
-| AUTH-02 | **UNKNOWN / NEEDS RUNTIME** (implementation complete; §S) | P0 | M | Durable transport tracking, secure webhooks, atomic tokens and admin diagnostics implemented; real production acceptance/delivery remains BLOCKED |
+| AUTH-02 | **DONE** (delivery verified by owner's Resend dashboard, §X) | P0 | M | Durable transport tracking, secure webhooks, atomic tokens and admin diagnostics implemented; real production acceptance/delivery remains BLOCKED |
 | AUTH-03 | **DONE** (2026-10-09; §S) | P2 | S | Croatian help/contact on all five auth screens, localized safe errors and invalid-link recovery; local browser QA passed |
-| AUTH-04 | **UNKNOWN / NEEDS RUNTIME** (implementation complete; §S) | P1 | M | Welcome trigger preserved with account-linked submission/delivery tracking; actual production delivery remains BLOCKED |
-| EVT-01 | NOT IMPLEMENTED | P3 | L | No PDF/DOC ingestion; uploads are image-only |
+| AUTH-04 | **DONE** (3 welcome emails Delivered per Resend dashboard, §X) | P1 | M | Welcome trigger preserved with account-linked submission/delivery tracking; actual production delivery remains BLOCKED |
+| EVT-01 | **DEFERRED** (owner decision, 2026-10-12) | P3 | L | No PDF/DOC ingestion; programmes can be imported as screenshots (EVT-07) |
 | EVT-02 | **DONE** (2026-10-09; §O) | P1 | M | Separate revisions retain the published version; transactional approval, conflict detection, Croatian review UI and notifications; deployment evidence / blockers in §O |
-| EVT-03 | NOT IMPLEMENTED | P2 | M | Plain text only (paragraphs preserved); no bold/links |
+| EVT-03 | **DONE** (2026-10-12; §Z) | P2 | M | Bold, italic, links, lists; safe rendering; plain text in cards/meta/JSON-LD |
 | EVT-04 | **DONE** (2026-10-09; §M) | P1 | M | Timezone-aware parsing; source date/time evidence validation; missing/ambiguous times require review. Live provider smoke BLOCKED (401); see §M |
 | EVT-05 | **DONE** (2026-10-09; §M) | P1 | S–M | Croatian month mapping and deterministic evidence checks reject September/October confusion; mocked screenshot regressions pass; see §M |
 | EVT-06 | **DONE** (2026-10-09, `62759b51`) | P1 | S | Fixed & deployed: explicit null clears, end date/time editing, legacy-link-safe saves — see §K |
-| EVT-07 | NOT IMPLEMENTED | P2 | M–L | One `imageUrl` per event; one screenshot per parse |
-| EVT-08 | PARTIAL | P2 | M | Admin reparse still takes no extra input; reviewed decisions/source metadata now retained (§Q); supplemental screenshot workflow remains outside scope |
+| EVT-07 | **DONE** (2026-10-12; §Z) | P2 | M–L | Up to 4 posters/screenshots per submission or admin input, read in one AI request, kept as source evidence |
+| EVT-08 | **DONE** (2026-10-12; §Z) | P2 | M | “Dopuni i ponovno parsiraj” (sources) and “Dopuni podatke pomoću AI” (events): field-by-field proposals, nothing overwritten or published automatically |
 | EVT-09 | **DONE** (2026-10-12; §T) | P2 | S | Three-state pricing in editors, imports and direct admin list editing; nullable values and revision approval preserved |
 | EVT-10 | **DONE** (2026-10-12; §T) | P2 | S | Explicit product decision: manual admin/organizer creation defaults to Besplatno; parsed/unknown values stay null |
 | EVT-11 | **DONE** (2026-10-09; §Q) | P1 | M | Shared read-only pre-save warnings in admin/organizer/candidate creation; privacy-safe matching and atomic candidate import; evidence / blockers in §Q |
@@ -68,20 +71,20 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | ADM-01 | **DONE** (2026-10-09; §P) | P2 | S | Case/diacritic-insensitive organizer name search with loading/empty states and existing actions; evidence / blockers in §P |
 | ADM-02 | **DONE** (2026-10-09; §P) | P2 | S | Bulk organizer-associated event counts and URL/API filter navigation with clear action; separate from creator; evidence / blockers in §P |
 | ADM-03 | **DONE** (2026-10-09; §P) | P2 | M | Authenticated organizer/admin attribution; combined creator/Zagreb creation-date filters and per-account report; historical NULL remains Nepoznato; evidence / blockers in §P |
-| ADM-04 | NOT IMPLEMENTED | P3 | S | “Organizer portal” still in `organizer-shell.tsx:33`; mixed EN/HR copy |
+| ADM-04 | **DONE** (2026-10-12; §Z) | P3 | S | “Prostor za organizatore”, Croatian admin navigation/breadcrumbs/titles, public “Za organizatore” |
 | NOT-01 | **DONE — implementation** (§R) | P1 | S–M | Six notification categories; pending submissions/revisions and trusted auto-publication email; actual Resend delivery remains BLOCKED |
 | NOT-02 | **DONE** (§R) | P2 | M | Per-admin receipts, individual/bulk reads, filtered imported discoveries; read and workflow states independent |
-| NOT-03 | PARTIAL | P2 | S | “Objavljeno” email with public link exists; no social-share prompt; sent to `Organizer.email`, not the submitter |
+| NOT-03 | **DONE** (2026-10-12; §Z) | P2 | S | Share prompt (Facebook/WhatsApp/link) in email and in the organizer area; registered organizer users only; sent once, on first publication |
 | NOT-04 | **DONE — implementation** (§R) | P2 | S | Registration email preserved; per-admin rows/bell, individual destination and registration date; actual delivery remains BLOCKED |
-| PUB-01 | UNKNOWN / NEEDS RUNTIME | P1 | S | Mobile stacked layout implemented (UX Batch 1); never browser-validated; deploy status unknown |
+| PUB-01 | **DONE** (production browser QA 2026-10-12, release-readiness report) | P1 | S | Map renders markers and tiles at 390/360 in production with no overflow |
 | PUB-02 | DONE (§V) | P1 | S–M | Date/view/filters kept in URL; Back and “Natrag na kalendar” restore the clicked event's viewport position (§V) |
 | PUB-03 | **DONE** (2026-10-09; §M) | P1 | S | Finished days/occurrences excluded, midnight-safe rendering/cache keys, active overnight shown once; see §M |
 | PUB-04 | **DONE** (2026-10-09; §M) | P1 | S–M | Next-morning end ≤06:00 and duration <24h stays with starting evening; both clocks shown, raw endpoints preserved; see §M |
 | PUB-05 | **DONE** (2026-10-09; §M) | P2 | S | Fresh starts precede continuing ranges in API, homepage and weekend; independent fresh query protects result cap; see §M |
-| PUB-06 | NOT IMPLEMENTED (DECISION) | P3 | M | Historical detail pages stay reachable; no past-events listing |
+| PUB-06 | **DONE** (2026-10-12; §Z) | P3 | M | `/prosli-dogadaji` archive, paginated; page 1 indexed, deeper pages noindex |
 | SEO-01 | UNKNOWN / NEEDS RUNTIME | P2 | S | Favicons consistent since 2026-07-16/23; OG image is SVG; SERP state needs Search Console |
-| SEO-02 | PARTIAL | P3 | S | “digitalni kalendar” copy already targeted (`250d124e`); not validated against GSC data |
-| ANA-01 | UNKNOWN / NEEDS RUNTIME | P2 | S | Code sends no custom `form_submit` ⇒ GA4 Enhanced Measurement; GA also loads on `/admin` and `/organizer` |
+| SEO-02 | **DONE — on-page** (2026-10-12; §Z) | P3 | S | Genitive phrasing (Osijeka, Slavonije i Baranje), calendar canonical, internal links; ranking impact needs Search Console |
+| ANA-01 | UNKNOWN / NEEDS RUNTIME | P2 | S | GA now loads only on public pages and no longer breaks hydration (verified in production, §Y); custom `form_submit` behaviour still needs GA4 data |
 
 ### Per-item detail
 
@@ -395,18 +398,18 @@ None qualify as DONE under the audit rule (code **and** test/proof of the reques
 | ID | Exists | Remaining |
 |---|---|---|
 | EVT-02 | Ownership-checked edit; forced re-review; cache invalidation | Restrict organizer DTO; keep live version or decide to unpublish; admin notification + bell; diff/audit; clearable fields |
-| EVT-08 | Admin reparse | Additional input; merge preserving edits and candidate status; persist screenshots; organizer access |
+| EVT-08 | **DONE** (§Z) | Organizer-side supplements intentionally not offered (organizers resubmit or edit) |
 | EVT-09 | **DONE; §T supersedes baseline** | Inline three-state pricing implemented |
 | EVT-10 | **DONE; §T supersedes baseline** | Manual defaults aligned; imports retain UNKNOWN |
 | EVT-11 | **DONE** (2026-10-09; §Q) | Shared pre-save matcher/warnings, organizer privacy, atomic candidate imports; verification blockers in §Q |
 | ADM-02 | Organizer filter on events API/table | Counts + link on organizers page; URL param wiring |
 | ADM-03 | `createdByUserId` for admin paths, column, user count | Organizer path; filter; report; backfill decision; updatedBy/publishedBy/audit log |
 | NOT-01 | Admin email for pending organizer events/sources | Trusted auto-publish + edits; per-type bell; server-side last-seen |
-| NOT-03 | “Objavljeno” email with public link | Social prompt; recipient rule (submitter vs. profile email; no mail to unclaimed third parties) |
+| NOT-03 | **DONE** (§Z) | — |
 | NOT-04 | Email + bold unread + bell count | Delivery proof; per-item read instead of list-open |
 | PUB-02 | **DONE** (2026-10-12; §V) | Clicked-entry restoration for Back and “Natrag na kalendar”; see §V |
 | PUB-05 | **DONE** (2026-10-09; §M) | Fresh starts precede continuing ranges in API, homepage and weekend; independent fresh query protects result cap; see §M |
-| SEO-02 | Keyword copy | GSC validation |
+| SEO-02 | **DONE — on-page** (§Z) | Search Console validation of rankings |
 
 ## E. Confirmed bugs (code-evident)
 
@@ -1311,3 +1314,141 @@ Evidence: `/tmp/manifestacije-stab-2026-10/` (scripts, logs, screenshots), `/tmp
   - anonymous `/admin/events` → login.
 - Production API at 10:58 UTC: health OK (production, new instance), 138 public events (organic content; nothing created by QA).
 - Authenticated production organizer/admin flows, including the new drawer and the submission retention path, were not exercised because there are no authorized sessions and production writes are prohibited. They are verified locally on the same code.
+
+
+## Z. Final feature batch: ADM-04, NOT-03, SEO-02, EVT-07, EVT-08, EVT-03, PUB-06 (2026-10-12)
+
+Continued from `acec1af1`. **EVT-01 (PDF/DOC programme import) is deferred by owner decision** and unchanged; programmes can be imported as screenshots (EVT-07). No database schema changes, migrations, tables or background jobs were added.
+
+### ADM-04 — Croatian terminology: DONE (`da9d0744`, `a54b5784`)
+- **Organizer area:**
+  - The organizer area is **“Prostor za organizatore”** (header and page titles).
+  - The remaining English or mixed copy now says “događaj” (“Novi događaj”, “Događaj ažuriran / obrisan / poslan na pregled”).
+  - The public footer link reads **“Za organizatore”**.
+- **Admin:**
+  - Navigation (desktop sidebar and mobile drawer) is fully Croatian: Nadzorna ploča, Izvori, Nadzirani izvori, Događaji na čekanju, Događaji, Organizatori, Zahtjevi za preuzimanje, Korisnici, Duplikati, Kategorije, Partneri, Regije i gradovi.
+  - The dashboard title and breadcrumbs, “Administracija” brand/breadcrumb strings and page titles are Croatian.
+  - Browser QA found that the dashboard breadcrumb still said “Dashboard”; fixed.
+- Routes, API identifiers, permissions and stored values are unchanged.
+- **Browser QA:** 21/21 at 1366/390/360/320.
+  - The labels match exactly, with no English navigation terms.
+  - The drawer navigates and closes.
+  - The organizer header and title are correct, with no overflow or errors.
+
+### NOT-03 — Publication email and sharing: DONE (`8807c122`)
+- **Email:**
+  - The existing publication email keeps the recipient rule: only registered ORGANIZER users of the organizer, never scraped profile addresses.
+  - It now adds “Podijelite događaj” with **Facebook** and **WhatsApp** links plus a copyable public URL, in HTML (table-based buttons for Outlook) and in the plain-text fallback.
+  - All values are URL-encoded and HTML-escaped; link-button hrefs are now escaped in every template.
+- It is sent **once, on first publication**:
+  - re-approving, unpublishing then re-publishing, and editing do not re-send;
+  - EventRevision approvals keep their own decision email.
+- Published events in the organizer area show the same share panel (copy link, Facebook, WhatsApp).
+- **Browser QA:** 5/6 checks passed. The rendered email at 1366/390/320 is readable with correct links and no overflow.
+  - Approve → approve → archive → publish produced **one** `event_published` record per event.
+  - The organizer share panel works at 1366/360; clipboard copy verified.
+  - The one failure was my assertion (slug suffix from repeated runs), not the feature.
+- No real emails were sent (log mode).
+
+### SEO-02 — Digital calendar phrasing: DONE on-page (`495e20a2`)
+- **City pages:** “Događanja u Osijeku – digitalni kalendar Osijeka”, with genitive forms for known cities. This fixes the ungrammatical description “Digitalni kalendar događanja **za Osijeku**”.
+- **Region page:** “Digitalni kalendar Slavonije i Baranje – manifestacije i događanja”, description “Manifestacije i događanja u Slavoniji i Baranji…”.
+- **`/kalendar`:** canonical URL (date/view/filter variants no longer compete), natural description (typo fixed), and links to the Osijek, Đakovo, Vinkovci and Vukovar city pages and the Slavonia and Baranja region page.
+- **Not added:** separate “Baranja” or “Slavonija” landing pages. Production has a single combined region, so extra pages would be duplicates or misleading.
+- Structured data, existing canonicals and noindex rules are unchanged.
+- **Browser QA:** 6/6, and production titles, canonical and H1 were verified.
+- **Ranking effect is not claimed**; it needs Search Console data.
+
+### EVT-03 — Rich-text descriptions: DONE (`fde35ca3`, `a54b5784`)
+- **Format:** a small Markdown subset stored as plain text — `**podebljano**`, `*kurziv*`, `[tekst](https://…)`, bare https links, “- ” or “1. ” lists, blank-line paragraphs. Existing descriptions are valid unchanged; **no historical data was modified**.
+- **Rendering and safety:**
+  - The public page renders React elements only, never HTML strings. Links must pass the existing safe-URL check and use `noopener noreferrer nofollow ugc`.
+  - Cards, meta and OG descriptions, JSON-LD and `.ics` use plain text.
+  - On input, pasted HTML is removed at the DTO and service level; script/style/iframe/svg blocks are removed together with their content.
+- **Editor:** admin create/edit, the parsed-candidate card and the organizer form have a toolbar (B, I, link, list), Ctrl+B/I/K shortcuts and a “Pregled” preview around a normal textarea, which keeps mobile typing and paste working.
+- **QA-found fix:** a list written directly under a line (“Program:” followed by “- …”) now forms a list.
+- **Tests:**
+  - injection, unsafe links and editor round-trips;
+  - a PostgreSQL test that formatting survives an organizer revision and its approval.
+- **Browser QA:** 6/6 — admin toolbar, preview and save, stored Markdown with HTML removed, safe public rendering, and plain cards at 1366/360.
+
+### PUB-06 — Past events archive: DONE (`b04ae267`)
+- **API:** `GET /api/public/past-events`, paginated (6–48, default 24), newest first.
+  - It lists events that are published, or archived after having been published, and that the upcoming feed no longer shows.
+  - The “ended” rule is the clause-by-clause, **null-safe** complement of the public visibility rule (occurrences, all-day, overnight, Zagreb day boundaries and DST).
+  - A test found that a plain `NOT` dropped events without `endsAt` (SQL NULL logic); replaced.
+  - Drafts, rejected and never-published events are excluded.
+- **`/prosli-dogadaji`:**
+  - Existing cards are marked “Završeno”, with newer/older pagination and empty or out-of-range states.
+  - Indexing: page 1 is indexed (in the sitemap, self-canonical); deeper pages are `noindex, follow`.
+  - The homepage entry and footer link are static links, so there is no extra homepage data fetching.
+- **Browser QA:** 14/14 at 1366/390/360/320.
+- **Production:** 835 past events, none present in the upcoming feed; page 2 noindex; no overflow or errors.
+
+### EVT-07 — Multiple screenshots as parsing input: DONE (`bc7443a1`, `adb28f55`)
+- **Input:** organizer “Pošalji link ili tekst” and admin “Screenshot ili tekst” accept **up to 4 images** (JPEG/PNG/WebP/GIF), with previews, removal, drag and paste.
+  - The client resizes to 1600 px.
+  - The server validates type, encoding, size (~5 MB each) and count.
+  - The single-image fields stay supported.
+- **Extraction:** all images are sent in **one** AI request, with instructions to merge information about the same event and not repeat it.
+- **Evidence:** uploaded copies stay as source evidence; un-uploaded images are kept inline (bounded, never in list payloads), so review, supplements and retries can re-read them. Legacy single-image rows are read transparently.
+- Public event images are unchanged (no gallery; the original request was about parsing input).
+- **Browser QA [MOCKED Anthropic]:** an organizer at 390 sent 2 posters, which were read in 1 request with 2 images; the admin sees both images at 1366/390.
+
+### EVT-08 — Supplemental re-parsing: DONE (`bc7443a1`, `a54b5784`)
+- **Sources (“Dopuni i ponovno parsiraj”):**
+  - The admin adds text and/or images.
+  - The supplement is stored first, with author and time; identical supplements are stored once; a stale view is rejected with 409.
+  - Re-parsing uses the source, its stored images and all supplements in one request.
+  - **Open candidates are never overwritten:** changed fields arrive as a `_proposal`, which the editor ticks field by field and applies into the form.
+  - Created and ignored candidates and source metadata are untouched; new events are added as open candidates (“Novo iz dopune”).
+  - An undated candidate pairs with the unique same-title result instead of duplicating.
+  - A failed or timed-out parse keeps the supplement and shows “Dopuna je spremljena, ali automatska obrada nije uspjela…”; “Pokušaj ponovno” retries without duplicating.
+  - Plain “Ponovno parsiraj” also proposes rather than overwrites.
+- **Existing events (“Dopuni podatke pomoću AI”):**
+  - Proposals only fill the editor; the event changes only when the editor saves, through the normal rules.
+  - Pending EventRevisions and the public version are untouched.
+  - Events with several dates keep their schedule.
+  - Inputs and results are kept on a linked source row.
+- Admin-only: organizers get 401/403. Nothing is ever published automatically.
+- **QA-found fix:** refreshing the source review remounted the page and lost unsaved candidate edits and messages; later refreshes now keep it mounted.
+- **Browser QA [MOCKED Anthropic], 12/13:**
+  - the supplement is kept on a 529 failure; the retry re-reads 2 original posters plus 1 supplement image with the text;
+  - the proposal shows Početak/Cijena/Način naplate while the stored values are unchanged;
+  - applying only the time sets 21:00 and leaves the price empty;
+  - the created event is `PENDING_REVIEW` at 21:00 Zagreb time;
+  - the event-level panel fills the editor at 1366/360 while the public API is unchanged.
+  - The one FAIL was my SQL timezone conversion; correct value verified.
+- **Live Anthropic multi-image/supplement extraction is not verified** (mocked only).
+
+### Tests, builds, deployment
+- **API 738 tests PASS** (712 → 738), including PostgreSQL integration on isolated `127.0.0.1:5442/revision_qa`:
+  - archive classification;
+  - supplements (text, image, both), failure and retry, stale view, authorization;
+  - event-level proposals with a pending revision;
+  - rich text through revision approval;
+  - multi-image validation and single-request HTTP.
+- **Web 465 tests PASS** (450 → 465). Workspace lint/typecheck and the full production build PASS.
+- Pushed to `main` without force: `da9d0744` (ADM-04), `8807c122` (NOT-03), `495e20a2` (SEO-02), `fde35ca3` (EVT-03), `b04ae267` (PUB-06), `bc7443a1` (EVT-07/08), `adb28f55` and `b7e76734` (EVT-07 evidence fix and test), `a54b5784` (QA fixes).
+- **Railway SUCCESS** 13:47:21 UTC ([445ae91e](https://railway.com/project/c5834314-f293-494d-8ddd-d314b010a1ff/service/29608be2-c13d-471a-acba-c1c89bf0bfe5?id=445ae91e-cfe2-4711-95a2-6c4407ae24aa&environmentId=9d8d51e2-e78f-43fb-84f5-1342fc743ffc)) and **Vercel SUCCESS** 13:49:42 UTC ([CJeP5Fh6mjkF27V26CNr4LHyLZx4](https://vercel.com/nebsdevs-projects/manifestacije/CJeP5Fh6mjkF27V26CNr4LHyLZx4)).
+- **Production read-only smoke PASS 25/25:**
+  - health and the past-events API;
+  - calendar canonical, city title, region H1;
+  - homepage and footer links;
+  - archive at 1366/390/360/320 (24 “Završeno” cards per page, page 2 noindex);
+  - event detail with plain JSON-LD;
+  - admin login heading;
+  - zero runtime or hydration errors.
+- Evidence: `/tmp/manifestacije-features-2026-10/` (scripts, logs, screenshots, rendered email), `/tmp/manifestacije-features-production.log`.
+
+### Runtime-verification review (latest evidence)
+- **AUTH-02 / AUTH-04 → DONE:** the owner's authenticated Resend dashboard showed 28/28 Delivered, including 3 welcome emails and the Schleis reset (§X). App-side delivery-status tracking still waits for `RESEND_WEBHOOK_SECRET` (unsigned probe at the time of this batch: missing-secret branch).
+- **PUB-01 → DONE:** production browser QA verified map markers and tiles at 390/360 without overflow.
+- **AUTH-01 remains UNKNOWN:** the post-login fix is deployed and the Schleis reset was delivered, but the original Schleis/Hoochy login incidents are not reproduced or explained.
+- **SEO-01 and ANA-01 remain UNKNOWN:** they need Search Console and GA4 data, respectively.
+
+### Remaining limitations
+- `RESEND_WEBHOOK_SECRET` is not set, so delivery-status tracking is inactive (sending works).
+- Live Anthropic parsing, including multi-image and supplements, is unverified; all AI behavior here was tested with a mock.
+- Authenticated production admin and organizer workflows were not exercised (no production writes).
+- Safari/iOS not tested.
