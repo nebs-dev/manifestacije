@@ -1,5 +1,6 @@
 "use client"
 
+import { EventSupplementPanel } from "@/components/admin/event-supplement-panel"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { PricingSelect } from "@/components/pricing-select"
 
@@ -317,6 +318,31 @@ export function EventEditForm({
           )}
         </CardContent>
       </Card>
+
+      <EventSupplementPanel
+        eventId={String(event.id)}
+        current={{ title: form.title, description: form.description, venueName: form.venueName, isFree: form.isFree, priceText: form.priceText, ticketUrl: form.ticketUrl,
+          startsAt: event.startsAt, endsAt: event.endsAt, isAllDay: event.allDay, address: location?.address ?? event.address ?? "", city: location?.cityName ?? event.city ?? "" }}
+        onApply={(fields, proposal) => {
+          setForm((prev) => ({
+            ...prev,
+            ...(fields.includes("title") && proposal.title ? { title: proposal.title } : {}),
+            ...(fields.includes("description") && proposal.description ? { description: proposal.description } : {}),
+            ...(fields.includes("venueName") && proposal.venueName ? { venueName: proposal.venueName } : {}),
+            ...(fields.includes("isFree") ? { isFree: proposal.isFree ?? null } : {}),
+            ...(fields.includes("priceText") && proposal.priceText !== undefined ? { priceText: proposal.priceText } : {}),
+            ...(fields.includes("ticketUrl") && proposal.ticketUrl !== undefined ? { ticketUrl: proposal.ticketUrl } : {}),
+          }))
+          // Events with several dates keep their schedule; times are then copied by hand.
+          if (!occurrenceBacked && fields.some((field) => field === "startsAt" || field === "endsAt" || field === "isAllDay")) {
+            setScheduleRows(scheduleRowsFromEvent({
+              startsAt: fields.includes("startsAt") && proposal.startsAt ? proposal.startsAt : event.startsAt,
+              endsAt: fields.includes("endsAt") && proposal.endsAt ? proposal.endsAt : event.endsAt,
+              isAllDay: fields.includes("isAllDay") ? proposal.isAllDay : event.allDay,
+            }))
+          }
+        }}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">

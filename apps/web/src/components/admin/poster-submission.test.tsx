@@ -43,7 +43,9 @@ async function attachPoster() {
   const input = container.querySelector('input[type="file"]') as HTMLInputElement
   Object.defineProperty(input, "files", { value: [new File(["fixture"], "poster.png", { type: "image/png" })], configurable: true })
   await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })) })
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
 }
+const manualCall = () => authedFetch.mock.calls.find(([path]) => path === "/api/admin/event-sources/manual-email")!
 async function submit() {
   await act(async () => { container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })) })
 }
@@ -57,14 +59,17 @@ describe("poster submission forms", () => {
     expect(ai.disabled).toBe(true)
     await submit()
     expect(authedFetch).toHaveBeenCalledWith("/api/admin/event-sources/manual-email", expect.objectContaining({ method: "POST" }))
-    expect(JSON.parse(authedFetch.mock.calls[0][1].body)).toMatchObject({ screenshotBase64: "fixture-image", screenshotMediaType: "image/jpeg", useLlm: true })
+    // EVT-07: images travel as a list; the evidence upload result is attached when available.
+    expect(JSON.parse(manualCall()[1].body)).toMatchObject({ screenshots: [{ base64: "fixture-image", mediaType: "image/png" }], useLlm: true })
   })
 
   it("admin retains the poster and shows a failed provider response for retry", async () => {
-    authedFetch.mockResolvedValue({ ok: false, text: async () => "AI parsiranje nije dostupno zbog postavki pristupa." })
+    authedFetch.mockImplementation(async (path: string) => path === "/api/admin/uploads/event-image"
+      ? { ok: false, text: async () => "" }
+      : { ok: false, text: async () => "AI parsiranje nije dostupno zbog postavki pristupa." })
     await act(async () => root.render(<ManualSourceForm />))
     await attachPoster(); await submit()
-    expect(container.textContent).toContain("poster.png")
+    expect(container.querySelector('img[alt="Slika 1: poster.png"]')).not.toBeNull()
     expect(toastError).toHaveBeenCalledWith("Kreiranje neuspješno", expect.objectContaining({ description: expect.stringContaining("postavki pristupa") }))
   })
 
@@ -74,6 +79,6 @@ describe("poster submission forms", () => {
     const upload = orgFetch.mock.calls.find(([path]) => path === "/api/organizer/uploads/event-image")!
     expect(upload[1].body).toBeInstanceOf(FormData)
     const submission = orgFetch.mock.calls.find(([path]) => path === "/api/organizer/events/submit-url")!
-    expect(JSON.parse(submission[1].body)).toMatchObject({ screenshotBase64: "fixture-image", screenshotMediaType: "image/png", sourceImageUrl: "https://cdn.example/evidence.png", useLlm: true })
+    expect(JSON.parse(submission[1].body)).toMatchObject({ screenshots: [{ base64: "fixture-image", mediaType: "image/png", imageUrl: "https://cdn.example/evidence.png" }], useLlm: true })
   })
 })

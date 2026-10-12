@@ -1,11 +1,27 @@
+import { safeExternalUrl } from "@/lib/safe-url"
 import type { EventSource, ParsedCandidate, AdminEvent, DuplicateCandidate, MonitoredSource, MonitoredSourceRun } from "./types"
 import { toUiEventStatus } from "./status"
 
 type BE = Record<string, unknown>
 
+type InlineShot = { mediaType?: string; base64?: string }
+
+function inlineImageSrc(shot: InlineShot): string | undefined {
+  return shot.base64 && /^image\/(jpeg|png|webp|gif)$/.test(shot.mediaType ?? "") && /^[A-Za-z0-9+/]+=*$/.test(shot.base64)
+    ? `data:${shot.mediaType};base64,${shot.base64}` : undefined
+}
+
 export function adaptEventSource(src: BE): EventSource {
-  const parsedJson = src.parsedJson as { candidates?: BE[]; title?: string; sourceImageUrl?: string; parseError?: string; pendingScreenshot?: { mediaType?: string; base64?: string } } | null
-  const shot = parsedJson?.pendingScreenshot
+  const parsedJson = src.parsedJson as {
+    candidates?: BE[]; title?: string; sourceImageUrl?: string; sourceImageUrls?: string[]; parseError?: string
+    pendingScreenshot?: InlineShot; pendingScreenshots?: InlineShot[]
+    supplements?: { id?: string; at?: string; text?: string; imageUrls?: string[]; inlineImages?: unknown[]; inlineImageCount?: number }[]
+  } | null
+  const inline = [...(parsedJson?.pendingScreenshots ?? []), ...(parsedJson?.pendingScreenshot ? [parsedJson.pendingScreenshot] : [])].map(inlineImageSrc).filter((src): src is string => Boolean(src))
+  const uploaded = [...(parsedJson?.sourceImageUrls ?? []), ...(parsedJson?.sourceImageUrl ? [parsedJson.sourceImageUrl] : [])]
+    .map((url) => safeExternalUrl(url)).filter((url): url is string => Boolean(url))
+  const supplementImages = (parsedJson?.supplements ?? []).flatMap((item) => (item.imageUrls ?? []).map((url) => safeExternalUrl(url)).filter((url): url is string => Boolean(url)))
+  const shot = parsedJson?.pendingScreenshot ?? parsedJson?.pendingScreenshots?.[0]
   const organizer = src.organizer as BE | null
   const firstCandidateTitle = (parsedJson?.candidates?.[0]?.title as string) || parsedJson?.title || undefined
   return {
@@ -24,6 +40,12 @@ export function adaptEventSource(src: BE): EventSource {
     pendingScreenshotSrc: shot?.base64 && /^image\/(jpeg|png|webp|gif)$/.test(shot.mediaType ?? "") && /^[A-Za-z0-9+/]+=*$/.test(shot.base64)
       ? `data:${shot.mediaType};base64,${shot.base64}` : undefined,
     parseError: typeof parsedJson?.parseError === "string" ? parsedJson.parseError : undefined,
+    sourceImageSrcs: [...new Set([...uploaded, ...inline, ...supplementImages])],
+    supplements: (parsedJson?.supplements ?? []).filter((item) => typeof item.id === "string").map((item) => ({
+      id: item.id as string, at: item.at ?? "", text: item.text,
+      imageCount: (item.imageUrls?.length ?? 0) + (item.inlineImages?.length ?? item.inlineImageCount ?? 0),
+    })),
+    updatedAt: (src.updatedAt as string) ?? undefined,
     organizerName: (organizer?.name as string) ?? null,
     organizerEmail: (organizer?.email as string) ?? null,
     firstCandidateTitle,
@@ -65,6 +87,8 @@ export function adaptEventSourceCandidates(src: BE): ParsedCandidate[] {
     _status: c._status as "pending" | "created" | "ignored" | undefined,
     _eventId: c._eventId as number | undefined,
     _existingEventId: c._existingEventId as number | undefined,
+    _proposal: c._proposal && typeof c._proposal === "object" ? c._proposal as ParsedCandidate["_proposal"] : undefined,
+    _fromSupplement: c._fromSupplement === true,
   }))
 }
 

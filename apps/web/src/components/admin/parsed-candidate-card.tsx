@@ -32,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { authedFetch } from "@/lib/admin/api"
 import { safeExternalUrl } from "@/lib/safe-url"
-import type { ParsedCandidate } from "@/lib/admin/types"
+import type { CandidateProposal, ParsedCandidate } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
 import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
@@ -129,6 +129,35 @@ export function ParsedCandidateCard({
   const isIgnored = candidate._status === "ignored"
   const isPending = !isCreated && !isIgnored
   const [open, setOpen] = useState(false)
+  const proposal = isPending ? candidate._proposal : undefined
+  const proposalKey = proposal ? JSON.stringify(proposal) : ""
+  const [dismissedProposal, setDismissedProposal] = useState<string | null>(null)
+  // A new proposal (after a supplement) opens the card so the editor sees it.
+  useEffect(() => { if (proposalKey) setOpen(true) }, [proposalKey])
+
+  function applyProposal(selected: ProposalField[]) {
+    if (!proposal) return
+    const next: Partial<CandidateForm> = {}
+    for (const field of selected) {
+      if (field === "isFree") next.isFree = (proposal.isFree ?? null) as boolean | null
+      else if (field in form) (next as Record<string, unknown>)[field] = String(proposal[field] ?? "")
+    }
+    setForm((current) => ({ ...current, ...next }))
+    if (selected.some((field) => field === "startsAt" || field === "endsAt" || field === "isAllDay" || field === "occurrences")) {
+      setScheduleRows(scheduleRowsFromEvent({
+        startsAt: selected.includes("startsAt") ? proposal.startsAt ?? candidate.startsAt : candidate.startsAt,
+        endsAt: selected.includes("endsAt") ? proposal.endsAt ?? candidate.endsAt : candidate.endsAt,
+        isAllDay: selected.includes("isAllDay") ? proposal.isAllDay : candidate.isAllDay,
+        occurrences: selected.includes("occurrences") ? proposal.occurrences : candidate.occurrences,
+      }))
+    }
+    if (selected.includes("category") && proposal.category) {
+      const id = slugToId(proposal.category, allCategories)
+      if (id) setSelectedCategoryIds((current) => [id, ...current.filter((other) => other !== id)])
+    }
+    setDismissedProposal(proposalKey)
+    toast.success("Prijedlog je primijenjen u obrazac", { description: "Provjerite podatke prije kreiranja događaja." })
+  }
 
   const liveMissingFields = [
     !form.title.trim() && "title",
@@ -265,6 +294,8 @@ export function ParsedCandidateCard({
               <span className="text-xs text-success">✓ Event #{candidate._eventId}</span>
             )}
             {isIgnored && <span className="text-xs text-muted-foreground">Ignorirano</span>}
+            {candidate._fromSupplement && isPending && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Novo iz dopune</span>}
+            {proposal && dismissedProposal !== proposalKey && <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold text-accent-foreground">Prijedlog izmjena</span>}
             {!isCreated && candidate._existingEventId && (
               <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
                 <TriangleAlert className="size-3" aria-hidden />
@@ -290,6 +321,10 @@ export function ParsedCandidateCard({
       {open && <>
       <Separator />
       <CardContent className="flex flex-col gap-4 pt-4">
+        {proposal && dismissedProposal !== proposalKey && (
+          <ProposalPanel proposal={proposal} current={{ ...form, startsAt: candidate.startsAt, endsAt: candidate.endsAt, isAllDay: candidate.isAllDay, category: candidate.category }}
+            onApply={applyProposal} onDismiss={() => setDismissedProposal(proposalKey)} />
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Naslov">
             <Input value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
@@ -476,5 +511,66 @@ export function ParsedCandidateCard({
       )}
       </>}
     </Card>
+  )
+}
+
+export type ProposalField = keyof CandidateProposal
+
+const PROPOSAL_LABELS: Record<ProposalField, string> = {
+  title: "Naslov", description: "Opis", startsAt: "Početak", endsAt: "Završetak", isAllDay: "Cijeli dan", occurrences: "Termini",
+  venueName: "Mjesto", address: "Adresa", city: "Grad", category: "Kategorija", isFree: "Način naplate", priceText: "Cijena",
+  ticketUrl: "Ulaznice", organizerName: "Organizator",
+}
+
+function proposalValue(field: ProposalField, value: unknown): string {
+  if (value === undefined || value === null || value === "") return "—"
+  if (field === "isFree") return value === true ? "Besplatno" : value === false ? "Naplata" : "Cijena nije navedena"
+  if (field === "isAllDay") return value ? "Da" : "Ne"
+  if ((field === "startsAt" || field === "endsAt") && typeof value === "string") {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("hr-HR", { timeZone: "Europe/Zagreb", dateStyle: "medium", timeStyle: "short" }).format(date)
+  }
+  if (field === "occurrences" && Array.isArray(value)) return `${value.length} termina`
+  const text = String(value)
+  return text.length > 160 ? `${text.slice(0, 159)}…` : text
+}
+
+/** Field-by-field review of a supplemental parse; only ticked fields reach the form (EVT-08). */
+export function ProposalPanel({ proposal, current, onApply, onDismiss, note }: {
+  proposal: CandidateProposal
+  current: Record<string, unknown>
+  onApply: (fields: ProposalField[]) => void
+  onDismiss: () => void
+  note?: string
+}) {
+  const fields = (Object.keys(PROPOSAL_LABELS) as ProposalField[]).filter((field) => proposal[field] !== undefined)
+  const [selected, setSelected] = useState<ProposalField[]>(fields)
+  return (
+    <section aria-label="Prijedlog izmjena iz dopune" className="flex flex-col gap-3 rounded-lg border border-accent/40 bg-accent/10 p-3">
+      <div>
+        <p className="text-sm font-semibold">Prijedlog izmjena iz dopune</p>
+        <p className="text-xs text-muted-foreground">Ništa nije promijenjeno. Označite polja koja želite preuzeti — ostala polja i vaše izmjene ostaju kakve jesu.</p>
+        {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+      </div>
+      <ul className="flex flex-col gap-2">
+        {fields.map((field) => (
+          <li key={field}>
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1 size-4 accent-primary" checked={selected.includes(field)}
+                onChange={(event) => setSelected((current) => event.target.checked ? [...current, field] : current.filter((item) => item !== field))} />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{PROPOSAL_LABELS[field]}</span>
+                <span className="block break-words text-xs text-muted-foreground">Sada: {proposalValue(field, current[field])}</span>
+                <span className="block break-words text-xs">Prijedlog: <strong>{proposalValue(field, proposal[field])}</strong></span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={() => onApply(selected)} disabled={!selected.length}>Primijeni odabrano ({selected.length})</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onDismiss}>Zanemari prijedlog</Button>
+      </div>
+    </section>
   )
 }

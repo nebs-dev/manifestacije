@@ -111,9 +111,43 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
       expect(JSON.parse(body)).toMatchObject({ parseStatus: "pending_review", status: "NEEDS_REVIEW" });
       expect(prisma.eventSource.create).toHaveBeenCalledTimes(1);
       expect(stored.parsedJson).toMatchObject({ candidates: [], parseError: expect.stringContaining("nije dostupna"),
-        pendingScreenshot: { mediaType: "image/png", base64: png.toString("base64") } });
+        pendingScreenshots: [{ mediaType: "image/png", base64: png.toString("base64") }] });
     });
   }
+
+  describe("multiple screenshots (EVT-07)", () => {
+    const png2 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR42mP8z8Dwn4GBgQEADQUCAQ5n3J8AAAAASUVORK5CYII=", "base64");
+    const shot = (buffer: Buffer, extra: Record<string, unknown> = {}) => ({ base64: buffer.toString("base64"), mediaType: "image/png", ...extra });
+    const reply = { content: [{ type: "text", text: JSON.stringify({ title: "Spojeni koncert", city: "Osijek", category: "glazba", startsAt: "2099-07-12T20:00:00", dateText: "12. srpnja 2099.", timeText: "20:00", confidence: 0.9 }) }] };
+    for (const path of paths) {
+      it(`${path}: sends all images in one provider request and stores uploaded copies`, async () => {
+        create.mockResolvedValue(reply);
+        const response = await fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          rawText: "Dodatni tekst", screenshots: [shot(png, { imageUrl: "https://res.cloudinary.com/demo/a.png" }), shot(png2, { imageUrl: "https://res.cloudinary.com/demo/b.png" }), shot(png)],
+        }) });
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledTimes(1);
+        const content = create.mock.calls[0][0].messages[0].content;
+        expect(content.filter((block: { type: string }) => block.type === "image")).toHaveLength(2);
+        expect(content.at(-1).text).toContain("Priloženo je 2 slika istog izvora");
+        const source = await response.json();
+        expect(source.parsedJson.candidates).toHaveLength(1);
+        expect(source.parsedJson.sourceImageUrls).toEqual(["https://res.cloudinary.com/demo/a.png", "https://res.cloudinary.com/demo/b.png"]);
+        expect(source.parsedJson.sourceImageUrl).toBe("https://res.cloudinary.com/demo/a.png");
+      });
+
+      it(`${path}: rejects too many, unsupported or malformed images before calling the provider`, async () => {
+        const post = (screenshots: unknown[]) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rawText: "x", screenshots }) });
+        expect((await post([shot(png), shot(png2), shot(png), shot(png2), shot(png)])).status).toBe(400);
+        const svg = await post([{ base64: Buffer.from("<svg/>").toString("base64"), mediaType: "image/svg+xml" }]);
+        expect(svg.status).toBe(400);
+        expect(await svg.text()).toContain("JPEG, PNG, WebP i GIF");
+        expect((await post([{ base64: "not base64!", mediaType: "image/png" }])).status).toBe(400);
+        expect((await post([{ ...shot(png), imageUrl: "javascript:alert(1)" }])).status).toBe(400);
+        expect(create).not.toHaveBeenCalled();
+      });
+    }
+  });
 
   it.each(["admin", "organizer"])("%s: accepts a multipart screenshot and returns stored evidence metadata", async role => {
     const realFetch = global.fetch;

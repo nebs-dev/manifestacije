@@ -39,6 +39,11 @@ export interface EventSource {
   sourceImageUrl?: string
   /** Poster kept inline when parsing failed and no uploaded copy exists (data: URL). */
   pendingScreenshotSrc?: string
+  /** Every evidence image: uploaded copies and inline posters (EVT-07). */
+  sourceImageSrcs?: string[]
+  /** Editor supplements added for re-parsing (EVT-08), oldest first. */
+  supplements?: { id: string; at: string; text?: string; imageCount: number }[]
+  updatedAt?: string
   /** Why automatic parsing did not complete; the source is kept for review. */
   parseError?: string
   organizerName: string | null
@@ -77,6 +82,10 @@ export interface ParsedCandidate {
    *  candidate stays fully importable, since a wrong guess must not stop a
    *  genuinely new event from being added. */
   _existingEventId?: number
+  /** Field values a later (supplemental) parse suggests; never applied automatically (EVT-08). */
+  _proposal?: CandidateProposal
+  /** Added by a supplemental parse rather than the original one. */
+  _fromSupplement?: boolean
 }
 
 export interface AdminEvent {
@@ -172,3 +181,20 @@ export interface DuplicateCandidate {
   reason: string
   status: DuplicateStatus
 }
+
+export type CandidateProposal = Partial<{
+  title: string
+  description: string
+  startsAt: string
+  endsAt: string
+  isAllDay: boolean
+  occurrences: EventOccurrenceInput[]
+  venueName: string
+  address: string
+  city: string
+  category: string
+  isFree: boolean | null
+  priceText: string
+  ticketUrl: string
+  organizerName: string
+}>

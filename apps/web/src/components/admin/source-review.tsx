@@ -1,5 +1,7 @@
 "use client"
 
+import { Textarea } from "@/components/ui/textarea"
+import { ScreenshotsPicker, screenshotsPayload, type ScreenshotInput } from "@/components/screenshots-picker"
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, RefreshCw, ExternalLink, Search, Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -139,7 +141,8 @@ export function SourceReview({
   const [tab, setTab] = useState<Tab>("pending")
   const [search, setSearch] = useState("")
   const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
-  const sourceImageSrc = safeExternalUrl(source.sourceImageUrl) ?? source.pendingScreenshotSrc
+  const images = source.sourceImageSrcs?.length ? source.sourceImageSrcs
+    : [safeExternalUrl(source.sourceImageUrl) ?? source.pendingScreenshotSrc].filter((src): src is string => Boolean(src))
   const [savingUrl, setSavingUrl] = useState(false)
   const [reparsing, setReparsing] = useState(false)
 
@@ -167,8 +170,8 @@ export function SourceReview({
     setReparsing(true)
     try {
       const res = await authedFetch(`/api/admin/event-sources/${source.id}/reparse`, { method: "POST" })
-      if (res.ok) { toast.success("Reparsiranje završeno"); onReparse?.() }
-      else toast.error("Reparsiranje neuspješno")
+      if (res.ok) { toast.success("Ponovno parsiranje završeno", { description: "Promjene za otvorene kandidate prikazane su kao prijedlozi." }); onReparse?.() }
+      else { toast.error("Ponovno parsiranje nije uspjelo", { description: await apiMessage(res) }); onReparse?.() }
     } finally {
       setReparsing(false)
     }
@@ -249,30 +252,29 @@ export function SourceReview({
         </Card>
       )}
 
-      {/* Source image evidence */}
-      {sourceImageSrc && (
+      {/* Source image evidence (EVT-07: several posters/screenshots) */}
+      {images.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Screenshot / plakat izvora</CardTitle>
-            <CardDescription>Slika korištena kao dokaz za parsiranje. Ne koristi se automatski kao javna slika eventa.</CardDescription>
+            <CardTitle className="font-heading text-base">{images.length > 1 ? `Slike izvora (${images.length})` : "Screenshot / plakat izvora"}</CardTitle>
+            <CardDescription>Slike korištene kao dokaz za parsiranje. Ne koriste se automatski kao javna slika događaja.</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Image
-              src={sourceImageSrc}
-              alt="Screenshot ili plakat izvora"
-              width={1200}
-              height={900}
-              unoptimized
-              className="max-h-[520px] w-full rounded-lg border object-contain"
-            />
-            {!sourceImageSrc.startsWith("data:") && (
-              <a href={sourceImageSrc} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
-              Otvori sliku izvora
-            </a>
-            )}
+          <CardContent>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {images.map((src, index) => (
+                <li key={src.slice(0, 120) + index} className="flex flex-col gap-1">
+                  <Image src={src} alt={`Slika izvora ${index + 1}`} width={1200} height={900} unoptimized className="h-auto max-h-[420px] w-full rounded-lg border border-border object-contain" />
+                  {!src.startsWith("data:") && (
+                    <a href={src} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">Otvori sliku {index + 1}</a>
+                  )}
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
+
+      <SourceSupplementPanel source={source} onDone={onReparse} />
 
       {/* Raw text */}
       {source.rawText && (
@@ -382,5 +384,96 @@ export function SourceReview({
         )}
       </section>
     </div>
+  )
+}
+
+async function apiMessage(res: Response): Promise<string | undefined> {
+  const text = await res.text().catch(() => "")
+  try { return (JSON.parse(text) as { message?: string }).message ?? text } catch { return text || undefined }
+}
+
+async function uploadAdminEvidence(file: File): Promise<string | undefined> {
+  const form = new FormData()
+  form.append("file", file)
+  try {
+    const res = await authedFetch("/api/admin/uploads/event-image", { method: "POST", body: form })
+    return res.ok ? ((await res.json()) as { imageUrl?: string }).imageUrl : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * EVT-08: add missing information (text and/or more images) and re-parse.
+ * Inputs are stored on the source first; open candidates receive proposals
+ * instead of being overwritten, and nothing is published automatically.
+ */
+function SourceSupplementPanel({ source, onDone }: { source: EventSource; onDone?: () => void }) {
+  const [text, setText] = useState("")
+  const [shots, setShots] = useState<ScreenshotInput[]>([])
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null)
+
+  async function submit() {
+    if (!text.trim() && !shots.length) { setNotice({ tone: "error", text: "Dodajte tekst ili barem jednu sliku." }); return }
+    setBusy(true); setNotice(null)
+    try {
+      const res = await authedFetch(`/api/admin/event-sources/${source.id}/supplement`, {
+        method: "POST",
+        body: JSON.stringify({ text: text.trim() || undefined, screenshots: screenshotsPayload(shots), expectedUpdatedAt: source.updatedAt }),
+      })
+      if (res.ok) {
+        setText(""); setShots([])
+        setNotice({ tone: "ok", text: "Dopuna je obrađena. Provjerite prijedloge uz kandidate i primijenite one koje želite." })
+        toast.success("Dopuna obrađena")
+        onDone?.()
+      } else if (res.status === 503) {
+        // The supplement is already stored; sending the same form again retries it.
+        setNotice({ tone: "warn", text: (await apiMessage(res)) ?? "Dopuna je spremljena, ali automatska obrada nije uspjela. Pokušajte ponovno." })
+        onDone?.()
+      } else {
+        setNotice({ tone: "error", text: (await apiMessage(res)) ?? "Dopunu nije bilo moguće spremiti." })
+      }
+    } catch {
+      setNotice({ tone: "error", text: "Greška pri spajanju na server." })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-heading text-base">Dopuni i ponovno parsiraj</CardTitle>
+        <CardDescription>Nedostaje podatak? Dodajte tekst (npr. točno vrijeme, cijenu, lokaciju) ili još slika. Postojeći kandidati se ne mijenjaju — dobit ćete prijedloge koje sami potvrđujete.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {(source.supplements?.length ?? 0) > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Dosadašnje dopune</span>
+            <ul className="flex flex-col gap-1 text-sm">
+              {source.supplements!.map((item) => (
+                <li key={item.id} className="rounded-md bg-muted/40 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">{item.at ? formatDateTime(item.at) : "—"}{item.imageCount ? ` · ${item.imageCount} ${item.imageCount === 1 ? "slika" : "slike"}` : ""}</span>
+                  {item.text && <p className="line-clamp-3 whitespace-pre-line">{item.text}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`supplement-${source.id}`} className="text-sm font-medium">Dodatne informacije</label>
+          <Textarea id={`supplement-${source.id}`} rows={4} value={text} onChange={(event) => setText(event.target.value)} disabled={busy}
+            placeholder="npr. Početak je u 20 h, ulaznice 10 EUR na blagajni, lokacija Dvorana Gradskog vrta." />
+        </div>
+        <ScreenshotsPicker value={shots} onChange={setShots} upload={uploadAdminEvidence} disabled={busy} label="Dodatne slike (neobavezno)" />
+        {notice && (
+          <p role={notice.tone === "error" ? "alert" : "status"} className={notice.tone === "ok" ? "text-sm text-success" : notice.tone === "warn" ? "text-sm text-warning" : "text-sm text-destructive"}>{notice.text}</p>
+        )}
+        <div>
+          <Button type="button" onClick={submit} disabled={busy}>{busy ? "Obrada…" : notice?.tone === "warn" ? "Pokušaj ponovno" : "Dopuni i ponovno parsiraj"}</Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

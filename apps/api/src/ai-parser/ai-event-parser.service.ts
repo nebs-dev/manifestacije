@@ -58,6 +58,9 @@ export type ParsedEvent = ParsedEventCandidate;
 
 type Candidate = ParsedEventCandidate & { _status: "pending" };
 
+/** Images sent to the provider in a single extraction request. */
+export const MAX_PARSE_IMAGES = 6;
+
 @Injectable()
 export class AiEventParserService {
   private readonly logger = new Logger(AiEventParserService.name);
@@ -543,6 +546,10 @@ export class AiEventParserService {
     sourceUrl?: string;
     screenshotBase64?: string;
     screenshotMediaType?: string;
+    /** Several posters/screenshots of the same source, read in one request (EVT-07). */
+    screenshots?: { base64: string; mediaType: string }[];
+    /** Editor-supplied corrections and additions (EVT-08); take precedence over the source. */
+    supplementText?: string;
     contextHint?: string;
   }): Promise<ParsedSourceResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -552,9 +559,13 @@ export class AiEventParserService {
     }
 
     const sourceUrl = input.sourceUrl ?? "";
+    const images = [
+      ...(input.screenshotBase64 ? [{ base64: input.screenshotBase64, mediaType: input.screenshotMediaType ?? "image/jpeg" }] : []),
+      ...(input.screenshots ?? []),
+    ].filter((image, index, all) => image.base64 && all.findIndex((other) => other.base64 === image.base64) === index).slice(0, MAX_PARSE_IMAGES);
 
     // Facebook URL without screenshot — return helpful warning
-    if (this.isFacebookUrl(sourceUrl) && !input.screenshotBase64 && !input.rawText?.trim() && !input.rawHtml?.trim()) {
+    if (this.isFacebookUrl(sourceUrl) && !images.length && !input.rawText?.trim() && !input.rawHtml?.trim() && !input.supplementText?.trim()) {
       const candidate = this.emptyCandidate(sourceUrl);
       candidate.warnings.push(
         "Facebook blokira automatsko dohvaćanje. Kopiraj tekst događanja s Facebook stranice i zalijepi ga u 'Ručni unos' s uključenim AI parserom, ili uploadaj screenshot."
@@ -567,7 +578,7 @@ export class AiEventParserService {
     const htmlText = input.rawHtml ? this.htmlToText(this.stripNavAndFooter(input.rawHtml)) : "";
     const combined = [htmlText, input.rawText ?? ""].filter(Boolean).join("\n\n---\n\n");
     const text = this.normalizeTextPreservingParagraphs(combined);
-    const isScreenshot = Boolean(input.screenshotBase64);
+    const isScreenshot = images.length > 0;
     const charLimit = isScreenshot ? 12000 : 24000;
     const truncated = text.length > charLimit ? text.slice(0, charLimit) + "\n[sadržaj skraćen]" : text;
 
@@ -652,20 +663,23 @@ AKO SADRŽAJ SADRŽI LISTING VIŠE DOGAĐAJA — vrati JSON s poljem "candidates
 }
 Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preskači događaje zbog nedostatka opisa — kratki unosi su OK.`;
 
-    const userContent: (ImageBlockParam | TextBlockParam)[] = [];
-    if (input.screenshotBase64) {
-      userContent.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: (input.screenshotMediaType ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-          data: input.screenshotBase64,
-        },
-      });
-    }
-    const textPrompt = input.screenshotBase64
-      ? `Izvuci sve događaje s ovog screenshota. Može biti jedan događaj ili lista više događaja — vrati sve što vidiš (do 50).${sourceUrl ? ` URL: ${sourceUrl}` : ""}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}${truncated ? `\n\nDodatni tekst:\n${truncated}` : ""}`
-      : `URL stranice: ${sourceUrl}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}\n\nSadržaj stranice:\n${truncated}`;
+    const userContent: (ImageBlockParam | TextBlockParam)[] = images.map((image) => ({
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: image.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+        data: image.base64,
+      },
+    }));
+    const multiImage = images.length > 1
+      ? `\nPriloženo je ${images.length} slika istog izvora (npr. plakat i dodatni screenshot). Spoji informacije koje se odnose na isti događaj u JEDAN kandidat i ne ponavljaj isti događaj više puta; zasebne kandidate vrati samo za stvarno različite događaje.`
+      : "";
+    const supplement = input.supplementText?.trim()
+      ? `\n\nDOPUNA UREDNIKA (provjerene dodatne informacije; ako se razlikuju od izvora, koristi dopunu):\n${input.supplementText.trim().slice(0, 8000)}`
+      : "";
+    const textPrompt = isScreenshot
+      ? `Izvuci sve događaje s ${images.length > 1 ? "ovih slika" : "ovog screenshota"}. Može biti jedan događaj ili lista više događaja — vrati sve što vidiš (do 50).${multiImage}${sourceUrl ? ` URL: ${sourceUrl}` : ""}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}${truncated ? `\n\nDodatni tekst:\n${truncated}` : ""}${supplement}`
+      : `URL stranice: ${sourceUrl}${input.contextHint ? `\nKontekst: ${input.contextHint}` : ""}\n\nSadržaj stranice:\n${truncated}${supplement}`;
     userContent.push({ type: "text", text: textPrompt });
 
     // Bounded so a stalled provider surfaces as a handled failure (callers keep

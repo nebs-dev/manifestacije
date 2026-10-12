@@ -1,4 +1,6 @@
-import { IsBoolean, IsOptional, IsString } from "class-validator";
+import { ArrayMaxSize, IsArray, IsBoolean, IsOptional, IsString, ValidateNested } from "class-validator";
+import { Type } from "class-transformer";
+import { MAX_SCREENSHOTS_PER_REQUEST, ScreenshotInputDto } from "../ai-parser/screenshot.dto";
 import { EventContentDto } from "../events/event.dto";
 import { IsSafeHttpUrl } from "../common/safe-url";
 
@@ -18,6 +20,9 @@ export class SubmitSourceDto {
   @IsOptional() @IsString() screenshotBase64?: string;
   @IsOptional() @IsString() screenshotMediaType?: string;
   @IsOptional() @IsString() @IsSafeHttpUrl() sourceImageUrl?: string;
+  /** Several posters/screenshots of the same event (EVT-07); the single fields above stay supported. */
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_SCREENSHOTS_PER_REQUEST, { message: "Najviše 4 slike po zahtjevu." }) @ValidateNested({ each: true }) @Type(() => ScreenshotInputDto)
+  screenshots?: ScreenshotInputDto[];
   @IsOptional() @IsString() contextHint?: string;
   @IsOptional() @IsBoolean() useLlm?: boolean;
 }

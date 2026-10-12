@@ -379,7 +379,8 @@ integration("EventRevision PostgreSQL workflow", () => {
     const before = await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } });
     parser.parseBatchWithLlm.mockResolvedValue(before.parsedJson);
     const after = await admin.reparseSource(source.id);
-    expect(after.parsedJson).toEqual(before.parsedJson); expect(after.status).toBe("LINKED");
+    // Legacy single-image evidence is kept and also normalized into the EVT-07 list.
+    expect(after.parsedJson).toEqual({ ...(before.parsedJson as object), sourceImageUrls: ["https://images.example.test/source.jpg"] }); expect(after.status).toBe("LINKED");
     const parsed = before.parsedJson as { candidates: Record<string, unknown>[] };
     await prisma.eventSource.update({ where: { id: source.id }, data: { parsedJson: { ...parsed, candidates: parsed.candidates.map(c => ({ ...c, _existingEventId: 123456 })) } } });
     const listed = await organizer.listSources(organizerId);
@@ -804,7 +805,7 @@ integration("EventRevision PostgreSQL workflow", () => {
       expect(out).toMatchObject({ parseStatus: "pending_review", status: "NEEDS_REVIEW" });
       const row = await prisma.eventSource.findUniqueOrThrow({ where: { id: out.id } });
       expect(row).toMatchObject({ organizerId, rawText: "Plakat koncerta", status: "NEEDS_REVIEW" });
-      expect(row.parsedJson).toMatchObject({ candidates: [], parseError: expect.any(String), pendingScreenshot: { mediaType: "image/png", base64: "cG9zdGVy" } });
+      expect(row.parsedJson).toMatchObject({ candidates: [], parseError: expect.any(String), pendingScreenshots: [{ mediaType: "image/png", base64: "cG9zdGVy" }] });
       expect(await prisma.event.count({ where: { title: "QA parsirani plakat" } })).toBe(0);
 
       const list = await (await request("/api/admin/event-sources", adminId)).json();
@@ -812,15 +813,16 @@ integration("EventRevision PostgreSQL workflow", () => {
       expect(listed.parsedJson).toMatchObject({ hasPendingScreenshot: true, parseError: expect.any(String) });
       expect(JSON.stringify(listed)).not.toContain("cG9zdGVy");
       const detail = await (await request(`/api/admin/event-sources/${out.id}`, adminId)).json();
-      expect(detail.parsedJson.pendingScreenshot).toEqual({ mediaType: "image/png", base64: "cG9zdGVy" });
+      expect(detail.parsedJson.pendingScreenshots).toEqual([{ mediaType: "image/png", base64: "cG9zdGVy" }]);
       expect(JSON.stringify(await organizer.listSources(organizerId))).not.toContain("cG9zdGVy");
 
       parser.parseBatchWithLlm.mockResolvedValueOnce(parsed("QA parsirani plakat"));
       const reparsed = await admin.reparseSource(out.id);
-      expect(parser.parseBatchWithLlm).toHaveBeenLastCalledWith(expect.objectContaining({ screenshotBase64: "cG9zdGVy", screenshotMediaType: "image/png" }));
+      expect(parser.parseBatchWithLlm).toHaveBeenLastCalledWith(expect.objectContaining({ screenshots: [{ base64: "cG9zdGVy", mediaType: "image/png" }] }));
       expect(reparsed.parsedJson).toMatchObject({ submissionKey: expect.any(String), candidates: [expect.objectContaining({ title: "QA parsirani plakat" })] });
       expect(reparsed.parsedJson).not.toHaveProperty("parseError");
-      expect(reparsed.parsedJson).not.toHaveProperty("pendingScreenshot");
+      // The original poster stays as evidence for later supplements and retries (EVT-07/08).
+      expect(reparsed.parsedJson).toMatchObject({ pendingScreenshots: [{ mediaType: "image/png", base64: "cG9zdGVy" }] });
       expect(await prisma.event.count({ where: { title: "QA parsirani plakat" } })).toBe(0);
     });
 
@@ -841,6 +843,120 @@ integration("EventRevision PostgreSQL workflow", () => {
       parser.parseBatchWithLlm.mockResolvedValueOnce(parsed("QA drugi organizator"));
       await service.submitSource(otherId, dto);
       expect(await prisma.eventSource.count()).toBe(2);
+    });
+  });
+
+  describe("supplemental re-parse (EVT-07/08)", () => {
+    const base = { description: "QA opis", endsAt: "", city: "QA grad", category: "qa-koncert", venueName: "", address: "", organizerName: "", sourceUrl: "", imageUrl: "", warnings: [], missingFields: [], confidence: 0.9 };
+    const fresh = (...candidates: Record<string, unknown>[]) => ({ sourceUrl: "", sourceType: "batch", candidates: candidates.map((c) => ({ ...base, ...c, _status: "pending" })) });
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==", "base64").toString("base64");
+    const twoCandidateSource = async () => {
+      const source = await prisma.eventSource.create({ data: { type: "MANUAL", organizerId, rawText: "Plakat bez sata", status: "NEEDS_REVIEW", parsedJson: {
+        sourceUrl: "", sourceType: "batch", sourceImageUrl: "https://images.example.test/poster.jpg", customMetadata: "sačuvano",
+        pendingScreenshots: [{ mediaType: "image/png", base64: png }],
+        candidates: [
+          { ...base, title: "QA jesenski koncert", startsAt: "", missingFields: ["startsAt"], _status: "pending" },
+          { ...base, title: "QA već uvezeno", startsAt: "2099-07-11T18:00:00Z", _status: "pending" },
+        ] } } });
+      await admin.createEventFromSource(source.id, 1, undefined, false, adminId);
+      return prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } });
+    };
+    const supplement = (id: number, body: object, user = adminId) => request(`/api/admin/event-sources/${id}/supplement`, user, "POST", body);
+
+    it("text supplement proposes fields for open candidates without overwriting them or created decisions", async () => {
+      const source = await twoCandidateSource();
+      const eventsBefore = await prisma.event.count();
+      parser.parseBatchWithLlm.mockResolvedValueOnce(fresh(
+        { title: "QA jesenski koncert", startsAt: "2099-11-20T20:00:00+01:00", priceText: "10 EUR" },
+        { title: "QA već uvezeno", startsAt: "2099-07-11T18:00:00Z", description: "Drugačiji opis" },
+        { title: "QA novi dio programa", startsAt: "2099-11-21T18:00:00+01:00" },
+      ));
+      const response = await supplement(source.id, { text: "Koncert počinje u 20 sati, ulaz 10 EUR.", expectedUpdatedAt: source.updatedAt.toISOString() });
+      expect(response.status).toBe(201);
+      expect(parser.parseBatchWithLlm).toHaveBeenLastCalledWith(expect.objectContaining({ rawText: "Plakat bez sata", supplementText: "Koncert počinje u 20 sati, ulaz 10 EUR.", screenshots: [{ mediaType: "image/png", base64: png }] }));
+      const stored = await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } });
+      const json = stored.parsedJson as { candidates: Record<string, unknown>[]; supplements: Record<string, unknown>[]; customMetadata: string };
+      const before = source.parsedJson as { candidates: Record<string, unknown>[] };
+      expect(json.customMetadata).toBe("sačuvano");
+      expect(json.candidates[0]).toMatchObject({ title: "QA jesenski koncert", startsAt: "", _status: "pending", _proposal: { startsAt: "2099-11-20T20:00:00+01:00", priceText: "10 EUR" } });
+      expect(json.candidates[1]).toEqual(before.candidates[1]);
+      expect(json.candidates[2]).toMatchObject({ title: "QA novi dio programa", _status: "pending", _fromSupplement: true });
+      expect(json.supplements).toEqual([expect.objectContaining({ text: "Koncert počinje u 20 sati, ulaz 10 EUR.", byUserId: adminId, imageUrls: [] })]);
+      expect(await prisma.event.count()).toBe(eventsBefore);
+    });
+
+    it("image-only and text+image supplements send every stored image in one request", async () => {
+      const source = await twoCandidateSource();
+      parser.parseBatchWithLlm.mockResolvedValue(fresh({ title: "QA jesenski koncert", startsAt: "2099-11-20T20:00:00+01:00" }));
+      const second = Buffer.from("drugi-plakat").toString("base64");
+      expect((await supplement(source.id, { screenshots: [{ base64: second, mediaType: "image/jpeg" }] })).status).toBe(201);
+      expect(parser.parseBatchWithLlm).toHaveBeenLastCalledWith(expect.objectContaining({ screenshots: [{ mediaType: "image/png", base64: png }, { mediaType: "image/jpeg", base64: second }] }));
+      const third = Buffer.from("treci-plakat").toString("base64");
+      expect((await supplement(source.id, { text: "Dvorana QA", screenshots: [{ base64: third, mediaType: "image/webp" }] })).status).toBe(201);
+      const last = parser.parseBatchWithLlm.mock.calls.at(-1)![0];
+      expect(last.screenshots).toHaveLength(3);
+      expect(last.supplementText).toBe("Dvorana QA");
+      const json = (await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } })).parsedJson as { supplements: unknown[] };
+      expect(json.supplements).toHaveLength(2);
+      // Lists never carry inline image bytes.
+      const listed = await (await request("/api/admin/event-sources", adminId)).json();
+      expect(JSON.stringify(listed)).not.toContain(second);
+      expect(JSON.stringify(listed)).not.toContain(png);
+    });
+
+    it("keeps the supplement when parsing fails and lets a retry succeed without duplicating it", async () => {
+      const source = await twoCandidateSource();
+      parser.parseBatchWithLlm.mockRejectedValueOnce(Object.assign(new Error("timeout"), { getStatus: () => 503 }));
+      const failed = await supplement(source.id, { text: "Početak u 19 h" });
+      expect(failed.status).toBe(503);
+      expect((await failed.json()).message).toBe("Dopuna je spremljena, ali automatska obrada nije uspjela. Pokušajte ponovno za nekoliko minuta.");
+      let json = (await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } })).parsedJson as { candidates: unknown[]; supplements: unknown[]; parseError?: string };
+      expect(json.supplements).toHaveLength(1);
+      expect(json.parseError).toEqual(expect.any(String));
+      expect(json.candidates).toEqual((source.parsedJson as { candidates: unknown[] }).candidates);
+
+      parser.parseBatchWithLlm.mockResolvedValueOnce(fresh({ title: "QA jesenski koncert", startsAt: "2099-11-20T19:00:00+01:00" }));
+      expect((await supplement(source.id, { text: "Početak u 19 h" })).status).toBe(201);
+      json = (await prisma.eventSource.findUniqueOrThrow({ where: { id: source.id } })).parsedJson as typeof json;
+      expect(json.supplements).toHaveLength(1);
+      expect(json).not.toHaveProperty("parseError");
+      expect(json.candidates[0]).toMatchObject({ _proposal: { startsAt: "2099-11-20T19:00:00+01:00" } });
+    });
+
+    it("rejects a supplement based on a stale view, empty input, and non-admin callers", async () => {
+      const source = await twoCandidateSource();
+      expect((await supplement(source.id, { text: "x", expectedUpdatedAt: "2000-01-01T00:00:00.000Z" })).status).toBe(409);
+      expect((await supplement(source.id, {})).status).toBe(400);
+      expect([401, 403]).toContain((await supplement(source.id, { text: "x" }, userId)).status);
+      expect((await request(`/api/admin/event-sources/${source.id}/supplement`, undefined, "POST", { text: "x" })).status).toBe(401);
+      expect(parser.parseBatchWithLlm).not.toHaveBeenCalled();
+    });
+
+    it("proposes event changes without writing the event or touching a pending revision, traceably and idempotently", async () => {
+      const revision = await submit({ title: "Organizatorov prijedlog" });
+      const before = await snapshot();
+      parser.parseBatchWithLlm.mockResolvedValue(fresh({ title: "Objavljeni koncert", description: "Izvorni opis", startsAt: "2099-09-05T21:00:00+02:00", priceText: "15 EUR", venueName: "Nova dvorana" }));
+      const body = { text: "Novi početak 21 h, ulaznica 15 EUR, Nova dvorana." };
+      const first = await request(`/api/admin/events/${eventId}/supplement-parse`, adminId, "POST", body);
+      expect(first.status).toBe(201);
+      const out = await first.json();
+      expect(out.proposal).toEqual({ startsAt: "2099-09-05T21:00:00+02:00", priceText: "15 EUR", venueName: "Nova dvorana" });
+      expect(parser.parseBatchWithLlm).toHaveBeenLastCalledWith(expect.objectContaining({ supplementText: body.text, rawText: expect.stringContaining("Naziv: Objavljeni koncert") }));
+      expect(await snapshot()).toEqual(before);
+      expect(await prisma.eventRevision.findUniqueOrThrow({ where: { id: revision.id } })).toMatchObject({ status: "PENDING", version: revision.version });
+      const trace = await prisma.eventSource.findUniqueOrThrow({ where: { id: out.sourceId } });
+      expect(trace).toMatchObject({ eventId, rawText: body.text, status: "LINKED" });
+      expect(trace.parsedJson).toMatchObject({ proposal: out.proposal, supplements: [expect.objectContaining({ byUserId: adminId })] });
+      const again = await (await request(`/api/admin/events/${eventId}/supplement-parse`, adminId, "POST", body)).json();
+      expect(again.sourceId).toBe(out.sourceId);
+      expect(await prisma.eventSource.count({ where: { eventId } })).toBe(1);
+
+      parser.parseBatchWithLlm.mockRejectedValueOnce(new Error("bad json"));
+      const failed = await request(`/api/admin/events/${eventId}/supplement-parse`, adminId, "POST", { text: "Druga dopuna" });
+      expect(failed.status).toBe(503);
+      expect(await snapshot()).toEqual(before);
+      expect(await prisma.eventSource.count({ where: { eventId } })).toBe(2);
+      expect([401, 403]).toContain((await request(`/api/admin/events/${eventId}/supplement-parse`, userId, "POST", body)).status);
     });
   });
 });

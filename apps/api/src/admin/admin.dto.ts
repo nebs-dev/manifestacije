@@ -1,6 +1,7 @@
-import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from "class-validator";
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
 import { Transform, Type } from "class-transformer";
 import { sanitizeDescriptionInput } from "../common/rich-text";
+import { MAX_SCREENSHOTS_PER_REQUEST, ScreenshotInputDto } from "../ai-parser/screenshot.dto";
 import { EventStatus } from "@prisma/client";
 import { EventOccurrenceDto, EventUpsertDto } from "../events/event.dto";
 import { IsSafeHttpUrl } from "../common/safe-url";
@@ -74,7 +75,18 @@ export class ManualEmailDto {
   @IsOptional() @IsBoolean() useLlm?: boolean;
   @IsOptional() @IsString() screenshotBase64?: string;
   @IsOptional() @IsString() screenshotMediaType?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_SCREENSHOTS_PER_REQUEST, { message: "Najviše 4 slike po zahtjevu." }) @ValidateNested({ each: true }) @Type(() => ScreenshotInputDto)
+  screenshots?: ScreenshotInputDto[];
   @IsOptional() @IsString() contextHint?: string;
+}
+
+/** Editor supplement for re-parsing a source or an existing event (EVT-08). */
+export class SupplementDto {
+  @IsOptional() @IsString() @MaxLength(8000, { message: "Dopuna smije imati najviše 8000 znakova." }) text?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_SCREENSHOTS_PER_REQUEST, { message: "Najviše 4 slike po dopuni." }) @ValidateNested({ each: true }) @Type(() => ScreenshotInputDto)
+  screenshots?: ScreenshotInputDto[];
+  /** updatedAt the editor saw; a newer source is rejected instead of silently merged. */
+  @IsOptional() @IsString() expectedUpdatedAt?: string;
 }
 
 export class ParseUrlDto {

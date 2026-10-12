@@ -87,8 +87,8 @@ describe("OrganizerService submitSource", () => {
       await service.submitSource(7, { sourceUrl: "https://example.com/event", screenshotBase64: "fixture", screenshotMediaType: "image/png", sourceImageUrl: "https://cdn.example/evidence.png" });
       expect(parser.extractJsonLdEvents).not.toHaveBeenCalled();
       expect(parser.parseBatch).not.toHaveBeenCalled();
-      expect(parser.parseBatchWithLlm).toHaveBeenCalledWith(expect.objectContaining({ screenshotBase64: "fixture", rawHtml: "<html>old schedule</html>" }));
-      expect(prisma.eventSource.last()).toEqual(expect.objectContaining({ status: "NEEDS_REVIEW", parsedJson: { ...result, sourceImageUrl: "https://cdn.example/evidence.png", submissionKey: expect.any(String) } }));
+      expect(parser.parseBatchWithLlm).toHaveBeenCalledWith(expect.objectContaining({ screenshots: [{ base64: "fixture", mediaType: "image/png" }], rawHtml: "<html>old schedule</html>" }));
+      expect(prisma.eventSource.last()).toEqual(expect.objectContaining({ status: "NEEDS_REVIEW", parsedJson: { ...result, sourceImageUrl: "https://cdn.example/evidence.png", sourceImageUrls: ["https://cdn.example/evidence.png"], submissionKey: expect.any(String) } }));
     } finally { fetch.mockRestore(); }
   });
 
@@ -133,16 +133,16 @@ describe("OrganizerService submitSource", () => {
     it("keeps poster bytes only when no uploaded copy exists", async () => {
       const failed = setup(jest.fn().mockRejectedValue(unavailable()));
       await failed.service.submitSource(7, { screenshotBase64: "cG9zdGVy", screenshotMediaType: "image/png" });
-      expect(failed.prisma.eventSource.last().parsedJson).toMatchObject({ pendingScreenshot: { mediaType: "image/png", base64: "cG9zdGVy" } });
+      expect(failed.prisma.eventSource.last().parsedJson).toMatchObject({ pendingScreenshots: [{ mediaType: "image/png", base64: "cG9zdGVy" }] });
 
       const uploaded = setup(jest.fn().mockRejectedValue(unavailable()));
       await uploaded.service.submitSource(7, { screenshotBase64: "cG9zdGVy", screenshotMediaType: "image/png", sourceImageUrl: "https://res.cloudinary.com/demo/poster.png" });
       expect(uploaded.prisma.eventSource.last().parsedJson).toMatchObject({ sourceImageUrl: "https://res.cloudinary.com/demo/poster.png" });
-      expect(uploaded.prisma.eventSource.last().parsedJson).not.toHaveProperty("pendingScreenshot");
+      expect(uploaded.prisma.eventSource.last().parsedJson).not.toHaveProperty("pendingScreenshots");
 
       const unsupported = setup(jest.fn().mockRejectedValue(unavailable()));
       await unsupported.service.submitSource(7, { screenshotBase64: "PHN2Zz4=", screenshotMediaType: "image/svg+xml" });
-      expect(unsupported.prisma.eventSource.last().parsedJson).not.toHaveProperty("pendingScreenshot");
+      expect(unsupported.prisma.eventSource.last().parsedJson).not.toHaveProperty("pendingScreenshots");
     });
 
     it("a retry of the same content re-parses the same row once the provider recovers, without duplicates or repeat notices", async () => {
@@ -159,7 +159,8 @@ describe("OrganizerService submitSource", () => {
       const json = prisma.eventSource.last().parsedJson as Record<string, unknown>;
       expect(json.candidates).toHaveLength(1);
       expect(json).not.toHaveProperty("parseError");
-      expect(json).not.toHaveProperty("pendingScreenshot");
+      // The original poster stays as evidence for review and later supplements (EVT-07/08).
+      expect(json).toHaveProperty("pendingScreenshots");
       expect(email.sendAdminNewSubmission).toHaveBeenCalledTimes(1);
       expect(email.sendEventSubmitted).toHaveBeenCalledTimes(1);
     });
@@ -242,12 +243,12 @@ describe("OrganizerService submitSource", () => {
     });
 
     expect(parser.parseBatchWithLlm).toHaveBeenCalledWith(expect.objectContaining({
-      screenshotBase64: "abc123",
-      screenshotMediaType: "image/jpeg",
+      screenshots: [{ base64: "abc123", mediaType: "image/jpeg" }],
     }));
     expect(prisma.eventSource.last().parsedJson).toEqual({
       ...result,
       sourceImageUrl: "https://cdn.example/poster.jpg",
+      sourceImageUrls: ["https://cdn.example/poster.jpg"],
       submissionKey: expect.any(String),
     });
   });

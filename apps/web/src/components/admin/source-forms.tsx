@@ -1,5 +1,6 @@
 "use client"
 
+import { ScreenshotsPicker, screenshotsPayload, type ScreenshotInput } from "@/components/screenshots-picker"
 import { useRef, useState, type DragEvent, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { ImagePlus, Link2, Loader2, Plus, Sparkles, X, Upload } from "lucide-react"
@@ -149,48 +150,32 @@ export function ParseUrlForm({ onParsed }: { onParsed?: (id: number) => void }) 
   )
 }
 
+/** Keeps a copy of each parsing screenshot so the source can be reviewed and re-parsed later. */
+async function uploadAdminEvidence(file: File): Promise<string | undefined> {
+  const form = new FormData()
+  form.append("file", file)
+  try {
+    const res = await authedFetch("/api/admin/uploads/event-image", { method: "POST", body: form })
+    if (!res.ok) return undefined
+    return ((await res.json()) as { imageUrl?: string }).imageUrl
+  } catch {
+    return undefined
+  }
+}
+
 export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
   const [label, setLabel] = useState("")
   const [from, setFrom] = useState("")
   const [sourceUrl, setSourceUrl] = useState("")
   const [rawText, setRawText] = useState("")
   const [useLlm, setUseLlm] = useState(false)
-  const [screenshot, setScreenshot] = useState<{ data: string; mediaType: string; name: string } | null>(null)
-  const [dragging, setDragging] = useState(false)
+  const [screenshots, setScreenshots] = useState<ScreenshotInput[]>([])
   const [loading, setLoading] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  async function handleScreenshot(file: File) {
-    const resized = await resizeToBase64(file)
-    setScreenshot({ ...resized, name: file.name })
-    setUseLlm(true)
-  }
-
-  function handlePaste(e: React.ClipboardEvent) {
-    const imageItem = Array.from(e.clipboardData.items).find((item) => item.type.startsWith("image/"))
-    if (!imageItem) return
-    const file = imageItem.getAsFile()
-    if (!file) return
-    e.preventDefault()
-    void handleScreenshot(file)
-  }
-
-  function handleDrop(e: DragEvent) {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file?.type.startsWith("image/")) void handleScreenshot(file)
-  }
-
-  function removeScreenshot() {
-    setScreenshot(null)
-    if (fileRef.current) fileRef.current.value = ""
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!rawText.trim() && !screenshot) {
-      toast.error("Potreban je screenshot ili tekst događanja.")
+    if (!rawText.trim() && !screenshots.length) {
+      toast.error("Potrebna je barem jedna slika ili tekst događanja.")
       return
     }
     setLoading(true)
@@ -202,10 +187,9 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
           rawEmailFrom: from || undefined,
           sourceUrl: sourceUrl || undefined,
           rawText: rawText || undefined,
-          screenshotBase64: screenshot?.data,
-          screenshotMediaType: screenshot?.mediaType,
+          screenshots: screenshotsPayload(screenshots),
           contextHint: label || undefined,
-          useLlm: useLlm || Boolean(screenshot),
+          useLlm: useLlm || screenshots.length > 0,
         }),
       })
       if (!res.ok) { toast.error("Kreiranje neuspješno", { description: await res.text() }); return }
@@ -215,7 +199,7 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
       setSourceUrl("")
       setRawText("")
       setUseLlm(false)
-      setScreenshot(null)
+      setScreenshots([])
       onCreated?.()
     } finally {
       setLoading(false)
@@ -231,51 +215,12 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form id="admin-source-screenshot-form" onSubmit={handleSubmit} onPaste={handlePaste}>
+        <form id="admin-source-screenshot-form" onSubmit={handleSubmit}>
           <FieldGroup>
-            {/* Screenshot — primary */}
+            {/* Screenshots — primary; several images of one program are read together (EVT-07) */}
             <Field>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleScreenshot(f) }}
-              />
-              {screenshot ? (
-                <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
-                  <ImagePlus className="size-5 shrink-0 text-primary" />
-                  <span className="flex-1 truncate text-sm font-medium">{screenshot.name}</span>
-                  <button
-                    type="button"
-                    onClick={removeScreenshot}
-                    disabled={loading}
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label="Ukloni screenshot"
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleDrop}
-                  disabled={loading}
-                  className={[
-                    "flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-sm transition-colors disabled:opacity-50",
-                    dragging
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border bg-muted/20 text-muted-foreground hover:border-primary/40 hover:bg-muted/40",
-                  ].join(" ")}
-                >
-                  <Upload className="size-6 opacity-60" />
-                  <span className="font-medium">Povuci screenshot ovdje ili klikni za odabir</span>
-                  <span className="text-xs opacity-70">Ili zalijepi iz međuspremnika (⌘V)</span>
-                </button>
-              )}
+              <ScreenshotsPicker value={screenshots} onChange={(next) => { setScreenshots(next); if (next.length) setUseLlm(true) }} upload={uploadAdminEvidence} disabled={loading}
+                label="Screenshotovi ili plakati" hint="Do 4 slike istog programa ili događaja — AI ih čita zajedno. Može i zalijepiti (⌘V)." />
             </Field>
 
             {/* URL — optional */}
@@ -346,9 +291,9 @@ export function ManualSourceForm({ onCreated }: { onCreated?: () => void }) {
               <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
                 <input
                   type="checkbox"
-                  checked={useLlm || Boolean(screenshot)}
+                  checked={useLlm || screenshots.length > 0}
                   onChange={(e) => setUseLlm(e.target.checked)}
-                  disabled={loading || Boolean(screenshot)}
+                  disabled={loading || screenshots.length > 0}
                   className="accent-primary size-4 rounded"
                 />
                 <Sparkles className="size-3.5 text-primary/70" />

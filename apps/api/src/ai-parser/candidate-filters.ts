@@ -68,3 +68,68 @@ export function retainCandidateDecisions(previous: unknown, fresh: ParsedSourceR
   });
   return { ...old, ...fresh, candidates: [...candidates, ...remaining] };
 }
+
+/** Candidate fields an editor can review field by field after a supplemental parse (EVT-08). */
+export const PROPOSABLE_FIELDS = [
+  "title", "description", "startsAt", "endsAt", "isAllDay", "occurrences", "venueName", "address",
+  "city", "category", "isFree", "priceText", "ticketUrl", "organizerName",
+] as const;
+
+type Candidate = ParsedSourceResult["candidates"][number] & { _status?: string; _proposal?: Record<string, unknown>; _fromSupplement?: boolean };
+
+function sameCandidate(a: Candidate, b: Candidate) {
+  return normalizeDuplicateText(a.title) === normalizeDuplicateText(b.title)
+    && ((a.startsAt === b.startsAt && normalizeDuplicateText(a.city) === normalizeDuplicateText(b.city)
+      && normalizeDuplicateText(a.venueName) === normalizeDuplicateText(b.venueName))
+      || !!matchDuplicate({ ...a, cityName: a.city }, { ...b, id: 0, slug: "", status: "PUBLISHED", city: undefined, cityName: b.city }));
+}
+
+const meaningful = (value: unknown) => value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
+
+/**
+ * Merge a fresh parse into an existing source without overwriting anything an
+ * editor may have decided (EVT-08). Created and ignored candidates are kept
+ * untouched (and consume their fresh match so they are not re-added); open
+ * candidates keep their values and receive a `_proposal` with only the fields
+ * the new parse would change; genuinely new events are appended as open
+ * candidates marked `_fromSupplement`. With exactly one open candidate and one
+ * unmatched fresh result they are treated as the same event, since a
+ * supplement often supplies the very title or date that matching relies on.
+ */
+export function proposeFromFresh(previous: unknown, fresh: ParsedSourceResult): ParsedSourceResult {
+  const old = previous as ParsedSourceResult | null;
+  if (!Array.isArray(old?.candidates) || old.candidates.length === 0) return fresh;
+  const remaining = [...fresh.candidates] as Candidate[];
+  const paired = new Map<number, Candidate>();
+  (old.candidates as Candidate[]).forEach((candidate, index) => {
+    const at = remaining.findIndex((next) => sameCandidate(next, candidate));
+    if (at >= 0) paired.set(index, remaining.splice(at, 1)[0]);
+  });
+  const openUnpaired = () => (old.candidates as Candidate[]).map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate, index }) => !paired.has(index) && candidate._status !== "created" && candidate._status !== "ignored");
+  // Second pass: a supplement often adds the missing date or venue the strict
+  // matcher needs, so a unique same-title result is the same event.
+  for (const { candidate, index } of openUnpaired()) {
+    const sameTitle = remaining.filter((next) => normalizeDuplicateText(next.title) === normalizeDuplicateText(candidate.title));
+    if (sameTitle.length === 1) paired.set(index, remaining.splice(remaining.indexOf(sameTitle[0]), 1)[0]);
+  }
+  const unpaired = openUnpaired();
+  if (unpaired.length === 1 && remaining.length === 1) paired.set(unpaired[0].index, remaining.splice(0, 1)[0]);
+
+  const candidates = (old.candidates as Candidate[]).map((candidate, index) => {
+    const next = paired.get(index);
+    if (!next || candidate._status === "created" || candidate._status === "ignored") return candidate;
+    const proposal: Record<string, unknown> = {};
+    for (const field of PROPOSABLE_FIELDS) {
+      const value = (next as Record<string, unknown>)[field];
+      if (meaningful(value) && JSON.stringify(value) !== JSON.stringify((candidate as Record<string, unknown>)[field])) proposal[field] = value;
+    }
+    const { _proposal: _previous, ...kept } = candidate;
+    return Object.keys(proposal).length ? { ...kept, _proposal: proposal } : kept;
+  });
+  return {
+    ...old,
+    ...fresh,
+    candidates: [...candidates, ...remaining.map((candidate) => ({ ...candidate, _status: "pending", _fromSupplement: true }))] as ParsedSourceResult["candidates"],
+  };
+}

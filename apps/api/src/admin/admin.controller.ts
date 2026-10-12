@@ -1,11 +1,11 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors , ParseIntPipe } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
 import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser } from "../auth/auth.types";
 import { AdminService, AdminEventListParams } from "./admin.service";
-import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto , SupplementDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
 import { RejectOrganizerClaimDto, BulkInviteUnclaimedDto } from "../organizer-claims/organizer-claim.dto";
@@ -114,6 +114,12 @@ export class AdminController {
   }
   @Put("event-sources/:id") updateEventSource(@Param("id") id: string, @Body() dto: UpdateEventSourceDto) { return this.admin.updateEventSource(Number(id), dto); }
   @Post("event-sources/:id/reparse") reparse(@Param("id") id: string) { return this.admin.reparseSource(Number(id)); }
+  @Post("event-sources/:id/supplement") supplementSource(@CurrentUser() user: AuthUser, @Param("id", ParseIntPipe) id: number, @Body() dto: SupplementDto) {
+    return this.admin.supplementSource(id, dto, user.id);
+  }
+  @Post("events/:id/supplement-parse") supplementEvent(@CurrentUser() user: AuthUser, @Param("id", ParseIntPipe) id: number, @Body() dto: SupplementDto) {
+    return this.admin.supplementEvent(id, dto, user.id);
+  }
   @Post("event-sources/:id/create-event") createEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
     return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false, user.id);
   }

@@ -1,19 +1,20 @@
 import { candidateNeedsReview } from "../ai-parser/date-evidence";
-import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
+import { formatZagrebIso } from "../common/zagreb-time";
 import { findOrCreateCity } from "../common/city-resolver";
 import { safeHttpUrlOrUndefined } from "../common/safe-url";
 import { EventsService } from "../events/events.service";
-import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { AiEventParserService, MAX_PARSE_IMAGES, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
-import { dropPastCandidates, flagAlreadyImported, retainCandidateDecisions } from "../ai-parser/candidate-filters";
-import { parsedWithEvidence, readEvidence, SCREENSHOT_MEDIA_TYPES, withoutInlinePoster } from "../ai-parser/source-evidence";
+import { dropPastCandidates, flagAlreadyImported, proposeFromFresh, retainCandidateDecisions } from "../ai-parser/candidate-filters";
+import { InlineImage, MAX_SUPPLEMENTS, parseFailureReason, parsedWithEvidence, pendingSourceJson, readEvidence, SCREENSHOT_MEDIA_TYPES, SourceSupplement, supplementId, supplementText, withoutInlinePoster } from "../ai-parser/source-evidence";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
-import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, UpdateEventSourceDto } from "./admin.dto";
+import { AdminEventDto, CandidateOverrideDto, ManualEmailDto, OrganizerAdminDto, ParseUrlDto, SplitWeeklySeriesDto, SupplementDto, UpdateEventSourceDto } from "./admin.dto";
 import { hasPublicEventOutput, RevalidateService } from "./revalidate.service";
 import { shiftZagrebCalendarDays, zagrebLocalToUtc } from "../common/weekend";
 import { UploadsService } from "./uploads.service";
@@ -583,9 +584,13 @@ export class AdminService {
 
   async createManualEmail(dto: ManualEmailDto) {
     // A rule parser cannot read image bytes, regardless of the UI toggle.
-    const result = (dto.useLlm || dto.screenshotBase64)
-      ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl, screenshotBase64: dto.screenshotBase64, screenshotMediaType: dto.screenshotMediaType, contextHint: dto.contextHint })
+    const screenshots = (dto.screenshots ?? []).map(({ base64, mediaType }) => ({ base64, mediaType }));
+    const sourceImageUrls = (dto.screenshots ?? []).map(shot => shot.imageUrl).filter((url): url is string => Boolean(url));
+    const parsed = (dto.useLlm || dto.screenshotBase64 || screenshots.length)
+      ? await this.parser.parseBatchWithLlm({ rawText: dto.rawText, sourceUrl: dto.sourceUrl, screenshotBase64: dto.screenshotBase64, screenshotMediaType: dto.screenshotMediaType, screenshots, contextHint: dto.contextHint })
       : await this.parser.parseBatch({ rawText: dto.rawText, sourceUrl: dto.sourceUrl });
+    // Uploaded screenshots stay attached for review and later re-parsing (EVT-07).
+    const result = sourceImageUrls.length ? parsedWithEvidence(parsed, { sourceImageUrls }) : parsed;
     const { confidence, status } = this.sourceMetaFromResult(result);
     return this.prisma.eventSource.create({
       data: {
@@ -670,7 +675,150 @@ export class AdminService {
   async reparseSource(id: number) {
     const source = await this.prisma.eventSource.findUnique({ where: { id } });
     if (!source) throw new NotFoundException("Source not found");
+    const input = await this.sourceParseInput(source);
 
+    let result: ParsedSourceResult;
+    try {
+      result = (!input.screenshots.length && !input.supplementText && input.rawHtml && this.parser.extractJsonLdEvents(input.rawHtml, input.sourceUrl ?? ""))
+        || await this.parser.parseBatchWithLlm(input);
+    } catch (error) {
+      // Keep everything (including supplements) and record why, so the editor can retry.
+      await this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+        const current = await tx.eventSource.findUniqueOrThrow({ where: { id } });
+        const json = (current.parsedJson && typeof current.parsedJson === "object" ? current.parsedJson : {}) as Record<string, unknown>;
+        await tx.eventSource.update({ where: { id }, data: { parsedJson: { ...json, parseError: parseFailureReason(error) } as object } });
+      });
+      throw error;
+    }
+    result = dropPastCandidates(result);
+    result = await flagAlreadyImported(this.prisma, this.duplicates, result);
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      const current = await tx.eventSource.findUniqueOrThrow({ where: { id } });
+      // Open candidates are never overwritten: changes arrive as per-field proposals (EVT-08).
+      const merged = parsedWithEvidence(proposeFromFresh(current.parsedJson, result), readEvidence(current.parsedJson));
+      const { confidence, status } = this.sourceMetaFromResult(merged);
+      const allDone = merged.candidates.length > 0 && merged.candidates.every(c => c._status === "created" || c._status === "ignored");
+      return tx.eventSource.update({ where: { id }, data: { parsedJson: merged as object, confidence,
+        status: current.eventId || allDone ? "LINKED" : status } });
+    });
+  }
+
+  /**
+   * Adds editor information (text and/or images) to a source and re-parses it
+   * (EVT-08). The supplement is stored first, so a failed parse can be retried
+   * without re-uploading; identical supplements are stored once.
+   */
+  async supplementSource(id: number, dto: SupplementDto, userId?: number) {
+    const entry = this.supplementEntry(dto, userId);
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      const current = await tx.eventSource.findUnique({ where: { id } });
+      if (!current) throw new NotFoundException("Izvor nije pronađen.");
+      if (dto.expectedUpdatedAt && current.updatedAt.toISOString() !== dto.expectedUpdatedAt) {
+        throw new ConflictException("Izvor je u međuvremenu promijenjen. Osvježite stranicu i pokušajte ponovno.");
+      }
+      const json = (current.parsedJson && typeof current.parsedJson === "object" ? current.parsedJson : {}) as Record<string, unknown>;
+      const supplements = readEvidence(json).supplements ?? [];
+      if (supplements.some(item => item.id === entry.id)) return;
+      if (supplements.length >= MAX_SUPPLEMENTS) throw new BadRequestException("Izvor već ima najveći broj dopuna.");
+      await tx.eventSource.update({ where: { id }, data: { parsedJson: { candidates: [], sourceType: "single", sourceUrl: current.sourceUrl ?? "", ...json, supplements: [...supplements, entry] } as object } });
+    });
+    try {
+      return await this.reparseSource(id);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new ServiceUnavailableException("Dopuna je spremljena, ali automatska obrada nije uspjela. Pokušajte ponovno za nekoliko minuta.");
+    }
+  }
+
+  /**
+   * AI proposal for improving an existing event from editor-supplied text and
+   * images (EVT-08). Nothing on the event changes: the editor reviews the
+   * returned field proposals and saves through the normal editor. The inputs
+   * and result are kept on a linked source row for traceability.
+   */
+  async supplementEvent(eventId: number, dto: SupplementDto, userId?: number) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { venue: true, city: true, category: true } });
+    if (!event) throw new NotFoundException("Događaj nije pronađen.");
+    const entry = this.supplementEntry(dto, userId);
+    const key = `event:${eventId}:${entry.id}`;
+    const screenshots = [...(entry.inlineImages ?? []), ...(await Promise.all(entry.imageUrls.map(url => this.fetchStoredPoster(url)))).filter((image): image is InlineImage => Boolean(image))];
+
+    const row = await this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+      const existing = await tx.eventSource.findFirst({ where: { eventId, parsedJson: { path: ["submissionKey"], equals: key } }, orderBy: { id: "desc" } });
+      if (existing) return existing;
+      return tx.eventSource.create({ data: {
+        eventId, type: EventSourceType.MANUAL, rawText: dto.text?.trim() || null, adminViewedAt: new Date(), status: "LINKED",
+        parsedJson: pendingSourceJson(undefined, { submissionKey: key, sourceImageUrls: entry.imageUrls, supplements: [entry] }) as object,
+      } });
+    });
+
+    const current = [
+      `Naziv: ${event.title}`,
+      `Opis: ${event.description}`,
+      `Početak: ${formatZagrebIso(event.startsAt)}`,
+      event.endsAt ? `Završetak: ${formatZagrebIso(event.endsAt)}` : null,
+      event.venue?.name ? `Mjesto: ${event.venue.name}` : null,
+      event.address ? `Adresa: ${event.address}` : null,
+      (event.cityName || event.city?.name) ? `Grad: ${event.cityName || event.city?.name}` : null,
+      `Kategorija: ${event.category.slug}`,
+      event.isFree === true ? "Ulaz: besplatno" : event.isFree === false ? `Ulaz: naplata${event.priceText ? ` (${event.priceText})` : ""}` : null,
+      event.ticketUrl ? `Ulaznice: ${event.ticketUrl}` : null,
+    ].filter(Boolean).join("\n");
+    let result: ParsedSourceResult;
+    try {
+      result = await this.parser.parseBatchWithLlm({
+        rawText: `TRENUTAČNI PODACI DOGAĐAJA:\n${current}`,
+        supplementText: dto.text,
+        screenshots,
+        contextHint: "Ovo je dopuna JEDNOG postojećeg događaja: vrati točno jedan kandidat s potpunim, ažuriranim podacima tog događaja.",
+      });
+    } catch (error) {
+      await this.prisma.eventSource.update({ where: { id: row.id }, data: { parsedJson: { ...(row.parsedJson as object), parseError: parseFailureReason(error) } as object } });
+      throw new ServiceUnavailableException("Dopuna je spremljena, ali automatska obrada nije uspjela. Pokušajte ponovno za nekoliko minuta.");
+    }
+    const fresh = result.candidates[0];
+    const proposal: Record<string, unknown> = {};
+    if (fresh) {
+      const existing: Record<string, unknown> = {
+        title: event.title, description: event.description, venueName: event.venue?.name ?? "", address: event.address ?? "",
+        city: event.cityName || event.city?.name || "", isFree: event.isFree, priceText: event.priceText ?? "", ticketUrl: event.ticketUrl ?? "",
+        isAllDay: event.isAllDay,
+      };
+      for (const field of ["title", "description", "venueName", "address", "city", "isFree", "priceText", "ticketUrl", "isAllDay"] as const) {
+        const value = (fresh as Record<string, unknown>)[field];
+        if (value !== undefined && value !== null && value !== "" && JSON.stringify(value) !== JSON.stringify(existing[field])) proposal[field] = value;
+      }
+      if (fresh.startsAt && new Date(fresh.startsAt).getTime() !== event.startsAt.getTime()) proposal.startsAt = fresh.startsAt;
+      if (fresh.endsAt && new Date(fresh.endsAt).getTime() !== event.endsAt?.getTime()) proposal.endsAt = fresh.endsAt;
+    }
+    const json = { ...(row.parsedJson as Record<string, unknown>), ...parsedWithEvidence(result, readEvidence(row.parsedJson)), proposal };
+    delete (json as Record<string, unknown>).parseError;
+    await this.prisma.eventSource.update({ where: { id: row.id }, data: { parsedJson: json as object } });
+    return { sourceId: row.id, proposal, warnings: fresh?.warnings ?? [], missingFields: fresh?.missingFields ?? [] };
+  }
+
+  private supplementEntry(dto: SupplementDto, userId?: number): SourceSupplement {
+    const text = dto.text?.trim() || undefined;
+    const shots = (dto.screenshots ?? []).filter((shot, index, all) => all.findIndex(other => other.base64 === shot.base64) === index);
+    if (!text && !shots.length) throw new BadRequestException("Dodajte tekst ili barem jednu sliku.");
+    const imageUrls = shots.map(shot => shot.imageUrl).filter((url): url is string => Boolean(url));
+    const inlineImages = shots.filter(shot => !shot.imageUrl).map(({ base64, mediaType }) => ({ base64, mediaType }));
+    return {
+      id: supplementId({ text, images: shots.map(shot => shot.base64), imageUrls }),
+      at: new Date().toISOString(),
+      ...(userId ? { byUserId: userId } : {}),
+      ...(text ? { text } : {}),
+      imageUrls,
+      ...(inlineImages.length ? { inlineImages } : {}),
+    };
+  }
+
+  /** Everything a source can be re-parsed from: page/text, stored posters and editor supplements. */
+  private async sourceParseInput(source: { rawText: string | null; rawHtml: string | null; sourceUrl: string | null; parsedJson: unknown }) {
     let rawText = source.rawText || undefined;
     let rawHtml = source.rawHtml || undefined;
     const sourceUrl = source.sourceUrl || undefined;
@@ -695,23 +843,12 @@ export class AdminService {
       }
     }
 
-    // A stored poster stays the primary evidence on re-parse, as on submit.
+    // Stored posters stay the primary evidence on re-parse, as on submit.
     const evidence = readEvidence(source.parsedJson);
-    const screenshot = evidence.pendingScreenshot ?? await this.fetchStoredPoster(evidence.sourceImageUrl);
-
-    let result = (!screenshot && rawHtml && this.parser.extractJsonLdEvents(rawHtml, sourceUrl ?? ""))
-      || await this.parser.parseBatchWithLlm({ rawHtml, rawText, sourceUrl, screenshotBase64: screenshot?.base64, screenshotMediaType: screenshot?.mediaType });
-    result = dropPastCandidates(result);
-    result = await flagAlreadyImported(this.prisma, this.duplicates, result);
-    return this.prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
-      const current = await tx.eventSource.findUniqueOrThrow({ where: { id } });
-      const retained = parsedWithEvidence(retainCandidateDecisions(current.parsedJson, result), readEvidence(current.parsedJson));
-      const { confidence, status } = this.sourceMetaFromResult(retained);
-      const allDone = retained.candidates.length > 0 && retained.candidates.every(c => c._status === "created" || c._status === "ignored");
-      return tx.eventSource.update({ where: { id }, data: { parsedJson: retained as object, confidence,
-        status: current.eventId || allDone ? "LINKED" : status } });
-    });
+    const urls = [...(evidence.sourceImageUrls ?? []), ...(evidence.supplements ?? []).flatMap(item => item.imageUrls)];
+    const fetched = (await Promise.all(urls.map(url => this.fetchStoredPoster(url)))).filter((image): image is InlineImage => Boolean(image));
+    const screenshots = [...(evidence.pendingScreenshots ?? []), ...(evidence.supplements ?? []).flatMap(item => item.inlineImages ?? []), ...fetched].slice(0, MAX_PARSE_IMAGES);
+    return { rawText, rawHtml, sourceUrl, screenshots, supplementText: supplementText(evidence) };
   }
 
   /** Re-reads an organizer poster only from our own Cloudinary storage, never an arbitrary URL. */

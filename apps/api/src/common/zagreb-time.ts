@@ -36,3 +36,11 @@ export function parseZagrebWallTime(date: string, time: string): string {
   });
   return matches.length === 1 ? matches[0] : "";
 }
+
+/** "2026-11-20 20:00" in Europe/Zagreb, for prompts and editor-facing text. */
+export function formatZagrebIso(date: Date): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Zagreb", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}

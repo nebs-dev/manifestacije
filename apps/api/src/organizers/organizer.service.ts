@@ -4,7 +4,7 @@ import { EventRevisionsService } from "../event-revisions/event-revisions.servic
 import { EventStatus, EventSourceStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
-import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { AiEventParserService, MAX_PARSE_IMAGES, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
 import { parseFailureReason, parsedWithEvidence, pendingSourceJson, readEvidence, SCREENSHOT_MEDIA_TYPES, submissionKey, withoutInlinePoster } from "../ai-parser/source-evidence";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -149,7 +149,12 @@ export class OrganizerService {
   async submitSource(organizerId: number, dto: SubmitSourceDto, organizerEmail?: string, userId?: number) {
     const sourceUrl = dto.sourceUrl?.trim() || undefined;
     let rawText = dto.rawText?.trim() || undefined;
-    const hasScreenshot = Boolean(dto.screenshotBase64 && dto.screenshotMediaType);
+    // One or more posters/screenshots (EVT-07); the legacy single fields map to the first.
+    const screenshots = [
+      ...(dto.screenshotBase64 && dto.screenshotMediaType ? [{ base64: dto.screenshotBase64, mediaType: dto.screenshotMediaType, imageUrl: dto.sourceImageUrl || undefined }] : []),
+      ...(dto.screenshots ?? []).map((shot) => ({ base64: shot.base64, mediaType: shot.mediaType, imageUrl: shot.imageUrl || undefined })),
+    ].filter((shot, index, all) => all.findIndex((other) => other.base64 === shot.base64) === index).slice(0, MAX_PARSE_IMAGES);
+    const hasScreenshot = screenshots.length > 0;
     const isFacebook = this.isFacebookUrl(sourceUrl);
 
     if (isFacebook && !rawText && !hasScreenshot) {
@@ -193,8 +198,8 @@ export class OrganizerService {
     }
 
     const useLlm = Boolean(dto.useLlm || hasScreenshot || isFacebook);
-    const sourceImageUrl = dto.sourceImageUrl || undefined;
-    const key = submissionKey({ sourceUrl, rawText: dto.rawText?.trim() || undefined, screenshotBase64: dto.screenshotBase64, sourceImageUrl });
+    const sourceImageUrls = screenshots.map((shot) => shot.imageUrl).filter((url): url is string => Boolean(url));
+    const key = submissionKey({ sourceUrl, rawText: dto.rawText?.trim() || undefined, screenshots: screenshots.map((shot) => shot.base64), sourceImageUrls });
 
     // Persist before parsing (P1-B): an AI outage, timeout or bad response must
     // never lose what the organizer sent. The same content from the same
@@ -214,7 +219,7 @@ export class OrganizerService {
           sourceUrl,
           rawText,
           rawHtml,
-          parsedJson: pendingSourceJson(sourceUrl, { submissionKey: key, sourceImageUrl }) as object,
+          parsedJson: pendingSourceJson(sourceUrl, { submissionKey: key, sourceImageUrls }) as object,
           confidence: 0,
           status: EventSourceStatus.NEW,
         },
@@ -236,8 +241,7 @@ export class OrganizerService {
               rawText,
               rawHtml,
               sourceUrl,
-              screenshotBase64: dto.screenshotBase64,
-              screenshotMediaType: dto.screenshotMediaType,
+              screenshots: screenshots.map(({ base64, mediaType }) => ({ base64, mediaType })),
               contextHint: dto.contextHint,
             })
           : await this.parser.parseBatch({ rawText, rawHtml, sourceUrl }));
@@ -260,13 +264,12 @@ export class OrganizerService {
     } catch (error) {
       // Keep the submission for manual review or an admin re-parse. Poster
       // bytes are kept only when there is no uploaded copy to re-read.
-      const pendingScreenshot = hasScreenshot && !sourceImageUrl && SCREENSHOT_MEDIA_TYPES.has(dto.screenshotMediaType!)
-        ? { mediaType: dto.screenshotMediaType!, base64: dto.screenshotBase64! }
-        : evidence.pendingScreenshot;
+      const unstored = screenshots.filter((shot) => !shot.imageUrl && SCREENSHOT_MEDIA_TYPES.has(shot.mediaType)).map(({ base64, mediaType }) => ({ base64, mediaType }));
+      const pendingScreenshots = unstored.length ? unstored : evidence.pendingScreenshots;
       source = await this.prisma.eventSource.update({
         where: { id: stored.id },
         data: {
-          parsedJson: pendingSourceJson(sourceUrl, { ...evidence, pendingScreenshot, parseError: parseFailureReason(error) }) as object,
+          parsedJson: pendingSourceJson(sourceUrl, { ...evidence, pendingScreenshots, parseError: parseFailureReason(error) }) as object,
           confidence: 0,
           status: EventSourceStatus.NEEDS_REVIEW,
         },
