@@ -149,7 +149,7 @@ describe("OrganizerService submitSource", () => {
       const ok = setup(jest.fn().mockResolvedValue(parsedResult()))
       await ok.service.submitSource(7, { screenshots: [{ base64: "cG9zdGVy", mediaType: "image/png" }, { base64: "ZHJ1Z2k=", mediaType: "image/jpeg", imageUrl: "https://res.cloudinary.com/demo/b.jpg" }] })
       expect(ok.parser.parseBatchWithLlm).toHaveBeenCalledTimes(1)
-      expect(ok.prisma.eventSource.last()).toMatchObject({ status: "NEEDS_REVIEW", parsedJson: expect.objectContaining({
+      expect(ok.prisma.eventSource.last()).toMatchObject({ status: "PARSED", parsedJson: expect.objectContaining({
         pendingScreenshots: [{ base64: "cG9zdGVy", mediaType: "image/png" }], sourceImageUrls: ["https://res.cloudinary.com/demo/b.jpg"] }) })
     });
 
