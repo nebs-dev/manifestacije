@@ -472,3 +472,20 @@ Drugi odlomak s dodatnim informacijama.
     expect(result?.candidates[0].occurrences).toBeUndefined();
   });
 });
+
+
+describe("three-state parsed pricing", () => {
+  it.each([undefined, null, "", "  ", "nepoznato"])("does not invent a free price from JSON-LD %s", price => {
+    const parser = new AiEventParserService()
+    const html = `<script type="application/ld+json">${JSON.stringify({ "@type": "Event", name: "Koncert", startDate: "2099-10-12T20:00:00+02:00", offers: { price } })}</script>`
+    expect(parser.extractJsonLdEvents(html, "https://example.test")!.candidates[0].isFree).toBeNull()
+  })
+  it.each([[0, true], ["0", true], [18, false], ["18", false]])("parses established JSON-LD price %s", (price, expected) => {
+    const html = `<script type="application/ld+json">${JSON.stringify({ "@type": "Event", name: "Koncert", startDate: "2099-10-12T20:00:00+02:00", offers: { price } })}</script>`
+    expect(new AiEventParserService().extractJsonLdEvents(html, "https://example.test")!.candidates[0].isFree).toBe(expected)
+  })
+  it.each([["", null], ["Cijena: nije navedena. Ulaznica: provjerite kod organizatora.", null], ["Besplatno", true], ["Ulaznica: 10 EUR", false]])("parses explicit text pricing %s", async (price, expected) => {
+    const parsed = await new AiEventParserService().parse({ rawText: `Naslov: Koncert\nDatum: 2099-10-12\nVrijeme: 20:00\nGrad: Osijek\n${price}` })
+    expect(parsed.isFree).toBe(expected)
+  })
+})

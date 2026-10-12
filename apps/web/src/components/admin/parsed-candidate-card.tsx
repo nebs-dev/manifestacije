@@ -1,5 +1,7 @@
 "use client"
 
+import { PricingSelect } from "@/components/pricing-select"
+
 import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
 import { useState, useEffect } from "react"
 import Link from "next/link"
@@ -42,7 +44,7 @@ type CandidateForm = {
   city: string
   venueName: string
   address: string
-  isFree: boolean
+  isFree: boolean | null
   priceText: string
   ticketUrl: string
   organizerName: string
@@ -351,22 +353,14 @@ export function ParsedCandidateCard({
             <Input value={form.organizerName} disabled={!isPending} onChange={(e) => setField("organizerName", e.target.value)} />
           </Field>
           <Field label="Cijena">
-            <Input value={form.priceText} disabled={!isPending || form.isFree} onChange={(e) => setField("priceText", e.target.value)} placeholder="npr. 8 EUR" />
+            <Input value={form.priceText} disabled={!isPending} onChange={(e) => setField("priceText", e.target.value)} placeholder="npr. 8 EUR" />
           </Field>
           <Field label="Ulaznice URL">
             <Input value={form.ticketUrl} disabled={!isPending} onChange={(e) => setField("ticketUrl", e.target.value)} />
           </Field>
-          <div className="flex items-center gap-2 pt-5">
-            <input
-              id={`free-${candidate.id}`}
-              type="checkbox"
-              checked={form.isFree}
-              disabled={!isPending}
-              onChange={(e) => setField("isFree", e.target.checked)}
-              className="size-4 rounded border-border"
-            />
-            <Label htmlFor={`free-${candidate.id}`} className="text-sm">Besplatno</Label>
-          </div>
+          <Field label="Način naplate">
+            <PricingSelect value={form.isFree} disabled={!isPending} onChange={(v) => setField("isFree", v)} />
+          </Field>
           <div className="sm:col-span-2">
             <Field label="Opis">
               <Textarea value={form.description} disabled={!isPending} onChange={(e) => setField("description", e.target.value)} rows={3} />

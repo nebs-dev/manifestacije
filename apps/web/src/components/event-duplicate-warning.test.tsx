@@ -151,6 +151,7 @@ describe("shared advisory duplicate warning", () => {
 describe("actual creation forms", () => {
   it("admin checks before creation, can cancel, then explicitly continue", async () => {
     await render(<EventCreateForm />)
+    expect((container.querySelector('select[aria-label="Način naplate"]') as HTMLSelectElement).value).toBe("FREE")
     await change(container.querySelector("input")!, input.title)
     await change(container.querySelector('input[type="date"]')!, "2099-07-09")
     await change(container.querySelector('input[type="time"]')!, "22:00")
@@ -163,6 +164,7 @@ describe("actual creation forms", () => {
     await click("Svejedno kreiraj")
     expect(creates()).toHaveLength(1)
     expect(creates()[0][0]).toBe("/api/admin/events")
+    expect(JSON.parse(creates()[0][1].body).isFree).toBe(true)
     expect(JSON.parse(creates()[0][1].body).startsAt).toBe("2099-07-09T20:00:00.000Z")
   })
   it("organizer uses the private-aware endpoint before creating, while edits bypass this creation warning", async () => {

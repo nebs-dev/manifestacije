@@ -1,3 +1,4 @@
+import { pricingLabel } from "./pricing"
 export type CategorySlug =
   | "glazba"
   | "festivali"
@@ -81,7 +82,7 @@ export interface CroEvent {
   displayOccurrenceId?: string
   time: string
   allDay?: boolean
-  free: boolean
+  free: boolean | null
   price?: string
   forKids: boolean
   outdoor: boolean
@@ -899,7 +900,7 @@ export function formatDateRange(start: string, end?: string) {
 }
 
 export function priceLabel(e: CroEvent) {
-  return e.free ? "Besplatno" : e.price ?? "Naplata"
+  return pricingLabel(e.free, e.price)
 }
 
 /** Format a Date as ISO 8601 with the Croatia (Europe/Zagreb) UTC offset, e.g. 2026-08-28T18:00:00+02:00 */

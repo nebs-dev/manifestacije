@@ -33,11 +33,11 @@ export function OrganizerShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <Link href="/organizer/events" className="font-heading text-base font-semibold">
             Organizer portal
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav className="flex flex-wrap items-center gap-1">
             <Link href="/organizer/events">
               <Button variant="ghost" size="sm" className="gap-1.5">
                 <List className="size-4" />Događaji

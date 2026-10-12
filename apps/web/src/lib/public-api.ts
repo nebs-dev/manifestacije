@@ -405,7 +405,7 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     displayOccurrenceId: selectedOccurrence?.id,
     time: selectedOccurrence?.time ?? timeLabel(starts),
     allDay: selectedOccurrence?.allDay ?? event.isAllDay === true,
-    free: event.isFree === true,
+    free: event.isFree ?? null,
     price: event.priceText || undefined,
     forKids: primarySlug === "djeca-i-obitelj" || allCats.some((c) => c.slug === "djeca-i-obitelj"),
     outdoor: primarySlug === "na-otvorenom" || primarySlug === "outdoor" ||

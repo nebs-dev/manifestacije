@@ -12,7 +12,7 @@ export function TicketLink({
   href: string
   slug: string
   title: string
-  free: boolean
+  free: boolean | null
 }) {
   return (
     <a
@@ -22,7 +22,7 @@ export function TicketLink({
       onClick={() => trackEvent({ name: "click_ticket_or_source", params: { event_slug: slug, event_title: title, url: href } })}
       className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
     >
-      <Ticket className="size-4" aria-hidden /> {free ? "Rezerviraj mjesto" : "Kupi ulaznicu"} <ExternalLink className="size-3.5" aria-hidden />
+      <Ticket className="size-4" aria-hidden /> {free === true ? "Rezerviraj mjesto" : free === false ? "Kupi ulaznicu" : "Informacije o ulaznicama"} <ExternalLink className="size-3.5" aria-hidden />
     </a>
   )
 }

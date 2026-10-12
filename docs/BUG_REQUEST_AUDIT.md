@@ -13,8 +13,8 @@
 
 | Status | Count | IDs |
 |---|---:|---|
-| **DONE** | **16** | AUTH-03, EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05, NOT-01, NOT-02, NOT-04 (implementation/test evidence in §K/§M/§O/§P/§Q/§R/§S; runtime limitations recorded there) |
-| **PARTIAL** | **6** | EVT-08, EVT-09, EVT-10, NOT-03, PUB-02, SEO-02 |
+| **DONE** | **18** | EVT-09, EVT-10, AUTH-03, EVT-02, EVT-04, EVT-05, EVT-06, EVT-11, EVT-12, ADM-01, ADM-02, ADM-03, PUB-03, PUB-04, PUB-05, NOT-01, NOT-02, NOT-04 (implementation/test evidence in §K/§M/§O/§P/§Q/§R/§S/§T; runtime limitations recorded there) |
+| **PARTIAL** | **4** | EVT-08, NOT-03, PUB-02, SEO-02 |
 | **NOT IMPLEMENTED** | **5** | EVT-01, EVT-03, EVT-07, ADM-04, PUB-06 |
 | **BUG STILL PRESENT** | **0** | — |
 | **UNKNOWN / NEEDS RUNTIME** | **6** | AUTH-01, AUTH-02, AUTH-04, PUB-01, SEO-01, ANA-01 |
@@ -61,8 +61,8 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
 | EVT-06 | **DONE** (2026-10-09, `62759b51`) | P1 | S | Fixed & deployed: explicit null clears, end date/time editing, legacy-link-safe saves — see §K |
 | EVT-07 | NOT IMPLEMENTED | P2 | M–L | One `imageUrl` per event; one screenshot per parse |
 | EVT-08 | PARTIAL | P2 | M | Admin reparse still takes no extra input; reviewed decisions/source metadata now retained (§Q); supplemental screenshot workflow remains outside scope |
-| EVT-09 | PARTIAL | P2 | S | Edit form has price/category; list inline-edit lacks price; no “unknown” price state |
-| EVT-10 | PARTIAL (DECISION) | P2 | S | Admin create **already defaults to Besplatno**; organizer form defaults to paid; no “Nepoznato” |
+| EVT-09 | **DONE** (2026-10-12; §T) | P2 | S | Three-state pricing in editors, imports and direct admin list editing; nullable values and revision approval preserved |
+| EVT-10 | **DONE** (2026-10-12; §T) | P2 | S | Explicit product decision: manual admin/organizer creation defaults to Besplatno; parsed/unknown values stay null |
 | EVT-11 | **DONE** (2026-10-09; §Q) | P1 | M | Shared read-only pre-save warnings in admin/organizer/candidate creation; privacy-safe matching and atomic candidate import; evidence / blockers in §Q |
 | EVT-12 | **DONE** (2026-10-09; §P) | P2 | S | Public links in event list/editor only for PUBLISHED or previously published ARCHIVED; draft preview is outside this task; evidence / blockers in §P |
 | ADM-01 | **DONE** (2026-10-09; §P) | P2 | S | Case/diacritic-insensitive organizer name search with loading/empty states and existing actions; evidence / blockers in §P |
@@ -186,14 +186,16 @@ Priority = suggested priority after audit (may differ from backlog). Effort: S �
   - No merge strategy that keeps manually corrected fields.
   - Organizers have no re-parse at all.
 
-**EVT-09 — Easy editing of key fields, esp. Besplatno/Naplata and category**: PARTIAL · P2 · S
+**EVT-09 — Easy editing of key fields, esp. Besplatno/Naplata and category**: **DONE (2026-10-12; §T)** · P2 · S
+- The baseline findings below are superseded by §T.
 - *Existing:*
   - Admin edit form: `isFree` switch + price text + categories (`event-edit-form.tsx:476–492`).
   - Admin list inline edits: date, city, status and categories (`events-table.tsx:137–300`), plus bulk category add/remove.
   - Organizer form: checkbox + price.
 - *Missing:* inline price toggle in the admin list; tri-state price (`isFree` is nullable in DB, `schema.prisma:326`, but every UI coerces `null` → `false`); organizer edit of an event with unknown price silently saves “paid”.
 
-**EVT-10 — Default “Besplatno”**: PARTIAL (DECISION) · P2 · S
+**EVT-10 — Default “Besplatno”**: **DONE (2026-10-12; §T)** · P2 · S
+- The user explicitly approved the manual-entry default and three-state rules on 2026-10-12; this supersedes the baseline recommendation below.
 - *Current behavior (already inconsistent):*
   - Admin create defaults to `isFree: true` (`admin/event-create-form.tsx:43`), i.e. the request is effectively implemented for admin entry already.
   - Organizer create/edit defaults to `false` (`organizer/event-form.tsx:54`).
@@ -394,8 +396,8 @@ None qualify as DONE under the audit rule (code **and** test/proof of the reques
 |---|---|---|
 | EVT-02 | Ownership-checked edit; forced re-review; cache invalidation | Restrict organizer DTO; keep live version or decide to unpublish; admin notification + bell; diff/audit; clearable fields |
 | EVT-08 | Admin reparse | Additional input; merge preserving edits and candidate status; persist screenshots; organizer access |
-| EVT-09 | Edit-form fields, inline category/date/status | Inline price; tri-state price |
-| EVT-10 | Admin default Besplatno; nullable DB column | Decide; “Nepoznato” in forms and public label; align admin/organizer defaults |
+| EVT-09 | **DONE; §T supersedes baseline** | Inline three-state pricing implemented |
+| EVT-10 | **DONE; §T supersedes baseline** | Manual defaults aligned; imports retain UNKNOWN |
 | EVT-11 | **DONE** (2026-10-09; §Q) | Shared pre-save matcher/warnings, organizer privacy, atomic candidate imports; verification blockers in §Q |
 | ADM-02 | Organizer filter on events API/table | Counts + link on organizers page; URL param wiring |
 | ADM-03 | `createdByUserId` for admin paths, column, user count | Organizer path; filter; report; backfill decision; updatedBy/publishedBy/audit log |
@@ -419,7 +421,7 @@ None qualify as DONE under the audit rule (code **and** test/proof of the reques
 | E7 | Overnight events classified multi-day (label, two days, no end time); test enforces it | `event-end.ts`, `event-end.test.ts:9`, `calendar-explorer.tsx:55–64`, `data.ts:892–897` | PUB-04, PUB-05, PUB-03 |
 | E8 | Weekend page keeps Friday section on Sat/Sun; render-time “today” cached | `weekend.ts:48–65`, `ovaj-vikend/page.tsx:26–27`, `public-api.ts:367–369` | PUB-03 |
 | E9 | Monitored discoveries unread even when all candidates already imported; organizer list-open marks all read | `monitored-sources.service.ts:357–362,717–733`, `admin.service.ts:429–437` | NOT-02 |
-| E10 | Unknown price (`isFree=null`) shown publicly as “Naplata”; organizer edit converts null → false | `public-api.ts:400`, `data.ts:899–901`, `organizer/event-form.tsx:54` | EVT-10, EVT-09 |
+| E10 | **FIXED (2026-10-12; §T). Baseline:** Unknown price (`isFree=null`) shown publicly as “Naplata”; organizer edit converts null → false | `public-api.ts:400`, `data.ts:899–901`, `organizer/event-form.tsx:54` | EVT-10, EVT-09 |
 | E11 | Duplicate title tokenizer splits Croatian diacritics; city-wide unfiltered comparison | `duplicates.service.ts:11,61–62` | EVT-11 |
 | E12 | Reparse overwrites candidate statuses and cannot reuse screenshots | `admin.service.ts:642–678` | EVT-08 |
 | E13 | Admin password reset for organizer doesn't bump `authVersion`; ambiguous `findFirst` user | `admin.service.ts:461–467` | AUTH-01 (adjacent) |
@@ -544,7 +546,7 @@ Ordered by: broken core flows → data correctness → staff efficiency.
 
 ## I. Product decisions needed
 
-1. **Price default (EVT-10):** Keep “Besplatno” as admin default (current) or switch to “Nepoznato”? How should unknown price appear publicly (today it shows “Naplata”)?
+1. **Price default (EVT-10): RESOLVED (2026-10-12; §T).** User approved Besplatno initially for manual creation, UNKNOWN for missing imported prices, and the public label “Cijena nije navedena”.
 2. **Editing published events (EVT-02):** Should an organizer edit keep the current version public until approved (needs a revision/draft model), or unpublish as today? Which fields require re-review (date/time/location/price vs. typo in description)? May TRUSTED organizers' edits publish directly?
 3. **Notification triggers (NOT-01/03/04):** Which events email `info@` (new submission, edit, trusted auto-publish, new organizer, monitored discovery)? Immediate or daily digest? Should “published” emails go to the submitting user, the organizer profile email, or both, and never to unclaimed organizers' scraped addresses?
 4. **Creator attribution scope (ADM-03):** Is “who created” enough, or do we need “who approved/edited” (audit log)? Backfill historical events as “unknown” or infer from `sourceType`?
@@ -1012,3 +1014,34 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - Additional **production public browser QA PASS**, read-only: Croatian forgot-password guidance/contact at 390px, invalid/missing reset recovery and referrer metadata; no horizontal overflow. No production form was submitted and no credential was entered. Authenticated production reset/welcome/admin histories remain **BLOCKED**, separate from this public UI verification.
 - Evidence: `/tmp/manifestacije-auth-deploy-4c844c67.json`, `/tmp/manifestacije-auth-production-before.json`, `/tmp/manifestacije-auth-production-after.json`, public before/after snapshots, provider/DNS investigation scripts and isolated fixtures. QA tabs closed, viewport restored, local API/web processes and isolated PostgreSQL stopped; the disposable fresh-install schema was removed after successful migration validation.
 - **Final status:** AUTH-03 DONE and deployed; AUTH-02/04 implementation improvements deployed, **actual production provider acceptance and recipient delivery still UNVERIFIED / BLOCKED** by restricted Resend read access and absent authenticated Railway/Resend/admin sessions. Production sender verification, webhook subscriptions/signing-secret presence, provider history and private runtime logs remain unverified. No real accounts, passwords or email recipients were used for testing. NOT-01/02/04 behavior is preserved; no unrelated backlog item was started.
+
+
+## T. EVT-09 / EVT-10 — Three-state event pricing (2026-10-12)
+
+**Implementation and local verification: DONE.** Continued from main `67c92b02`. The product rules explicitly authorize the manual-entry default, superseding the original backlog's decision caution. Deployment evidence is recorded below after the focused commit.
+
+### Implemented behavior
+
+- Existing nullable Prisma `Event.isFree` is preserved: `true` = FREE / **Besplatno**, `false` = PAID / **Naplata**, `null` = UNKNOWN / **Cijena nije navedena**. No migration, backfill or production event-data write is required. DTOs and revision snapshots now type null explicitly.
+- Shared `src/lib/pricing.ts` and `PricingSelect` supply identical state labels in admin creation/editing, organizer editing/creation, candidate review and list filtering. Manual admin and organizer creation initially select FREE. Editing initializes from the actual stored value; missing/null imported candidates remain UNKNOWN through adapters and import persistence.
+- Admin event list has a default-visible pricing column with immediate three-state editing. The existing authenticated update endpoint receives **only `{ isFree: true/false/null }`**; price text, ticket links, workflow status and categories are untouched. Requests disable the selector while pending, recover on failure and reuse existing authorization/cache handling. Pricing filters distinguish all three states, including SQL NULL.
+- Optional price text and ticket links remain editable for every state, including reservations for free events. Changing state does not reset either input. Full forms retain initial values; intentional clears use explicit null. Existing safe URL checks and unchanged legacy URL handling remain intact.
+- Published organizer pricing changes remain EventRevisions. Public data stays unchanged until approval; review displays Croatian pricing labels instead of Da/Ne or generic null text. Approval applies the explicit nullable selection and preserves unrelated fields. Existing conflict detection, ownership and duplicate checks are unchanged.
+- Public `CroEvent.free` retains null. Shared labels drive cards, calendar, map and event detail; unknown never falls back to Naplata, even if older optional price text remains stored. Unknown ticket links use **Informacije o ulaznicama**. The existing Besplatno filter includes only true. Structured data omits unknown offers, emits zero only for explicitly FREE events, and uses numeric PAID prices only when existing text can be reliably parsed.
+- Deterministic parsing preserves UNKNOWN when pricing is absent or merely says “Cijena/Ulaznica: provjerite”. Empty/whitespace JSON-LD prices no longer become zero through `Number("")`. Explicit zero and positive prices still parse correctly. No live AI/provider calls were used as delivery or parsing proof.
+- Mobile QA found an existing organizer header overflow. Two flex-wrap adjustments keep its navigation within 390px without a UI redesign.
+
+### Automated validation and browser evidence
+
+- **API: 32 suites / 696 tests PASS**, including **105 real PostgreSQL integration cases** (90 previous cases + 15 pricing cases). Covers manual admin/organizer creation in all three states, imported UNKNOWN, field-only inline writes, unchanged optional values, unrelated null-preserving edits, public API serialization, tri-state filters, invalid payloads/admin authorization and published organizer proposals/approval. Existing notification, email, duplicate, location and EventRevision suites pass.
+- **Web: 42 files / 408 tests PASS**. Covers manual defaults, existing true/false/null values, explicit organizer proposals, admin editor saves, actual list request bodies, pending/error recovery, public badges/adapters/JSON-LD and revision labels. Optional clearing and legacy-link regressions remain green.
+- Full workspace lint, API/shared and explicit web TypeScript checks, and all API/shared/web production builds PASS. Isolated PostgreSQL `127.0.0.1:5442/revision_qa` reports **all 26 existing migrations applied**. No schema changes are introduced.
+- Automated Chrome desktop and **390×844** mobile QA PASS with synthetic Vanesa/Andrijana admins and an organizer: list inline writes, existing UNKNOWN editor/unrelated-save preservation, manual FREE defaults, source candidate UNKNOWN/import/editor, published pricing proposal, review labels/approval and public result. UNKNOWN public detail/card omits a numeric offer despite preserved optional text; FREE/PAID render correctly, and mobile Besplatno filtering excludes both PAID and UNKNOWN. Mobile form/public widths fit the viewport; the wide admin table scrolls within its container and inline controls remain reachable.
+- Browser proposal/approval used only synthetic local events. Resend sends and production cache invalidation were disabled. Public local cache refresh was verified after the existing 60-second cache lifetime; immediate on-demand cache behavior is independently covered by existing API tests, not claimed from this disabled local configuration.
+- **Existing unrelated limitation observed:** organizer login's client-side transition briefly remained on “Preusmjeravanje na prijavu…” until reload. A reload loaded the valid session and enabled the complete pricing workflow. The unchanged `use-organizer-auth.ts` mount-only effect predates this task; no authentication backlog work was started here.
+- **BLOCKED:** authenticated production admin/organizer workflow QA and private Railway/Vercel configuration inspection: no authenticated production session or infrastructure credentials available. Production writes are prohibited for this QA. Existing live feed baseline at **07:11:15 UTC** contained **133 events (25 FREE, 108 PAID, no UNKNOWN)**; production UNKNOWN presentation cannot be exercised against a real record in that feed. Local synthetic coverage supplies the three-state runtime proof.
+- Evidence: `/tmp/manifestacije-pricing-api-tests.log`, `/tmp/manifestacije-pricing-fixtures.json`, browser snapshots/screenshots in the QA tool history and `/tmp/manifestacije-pricing-production-before.json`. Pre-existing `docs/project/*` modifications and the untracked backlog are excluded from the focused commit.
+
+### Deployment and non-destructive production checks
+
+Pending focused commit/push and exact-SHA Railway/Vercel status checks. No production event or notification data is modified for testing.

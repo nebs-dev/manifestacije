@@ -31,6 +31,15 @@ const apiEvent = {
 }
 
 describe("public API adapter", () => {
+  it.each([true, false, null])("preserves pricing %s for public cards/detail and structured data", async isFree => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [{ ...apiEvent, isFree, priceText: "18 EUR" }] }))
+    const [event] = await fetchEvents()
+    expect(event.free).toBe(isFree)
+    const offer = eventToJsonLd(event, "https://manifestacije.hr").offers
+    if (isFree === null) expect(offer).toBeUndefined()
+    else expect(offer?.price).toBe(isFree ? "0" : "18")
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })

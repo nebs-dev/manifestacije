@@ -294,7 +294,7 @@ export class AiEventParserService {
     const offersRaw = raw.offers;
     const offers = (Array.isArray(offersRaw) ? offersRaw[0] : offersRaw) as Record<string, unknown> | undefined;
     const price = offers?.price;
-    const priceNumber = typeof price === "number" ? price : typeof price === "string" ? Number(price) : NaN;
+    const priceNumber = typeof price === "number" ? price : typeof price === "string" && price.trim() ? Number(price) : NaN;
     const priceText = str(offers?.price) ? `${str(offers?.price)}${str(offers?.priceCurrency) ? ` ${str(offers?.priceCurrency)}` : ""}` : "";
 
     const missingFields: string[] = [];
@@ -1101,7 +1101,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
 
     const isFree = /besplatno|free|ulaz slobodan/i.test(rest)
       ? true
-      : /eur|hrk|kn\b|cijena|ulaznica/i.test(rest)
+      : /\d+(?:[.,]\d+)?\s*(?:€|eur\b|hrk\b|kn\b)|naplata|plaća se/i.test(rest)
       ? false
       : null;
 
@@ -1238,7 +1238,7 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
 
     const isFree = /besplatno|free|ulaz slobodan|ulaz je slobodan/i.test(block)
       ? true
-      : /eur|hrk|kn\b|cijena|price|ulaznica|kuna/i.test(block)
+      : /\d+(?:[.,]\d+)?\s*(?:€|eur\b|hrk\b|kn\b)|naplata|plaća se/i.test(block)
       ? false
       : null;
 

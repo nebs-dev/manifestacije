@@ -102,7 +102,7 @@ export class CandidateOverrideDto {
   @IsOptional() @IsNumber() lng?: number;
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsArray() @IsInt({ each: true }) @Type(() => Number) categoryIds?: number[];
-  @IsOptional() @IsBoolean() isFree?: boolean;
+  @IsOptional() @IsBoolean() isFree?: boolean | null;
   @IsOptional() @IsBoolean() isFeatured?: boolean;
   @IsOptional() @IsString() priceText?: string;
   @IsOptional() @IsString() @IsSafeHttpUrl({ allowContactLinks: true }) ticketUrl?: string;

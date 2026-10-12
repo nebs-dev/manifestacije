@@ -77,7 +77,7 @@ export class EventContentDto {
 
   @IsOptional()
   @IsBoolean()
-  isFree?: boolean;
+  isFree?: boolean | null;
 
   @IsOptional()
   @IsString()

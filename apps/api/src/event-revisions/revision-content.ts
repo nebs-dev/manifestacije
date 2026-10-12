@@ -17,7 +17,7 @@ export function eventContent(event: RevisionEvent): EventContentDto {
     categoryId: event.categoryId,
     categoryIds: [event.categoryId, ...event.categories.map(row => row.categoryId).filter(id => id !== event.categoryId)],
     startsAt: event.startsAt.toISOString(), endsAt: event.endsAt?.toISOString() ?? null,
-    isAllDay: event.isAllDay, isFree: event.isFree as boolean,
+    isAllDay: event.isAllDay, isFree: event.isFree,
     occurrences: event.occurrences.map(row => ({ id: row.id, startsAt: row.startsAt.toISOString(), endsAt: row.endsAt?.toISOString() ?? null, isAllDay: row.isAllDay })),
     priceText: event.priceText, ticketUrl: event.ticketUrl, sourceUrl: event.sourceUrl, imageUrl: event.imageUrl,
     venueName: event.venue?.name ?? "", address: event.address as string,

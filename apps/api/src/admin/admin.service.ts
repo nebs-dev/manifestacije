@@ -277,7 +277,7 @@ export class AdminService {
           startsAt: new Date(t).toISOString(),
           endsAt: durationMs != null ? new Date(t + durationMs).toISOString() : undefined,
           isAllDay: false,
-          isFree: event.isFree ?? undefined,
+          isFree: event.isFree,
           priceText: event.priceText ?? undefined,
           ticketUrl: safeHttpUrlOrUndefined(event.ticketUrl, { allowContactLinks: true }),
           sourceUrl: safeHttpUrlOrUndefined(event.sourceUrl),
@@ -768,7 +768,7 @@ export class AdminService {
         endsAt: candidate.endsAt || undefined,
         isAllDay: candidate.isAllDay ?? undefined,
         occurrences: candidate.occurrences,
-        isFree: candidate.isFree ?? undefined,
+        isFree: candidate.isFree ?? null,
         priceText: candidate.priceText || undefined,
         // Parsed candidates are untrusted (scraped/LLM output): unsafe links
         // are dropped rather than blocking the approval.
@@ -1179,7 +1179,7 @@ export class AdminService {
       case "endsAt": return date("endsAt");
       case "allDay":
       case "isAllDay": return bool("isAllDay");
-      case "isFree": return bool("isFree");
+      case "isFree": return rawValue === "null" || rawValue === "UNKNOWN" ? { isFree: null } : bool("isFree");
       case "priceText": return nullableText("priceText");
       case "ticketUrl": return nullableText("ticketUrl");
       case "sourceUrl": return nullableText("sourceUrl");

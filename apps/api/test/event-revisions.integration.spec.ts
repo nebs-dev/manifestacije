@@ -116,6 +116,65 @@ integration("EventRevision PostgreSQL workflow", () => {
   const pendingSubmission = () => prisma.event.create({ data: { title: "Nova prijava", description: "Opis", categoryId, slug: `qa-pending-${Date.now()}`, startsAt: new Date("2099-10-10T12:00:00Z"), organizerId, createdByUserId: userId, sourceType: "ORGANIZER_FORM", status: "PENDING_REVIEW" } });
   const discovery = (candidates: object[]) => prisma.eventSource.create({ data: { type: "SCRAPE_DISCOVERY", status: "PARSED", parsedJson: { candidates } } });
 
+  describe("EVT-09/10 pricing", () => {
+    it.each([true, false, null])("admin inline updates pricing %s without touching optional values", async isFree => {
+      const response = await request(`/api/admin/events/${eventId}`, adminId, "PUT", { isFree })
+      expect(response.status).toBe(200)
+      expect(await snapshot()).toMatchObject({ isFree, priceText: "10 EUR", ticketUrl: "https://tickets.example.test", status: "PUBLISHED" })
+      const publicEvent = await feed.event("qa-objavljeni-koncert")
+      expect(publicEvent).toMatchObject({ isFree })
+    })
+    it("preserves UNKNOWN during unrelated admin and organizer edits, including approval", async () => {
+      await prisma.event.update({ where: { id: eventId }, data: { isFree: null } })
+      expect((await request(`/api/admin/events/${eventId}`, adminId, "PUT", { description: "Novi opis" })).status).toBe(200)
+      expect((await snapshot()).isFree).toBeNull()
+      const revision = await submit({ title: "Novi naslov" })
+      expect(revision.proposed).toMatchObject({ isFree: null })
+      await approve(revision)
+      expect(await snapshot()).toMatchObject({ isFree: null, priceText: "10 EUR", ticketUrl: "https://tickets.example.test" })
+    })
+    it.each([true, false, null])("holds organizer pricing %s until revision approval", async isFree => {
+      await prisma.event.update({ where: { id: eventId }, data: { isFree: isFree === false ? true : false } })
+      const before = await snapshot()
+      const response = await request(`/api/organizer/events/${eventId}`, userId, "PUT", { isFree })
+      expect(response.status).toBe(200)
+      expect((await snapshot()).isFree).toBe(before.isFree)
+      const revision = await prisma.eventRevision.findFirstOrThrow({ where: { eventId, status: "PENDING" } })
+      expect(revision.proposed).toMatchObject({ isFree })
+      await approve(revision)
+      expect(await snapshot()).toMatchObject({ isFree, priceText: "10 EUR", ticketUrl: "https://tickets.example.test" })
+    })
+    it.each([true, false, null])("persists explicitly selected manual creation pricing %s", async isFree => {
+      for (const [path, actor] of [["/api/admin/events", adminId], ["/api/organizer/events", userId]] as const) {
+        const response = await request(path, actor, "POST", { title: "Ručni unos", description: "Opis", categoryId, cityId, startsAt: "2099-10-12T18:00:00Z", isFree, ticketUrl: "https://tickets.example.test" })
+        expect(response.status).toBe(201)
+        expect(await response.json()).toMatchObject({ isFree, ticketUrl: "https://tickets.example.test" })
+      }
+    })
+    it("imports an unknown parsed candidate without a manual default", async () => {
+      const source = await prisma.eventSource.create({ data: { type: "SCRAPE_DISCOVERY", status: "PARSED", parsedJson: { candidates: [{ title: "Uvezeni koncert", description: "Opis", startsAt: "2099-10-12T18:00:00Z", city: "QA grad", category: "qa-koncert", isFree: null, priceText: "", _status: "pending" }] } } })
+      const created = await admin.createEventFromSource(source.id, 0, undefined, false, adminId)
+      expect(created.event.isFree).toBeNull()
+    })
+    it.each([true, false, null])("filters pricing %s independently", async isFree => {
+      await prisma.event.update({ where: { id: eventId }, data: { isFree } })
+      const value = isFree === null ? "null" : String(isFree)
+      const query = encodeURIComponent(JSON.stringify([{ field: "isFree", op: "equals", value }]))
+      const response = await request(`/api/admin/events?fieldFilters=${query}`, adminId)
+      expect(response.status).toBe(200)
+      const result = await response.json()
+      expect(result.items.map((row: { id: number }) => row.id)).toContain(eventId)
+      const other = encodeURIComponent(JSON.stringify([{ field: "isFree", op: "equals", value: isFree === true ? "false" : "true" }]))
+      expect((await (await request(`/api/admin/events?fieldFilters=${other}`, adminId)).json()).items).toHaveLength(0)
+    })
+    it("rejects unauthorized inline writes and invalid pricing values", async () => {
+      expect((await request(`/api/admin/events/${eventId}`, undefined, "PUT", { isFree: null })).status).toBe(401)
+      expect((await request(`/api/admin/events/${eventId}`, userId, "PUT", { isFree: null })).status).toBe(401)
+      expect((await request(`/api/admin/events/${eventId}`, adminId, "PUT", { isFree: "UNKNOWN" })).status).toBe(400)
+      expect((await snapshot()).isFree).toBe(false)
+    })
+  })
+
   describe("per-admin notifications", () => {
     it("records new registration once and opening the list does not mark it read", async () => {
       const org = await prisma.organizer.create({ data: { name: "Nova registracija", slug: "qa-new-registration" } });

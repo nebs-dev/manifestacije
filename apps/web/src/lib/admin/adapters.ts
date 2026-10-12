@@ -49,7 +49,7 @@ export function adaptEventSourceCandidates(src: BE): ParsedCandidate[] {
     county: (c.county as string) || null,
     region: (c.region as string) || null,
     category: (c.category as string) || null,
-    isFree: (c.isFree as boolean) ?? false,
+    isFree: (c.isFree as boolean | null) ?? null,
     priceText: (c.priceText as string) || null,
     ticketUrl: (c.ticketUrl as string) || null,
     organizerName: (c.organizerName as string) || null,
@@ -110,7 +110,7 @@ export function adaptEvent(event: BE): AdminEvent {
     createdBy: createdBy
       ? { id: createdBy.id as number, name: createdBy.name as string, email: createdBy.email as string }
       : null,
-    isFree: (event.isFree as boolean) ?? false,
+    isFree: (event.isFree as boolean | null) ?? null,
     isFeatured: (event.isFeatured as boolean) ?? false,
     priceText: (event.priceText as string) ?? null,
     ticketUrl: (event.ticketUrl as string) ?? null,

@@ -1,5 +1,7 @@
 "use client"
 
+import { PricingSelect } from "@/components/pricing-select"
+
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
@@ -471,18 +473,9 @@ export function EventEditForm({
                     onCheckedChange={(v) => update("isFeatured", v)}
                   />
                 </Field>
-                <Field
-                  orientation="horizontal"
-                  className="items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <FieldLabel htmlFor="isFree" className="mb-0">
-                    Besplatan ulaz
-                  </FieldLabel>
-                  <Switch
-                    id="isFree"
-                    checked={form.isFree}
-                    onCheckedChange={(v) => update("isFree", v)}
-                  />
+                <Field>
+                  <FieldLabel htmlFor="isFree">Način naplate</FieldLabel>
+                  <PricingSelect id="isFree" value={form.isFree} onChange={(v) => update("isFree", v)} />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="priceText">Cijena (tekst)</FieldLabel>
@@ -491,7 +484,6 @@ export function EventEditForm({
                     placeholder="npr. od 25 EUR"
                     value={form.priceText}
                     onChange={(e) => update("priceText", e.target.value)}
-                    disabled={form.isFree}
                   />
                 </Field>
                 <Field>

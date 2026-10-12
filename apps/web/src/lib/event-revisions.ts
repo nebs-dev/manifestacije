@@ -1,3 +1,4 @@
+import { pricingLabel } from "./pricing"
 export type RevisionChange = { field: string; original: unknown; proposed: unknown }
 export type EventRevision = {
   id: number; eventId: number; version: number; status: "PENDING" | "APPROVED" | "REJECTED"
@@ -14,7 +15,7 @@ export const REVISION_FIELD_LABELS: Record<string, string> = {
   title: "Naziv", description: "Opis", startsAt: "Početak", endsAt: "Završetak", isAllDay: "Cjelodnevno",
   occurrences: "Raspored termina", cityId: "Grad", cityName: "Naziv grada", venueName: "Mjesto / dvorana",
   address: "Adresa", lat: "Geografska širina", lng: "Geografska dužina", categoryId: "Primarna kategorija",
-  categoryIds: "Kategorije", isFree: "Besplatno", priceText: "Cijena", ticketUrl: "Poveznica za ulaznice",
+  categoryIds: "Kategorije", isFree: "Način naplate", priceText: "Cijena", ticketUrl: "Poveznica za ulaznice",
   sourceUrl: "Poveznica na događaj", imageUrl: "Slika",
 }
 
@@ -24,6 +25,7 @@ export function revisionDate(value: string) {
 }
 
 export function revisionValue(field: string, value: unknown, categories: EventRevision["categories"] = []): string {
+  if (field === "isFree") return pricingLabel(typeof value === "boolean" ? value : null)
   if (value === null || value === undefined || value === "") return "Nije navedeno"
   if (typeof value === "boolean") return value ? "Da" : "Ne"
   if ((field === "startsAt" || field === "endsAt") && typeof value === "string") return revisionDate(value)

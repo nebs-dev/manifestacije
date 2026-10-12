@@ -146,7 +146,7 @@ export function eventToJsonLd(event: CroEvent, webUrl: string): EventJsonLd {
   let offers: Offer | undefined
   if (event.free) {
     offers = { "@type": "Offer", price: "0", priceCurrency: "EUR", availability: "https://schema.org/InStock" }
-  } else if (event.price) {
+  } else if (event.free === false && event.price) {
     const normalizedPrice = normalizeOfferPrice(event.price)
     // Omit the whole offers object when the price can't be reliably parsed to
     // a bare number — a malformed or missing price is worse than no offer at

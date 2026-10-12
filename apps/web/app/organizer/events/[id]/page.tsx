@@ -81,7 +81,7 @@ export default function EditEventPage() {
           address: event.address as string | null,
           lat: event.lat as number | null,
           lng: event.lng as number | null,
-          isFree: event.isFree as boolean,
+          isFree: event.isFree as boolean | null,
           priceText: event.priceText as string | undefined,
           ticketUrl: event.ticketUrl as string | undefined,
           sourceUrl: event.sourceUrl as string | undefined,

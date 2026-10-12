@@ -1,5 +1,7 @@
 "use client"
 
+import { PricingSelect } from "@/components/pricing-select"
+
 import { duplicateCheckInput, useEventDuplicateCheck } from "@/components/event-duplicate-warning"
 import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -32,7 +34,7 @@ export type EventData = {
   address?: string | null
   lat?: number | null
   lng?: number | null
-  isFree?: boolean
+  isFree?: boolean | null
   priceText?: string | null
   ticketUrl?: string | null
   sourceUrl?: string | null
@@ -85,7 +87,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
   const [categoryIds, setCategoryIds] = useState<number[]>(
     initial?.categoryIds?.length ? initial.categoryIds : initial?.categoryId ? [initial.categoryId] : []
   )
-  const [isFree, setIsFree] = useState(initial?.isFree ?? false)
+  const [isFree, setIsFree] = useState<boolean | null>(initial ? initial.isFree ?? null : true)
   const [location, setLocation] = useState<LocationValue | null>(null)
   const savedAddress = initial?.address ?? initial?.venueName ?? null
   const [image, setImage] = useState<EventImageValue>({
@@ -137,7 +139,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
       setLoading(false)
       return
     }
-    const urlError = organizerUrlError({ ticketUrl: isFree ? undefined : ticketUrl, sourceUrl }, initial)
+    const urlError = organizerUrlError({ ticketUrl, sourceUrl }, initial)
     if (urlError) {
       toast.error("Neispravna poveznica", { description: urlError })
       setLoading(false)
@@ -260,22 +262,16 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
       <Card>
         <CardHeader><CardTitle>Ulaznice i cijena</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input type="checkbox" checked={isFree} onChange={(e) => setIsFree(e.target.checked)}
-              className="size-4 rounded border-border accent-primary" />
-            Ulaz slobodan / besplatno
-          </label>
-          {!isFree && (
-            <>
-              <Field label="Cijena">
-                <ClearableInput name="priceText" value={priceText} onChange={setPriceText} placeholder="npr. 10 EUR" clearLabel="Obriši cijenu" />
-              </Field>
-              <Field label="Link za ulaznice">
-                <ClearableInput name="ticketUrl" value={ticketUrl} onChange={setTicketUrl} placeholder="https://…" inputMode="url" clearLabel="Obriši poveznicu za ulaznice" />
-                <LegacyUrlWarning value={ticketUrl} initial={initial?.ticketUrl} allowContactLinks />
-              </Field>
-            </>
-          )}
+          <Field label="Način naplate">
+            <PricingSelect value={isFree} onChange={setIsFree} />
+          </Field>
+          <Field label="Cijena (tekst, neobavezno)">
+            <ClearableInput name="priceText" value={priceText} onChange={setPriceText} placeholder="npr. 10 EUR" clearLabel="Obriši cijenu" />
+          </Field>
+          <Field label="Link za ulaznice">
+            <ClearableInput name="ticketUrl" value={ticketUrl} onChange={setTicketUrl} placeholder="https://…" inputMode="url" clearLabel="Obriši poveznicu za ulaznice" />
+            <LegacyUrlWarning value={ticketUrl} initial={initial?.ticketUrl} allowContactLinks />
+          </Field>
           <Field label="Dodaj poveznicu na događaj">
             <ClearableInput name="sourceUrl" value={sourceUrl} onChange={setSourceUrl} placeholder="https://…" inputMode="url" clearLabel="Obriši poveznicu na događaj" />
             <LegacyUrlWarning value={sourceUrl} initial={initial?.sourceUrl} />

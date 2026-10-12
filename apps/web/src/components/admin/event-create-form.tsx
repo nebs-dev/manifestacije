@@ -1,5 +1,7 @@
 "use client"
 
+import { PricingSelect } from "@/components/pricing-select"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Save } from "lucide-react"
@@ -8,9 +10,9 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
 import { authedFetch } from "@/lib/admin/api"
@@ -41,7 +43,7 @@ export function EventCreateForm() {
     address: "",
     repeatWeekly: false,
     repeatWeeklyUntil: "",
-    isFree: true,
+    isFree: true as boolean | null,
     priceText: "",
     ticketUrl: "",
     sourceUrl: "",
@@ -208,11 +210,11 @@ export function EventCreateForm() {
           <CardHeader><CardTitle>Cijena i poveznice</CardTitle></CardHeader>
           <CardContent>
             <FieldGroup>
-              <Field orientation="horizontal" className="items-center justify-between rounded-lg border border-border p-3">
-                <FieldLabel className="mb-0">Besplatan ulaz</FieldLabel>
-                <Switch checked={form.isFree} onCheckedChange={(v) => update("isFree", v)} />
+              <Field>
+                <FieldLabel htmlFor="isFree">Način naplate</FieldLabel>
+                <PricingSelect id="isFree" value={form.isFree} onChange={(v) => update("isFree", v)} />
               </Field>
-              <Field><FieldLabel>Cijena</FieldLabel><Input value={form.priceText} disabled={form.isFree} onChange={(e) => update("priceText", e.target.value)} /></Field>
+              <Field><FieldLabel>Cijena</FieldLabel><Input value={form.priceText} onChange={(e) => update("priceText", e.target.value)} /></Field>
               <Field><FieldLabel>URL ulaznica</FieldLabel><Input value={form.ticketUrl} onChange={(e) => update("ticketUrl", e.target.value)} /></Field>
               <Field><FieldLabel>URL izvora</FieldLabel><Input value={form.sourceUrl} onChange={(e) => update("sourceUrl", e.target.value)} /></Field>
               <Button type="submit" disabled={saving}><Save data-icon="inline-start" />{saving ? "Spremanje…" : "Kreiraj događaj"}</Button>

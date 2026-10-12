@@ -44,6 +44,26 @@ const submit = async () => { await act(async () => { container.querySelector("fo
 const sentBody = () => JSON.parse(orgFetch.mock.calls[0][1].body)
 
 describe("organizer event form (EVT-06)", () => {
+  it.each([true, false, null])("keeps existing pricing %s during unrelated edits", async isFree => {
+    await act(async () => root.render(<OrganizerEventForm eventId={1} initial={{ ...initial, isFree }} />))
+    expect((container.querySelector('select[aria-label="Način naplate"]') as HTMLSelectElement).value).toBe(isFree === true ? "FREE" : isFree === false ? "PAID" : "UNKNOWN")
+    await submit()
+    expect(sentBody().isFree).toBe(isFree)
+    expect(sentBody()).toMatchObject({ priceText: "15 EUR", ticketUrl: "racesmanager" })
+  })
+  it("defaults manual organizer creation to Besplatno", async () => {
+    await act(async () => root.render(<OrganizerEventForm />))
+    expect((container.querySelector('select[aria-label="Način naplate"]') as HTMLSelectElement).value).toBe("FREE")
+  })
+  it("allows an explicit unknown proposal for a published event", async () => {
+    await act(async () => root.render(<OrganizerEventForm eventId={1} initial={initial} published />))
+    const select = container.querySelector('select[aria-label="Način naplate"]') as HTMLSelectElement
+    await act(async () => { select.value = "UNKNOWN"; select.dispatchEvent(new Event("change", { bubbles: true })) })
+    await submit()
+    expect(sentBody()).toMatchObject({ isFree: null, priceText: "15 EUR", ticketUrl: "racesmanager" })
+    expect(toastSuccess).toHaveBeenLastCalledWith("Izmjene su poslane na pregled. Trenutačno objavljena verzija ostaje vidljiva.")
+  })
+
   it("submits an empty venue name to clear an existing published venue", async () => {
     await act(async () => root.render(<OrganizerEventForm eventId={1} initial={{ ...initial, venueName: "Dvorana" }} published />))
     const venue = container.querySelector('input[name="venueName"]') as HTMLInputElement

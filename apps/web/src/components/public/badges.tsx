@@ -1,3 +1,4 @@
+import { pricingLabel } from "@/lib/pricing"
 import { categoryName } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
@@ -27,7 +28,7 @@ export function PriceBadge({
   price,
   className,
 }: {
-  free: boolean
+  free: boolean | null
   price?: string
   className?: string
 }) {
@@ -46,11 +47,11 @@ export function PriceBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground",
+        free === false ? "inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground" : "inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground",
         className,
       )}
     >
-      {price ?? "Naplata"}
+      {pricingLabel(free, price)}
     </span>
   )
 }

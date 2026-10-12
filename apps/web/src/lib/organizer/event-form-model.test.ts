@@ -15,10 +15,10 @@ describe("organizer event body (EVT-06)", () => {
     expect(body).toEqual(expect.objectContaining({ priceText: "10 EUR", ticketUrl: "https://www.entrio.hr/x", sourceUrl: "https://u.hr", imageUrl: "https://res.cloudinary.com/a.jpg" }))
   })
 
-  it("does not touch the hidden price/ticket fields while the event is free", () => {
+  it("keeps optional price/ticket values when the event becomes free", () => {
     const body = buildOrganizerEventBody({ ...base, isFree: true, priceText: "10 EUR", ticketUrl: "https://x.hr" })
-    expect(body).not.toHaveProperty("priceText")
-    expect(body).not.toHaveProperty("ticketUrl")
+    expect(body.priceText).toBe("10 EUR")
+    expect(body.ticketUrl).toBe("https://x.hr")
     expect(body.isFree).toBe(true)
   })
 

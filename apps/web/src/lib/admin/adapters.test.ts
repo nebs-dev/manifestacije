@@ -3,6 +3,11 @@ import { adaptEvent, adaptEventSourceCandidates } from "./adapters"
 import { EVENT_STATUS_OPTIONS, toApiEventStatus, toUiEventStatus } from "./status"
 
 describe("admin adapters", () => {
+  it.each([true, false, null, undefined])("preserves pricing %s in events and imported candidates", isFree => {
+    expect(adaptEvent({ id: 1, isFree }).isFree).toBe(isFree ?? null)
+    expect(adaptEventSourceCandidates({ id: 1, parsedJson: { candidates: [{ isFree }] } })[0].isFree).toBe(isFree ?? null)
+  })
+
   it("maps parsed candidate review fields without dropping warnings or image metadata", () => {
     const candidates = adaptEventSourceCandidates({
       id: 12,

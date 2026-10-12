@@ -2,16 +2,12 @@ import { safeExternalUrl } from "@/lib/safe-url"
 
 type ScheduleItem = { id?: number; startsAt: string; endsAt: string | null; isAllDay: boolean }
 
-/**
- * Optional organizer fields are sent as explicit `null` when cleared.
- * `undefined` would be dropped by JSON.stringify and the API would keep the
- * old value (EVT-06). While the event is free the price and ticket inputs are
- * hidden, so those two keys are omitted and the stored values stay as they are.
- */
+/** Optional fields are initialized from stored values and sent as explicit null
+ * only when cleared; changing the pricing state never resets their inputs. */
 export function buildOrganizerEventBody(input: {
   schedule: ScheduleItem[]
   sendOccurrences: boolean
-  isFree: boolean
+  isFree: boolean | null
   priceText: string
   ticketUrl: string
   sourceUrl: string
@@ -24,10 +20,8 @@ export function buildOrganizerEventBody(input: {
     isAllDay: first.isAllDay,
     occurrences: input.sendOccurrences ? input.schedule : undefined,
     isFree: input.isFree,
-    ...(input.isFree ? {} : {
-      priceText: input.priceText.trim() || null,
-      ticketUrl: input.ticketUrl.trim() || null,
-    }),
+    priceText: input.priceText.trim() || null,
+    ticketUrl: input.ticketUrl.trim() || null,
     sourceUrl: input.sourceUrl.trim() || null,
     imageUrl: input.imageUrl || null,
   }

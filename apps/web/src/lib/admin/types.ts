@@ -58,7 +58,7 @@ export interface ParsedCandidate {
   county: string | null
   region: string | null
   category: string | null
-  isFree: boolean
+  isFree: boolean | null
   priceText: string | null
   ticketUrl: string | null
   organizerName: string | null
@@ -99,7 +99,7 @@ export interface AdminEvent {
   categories: { id: number; name: string; slug: string }[]
   organizer: string | null
   createdBy: { id: number; name: string; email: string } | null
-  isFree: boolean
+  isFree: boolean | null
   isFeatured: boolean
   priceText: string | null
   ticketUrl: string | null

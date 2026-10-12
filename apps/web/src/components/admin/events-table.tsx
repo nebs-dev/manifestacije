@@ -1,5 +1,8 @@
 "use client"
 
+import { PricingSelect } from "@/components/pricing-select"
+import { pricingLabel, type PricingValue } from "@/lib/pricing"
+
 import { useCallback, useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { Columns3, Pencil, Plus, Search, Trash2, TriangleAlert, X } from "lucide-react"
@@ -63,7 +66,7 @@ export type EventColumnKey =
   | "confidence"
   | "warnings"
 
-type FieldKind = "text" | "date" | "number" | "boolean" | "enum"
+type FieldKind = "text" | "date" | "number" | "boolean" | "enum" | "pricing"
 
 const EVENT_COLUMNS: Array<{ key: EventColumnKey; label: string; kind: FieldKind; defaultVisible?: boolean }> = [
   { key: "title", label: "Naziv", kind: "text", defaultVisible: true },
@@ -83,7 +86,7 @@ const EVENT_COLUMNS: Array<{ key: EventColumnKey; label: string; kind: FieldKind
   { key: "categories", label: "Kategorije", kind: "text", defaultVisible: true },
   { key: "organizer", label: "Organizator", kind: "text", defaultVisible: true },
   { key: "createdBy", label: "Dodao", kind: "text", defaultVisible: true },
-  { key: "isFree", label: "Besplatno", kind: "boolean" },
+  { key: "isFree", label: "Način naplate", kind: "pricing", defaultVisible: true },
   { key: "isFeatured", label: "Izdvojeno", kind: "boolean" },
   { key: "priceText", label: "Cijena", kind: "text" },
   { key: "sourceType", label: "Tip izvora", kind: "enum" },
@@ -113,7 +116,7 @@ function filterOps(kind: FieldKind) {
     { value: "empty", label: "prazno" },
     { value: "notEmpty", label: "nije prazno" },
   ]
-  if (kind === "boolean") return [
+  if (kind === "boolean" || kind === "pricing") return [
     { value: "equals", label: "je" },
   ]
   return [
@@ -130,6 +133,20 @@ function toLocalInput(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return ""
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+export function InlinePricingCell({ value, title, onSave }: {
+  value: PricingValue; title: string; onSave: (value: PricingValue) => Promise<void>
+}) {
+  const [saving, setSaving] = useState(false)
+  return <PricingSelect value={value} label={`Način naplate: ${title}`} disabled={saving}
+    onChange={async next => {
+      if (next === value || saving) return
+      setSaving(true)
+      try { await onSave(next) }
+      catch { toast.error("Greška pri spremanju načina naplate") }
+      finally { setSaving(false) }
+    }} />
 }
 
 // Inline datetime-local cell: click to edit, blur/Enter to save, Escape to cancel.
@@ -479,7 +496,7 @@ export function EventsTable({
         if (patch.field && patch.field !== filter.field) {
           const kind = fieldKind(patch.field)
           next.op = filterOps(kind)[0]?.value ?? "contains"
-          next.value = ""
+          next.value = kind === "pricing" ? "null" : ""
         }
         return next
       }),
@@ -644,7 +661,7 @@ export function EventsTable({
       case "categories": return categoryNames(event) || "—"
       case "organizer": return event.organizer ?? "—"
       case "createdBy": return event.createdBy?.name ?? "Nepoznato"
-      case "isFree": return event.isFree ? "Da" : "Ne"
+      case "isFree": return pricingLabel(event.isFree)
       case "isFeatured": return event.isFeatured ? "Da" : "Ne"
       case "priceText": return event.priceText ?? "—"
       case "sourceType": return event.sourceType ?? "—"
@@ -681,6 +698,9 @@ export function EventsTable({
           onSave={(ids) => patchEvent(event.id, { categoryIds: ids })}
         />
       )
+    }
+    if (column === "isFree") {
+      return <InlinePricingCell value={event.isFree} title={event.title} onSave={(isFree) => patchEvent(event.id, { isFree })} />
     }
     if (column === "status") {
       return <InlineStatusCell status={event.status} onSave={(next) => patchEvent(event.id, { status: toApiEventStatus(next) })} />
@@ -845,7 +865,10 @@ export function EventsTable({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  {opNeedsValue && kind === "boolean" ? (
+                  {opNeedsValue && kind === "pricing" ? (
+                    <PricingSelect value={filter.value === "true" ? true : filter.value === "false" ? false : null}
+                      label="Filter načina naplate" onChange={value => updateFieldFilter(filter.id, { value: value === null ? "null" : String(value) })} />
+                  ) : opNeedsValue && kind === "boolean" ? (
                     <Select value={filter.value || "true"} onValueChange={(v) => { if (v) updateFieldFilter(filter.id, { value: v }) }}>
                       <SelectTrigger className="w-28">
                         <SelectValue>{filter.value === "false" ? "Ne" : "Da"}</SelectValue>
