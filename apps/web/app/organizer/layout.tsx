@@ -3,6 +3,7 @@ import { OrganizerShell } from "@/components/organizer/organizer-shell"
 import { Toaster } from "@/components/ui/sonner"
 
 export const metadata: Metadata = {
+  title: { default: "Prostor za organizatore", template: "%s | Prostor za organizatore" },
   robots: { index: false, follow: false },
 }
 

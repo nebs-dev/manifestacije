@@ -61,7 +61,7 @@ export default function UsersPage() {
       <PageHeader
         title="Korisnici"
         description="Svi računi za prijavu — uključujući račune čiji je organizator obrisan (i dalje drže email zauzetim dok se ne obrišu ovdje)."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Korisnici" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Korisnici" }]}
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : users.length === 0 ? (
         <EmptyState title="Nema korisnika" icon={<UsersIcon />} />

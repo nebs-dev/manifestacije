@@ -108,7 +108,7 @@ export default function SubmitLinkPage() {
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (facebookBlocked) {
-      toast.error("Za Facebook event dodajte screenshot/plakat ili zalijepite tekst opisa.")
+      toast.error("Za Facebook događaj dodajte screenshot/plakat ili zalijepite tekst opisa.")
       return
     }
     if (!sourceUrl.trim() && !rawText.trim() && !screenshot) {
@@ -224,7 +224,7 @@ export default function SubmitLinkPage() {
             </div>
 
             {facebookBlocked && (
-              <p className="text-sm text-destructive">Za Facebook event obavezno dodajte screenshot/plakat ili tekst opisa.</p>
+              <p className="text-sm text-destructive">Za Facebook događaj obavezno dodajte screenshot/plakat ili tekst opisa.</p>
             )}
 
             <div className="flex gap-3">

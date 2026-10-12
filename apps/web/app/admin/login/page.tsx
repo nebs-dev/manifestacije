@@ -79,7 +79,7 @@ export default function AdminLoginPage() {
               <span className="text-lg font-bold">K</span>
             </div>
           </div>
-          <h1 className="font-heading text-2xl font-semibold">Manifestacije Admin</h1>
+          <h1 className="font-heading text-2xl font-semibold">Administracija Manifestacija</h1>
           <p className="mt-1 text-sm text-muted-foreground">Prijavite se kao administrator.</p>
         </div>
 

@@ -47,7 +47,7 @@ export default function SourceDetailPage({
         title={source.subject}
         description="Pregled i obrada parsiranih kandidata."
         breadcrumbs={[
-          { label: "Admin", href: "/admin" },
+          { label: "Administracija", href: "/admin" },
           { label: "Izvori", href: "/admin/sources" },
           { label: source.subject },
         ]}

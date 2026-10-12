@@ -47,8 +47,8 @@ export default function SourcesPage() {
     <>
       <PageHeader
         title="Izvori"
-        description="Cockpit za prikupljanje događaja iz URL-ova i ručnih unosa."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Izvori" }]}
+        description="Prikupljanje događaja iz poveznica i ručnih unosa."
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Izvori" }]}
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

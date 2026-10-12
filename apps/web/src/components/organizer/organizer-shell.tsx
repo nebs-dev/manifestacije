@@ -35,7 +35,7 @@ export function OrganizerShell({ children }: { children: React.ReactNode }) {
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <Link href="/organizer/events" className="font-heading text-base font-semibold">
-            Organizer portal
+            Prostor za organizatore
           </Link>
           <nav className="flex flex-wrap items-center gap-1">
             <Link href="/organizer/events">

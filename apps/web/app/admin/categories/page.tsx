@@ -197,7 +197,7 @@ export default function CategoriesPage() {
       <PageHeader
         title="Kategorije"
         description="Kategorije događaja u sustavu."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Kategorije" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Kategorije" }]}
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
         <div className="flex flex-col gap-2">

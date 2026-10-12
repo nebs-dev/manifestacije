@@ -41,7 +41,7 @@ export function AdminTopbar({ user, menuOpen, onOpenMenu, menuButtonRef }: { use
   }
 
   const initial = user?.name?.[0]?.toUpperCase() ?? user?.email?.[0]?.toUpperCase() ?? "A"
-  const displayName = user?.name || user?.email || "Admin"
+  const displayName = user?.name || user?.email || "Administrator"
   const totalPending = counts?.unread ?? ((counts?.sources ?? 0) + (counts?.events ?? 0) + (counts?.organizers ?? 0) + (counts?.revisions ?? 0))
 
   return (

@@ -353,7 +353,7 @@ export default function OrganizersPage() {
       <PageHeader
         title="Organizatori"
         description="Upravljanje organizatorima i njihovim statusima."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Organizatori" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Organizatori" }]}
         actions={
           inviteConfirming ? (
             <div className="flex items-center gap-2 text-sm">

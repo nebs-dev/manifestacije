@@ -144,7 +144,7 @@ export default function OrganizerClaimsPage() {
       <PageHeader
         title="Zahtjevi za preuzimanje profila"
         description="Pregled i odobravanje zahtjeva za preuzimanje organizatorskih profila."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Zahtjevi za preuzimanje" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Zahtjevi za preuzimanje" }]}
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
         <div className="flex flex-col gap-3">

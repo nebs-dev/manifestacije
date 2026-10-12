@@ -9,7 +9,7 @@ export default function NewAdminEventPage() {
       <PageHeader
         title="Novi događaj"
         description="Ručno kreiraj događaj i po potrebi dodaj sliku."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Događaji", href: "/admin/events" }, { label: "Novi događaj" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Događaji", href: "/admin/events" }, { label: "Novi događaj" }]}
       />
       <EventCreateForm />
     </>

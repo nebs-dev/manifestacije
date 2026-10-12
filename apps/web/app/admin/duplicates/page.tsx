@@ -36,7 +36,7 @@ export default function DuplicatesPage() {
         title="Duplikati"
         description="Pregledaj i riješi predložene duplikate događaja."
         breadcrumbs={[
-          { label: "Admin", href: "/admin" },
+          { label: "Administracija", href: "/admin" },
           { label: "Duplikati" },
         ]}
       />

@@ -60,7 +60,7 @@ export default function EventDetailPage({
         title={event.title}
         description="Uredi detalje događaja, promijeni status i objavi."
         breadcrumbs={[
-          { label: "Admin", href: "/admin" },
+          { label: "Administracija", href: "/admin" },
           { label: "Događaji", href: returnTo },
           { label: event.title },
         ]}

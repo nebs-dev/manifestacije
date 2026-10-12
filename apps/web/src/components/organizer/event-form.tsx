@@ -173,7 +173,7 @@ export function OrganizerEventForm({ eventId, initial, published = false }: { ev
         toast.error("Greška", { description: msg })
         return
       }
-      toast.success(eventId && published ? "Izmjene su poslane na pregled. Trenutačno objavljena verzija ostaje vidljiva." : eventId ? "Event ažuriran" : "Event poslan na pregled")
+      toast.success(eventId && published ? "Izmjene su poslane na pregled. Trenutačno objavljena verzija ostaje vidljiva." : eventId ? "Događaj ažuriran" : "Događaj poslan na pregled")
       router.push("/organizer/events")
     } catch {
       toast.error("Greška pri spajanju na server")

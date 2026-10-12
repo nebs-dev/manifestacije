@@ -93,7 +93,7 @@ export function SiteFooter() {
               </li>
               <li>
                 <Link href="/organizer/login" className="text-ink-foreground/80 transition-colors hover:text-accent">
-                  Prijava organizatora
+                  Za organizatore
                 </Link>
               </li>
             </ul>

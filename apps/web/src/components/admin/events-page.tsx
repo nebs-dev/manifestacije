@@ -116,7 +116,7 @@ export default function AdminEventsPage({
       <PageHeader
         title="Događaji"
         description="Svi događaji u sustavu, neovisno o statusu."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Događaji" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Događaji" }]}
         actions={<Button nativeButton={false} render={<Link href="/admin/events/new" />}><Plus data-icon="inline-start" />Novi događaj</Button>}
       />
       <EventCreatorReport filters={filters} onChange={setFiltersAndResetPage} />

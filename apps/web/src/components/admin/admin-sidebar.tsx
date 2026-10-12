@@ -29,9 +29,9 @@ export function AdminSidebar({ className, id, onNavigate, onClose }: { className
         </div>
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold text-sidebar-foreground">
-            Manifestacije Admin
+            Manifestacije
           </span>
-          <span className="text-xs text-muted-foreground">Manifestacije</span>
+          <span className="text-xs text-muted-foreground">Administracija</span>
         </div>
         {onClose && (
           <button type="button" onClick={onClose} aria-label="Zatvori izbornik" className="ml-auto inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">

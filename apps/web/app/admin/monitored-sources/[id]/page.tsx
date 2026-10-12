@@ -135,7 +135,7 @@ export default function MonitoredSourceDetailPage({ params }: { params: { id: st
         title={source.name}
         description={source.url}
         breadcrumbs={[
-          { label: "Admin", href: "/admin" },
+          { label: "Administracija", href: "/admin" },
           { label: "Nadzirani izvori", href: "/admin/monitored-sources" },
           { label: source.name },
         ]}

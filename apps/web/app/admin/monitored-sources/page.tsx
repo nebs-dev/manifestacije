@@ -36,7 +36,7 @@ export default function MonitoredSourcesPage() {
       <PageHeader
         title="Nadzirani izvori"
         description="Periodička provjera stranica za nove ili promijenjene događaje."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Nadzirani izvori" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Nadzirani izvori" }]}
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

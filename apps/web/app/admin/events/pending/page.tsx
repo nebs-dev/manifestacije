@@ -117,7 +117,7 @@ export default function PendingEventsPage({
         title="Događaji na čekanju"
         description="Pregledajte i obradite događaje prije objave."
         breadcrumbs={[
-          { label: "Admin", href: "/admin" },
+          { label: "Administracija", href: "/admin" },
           { label: "Događaji na čekanju" },
         ]}
       />

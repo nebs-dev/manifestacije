@@ -69,7 +69,7 @@ export default function OrganizerEventsPage() {
       const res = await orgFetch(`/api/organizer/events/${id}`, { method: "DELETE" })
       if (!res.ok) { toast.error(await res.text()); return }
       setEvents((prev) => prev.filter((ev) => ev.id !== id))
-      toast.success("Event obrisan")
+      toast.success("Događaj obrisan")
     } catch {
       toast.error("Greška pri brisanju")
     }

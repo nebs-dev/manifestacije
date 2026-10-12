@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin/admin-shell"
 import { Toaster } from "@/components/ui/sonner"
 
 export const metadata: Metadata = {
+  title: { default: "Administracija", template: "%s | Administracija" },
   robots: { index: false, follow: false },
 }
 

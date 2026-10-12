@@ -322,7 +322,7 @@ export default function RegionsPage() {
       <PageHeader
         title="Regije i gradovi"
         description="Geografska taksonomija: regije, županije i gradovi."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Regije" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Regije" }]}
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
         <div className="flex flex-col gap-4">

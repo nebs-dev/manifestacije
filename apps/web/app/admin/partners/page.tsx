@@ -289,7 +289,7 @@ export default function PartnersPage() {
       <PageHeader
         title="Partneri"
         description="Partneri prikazani na početnoj stranici."
-        breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Partneri" }]}
+        breadcrumbs={[{ label: "Administracija", href: "/admin" }, { label: "Partneri" }]}
       />
       {loading ? <TableLoadingState /> : error ? <ErrorState description={error} onRetry={load} /> : (
         <div className="flex flex-col gap-2">
