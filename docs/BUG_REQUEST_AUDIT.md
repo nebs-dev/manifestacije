@@ -1130,3 +1130,15 @@ Eight description-only heuristic hits were investigated; seven were not reliable
 - The live `/kalendar` page chunk contains the new restoration module. GET-only production health **08:48 UTC**: `ok=true`, `db=ok`, notifications/EventRevisions/email tracking ready; 133 public events. No API change was deployed.
 - **Production real Chrome QA PASS 12/12** (read-only, no forms submitted): month (151 entries) and week (71 entries) views, an entry three-quarters down the list, browser Back and "Natrag na kalendar", at 1366×900, 390×844 and 360×740. Every clicked event returned to within 2px of its original viewport offset (for example `scrollY 24944`, top 288px at 360px), with no horizontal overflow and zero console errors. Log: `/tmp/manifestacije-pub02-production-browser.log`.
 - **Final status: PUB-02 DONE and deployed.** Remaining limitation: Safari/iOS WebKit not exercised (no WebKit runtime available).
+
+
+## W. Organizer event-list mobile overflow (2026-10-12)
+
+Follow-up to the limitation recorded in §U. Continued from main `e3d3dd20`; PUB-02 (§V) untouched.
+
+- **Reproduced** in real Chrome (local production build, isolated API/PostgreSQL, synthetic organizers and events only): on `/organizer/events` the page was **403–404px wide at 320, 360 and 390px** (13px at 390px, matching §U), and "Dodaj događaj" was partly off-screen. The same overflow appeared on the empty list. 430px and desktop were unaffected.
+- **Root cause:** in `apps/web/app/organizer/events/page.tsx`, the page header was a non-wrapping flex row containing the "Događaji" heading and an action group (`div.flex.items-center.gap-2`), and the action group itself did not wrap either. Both buttons are `shrink-0`/`whitespace-nowrap`, so the group's minimum width plus the heading exceeded the content width, and the group ended at x=403.
+- **Fix:** added `flex-wrap` to the header row and to the action group. On narrow screens the actions move below the heading (and wrap again if needed). No overflow clipping, markup, copy or behavior changes.
+- **Browser QA PASS 27/27** at 320, 360, 390 and 430px and 1366px desktop, with `scrollWidth <= clientWidth` and every `main` link/button inside the viewport. Covered: event list (short and very long Croatian titles, unbroken long word, all four statuses, "Izmjene na pregledu" plus status badge, delete action), empty list, loading state (API held 2.5s), editor `/organizer/events/[id]`, new event and submit-link pages. Zero console errors. The probe ignores the switch control's intentionally enlarged `::after` touch target, which is not clipped content.
+- **Tests:** web 44 files / 440 tests PASS; web typecheck, workspace lint and web production build PASS. API untouched, so the API suite was not rerun.
+- Evidence: `/tmp/manifestacije-org-overflow-before.log`, `/tmp/manifestacije-org-overflow-after.log`, `/tmp/manifestacije-org-overflow-qa.cjs`, `/tmp/manifestacije-org-overflow-fixtures.cjs`.
