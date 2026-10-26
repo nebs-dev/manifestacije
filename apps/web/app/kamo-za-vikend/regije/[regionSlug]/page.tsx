@@ -3,6 +3,7 @@ import { WeekendLanding } from "@/components/public/weekend-landing"
 import { fetchEvents, fetchRegions, fetchWeekendScopes } from "@/lib/public-api"
 import { kamoZaVikendSeo } from "@/lib/weekend-seo"
 import { canonicalRegionSlug } from "@/lib/seo-taxonomy"
+import { weekendEmptyState } from "@/lib/weekend-nearby"
 import { DEFAULT_OG_IMAGE } from "@/lib/seo-images"
 
 type PageProps = { params: { regionSlug: string } }
@@ -39,9 +40,13 @@ export default async function KamoZaVikendRegionPage({ params }: PageProps) {
     fetchRegions(),
   ])
   const seo = kamoZaVikendSeo({ kind: "region", slug: params.regionSlug, regions })
+  const emptyState = events.length === 0
+    ? await weekendEmptyState({ kind: "region", slug: params.regionSlug, name: seo.breadcrumbName })
+    : undefined
   return (
     <WeekendLanding
       events={events}
+      emptyState={emptyState}
       eyebrow={seo.eyebrow}
       h1={seo.h1}
       intro={seo.description}

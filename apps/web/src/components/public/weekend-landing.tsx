@@ -7,6 +7,8 @@ import { dateParts, type CroEvent } from "@/lib/data"
 import { breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld"
 import { WEB_URL } from "@/lib/public-api"
 import { groupWeekendEvents } from "@/lib/weekend"
+import { SeoLinkBlock } from "@/components/public/seo-link-block"
+import type { WeekendEmptyState } from "@/lib/weekend-nearby"
 
 type BreadcrumbItem = { name: string; path: string }
 
@@ -16,12 +18,16 @@ export function WeekendLanding({
   h1,
   intro,
   breadcrumbs,
+  emptyState,
 }: {
   events: CroEvent[]
   eyebrow: string
   h1: string
   intro: string
   breadcrumbs: BreadcrumbItem[]
+  /** Where to send a visitor when nothing is on (SEO-15); omitted on /ovaj-vikend,
+   *  which covers every place at once and so is never a dead end. */
+  emptyState?: WeekendEmptyState
 }) {
   const grouped = groupWeekendEvents(events)
   const visibleDays = grouped.days.filter((day) => day.events.length > 0)
@@ -73,16 +79,36 @@ export function WeekendLanding({
             })}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
-            <p className="font-heading text-xl font-semibold">Trenutačno nemamo objavljenih događanja za ovaj vikend.</p>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/eventi" className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-                Sva nadolazeća događanja
-              </Link>
-              <Link href="/dodaj-event" className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
-                Dodaj događaj
-              </Link>
+          <div>
+            <div className="rounded-2xl border border-dashed border-border bg-card/50 p-10 text-center">
+              <p className="font-heading text-xl font-semibold">Trenutačno nemamo objavljenih događanja za ovaj vikend.</p>
+              {emptyState && (
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {emptyState.browse.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-primary/40 hover:text-primary"
+                    >
+                      {link.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <Link href="/eventi" className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                  Sva nadolazeća događanja
+                </Link>
+                <Link href="/dodaj-event" className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
+                  Dodaj događaj
+                </Link>
+              </div>
             </div>
+            {emptyState && emptyState.nearby.length > 0 && (
+              <div className="mt-8">
+                <SeoLinkBlock title={emptyState.nearbyTitle} links={emptyState.nearby} />
+              </div>
+            )}
           </div>
         )}
       </main>

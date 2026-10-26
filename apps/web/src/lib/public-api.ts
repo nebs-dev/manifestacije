@@ -178,6 +178,19 @@ export async function fetchRegions(): Promise<PublicRegion[]> {
   return fetchApi<PublicRegion[]>("/api/public/regions", 3600, ["taxonomy"]).catch(() => [])
 }
 
+export type PublicCity = {
+  id: number
+  name: string
+  slug: string
+  lat?: number | null
+  lng?: number | null
+  county?: { slug: string; region?: { slug: string } | null } | null
+}
+
+export async function fetchCities(): Promise<PublicCity[]> {
+  return fetchApi<PublicCity[]>("/api/public/cities", 3600, ["taxonomy"]).catch(() => [])
+}
+
 export type WeekendScopes = { windowDays: number; cities: string[]; regions: string[] }
 
 /**

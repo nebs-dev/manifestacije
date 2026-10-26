@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { WeekendLanding } from "@/components/public/weekend-landing"
 import { fetchEvents, fetchWeekendScopes } from "@/lib/public-api"
 import { kamoZaVikendSeo } from "@/lib/weekend-seo"
+import { weekendEmptyState } from "@/lib/weekend-nearby"
 import { DEFAULT_OG_IMAGE } from "@/lib/seo-images"
 
 type PageProps = { params: { citySlug: string } }
@@ -34,9 +35,13 @@ export const revalidate = 0;
 export default async function KamoZaVikendCityPage({ params }: PageProps) {
   const events = await fetchEvents({ when: "ovaj-vikend", city: params.citySlug })
   const seo = kamoZaVikendSeo({ kind: "city", slug: params.citySlug, events })
+  const emptyState = events.length === 0
+    ? await weekendEmptyState({ kind: "city", slug: params.citySlug, name: seo.breadcrumbName })
+    : undefined
   return (
     <WeekendLanding
       events={events}
+      emptyState={emptyState}
       eyebrow={seo.eyebrow}
       h1={seo.h1}
       intro={seo.description}
