@@ -218,7 +218,13 @@ export async function fetchPartners(): Promise<PublicPartner[]> {
   return fetchApi<PublicPartner[]>("/api/public/partners", 3600, ["partners"]).catch(() => [])
 }
 
-export async function fetchEvents(filters: PublicFilters = {}) {
+/** Default Data Cache lifetime for an event feed, in seconds. A page cached
+ *  for longer must pass its own value: Next takes a route's revalidate from
+ *  the *lowest* revalidate among the fetches it made, so a 300-second feed
+ *  would otherwise cap a 900-second page at 300 (PERF-01). */
+export const EVENTS_FEED_REVALIDATE = 300
+
+export async function fetchEvents(filters: PublicFilters = {}, options: { revalidate?: number } = {}) {
   const params = new URLSearchParams()
   params.set("compact", "true")
   if (filters.q) params.set("search", filters.q)
@@ -243,7 +249,7 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   // The weekend feed used to ask for revalidate 0, which opts the whole route
   // out of static rendering: every visit then re-rendered the page on a
   // function invocation (PERF-01). It now caches like every other feed.
-  return fetchApi<ApiEvent[]>(path, 300, ["events"]).then((rows) => mapApiEvents(rows, !filters.q?.trim())).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
+  return fetchApi<ApiEvent[]>(path, options.revalidate ?? EVENTS_FEED_REVALIDATE, ["events"]).then((rows) => mapApiEvents(rows, !filters.q?.trim())).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
 }
 
 export type PastEventsPage = { items: CroEvent[]; total: number; page: number; pageSize: number; pageCount: number }

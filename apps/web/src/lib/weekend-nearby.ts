@@ -81,7 +81,9 @@ export type WeekendEmptyState = {
 /** Builds the content an empty weekend page shows instead of a dead end: the
  *  place's own listing plus the nearest places that do have something on. */
 export async function weekendEmptyState(scope: { kind: "city" | "region"; slug: string; name: string }): Promise<WeekendEmptyState> {
-  const [cities, weekendEvents] = await Promise.all([fetchCities(), fetchEvents({ when: "ovaj-vikend" })])
+  // 900s matches the weekend pages that render this; a shorter feed would cap
+  // their revalidate (PERF-01).
+  const [cities, weekendEvents] = await Promise.all([fetchCities(), fetchEvents({ when: "ovaj-vikend" }, { revalidate: 900 })])
   const nearbyCities: NearbyCity[] = cities.map((city) => ({
     slug: city.slug,
     name: city.name,

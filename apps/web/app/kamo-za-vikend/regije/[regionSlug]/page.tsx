@@ -10,7 +10,7 @@ type PageProps = { params: { regionSlug: string } }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const [events, regions, scopes] = await Promise.all([
-    fetchEvents({ when: "ovaj-vikend", region: params.regionSlug }),
+    fetchEvents({ when: "ovaj-vikend", region: params.regionSlug }, { revalidate: WEEKEND_PAGE_REVALIDATE }),
     fetchRegions(),
     fetchWeekendScopes(),
   ])
@@ -32,11 +32,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export const revalidate = 0;
+const WEEKEND_PAGE_REVALIDATE = 900;
+
+// Cached for 15 minutes instead of rendered per request (PERF-01): these pages
+// answered in ~4-6s on every visit. Nothing is prerendered at build time, so
+// the first visit to a slug renders it and later visits are served from the
+// cache; `events` tag invalidation still refreshes them on data changes, and
+// the weekend labels can lag by at most one interval after the Monday switch.
+export const revalidate = WEEKEND_PAGE_REVALIDATE;
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [] as { regionSlug: string }[];
+}
 
 export default async function KamoZaVikendRegionPage({ params }: PageProps) {
   const [events, regions] = await Promise.all([
-    fetchEvents({ when: "ovaj-vikend", region: params.regionSlug }),
+    fetchEvents({ when: "ovaj-vikend", region: params.regionSlug }, { revalidate: WEEKEND_PAGE_REVALIDATE }),
     fetchRegions(),
   ])
   const seo = kamoZaVikendSeo({ kind: "region", slug: params.regionSlug, regions })
