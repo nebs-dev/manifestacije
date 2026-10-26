@@ -83,4 +83,31 @@ describe("route caching (PERF-01)", () => {
 
     expect(await fetchWeekendScopes()).toEqual({ windowDays: 0, cities: [], regions: [] })
   })
+
+  const listingRoutes: Array<[string, Record<string, string>]> = [
+    ["../../app/gradovi/[citySlug]/page", { citySlug: "osijek" }],
+    ["../../app/regije/[regionSlug]/page", { regionSlug: "slavonija" }],
+    ["../../app/kategorije/[categorySlug]/page", { categorySlug: "glazba" }],
+    ["../../app/gradovi/[citySlug]/kategorije/[categorySlug]/page", { citySlug: "osijek", categorySlug: "glazba" }],
+    ["../../app/regije/[regionSlug]/kategorije/[categorySlug]/page", { regionSlug: "slavonija", categorySlug: "glazba" }],
+  ]
+
+  it.each(listingRoutes)("caches the listing route %s for 900 seconds, on demand", async (route) => {
+    const { revalidate, dynamicParams, generateStaticParams } = await import(route)
+
+    expect(revalidate).toBe(900)
+    expect(dynamicParams).toBe(true)
+    expect(await generateStaticParams()).toEqual([])
+  })
+
+  it.each(listingRoutes)("keeps %s off the 300-second feed", async (route, params) => {
+    const spy = stubFetch()
+    const { generateMetadata } = await import(route)
+
+    await generateMetadata({ params })
+
+    const calls = spy.mock.calls as unknown[][]
+    const feed = calls.findIndex((call) => String(call[0]).includes("/api/public/events"))
+    expect(initOf(spy, feed).next?.revalidate).toBe(900)
+  })
 })

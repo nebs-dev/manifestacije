@@ -9,9 +9,23 @@ import { eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { categoryName } from "@/lib/seo-taxonomy";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo-images";
 
+const LISTING_REVALIDATE = 900;
+
+// Cached for 15 minutes instead of rendered on every request (PERF-01). A
+// dynamic segment is only cached once generateStaticParams exists, so an empty
+// one turns the route into ISR without prerendering any slug at build time;
+// the event feed asks for the same 900s, because a route's revalidate is the
+// lowest of the fetches it made. Event mutations still refresh these pages
+// through the existing `events` tag webhook.
+export const revalidate = LISTING_REVALIDATE;
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [] as { categorySlug: string }[];
+}
+
 export async function generateMetadata({ params }: { params: { categorySlug: string } }): Promise<Metadata> {
   const [events, categories] = await Promise.all([
-    fetchEvents({ category: params.categorySlug }),
+    fetchEvents({ category: params.categorySlug }, { revalidate: LISTING_REVALIDATE }),
     fetchCategories(),
   ]);
   const name = categoryName(params.categorySlug, categories, events);
@@ -29,7 +43,7 @@ export async function generateMetadata({ params }: { params: { categorySlug: str
 
 export default async function CategoryPage({ params }: { params: { categorySlug: string } }) {
   const [events, categories] = await Promise.all([
-    fetchEvents({ category: params.categorySlug }),
+    fetchEvents({ category: params.categorySlug }, { revalidate: LISTING_REVALIDATE }),
     fetchCategories(),
   ]);
   const name = categoryName(params.categorySlug, categories, events);
