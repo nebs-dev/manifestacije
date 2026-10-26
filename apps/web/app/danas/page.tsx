@@ -11,7 +11,10 @@ export const metadata: Metadata = {
   alternates: { canonical: `${WEB_URL}/danas` },
 };
 
-export const revalidate = 0;
+// Cached for 5 minutes instead of rendered per request (PERF-01). The listing
+// is date-derived, so after midnight it can show the previous day for at most
+// one revalidation interval; the date itself is computed in Europe/Zagreb.
+export const revalidate = 300;
 
 export default async function TodayPage() {
   const events = await fetchEvents({ when: "danas" });

@@ -17,7 +17,10 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 0;
+// Cached for 5 minutes instead of rendered per request (PERF-01). The listing
+// is date-derived, so after midnight it can show the previous day for at most
+// one revalidation interval; the date itself is computed in Europe/Zagreb.
+export const revalidate = 300;
 
 export default async function WeekendPage() {
   const events = await fetchEvents({ when: "ovaj-vikend" });

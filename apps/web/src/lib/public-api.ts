@@ -240,7 +240,10 @@ export async function fetchEvents(filters: PublicFilters = {}) {
   const path = `/api/public/events${params.size ? `?${params.toString()}` : ""}`
   // Mutation webhooks invalidate `events`; this finite fallback also refreshes
   // clock-dependent visibility and today/weekend ranges without mutations.
-  return fetchApi<ApiEvent[]>(path, filters.when === "ovaj-vikend" ? 0 : 300, ["events"]).then((rows) => mapApiEvents(rows, !filters.q?.trim())).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
+  // The weekend feed used to ask for revalidate 0, which opts the whole route
+  // out of static rendering: every visit then re-rendered the page on a
+  // function invocation (PERF-01). It now caches like every other feed.
+  return fetchApi<ApiEvent[]>(path, 300, ["events"]).then((rows) => mapApiEvents(rows, !filters.q?.trim())).catch(() => fallbackEventsForFilters({ ...filters, city: filters.city ? normalizeCity(filters.city) : undefined, category: filters.category || (filters.kids ? "djeca-i-obitelj" : filters.outdoor ? "na-otvorenom" : undefined), kids: false, outdoor: false }))
 }
 
 export type PastEventsPage = { items: CroEvent[]; total: number; page: number; pageSize: number; pageCount: number }

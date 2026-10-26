@@ -9,7 +9,7 @@ it("uses five-minute tagged discovery caches without extending unrelated caches"
   for (const filters of [{}, { when: "danas" }, { when: "ovaj-vikend" }, { city: "osijek" }] as const) {
     await fetchEvents(filters)
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/public/events?"), {
-      next: { revalidate: "when" in filters && filters.when === "ovaj-vikend" ? 0 : 300, tags: ["events"] },
+      next: { revalidate: 300, tags: ["events"] },
     })
   }
   await fetchMapEvents()
@@ -34,7 +34,7 @@ it("refreshes live category counts on event or taxonomy invalidation", async () 
   })
 })
 
-it("uses a new data-cache key at Zagreb midnight and never caches weekend responses", async () => {
+it("uses a new data-cache key at Zagreb midnight and caches the weekend feed like the rest", async () => {
   vi.useFakeTimers()
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] })
   vi.stubGlobal("fetch", fetch)
@@ -47,7 +47,9 @@ it("uses a new data-cache key at Zagreb midnight and never caches weekend respon
     const after = new URL(fetch.mock.calls[1][0])
     expect(before.searchParams.get("clockDate")).toBe("2026-07-05")
     expect(after.searchParams.get("clockDate")).toBe("2026-07-06")
+    // revalidate 0 here used to opt every weekend route out of static
+    // rendering, so the pages re-rendered on every visit (PERF-01).
     await fetchEvents({ when: "ovaj-vikend" })
-    expect(fetch).toHaveBeenLastCalledWith(expect.any(String), { next: { revalidate: 0, tags: ["events"] } })
+    expect(fetch).toHaveBeenLastCalledWith(expect.any(String), { next: { revalidate: 300, tags: ["events"] } })
   } finally { vi.useRealTimers() }
 })
