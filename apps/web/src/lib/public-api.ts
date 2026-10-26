@@ -193,15 +193,25 @@ export async function fetchCities(): Promise<PublicCity[]> {
 
 export type WeekendScopes = { windowDays: number; cities: string[]; regions: string[] }
 
+/** The 90-day scopes move at most once a day, so they outlive the pages that
+ *  read them (300s and 900s) by a wide margin (PERF-01). */
+export const WEEKEND_SCOPES_REVALIDATE = 3600
+
 /**
  * Cities and regions that keep their weekend page indexable even on a quiet
  * weekend, because they had an event in the recent past or have one coming
  * (SEO-15). An API failure returns empty lists, which falls back to the old
  * behaviour: index only what is on this weekend.
+ *
+ * Caching (PERF-01): one Data Cache entry shared by every weekend page, so a
+ * render fetches it once however many places ask for it, and a cached page
+ * does not ask at all. A failed call is never remembered — Next writes an
+ * entry only for a 200 response (see patch-fetch in next@14.2) — so the
+ * noindex fallback lasts for that render only, not for the hour.
  */
 export async function fetchWeekendScopes(): Promise<WeekendScopes> {
   const empty: WeekendScopes = { windowDays: 0, cities: [], regions: [] }
-  return fetchApi<Partial<WeekendScopes>>("/api/public/seo/weekend-scopes", 3600, ["events"])
+  return fetchApi<Partial<WeekendScopes>>("/api/public/seo/weekend-scopes", WEEKEND_SCOPES_REVALIDATE, ["events"])
     .then((scopes) => ({
       windowDays: scopes?.windowDays ?? 0,
       // An older API (web deployed first) answers 404 and lands in catch, but a

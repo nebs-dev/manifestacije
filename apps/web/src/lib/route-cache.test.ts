@@ -65,4 +65,22 @@ describe("route caching (PERF-01)", () => {
     expect(dynamicParams).toBe(true)
     expect(await generateStaticParams()).toEqual([])
   })
+
+  it("caches the weekend scopes for an hour, longer than any page that reads them", async () => {
+    const spy = stubFetch({ windowDays: 90, cities: ["karanac"], regions: [] })
+    const { fetchWeekendScopes, WEEKEND_SCOPES_REVALIDATE } = await import("./public-api")
+
+    await fetchWeekendScopes()
+
+    expect(WEEKEND_SCOPES_REVALIDATE).toBe(3600)
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0])).toContain("/api/public/seo/weekend-scopes")
+    expect(initOf(spy)).toEqual({ next: { revalidate: 3600, tags: ["events"] } })
+  })
+
+  it("falls back to empty scopes on a failed call, which Next never caches", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503, statusText: "Service Unavailable", json: async () => ({}) })))
+    const { fetchWeekendScopes } = await import("./public-api")
+
+    expect(await fetchWeekendScopes()).toEqual({ windowDays: 0, cities: [], regions: [] })
+  })
 })
