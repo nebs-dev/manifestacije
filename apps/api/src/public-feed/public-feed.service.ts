@@ -4,6 +4,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { currentWeekendRange } from "../common/weekend";
 import { zagrebLocalToUtc } from "../common/weekend";
 
+/** A place keeps its weekend page in the index when it had an event this
+ *  recently, even if nothing is on this weekend (SEO-15). */
+const WEEKEND_INDEX_WINDOW_DAYS = 90;
+
 const eventInclude = {
   organizer: true,
   venue: true,
@@ -201,6 +205,25 @@ export class PublicFeedService {
       orderBy: { startsAt: "asc" },
       take: 200
     });
+  }
+
+  /**
+   * Cities and regions whose "Kamo za vikend" page stays indexable: they had a
+   * public event within the last WEEKEND_INDEX_WINDOW_DAYS days, or have one
+   * coming. A quiet weekend is a gap in the programme, not a reason to drop a
+   * page that carries search traffic out of the index (SEO-15).
+   */
+  async weekendScopes(now = new Date()) {
+    const since = new Date(now.getTime() - WEEKEND_INDEX_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const recentEventWhere: Prisma.EventWhereInput = {
+      OR: [{ status: EventStatus.PUBLISHED }, { status: EventStatus.ARCHIVED, publishedAt: { not: null } }],
+      startsAt: { gte: since },
+    };
+    const [cities, regions] = await Promise.all([
+      this.prisma.city.findMany({ where: { events: { some: recentEventWhere } }, select: { slug: true }, orderBy: { slug: "asc" } }),
+      this.prisma.region.findMany({ where: { events: { some: recentEventWhere } }, select: { slug: true }, orderBy: { slug: "asc" } }),
+    ]);
+    return { windowDays: WEEKEND_INDEX_WINDOW_DAYS, cities: cities.map((city) => city.slug), regions: regions.map((region) => region.slug) };
   }
 
   async sitemapData() {

@@ -65,6 +65,11 @@ export class PublicFeedController {
     return this.feed.mapEvents();
   }
 
+  @Get("seo/weekend-scopes")
+  weekendScopes() {
+    return this.feed.weekendScopes();
+  }
+
   @Get("seo/sitemap-data")
   sitemapData() {
     return this.feed.sitemapData();

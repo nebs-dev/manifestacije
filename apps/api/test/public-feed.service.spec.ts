@@ -295,3 +295,40 @@ describe("public category inventory", () => {
     expect(prisma.event.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe("weekend index scopes (SEO-15)", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("returns places with an event inside the 90-day window, archived ones included", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-26T09:00:00.000Z"));
+    const prisma = {
+      city: { findMany: jest.fn().mockResolvedValue([{ slug: "karanac" }, { slug: "osijek" }]) },
+      region: { findMany: jest.fn().mockResolvedValue([{ slug: "slavonija-i-baranja" }]) },
+    };
+
+    const scopes = await new PublicFeedService(prisma as never).weekendScopes();
+
+    expect(scopes).toEqual({ windowDays: 90, cities: ["karanac", "osijek"], regions: ["slavonija-i-baranja"] });
+    for (const call of [prisma.city.findMany.mock.calls[0][0], prisma.region.findMany.mock.calls[0][0]]) {
+      expect(call.where.events.some).toEqual({
+        OR: [{ status: EventStatus.PUBLISHED }, { status: EventStatus.ARCHIVED, publishedAt: { not: null } }],
+        startsAt: { gte: new Date("2026-07-28T09:00:00.000Z") },
+      });
+      expect(call.select).toEqual({ slug: true });
+    }
+  });
+
+  it("counts an upcoming event too, so a new place is indexable from its first listing", async () => {
+    const prisma = {
+      city: { findMany: jest.fn().mockResolvedValue([{ slug: "lug" }]) },
+      region: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const now = new Date("2026-10-26T09:00:00.000Z");
+
+    await new PublicFeedService(prisma as never).weekendScopes(now);
+
+    expect(prisma.city.findMany.mock.calls[0][0].where.events.some.startsAt.lte).toBeUndefined();
+  });
+});

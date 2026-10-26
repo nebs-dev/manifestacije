@@ -178,6 +178,19 @@ export async function fetchRegions(): Promise<PublicRegion[]> {
   return fetchApi<PublicRegion[]>("/api/public/regions", 3600, ["taxonomy"]).catch(() => [])
 }
 
+export type WeekendScopes = { windowDays: number; cities: string[]; regions: string[] }
+
+/**
+ * Cities and regions that keep their weekend page indexable even on a quiet
+ * weekend, because they had an event in the recent past or have one coming
+ * (SEO-15). An API failure returns empty lists, which falls back to the old
+ * behaviour: index only what is on this weekend.
+ */
+export async function fetchWeekendScopes(): Promise<WeekendScopes> {
+  return fetchApi<WeekendScopes>("/api/public/seo/weekend-scopes", 3600, ["events"])
+    .catch(() => ({ windowDays: 0, cities: [], regions: [] }))
+}
+
 export type PublicPartner = { id: number; name: string; logoUrl: string; websiteUrl?: string | null; sortOrder: number }
 
 export async function fetchPartners(): Promise<PublicPartner[]> {
