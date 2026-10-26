@@ -49,6 +49,18 @@ describe("sitemap hygiene (SEO-12)", () => {
     expect(urls).not.toContain(`http://localhost:3000/${slug}`)
   })
 
+  it("lists every weekend URL the pages keep indexable, including quiet places", async () => {
+    const urls = (await sitemapUrls({
+      ...emptyData,
+      weekendCities: [{ slug: "osijek" }, { slug: "karanac" }],
+      weekendRegions: [{ slug: "slavonija-i-baranja" }],
+    })).map((entry) => entry.url)
+
+    expect(urls).toContain("http://localhost:3000/kamo-za-vikend/gradovi/osijek")
+    expect(urls).toContain("http://localhost:3000/kamo-za-vikend/gradovi/karanac")
+    expect(urls).toContain("http://localhost:3000/kamo-za-vikend/regije/slavonija")
+  })
+
   it("dates event URLs by content change, not by generation time", async () => {
     const urls = await sitemapUrls({ ...emptyData, events: [{ slug: "koncert", updatedAt: "2026-10-01T10:00:00.000Z" }] })
 

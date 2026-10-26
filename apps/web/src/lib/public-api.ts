@@ -200,8 +200,16 @@ export type WeekendScopes = { windowDays: number; cities: string[]; regions: str
  * behaviour: index only what is on this weekend.
  */
 export async function fetchWeekendScopes(): Promise<WeekendScopes> {
-  return fetchApi<WeekendScopes>("/api/public/seo/weekend-scopes", 3600, ["events"])
-    .catch(() => ({ windowDays: 0, cities: [], regions: [] }))
+  const empty: WeekendScopes = { windowDays: 0, cities: [], regions: [] }
+  return fetchApi<Partial<WeekendScopes>>("/api/public/seo/weekend-scopes", 3600, ["events"])
+    .then((scopes) => ({
+      windowDays: scopes?.windowDays ?? 0,
+      // An older API (web deployed first) answers 404 and lands in catch, but a
+      // body of an unexpected shape must not break metadata generation either.
+      cities: Array.isArray(scopes?.cities) ? scopes.cities : [],
+      regions: Array.isArray(scopes?.regions) ? scopes.regions : [],
+    }))
+    .catch(() => empty)
 }
 
 export type PublicPartner = { id: number; name: string; logoUrl: string; websiteUrl?: string | null; sortOrder: number }

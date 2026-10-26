@@ -241,8 +241,17 @@ describe("PublicFeedService", () => {
             },
           ]),
       },
-      region: { findMany: jest.fn().mockResolvedValue([{ slug: "slavonija" }]) },
-      city: { findMany: jest.fn().mockResolvedValue([{ slug: "osijek" }]) },
+      // Second call per model is weekendScopes(): the 90-day window (SEO-15).
+      region: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([{ slug: "slavonija" }])
+          .mockResolvedValueOnce([{ slug: "slavonija" }, { slug: "dalmacija" }]),
+      },
+      city: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([{ slug: "osijek" }])
+          .mockResolvedValueOnce([{ slug: "osijek" }, { slug: "karanac" }]),
+      },
       category: { findMany: jest.fn().mockResolvedValue([{ slug: "glazba" }]) },
     };
     const service = new PublicFeedService(prisma as never);
@@ -268,8 +277,9 @@ describe("PublicFeedService", () => {
       { regionSlug: "slavonija-i-baranja", categorySlug: "festivali" },
       { regionSlug: "slavonija-i-baranja", categorySlug: "glazba" },
     ]);
-    expect(data.weekendCities).toEqual([{ slug: "osijek" }]);
-    expect(data.weekendRegions).toEqual([{ slug: "slavonija" }]);
+    // Quiet-weekend places are listed too, matching what the pages index.
+    expect(data.weekendCities).toEqual([{ slug: "osijek" }, { slug: "karanac" }]);
+    expect(data.weekendRegions).toEqual([{ slug: "slavonija" }, { slug: "dalmacija" }]);
   });
 });
 
