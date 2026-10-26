@@ -13,6 +13,7 @@ import {
   regionLocationPhrase,
   regionName,
 } from "@/lib/seo-taxonomy"
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images"
 
 type PageProps = {
   params: { regionSlug: string; categorySlug: string }
@@ -34,8 +35,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title,
     description,
-    openGraph: { type: "website", title, description, url },
-    twitter: { card: "summary", title, description },
+    openGraph: { type: "website", title, description, url, images: [DEFAULT_OG_IMAGE] },
+    twitter: { card: "summary", title, description, images: [DEFAULT_OG_IMAGE] },
     alternates: { canonical: url },
     ...(events.length === 0 ? { robots: { index: false, follow: true } } : {}),
   }

@@ -22,6 +22,7 @@ import { citySlugForEvent } from "@/lib/seo-taxonomy";
 import { publicAddressLine } from "@/lib/location-display";
 import { effectiveOccurrences, eventHasEnded, formatOccurrenceLabel } from "@/lib/event-schedule";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { DEFAULT_OG_IMAGE, DEFAULT_OG_IMAGE_META } from "@/lib/seo-images";
 
 const BACK_LINKS = {
   kalendar: { href: "/kalendar", label: "Natrag na kalendar" },
@@ -58,14 +59,14 @@ export async function generateMetadata({ params }: { params: { eventSlug: string
       type: "article",
       title: event.title,
       description: richTextSummary(event.description),
-      images: event.image ? [{ url: event.image, alt: event.title }] : [],
+      images: event.image ? [{ url: event.image, alt: event.title }] : [DEFAULT_OG_IMAGE_META],
       url: `${WEB_URL}/eventi/${event.slug}`,
     },
     twitter: {
       card: event.image ? "summary_large_image" : "summary",
       title: event.title,
       description: richTextSummary(event.description),
-      images: event.image ? [event.image] : [],
+      images: event.image ? [event.image] : [DEFAULT_OG_IMAGE],
     },
     alternates: { canonical: `${WEB_URL}/eventi/${event.slug}` }
   };

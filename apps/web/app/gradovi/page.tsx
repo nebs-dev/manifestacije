@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/public/site-footer"
 import { breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld"
 import { fetchEvents, WEB_URL } from "@/lib/public-api"
 import { cityEventSummaries } from "@/lib/seo-taxonomy"
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images"
 
 export const metadata: Metadata = {
   title: { absolute: "Događanja po gradovima | Manifestacije" },
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
     title: "Događanja po gradovima | Manifestacije",
     description: "Pregled gradova s aktualnim događanjima, manifestacijama i eventima na Manifestacije.hr.",
     url: `${WEB_URL}/gradovi`,
+    images: [DEFAULT_OG_IMAGE],
   },
 }
 

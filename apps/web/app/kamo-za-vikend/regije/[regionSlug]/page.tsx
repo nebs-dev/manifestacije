@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { WeekendLanding } from "@/components/public/weekend-landing"
 import { fetchEvents, fetchRegions } from "@/lib/public-api"
 import { kamoZaVikendSeo } from "@/lib/weekend-seo"
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images"
 
 type PageProps = { params: { regionSlug: string } }
 
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title: seo.title,
       description: seo.description,
       url: seo.canonical,
+      images: [DEFAULT_OG_IMAGE],
     },
   }
 }

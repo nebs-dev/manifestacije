@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PublicAnalytics } from "@/components/auth/public-analytics";
 import { RouteProgress } from "@/components/route-progress";
 import "./globals.css";
+import { DEFAULT_OG_IMAGE, DEFAULT_OG_IMAGE_META } from "@/lib/seo-images";
 
 const siteUrl = process.env.NEXT_PUBLIC_WEB_URL || "https://manifestacije.hr"
 
@@ -21,13 +22,13 @@ export const metadata: Metadata = {
     siteName: "Manifestacije",
     title: "Manifestacije — Što se događa oko tebe?",
     description: "Digitalni kalendar događanja za Slavoniju i Baranju — pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
-    images: [{ url: "/logo/logo.svg", width: 1024, height: 1024, alt: "Manifestacije" }],
+    images: [DEFAULT_OG_IMAGE_META],
   },
   twitter: {
     card: "summary",
     title: "Manifestacije — Što se događa oko tebe?",
     description: "Digitalni kalendar događanja za Slavoniju i Baranju — pronađi mjesto, manifestaciju ili dobar razlog da ne ostaneš doma.",
-    images: ["/logo/logo.svg"],
+    images: [DEFAULT_OG_IMAGE],
   },
   icons: {
     // PNG/ICO first for guaranteed browser and Search Console compatibility;

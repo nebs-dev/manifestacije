@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { WeekendLanding } from "@/components/public/weekend-landing";
 import { fetchEvents } from "@/lib/public-api";
 import { weekendPageCanonical, weekendPageDescription, weekendPageTitle } from "@/lib/weekend-page";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images";
 
 export const metadata: Metadata = {
   title: { absolute: weekendPageTitle },
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
     title: weekendPageTitle,
     description: weekendPageDescription,
     url: weekendPageCanonical,
+    images: [DEFAULT_OG_IMAGE],
   },
 };
 

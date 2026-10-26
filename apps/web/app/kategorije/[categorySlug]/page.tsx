@@ -7,6 +7,7 @@ import { ResultsGrid } from "@/components/public/results-grid";
 import { fetchCategories, fetchEvents, WEB_URL } from "@/lib/public-api";
 import { eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { categoryName } from "@/lib/seo-taxonomy";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images";
 
 export async function generateMetadata({ params }: { params: { categorySlug: string } }): Promise<Metadata> {
   const [events, categories] = await Promise.all([
@@ -19,8 +20,8 @@ export async function generateMetadata({ params }: { params: { categorySlug: str
   return {
     title,
     description,
-    openGraph: { type: "website", title, description, url: `${WEB_URL}/kategorije/${params.categorySlug}` },
-    twitter: { card: "summary", title, description },
+    openGraph: { type: "website", title, description, url: `${WEB_URL}/kategorije/${params.categorySlug}`, images: [DEFAULT_OG_IMAGE] },
+    twitter: { card: "summary", title, description, images: [DEFAULT_OG_IMAGE] },
     alternates: { canonical: `${WEB_URL}/kategorije/${params.categorySlug}` },
     ...(events.length === 0 ? { robots: { index: false, follow: true } } : {}),
   };

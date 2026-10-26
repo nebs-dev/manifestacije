@@ -9,6 +9,7 @@ import { SeoLinkBlock } from "@/components/public/seo-link-block";
 import { fetchCategories, fetchEvents, fetchRegions, WEB_URL } from "@/lib/public-api";
 import { breadcrumbsToJsonLd, eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { categoryLinksForEvents, cityLinksForEvents, regionGenitivePhrase, regionImage, regionLocationPhrase, regionName } from "@/lib/seo-taxonomy";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images";
 
 export async function generateMetadata({ params }: { params: { regionSlug: string } }): Promise<Metadata> {
   const [events, regions] = await Promise.all([
@@ -23,8 +24,8 @@ export async function generateMetadata({ params }: { params: { regionSlug: strin
   return {
     title,
     description,
-    openGraph: { type: "website", title, description, url: `${WEB_URL}/regije/${params.regionSlug}` },
-    twitter: { card: "summary", title, description },
+    openGraph: { type: "website", title, description, url: `${WEB_URL}/regije/${params.regionSlug}`, images: [regionImage(params.regionSlug) || DEFAULT_OG_IMAGE] },
+    twitter: { card: "summary", title, description, images: [regionImage(params.regionSlug) || DEFAULT_OG_IMAGE] },
     alternates: { canonical: `${WEB_URL}/regije/${params.regionSlug}` },
     ...(events.length === 0 ? { robots: { index: false, follow: true } } : {}),
   };

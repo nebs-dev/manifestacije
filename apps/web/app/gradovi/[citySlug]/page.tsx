@@ -8,6 +8,7 @@ import { SeoLinkBlock } from "@/components/public/seo-link-block";
 import { fetchCategories, fetchEvents, WEB_URL } from "@/lib/public-api";
 import { breadcrumbsToJsonLd, eventsToItemListJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { categoryLinksForEvents, citySeoFields } from "@/lib/seo-taxonomy";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo-images";
 
 export async function generateMetadata({ params }: { params: { citySlug: string } }): Promise<Metadata> {
   const events = await fetchEvents({ city: params.citySlug });
@@ -15,8 +16,8 @@ export async function generateMetadata({ params }: { params: { citySlug: string 
   return {
     title: { absolute: title },
     description,
-    openGraph: { type: "website", title, description, url: canonical },
-    twitter: { card: "summary", title, description },
+    openGraph: { type: "website", title, description, url: canonical, images: [DEFAULT_OG_IMAGE] },
+    twitter: { card: "summary", title, description, images: [DEFAULT_OG_IMAGE] },
     alternates: { canonical },
     // Thin/empty listing pages hurt SEO if indexed — keep them out of the index
     // until they have events, but still let crawlers follow links through them.
