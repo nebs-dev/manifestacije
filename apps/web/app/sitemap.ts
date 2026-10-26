@@ -23,6 +23,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${WEB_URL}/mapa` },
     { url: `${WEB_URL}/gradovi` },
     { url: `${WEB_URL}/regije` },
+    // Indexable standalone pages with their own title and content. /dodaj-event
+    // and /pridruzi-se stay out: the first has no metadata of its own, the
+    // second is noindex.
+    { url: `${WEB_URL}/uvjeti-koristenja` },
+    { url: `${WEB_URL}/pravila-privatnosti` },
+    { url: `${WEB_URL}/kolacici` },
     ...data.events.map((e) => ({ url: `${WEB_URL}/eventi/${e.slug}`, lastModified: e.updatedAt })),
     // The API returns the long region slugs; only the canonical (short) form
     // belongs in the sitemap — the long one 301s (see next.config.js).

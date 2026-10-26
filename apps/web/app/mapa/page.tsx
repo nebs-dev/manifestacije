@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { DiscoveryExplorer } from "@/components/public/discovery-explorer";
-import { fetchMapEvents } from "@/lib/public-api";
+import { fetchMapEvents, WEB_URL } from "@/lib/public-api";
 
 export const metadata: Metadata = {
   title: "Karta događanja",
   description: "Istraži događanja na interaktivnoj karti Hrvatske.",
+  alternates: { canonical: `${WEB_URL}/mapa` },
 };
 
 export default async function MapPage() {

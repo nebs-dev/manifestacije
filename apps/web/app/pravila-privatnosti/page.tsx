@@ -1,10 +1,12 @@
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/public/site-header"
 import { SiteFooter } from "@/components/public/site-footer"
+import { WEB_URL } from "@/lib/public-api"
 
 export const metadata: Metadata = {
   title: "Politika privatnosti — Manifestacije",
   description: "Kako Manifestacije.hr obrađuje i štiti vaše osobne podatke.",
+  alternates: { canonical: `${WEB_URL}/pravila-privatnosti` },
 }
 
 export default function PravilaPrivatnostiPage() {

@@ -1,10 +1,12 @@
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/public/site-header"
 import { SiteFooter } from "@/components/public/site-footer"
+import { WEB_URL } from "@/lib/public-api"
 
 export const metadata: Metadata = {
   title: "Obavijest o kolačićima — Manifestacije",
   description: "Koje kolačiće koristi Manifestacije.hr i kako ih možete kontrolirati.",
+  alternates: { canonical: `${WEB_URL}/kolacici` },
 }
 
 export default function KolaciciPage() {

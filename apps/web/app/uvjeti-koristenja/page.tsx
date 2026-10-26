@@ -1,10 +1,12 @@
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/public/site-header"
 import { SiteFooter } from "@/components/public/site-footer"
+import { WEB_URL } from "@/lib/public-api"
 
 export const metadata: Metadata = {
   title: "Uvjeti korištenja — Manifestacije",
   description: "Pravila objave događaja, odgovornost organizatora i uvjeti korištenja platforme Manifestacije.hr.",
+  alternates: { canonical: `${WEB_URL}/uvjeti-koristenja` },
 }
 
 export default function UvjetiKoristenjaPage() {

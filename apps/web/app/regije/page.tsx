@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
 import { RegionGrid } from "@/components/public/region-grid";
+import { WEB_URL } from "@/lib/public-api"
 
 export const metadata: Metadata = {
   title: "Regije",
   description: "Istraži događanja po regijama Slavonije i Baranje.",
+  alternates: { canonical: `${WEB_URL}/regije` },
 };
 
 export default function RegionsPage() {
