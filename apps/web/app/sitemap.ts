@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { api, WEB_URL } from "@/lib/api";
+import { canonicalRegionSlug } from "@/lib/seo-taxonomy";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const data = await api<{
@@ -23,12 +24,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${WEB_URL}/gradovi` },
     { url: `${WEB_URL}/regije` },
     ...data.events.map((e) => ({ url: `${WEB_URL}/eventi/${e.slug}`, lastModified: e.updatedAt })),
-    ...data.regions.map((r) => ({ url: `${WEB_URL}/regije/${r.slug}` })),
+    // The API returns the long region slugs; only the canonical (short) form
+    // belongs in the sitemap — the long one 301s (see next.config.js).
+    ...data.regions.map((r) => ({ url: `${WEB_URL}/regije/${canonicalRegionSlug(r.slug)}` })),
     ...data.cities.map((c) => ({ url: `${WEB_URL}/gradovi/${c.slug}` })),
     ...data.categories.map((c) => ({ url: `${WEB_URL}/kategorije/${c.slug}` })),
     ...data.cityCategories.map((item) => ({ url: `${WEB_URL}/gradovi/${item.citySlug}/kategorije/${item.categorySlug}` })),
-    ...data.regionCategories.map((item) => ({ url: `${WEB_URL}/regije/${item.regionSlug}/kategorije/${item.categorySlug}` })),
+    ...data.regionCategories.map((item) => ({ url: `${WEB_URL}/regije/${canonicalRegionSlug(item.regionSlug)}/kategorije/${item.categorySlug}` })),
     ...(data.weekendCities ?? []).map((city) => ({ url: `${WEB_URL}/kamo-za-vikend/gradovi/${city.slug}` })),
-    ...(data.weekendRegions ?? []).map((region) => ({ url: `${WEB_URL}/kamo-za-vikend/regije/${region.slug}` }))
+    ...(data.weekendRegions ?? []).map((region) => ({ url: `${WEB_URL}/kamo-za-vikend/regije/${canonicalRegionSlug(region.slug)}` }))
   ];
 }

@@ -18,7 +18,7 @@ const CALENDAR_PLACE_LINKS = [
   { href: "/gradovi/dakovo", label: "Događanja u Đakovu" },
   { href: "/gradovi/vinkovci", label: "Događanja u Vinkovcima" },
   { href: "/gradovi/vukovar", label: "Događanja u Vukovaru" },
-  { href: "/regije/slavonija-i-baranja", label: "Manifestacije u Slavoniji i Baranji" },
+  { href: "/regije/slavonija", label: "Manifestacije u Slavoniji i Baranji" },
 ]
 
 function str(v: string | string[] | undefined) {

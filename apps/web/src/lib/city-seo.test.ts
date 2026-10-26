@@ -125,7 +125,8 @@ describe("city discovery SEO", () => {
     expect(urls).toContainEqual({ url: "http://localhost:3000/gradovi/osijek/kategorije/glazba" })
     expect(urls).not.toContainEqual({ url: "http://localhost:3000/kamo-za-vikend" })
     expect(urls).toContainEqual({ url: "http://localhost:3000/kamo-za-vikend/gradovi/osijek" })
-    expect(urls).toContainEqual({ url: "http://localhost:3000/kamo-za-vikend/regije/slavonija-i-baranja" })
+    // The API region slug is normalised to the canonical short one (SEO-11).
+    expect(urls).toContainEqual({ url: "http://localhost:3000/kamo-za-vikend/regije/slavonija" })
   })
 
   it("does not block city URLs in robots.txt", async () => {

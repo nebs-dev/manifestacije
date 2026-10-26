@@ -16,6 +16,16 @@ const regionSlugAliases: Record<string, RegionSlug> = {
   "medimurje-i-zagorje": "medimurje",
 }
 
+/** The region slug every public URL must use. The API stores the long county
+ *  group slugs ("slavonija-i-baranja") while the site has always linked the
+ *  short ones ("slavonija"), so both resolved and both got indexed with their
+ *  own canonical (SEO-11). Short wins: it carries the traffic. The long slugs
+ *  301 to it via the redirect table in next.config.js, which must stay in sync
+ *  with the alias map above. */
+export function canonicalRegionSlug(slug: string): string {
+  return regionSlugAliases[slug] || slug
+}
+
 const regionLocative: Record<string, string> = {
   "slavonija-i-baranja": "Slavoniji i Baranji",
   slavonija: "Slavoniji i Baranji",
