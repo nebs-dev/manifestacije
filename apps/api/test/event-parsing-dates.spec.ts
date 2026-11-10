@@ -201,6 +201,16 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.warnings.join(" ")).toMatch(/godin/i);
   });
 
+  it("recovers the closing time from the stated range when the model's end is unconfirmed", async () => {
+    const result = await run({
+      startsAt: "2026-11-14T17:30:00", dateText: "Subota, 14. studenoga 2026.", timeText: "17:30 – 19:00",
+      endsAt: "2026-11-14T20:00:00", endTimeText: "",
+    });
+    expect(result.startsAt).toBe("2026-11-14T17:30:00+01:00");
+    expect(result.endsAt).toBe("2026-11-14T19:00:00+01:00");
+    expect(result.warnings.join(" ")).toMatch(/Završetak je izveden iz raspona/);
+  });
+
   // Exactly the production case: the model turned "Subota, 5. prosinca"
   // into 2027-01-05, wrong in both month and year.
   it("takes the quoted date when the model is wrong in month and year at once", async () => {

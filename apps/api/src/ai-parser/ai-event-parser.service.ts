@@ -775,16 +775,18 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       };
       const normalizeEnd = (raw: string | null | undefined, evidence: Evidence, start: string): string => {
         const span = sourceTimes(evidence.timeText || "");
-        if (!raw) {
-          // "17:30 – 19:00" states both ends in one string. When the model
-          // fills only the start, the closing time is still the source's own.
+        // "17:30 – 19:00" states both ends in one string, so the closing
+        // time is the source's own even when the model quotes no end of its
+        // own — and even when it returns an end it cannot back up.
+        const fromSpan = (): string => {
           const startTime = start.slice(11, 16);
           if (!start || span.length !== 2 || span[0] !== startTime || span[1] <= startTime) return "";
           const closing = parseZagrebWallTime(start.slice(0, 10), span[1]);
           if (!closing) return "";
           warnings.push(`Završetak je izveden iz raspona u izvoru (${evidence.timeText}); provjerite.`);
           return closing;
-        }
+        };
+        if (!raw) return fromSpan();
         const dates = sourceDates(evidence.endDateText || "");
         const times = sourceTimes(evidence.endTimeText || "");
         const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
@@ -802,6 +804,8 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         const normalized = date && time ? parseZagrebWallTime(date, time) : "";
         if (!start || !normalized || Date.parse(normalized) <= Date.parse(start)
             || !literal(evidence.endDateText) || !literal(evidence.endTimeText)) {
+          const span2 = fromSpan();
+          if (span2) return span2;
           warnings.push("Završno vrijeme nije potvrđeno ili je dvosmisleno; provjerite izvor.");
           return "";
         }
