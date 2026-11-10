@@ -1,5 +1,5 @@
 import { EmailDeliveryError } from "../email/email.types";
-import { BadRequestException, ForbiddenException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, Optional, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { UserRole } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
@@ -9,6 +9,7 @@ import { generateResetToken, hashResetToken } from "../common/reset-token";
 import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
+import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
 import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from "./auth.dto";
 
 const GENERIC_FORGOT_PASSWORD_MESSAGE = "Ako račun s tom adresom postoji, poslali smo upute za promjenu lozinke.";
@@ -22,7 +23,10 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly email: EmailService,
-    private readonly contacts: ResendContactsService
+    private readonly contacts: ResendContactsService,
+    // Optional so the many unit tests that build AuthService by hand keep
+    // working; app.module provides it in every real runtime.
+    @Optional() private readonly claims?: OrganizerClaimService
   ) {}
 
   async register(dto: RegisterDto) {
@@ -32,11 +36,18 @@ export class AuthService {
     const organizerName = dto.organizerName || dto.name;
     const organizerSlug = await uniqueSlug(organizerName, async (s) => !!(await this.prisma.organizer.findUnique({ where: { slug: s } })));
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const organizer = await this.prisma.organizer.create({
-      data: { name: organizerName, slug: organizerSlug, status: "CLAIMED", email }
-    });
-    const user = await this.prisma.user.create({
-      data: { email, passwordHash, name: dto.name, role: UserRole.ORGANIZER, organizerId: organizer.id }
+    // One transaction: a failed user insert (a racing registration on the same
+    // email, say) must not leave behind an organizer with no account on it.
+    // Such an orphan reads as "claimed" to an admin while its owner can
+    // neither log in nor reset a password that was never set.
+    const { organizer, user } = await this.prisma.$transaction(async (tx) => {
+      const organizer = await tx.organizer.create({
+        data: { name: organizerName, slug: organizerSlug, status: "CLAIMED", email }
+      });
+      const user = await tx.user.create({
+        data: { email, passwordHash, name: dto.name, role: UserRole.ORGANIZER, organizerId: organizer.id }
+      });
+      return { organizer, user };
     });
 
     // EmailService.send* already catches provider errors internally and never
@@ -80,12 +91,18 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      // No User account yet — if this email belongs to an UNCLAIMED
-      // Organizer, tell them exactly what to do instead of a generic
+      // No User account yet — if this email belongs to an Organizer nobody
+      // has claimed, tell them exactly what to do instead of a generic
       // "wrong password" (there's no password to get wrong: no account
       // exists yet). This is a deliberate UX choice for organizer login,
       // not the anti-enumeration surface — that's forgotPassword above.
-      const organizer = await this.prisma.organizer.findFirst({ where: { email: { equals: email, mode: "insensitive" }, status: "UNCLAIMED" } });
+      //
+      // "Nobody claimed it" means no linked User — NOT OrganizerStatus,
+      // which an admin can bump to CLAIMED/VERIFIED/TRUSTED on an organizer
+      // that never actually registered. Reading the status here used to turn
+      // every such organizer into a dead end: generic wrong-password on
+      // login, and nothing at all from forgot-password.
+      const organizer = await this.prisma.organizer.findFirst({ where: { email: { equals: email, mode: "insensitive" }, users: { none: {} } } });
       if (organizer) {
         throw new ForbiddenException({
           message: "Ovaj organizator još nema postavljenu lozinku. Preuzmite svoj profil da biste je postavili.",
@@ -118,10 +135,16 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      // Do a comparable amount of async work to a real request so response
-      // timing doesn't leak whether the account exists.
-      await bcrypt.hash("decoy-password-for-timing-parity", 10);
-      this.logger.log("forgot-password requested for unknown email");
+      // The address may still belong to an organizer nobody has claimed —
+      // the people who most need this form. They have no password to reset,
+      // so send them the claim link instead of nothing at all.
+      const invited = this.claims ? await this.claims.inviteUnclaimedByEmail(email) : false;
+      if (!invited) {
+        // Do a comparable amount of async work to a real request so response
+        // timing doesn't leak whether the account exists.
+        await bcrypt.hash("decoy-password-for-timing-parity", 10);
+      }
+      this.logger.log(invited ? "forgot-password answered with an organizer claim invite" : "forgot-password requested for unknown email");
       return { message: GENERIC_FORGOT_PASSWORD_MESSAGE };
     }
 
