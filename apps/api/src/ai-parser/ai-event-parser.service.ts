@@ -749,10 +749,18 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         // the value when the model leaves startsAt empty: one unambiguous
         // date, and the first time the source states.
         const derived = !wall && dates.length === 1 && (allDay ? allDayTime : times[0]);
+        // The year is the source's to give, never the model's to guess. When
+        // the poster prints no year the evidence assumes the current one; a
+        // model that picked a different year for the same day and month used
+        // to have its whole term thrown away (a four-term poster lost the one
+        // December date that way). The source wins instead.
+        const yearless = !/20\d{2}/.test(evidence.dateText || "");
+        const sameDayMonth = wall && yearless ? dates.filter((value) => value.slice(5) === wall[1].slice(5)) : [];
+        const corrected = sameDayMonth.length === 1 ? sameDayMonth[0] : "";
         // A poster that states a range ("13.–15. studenoga", "19:00 – 23:00")
         // leaves several supported values. Requiring exactly one dropped the
         // whole date; the model's pick only has to be one the source states.
-        const date = wall ? (dates.includes(wall[1]) ? wall[1] : "") : derived ? dates[0] : "";
+        const date = wall ? (dates.includes(wall[1]) ? wall[1] : corrected) : derived ? dates[0] : "";
         const time = wall ? (allDay ? allDayTime : times.includes(wall[2]) ? wall[2] : "") : derived || "";
         if (!date || !time || !literal(evidence.dateText) || !literal(evidence.timeText)) {
           // Name the rejected value too: without it neither an editor nor a

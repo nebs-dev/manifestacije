@@ -177,6 +177,22 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.missingFields).toContain("startsAt");
   });
 
+  // The year belongs to the source. A model that picks a different one for
+  // a poster that prints none used to lose the term outright — that is how
+  // the fourth sign-up term (5. prosinca) disappeared on one run.
+  it.each(["2025-12-05T17:30:00", "2027-12-05T17:30:00"])("takes the year from the source when the model proposes %s", async (startsAt) => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-11-10T09:00:00Z"));
+    const result = await run({ startsAt, dateText: "Subota, 5. prosinca", timeText: "17:30 – 19:00" });
+    expect(result.startsAt).toBe("2026-12-05T17:30:00+01:00");
+    expect(result.warnings.join(" ")).toMatch(/godin/i);
+  });
+
+  it("still rejects a month the source does not state, even with no year on the poster", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-11-10T09:00:00Z"));
+    const result = await run({ startsAt: "2026-10-05T17:30:00", dateText: "Subota, 5. prosinca", timeText: "17:30" });
+    expect(result.startsAt).toBe("");
+  });
+
   // Reported case (10. 11. 2026., second pass): three of the four terms on
   // the sign-up screenshot checked out and the fourth did not, which blanked
   // the whole event. The confirmed terms stay, with the warning.
