@@ -18,12 +18,16 @@ export class JwtAuthGuard implements CanActivate {
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     if (!token) throw new UnauthorizedException("Missing bearer token");
 
-    let payload: { id: number; email: string; role: UserRole; organizerId?: number | null; authVersion?: number };
+    let payload: { id: number; email: string; role: UserRole; organizerId?: number | null; authVersion?: number; scope?: string };
     try {
       payload = this.jwt.verify(token);
     } catch {
       throw new UnauthorizedException("Invalid token");
     }
+
+    // Scoped tokens (e.g. an event preview link) are signed with the same
+    // secret but stand for one capability, never for a session.
+    if (payload.scope) throw new UnauthorizedException("Invalid token");
 
     // Reject tokens issued before the user's last password reset. Tokens signed
     // before authVersion existed on the payload (authVersion === undefined) are

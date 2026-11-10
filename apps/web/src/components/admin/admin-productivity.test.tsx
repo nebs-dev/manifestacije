@@ -149,11 +149,22 @@ describe("creator filters and report", () => {
 })
 
 it("renders safe public links only for accessible events", async () => {
-  const event = { status: "published", slug: "objavljeni-koncert", publishedAt: "2026-10-01T12:00:00Z" } as AdminEvent
+  const event = { id: 7, status: "published", slug: "objavljeni-koncert", publishedAt: "2026-10-01T12:00:00Z" } as unknown as AdminEvent
   await render(<PublicEventLink event={event} />)
   expect(container.querySelector("a")?.getAttribute("href")).toBe("/eventi/objavljeni-koncert")
   expect(container.textContent).toBe("Otvori javnu stranicu")
   expect(container.querySelector("a")?.getAttribute("rel")).toBe("noopener noreferrer")
   await render(<PublicEventLink event={{ ...event, status: "draft" }} />)
   expect(container.querySelector("a")).toBeNull()
+  expect(container.textContent).toBe("Pregledaj skicu")
+})
+
+it("opens an unpublished event through a short-lived preview link", async () => {
+  const open = vi.fn().mockReturnValue({})
+  vi.stubGlobal("open", open)
+  api.mockReset().mockResolvedValue({ ok: true, json: async () => ({ slug: "skica đ", token: "preview.token.value", expiresInMinutes: 30 }) })
+  await render(<PublicEventLink event={{ id: 9, status: "draft", slug: "skica đ", publishedAt: null } as unknown as AdminEvent} />)
+  await click("Pregledaj skicu")
+  expect(api).toHaveBeenCalledWith("/api/admin/events/9/preview-link", { method: "POST" })
+  expect(open.mock.calls[0][0]).toBe("/eventi/skica%20%C4%91?preview=preview.token.value")
 })

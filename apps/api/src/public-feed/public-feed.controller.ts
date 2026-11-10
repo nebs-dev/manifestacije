@@ -16,8 +16,8 @@ export class PublicFeedController {
   }
 
   @Get("events/:slug")
-  event(@Param("slug") slug: string) {
-    return this.feed.event(slug);
+  event(@Param("slug") slug: string, @Query("preview") preview?: string) {
+    return this.feed.event(slug, preview);
   }
 
   @Get("organizers/:slug")

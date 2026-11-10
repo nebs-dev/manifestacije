@@ -7,6 +7,8 @@ import { UploadsService } from "../src/admin/uploads.service";
 import { AiEventParserService } from "../src/ai-parser/ai-event-parser.service";
 import { JwtAuthGuard } from "../src/auth/jwt-auth.guard";
 import { OrganizerClaimService } from "../src/organizer-claims/organizer-claim.service";
+import { EventPreviewService } from "../src/events/event-preview.service";
+import { JwtService } from "@nestjs/jwt";
 import { OrganizerController } from "../src/organizers/organizer.controller";
 import { OrganizerService } from "../src/organizers/organizer.service";
 
@@ -43,7 +45,8 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
     const module = await Test.createTestingModule({
       controllers: [AdminController, OrganizerController],
       providers: [{ provide: AdminService, useValue: admin }, { provide: OrganizerService, useValue: organizer },
-        { provide: UploadsService, useValue: uploads }, { provide: OrganizerClaimService, useValue: {} }],
+        { provide: UploadsService, useValue: uploads }, { provide: OrganizerClaimService, useValue: {} },
+        { provide: EventPreviewService, useValue: new EventPreviewService(new JwtService({ secret: "test-only-secret" })) }],
     }).overrideGuard(JwtAuthGuard).useValue({ canActivate(ctx: ExecutionContext) {
       ctx.switchToHttp().getRequest().user = { id: 1, organizerId: 7 };
       return true;

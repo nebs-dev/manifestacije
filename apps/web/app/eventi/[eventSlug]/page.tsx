@@ -49,9 +49,21 @@ function backLinkFrom(searchParams: Record<string, string | string[] | undefined
   return BACK_LINKS.eventi;
 }
 
-export async function generateMetadata({ params }: { params: { eventSlug: string } }): Promise<Metadata> {
-  const event = await fetchEvent(params.eventSlug);
+/** An admin preview link carries a signed token for one event. */
+function previewTokenFrom(searchParams: Record<string, string | string[] | undefined> | undefined) {
+  const value = Array.isArray(searchParams?.preview) ? searchParams?.preview[0] : searchParams?.preview;
+  return value || undefined;
+}
+
+export async function generateMetadata({ params, searchParams }: {
+  params: { eventSlug: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}): Promise<Metadata> {
+  const preview = previewTokenFrom(searchParams);
+  const event = await fetchEvent(params.eventSlug, preview);
   if (!event) return { title: "Događanje nije pronađeno" };
+  // A preview may show an unpublished draft; keep it out of search entirely.
+  if (preview) return { title: `Pregled: ${event.title}`, robots: { index: false, follow: false } };
   return {
     title: event.title,
     description: richTextSummary(event.description),
@@ -79,7 +91,8 @@ export default async function EventDetailPage({
   params: { eventSlug: string };
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  const event = await fetchEvent(params.eventSlug);
+  const preview = previewTokenFrom(searchParams);
+  const event = await fetchEvent(params.eventSlug, preview);
   if (!event) notFound();
   const backLink = backLinkFrom(searchParams);
   const related = await fetchRelatedEvents(event);
@@ -111,6 +124,11 @@ export default async function EventDetailPage({
   return (
     <>
       <SiteHeader />
+      {preview && (
+        <p role="status" className="border-b border-warning/40 bg-warning/10 px-4 py-2 text-center text-sm">
+          Pregled za uredništvo — ovako će stranica izgledati. Poveznica vrijedi kratko i nije vidljiva posjetiteljima ni tražilicama.
+        </p>
+      )}
       <main>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(jsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLdString(breadcrumbJsonLd) }} />

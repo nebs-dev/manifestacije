@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { Prisma, EventStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { EventPreviewService } from "../events/event-preview.service";
 import { currentWeekendRange } from "../common/weekend";
 import { zagrebLocalToUtc } from "../common/weekend";
 
@@ -90,7 +91,10 @@ type PublicEventRow = Prisma.EventGetPayload<{ select: typeof eventListSelect }>
 
 @Injectable()
 export class PublicFeedService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly preview?: EventPreviewService,
+  ) {}
 
   async events(query: Record<string, string | undefined>) {
     const search = query.search?.trim();
@@ -137,9 +141,13 @@ export class PublicFeedService {
     return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
-  async event(slug: string) {
+  /** `previewToken` is an admin-issued, short-lived link for one event; with a
+   *  valid one the event is served whatever its status, so an admin can read a
+   *  draft on its real page. */
+  async event(slug: string, previewToken?: string) {
+    const previewing = this.preview?.allows(slug, previewToken) ?? false;
     return this.prisma.event.findFirst({
-      where: {
+      where: previewing ? { slug } : {
         slug,
         OR: [
           { status: EventStatus.PUBLISHED },
