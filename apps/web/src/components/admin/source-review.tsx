@@ -3,7 +3,7 @@
 import { Textarea } from "@/components/ui/textarea"
 import { ScreenshotsPicker, screenshotsPayload, type ScreenshotInput } from "@/components/screenshots-picker"
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, RefreshCw, ExternalLink, Search, Save, Loader2 } from "lucide-react"
+import { ChevronDown, RefreshCw, ExternalLink, Search, Save, Loader2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import Image from "next/image"
@@ -102,15 +102,20 @@ function CreatedRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void
 }
 
 function IgnoredRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void }) {
+  const [restoring, setRestoring] = useState(false)
+
   async function unignore() {
-    const res = await authedFetch(`/api/admin/event-sources/${c.sourceId}/ignore-candidate`, {
-      method: "POST",
-      body: JSON.stringify({ candidateIndex: c.candidateIndex, undo: true }),
-    })
-    if (res.ok) { toast.success("Vraćeno na čekanje"); onUpdate?.() }
-    else {
-      // Fallback — reparse refreshes status
-      toast.info("Koristite 'Ponovno parsiraj' za vraćanje kandidata")
+    if (restoring) return
+    setRestoring(true)
+    try {
+      const res = await authedFetch(`/api/admin/event-sources/${c.sourceId}/ignore-candidate`, {
+        method: "POST",
+        body: JSON.stringify({ candidateIndex: c.candidateIndex, undo: true }),
+      })
+      if (res.ok) { toast.success("Vraćeno na čekanje"); onUpdate?.() }
+      else toast.error("Vraćanje nije uspjelo", { description: await apiMessage(res) })
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -123,7 +128,13 @@ function IgnoredRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void
       <TableCell className="text-sm text-muted-foreground">{c.city || "—"}</TableCell>
       <TableCell className="text-sm text-muted-foreground">{c.category || "—"}</TableCell>
       <TableCell className="text-right">
-        <ConfidenceBadge value={c.confidence} />
+        <span className="inline-flex items-center justify-end gap-2">
+          <ConfidenceBadge value={c.confidence} />
+          <Button variant="outline" size="sm" onClick={unignore} disabled={restoring}>
+            {restoring ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Undo2 data-icon="inline-start" />}
+            {restoring ? "Vraćanje…" : "Vrati"}
+          </Button>
+        </span>
       </TableCell>
     </TableRow>
   )

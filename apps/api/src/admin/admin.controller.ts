@@ -124,7 +124,7 @@ export class AdminController {
     return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false, user.id);
   }
   @Post("event-sources/:id/ignore-candidate") ignoreCandidate(@Param("id") id: string, @Body() dto: IgnoreCandidateDto) {
-    return this.admin.ignoreCandidate(Number(id), dto.candidateIndex);
+    return this.admin.ignoreCandidate(Number(id), dto.candidateIndex, dto.undo ?? false);
   }
   @Delete("event-sources/:id") deleteEventSource(@Param("id") id: string) { return this.admin.deleteEventSource(Number(id)); }
 

@@ -980,7 +980,9 @@ export class AdminService {
     return { event, candidateIndex };
   }
 
-  async ignoreCandidate(id: number, candidateIndex: number) {
+  /** Marks a parsed candidate as ignored, or, with `undo`, puts an ignored one
+   *  back on the pending list. Created candidates stay untouched either way. */
+  async ignoreCandidate(id: number, candidateIndex: number, undo = false) {
     return this.prisma.$transaction(async db => {
       await db.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
       const source = await db.eventSource.findUnique({ where: { id } });
@@ -995,8 +997,9 @@ export class AdminService {
       }
 
       if (result.candidates[candidateIndex]._status === "created") throw new ConflictException("Kandidat već ima kreiran događaj.");
+      const nextStatus = undo ? ("pending" as const) : ("ignored" as const);
       const updatedCandidates = result.candidates.map((c, i) =>
-        i === candidateIndex ? { ...c, _status: "ignored" as const } : c
+        i === candidateIndex ? { ...c, _status: nextStatus } : c
       );
       const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
 

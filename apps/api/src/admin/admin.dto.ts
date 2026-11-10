@@ -148,6 +148,12 @@ export class IgnoreCandidateDto {
   @IsInt()
   @Min(0)
   candidateIndex!: number;
+
+  /** Restores an ignored candidate back to "pending" instead of ignoring it. */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value === "true" : value))
+  @IsBoolean()
+  undo?: boolean;
 }
 
 export class UpdateEventSourceDto {
