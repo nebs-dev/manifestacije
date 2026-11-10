@@ -140,6 +140,31 @@ testovima (tuđi slug, drugi ključ, istekao token, pokušaj prijave preview tok
    **Nisu retroaktivne** — prikazuju podatke od 10. 11. 2026. nadalje, pa za dosadašnjih
    122 unosa i dalje nema razlučivanja po obrascu.
 
+## 4a. Prolaz klikom kroz admin i javni web (10. 11., prijavljeni preglednik)
+
+Prvi prolaz oslanjao se na kod i testove. Ovo je provjereno klikom, u produkciji:
+
+| Stavka | Nalaz |
+|---|---|
+| Datumi iz raspona — živi AI put | Testni izvor s tekstom „13.-15. studenoga 2026. / 19:00 - 23:00" vratio je **popunjen** termin 13. 11. 19:00 → 15. 11. 23:00, bez `missingFields`, uz upozorenje „Izvor navodi više termina … provjerite odabrani" i status *Za pregled*. Prije popravka ovo je ostajalo prazno. Testni izvor **id 1020 „TEST PARSER - obrisati" treba obrisati ručno** |
+| Brisanje završetka (EVT-06) | Na skici *Alpe Adria Jet Ski Tour (kopija)*: upisan završetak 11:30 → spremljeno; polje ispražnjeno → spremljeno kao prazno. Skica vraćena u zatečeno stanje |
+| Rich-text (EVT-03) | Uređivač nudi Podebljano, Kurziv, Poveznica, Popis |
+| Dopuna AI-em (EVT-08) | „Dopuni podatke pomoću AI" na događaju, „Dopuni i ponovno parsiraj" + dodatne slike na izvoru |
+| Upozorenje na duplikate (EVT-11) | Unos naziva i datuma postojećeg događaja odmah prikazuje „Mogući duplikat — provjerite prije kreiranja" s pogođenim događajem |
+| Zadano Besplatno (EVT-10) | Novi događaj: „Način naplate" = FREE |
+| Uređivanje u listi (EVT-09) | Redak nudi kontrole za Početak, Kraj, Grad, Kategorije, Status i Način naplate (stupac je u ovom računu bio sakriven — uključuje se preko „Kolone") |
+| Pretraga organizatora (ADM-01) | 340 redaka → filtrirano na traženog organizatora, neovisno o velikim slovima |
+| Broj događaja po organizatoru (ADM-02) | Stupac „Povezani događaji" + radnja „Prikaži događaje" |
+| Tko je koliko unio, od–do (ADM-03) | Filtar „Dodao" nabraja autore; 1. 10.–10. 11. daje 308 događaja, a za Andrijanu 158 |
+| Notifikacije (NOT-01/02/04) | Kategorije s brojačima (nova registracija organizatora 20, novi događaj organizatora 6 · 7 čeka pregled), „Označi kao pročitano" po stavci i „Označi sve kao pročitano" (nisam klikao da ne obrišem vaše nepročitano) |
+| Izmjene organizatora na pregled (EVT-02) | Stranica „Izmjene objavljenih događaja" radi; trenutno nema izmjena na čekanju. Sama prijava izmjene traži organizatorski račun, to nije testirano |
+| Prekonoćni termin (PUB-04) | *WCS Halloween Party*: „Subota, 31. listopada 2026. · 20:00–02:00", bez oznake višednevnog |
+| Povratak na kalendar (PUB-02) | Iz kalendara (mjesec, 5. 12.) u događaj pa „Natrag na kalendar": vraćen `?pogled=mjesec&datum=2026-12-05` i pozicija skrola |
+| Karta na mobitelu (PUB-01) | Izmjereno na 390×719: karta je bila na y=591 i cijela ispod pregiba. **Popravljeno** — sada počinje na y=206, visoka 431 px; desktop raspored nepromijenjen |
+| Kalendar otvara prošli tjedan | **Novi bug, popravljen.** Na 10. 11. kalendar se otvarao na tjednu 2.–8. studenoga jer je kao polazni datum uzimao najraniji događaj u feedu. Sada otvara tekući tjedan (produkcija: 9.–15. studenoga) |
+
+Ostaje neprovjereno klikom: slanje e-maila organizatoru pri objavi (NOT-03) i prijava izmjene s organizatorske strane (EVT-02) — oboje traži organizatorski račun i stvarni mailbox; te ponašanje vikend-stranice na subotu, što se može dokazati samo testom (zelen).
+
 ## 5. Commitovi
 
 | Commit | Opis |
