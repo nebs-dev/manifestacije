@@ -122,20 +122,23 @@ testovima (tuđi slug, drugi ključ, istekao token, pokušaj prijave preview tok
 
 ---
 
-## 4. Što ti trebaš napraviti
+## 4. Provjereno na produkciji kroz prijavljeni preglednik
 
-1. **Admin → Izvori → bilo koji izvor → kartica „Ignorirani"**: klikni **Vrati** na jednom
-   kandidatu i potvrdi da se vraća na „Na čekanju". (API je deployan; ovo je jedina stvar
-   koju ne mogu kliknuti umjesto tebe jer traži prijavu.)
-2. **Admin → Događaji**: kod događaja koji nije objavljen klikni **Pregledaj skicu** —
-   otvara se javna stranica s trakom „Pregled za uredništvo".
-3. **GA4**: u izvještaju `form_submit` dodaj sekundarnu dimenziju **Form ID** (ili napravi
-   exploration: Event name = `form_submit`, dimenzija `form_id`). Tada se vidi koji obrazac
-   generira unose.
-4. **Search Console** (neobavezno): ako želiš požuriti osvježavanje prikaza u Googleu,
-   pošalji naslovnicu na ponovno indeksiranje.
-
----
+1. **Vrati** — izvor 1019 (kinematografi-osijek, tjedni pregled), kartica „Ignorirani":
+   klik na „Vrati" kod kandidata *Hunger Games: Sunrise on the Reaping*. Poruka
+   „Vraćeno na čekanje", brojači 6 → 5 ignoriranih i 0 → 1 na čekanju, a API potvrđuje
+   `_status: pending` i izvor natrag u `PARSED`. Nakon provjere kandidat je vraćen u
+   ignorirano stanje (izvor ponovno `LINKED`, 6 ignoriranih), pa je produkcija u
+   zatečenom stanju.
+2. **Pregledaj skicu** — Događaji → status Skica (3 komada) → *Alpe Adria Jet Ski Tour
+   (kopija)*. Otvara `?preview=<token>`, naslov „Pregled: …", `robots: noindex, nofollow`
+   i traka „Pregled za uredništvo". Ista adresa bez tokena vraća 404, kao i s tokenom
+   kojemu je izmijenjen rok, pa skica ostaje nedostupna.
+3. **GA4** — uzrok je bio da parametri obrasca nisu bili registrirani: svojstvo je imalo
+   samo dimenziju „Source component". Dodane su dvije dimenzije dosega *Event*:
+   **Form ID** (`form_id`) i **Form destination** (`form_destination`).
+   **Nisu retroaktivne** — prikazuju podatke od 10. 11. 2026. nadalje, pa za dosadašnjih
+   122 unosa i dalje nema razlučivanja po obrascu.
 
 ## 5. Commitovi
 
