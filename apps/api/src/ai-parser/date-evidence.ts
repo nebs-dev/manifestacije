@@ -38,6 +38,22 @@ const numericSpan = new RegExp(`(?<![\\d.])(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*${D
 
 const datePatterns = [iso, numericSpan, numericRange, numeric, slashed, dashed, writtenRange, written, writtenShort];
 
+/** How far back a yearless date may fall before it is read as next year's.
+ *  A poster printed in December announcing "5. siječnja" means the January
+ *  a few weeks ahead, not the one eleven months gone — that one would be
+ *  dropped as a past event and the listing would disappear silently. Six
+ *  months keeps every ordinary "last month" reading in the current year. */
+const ROLLOVER_MONTHS = 6;
+
+function assumedYear(currentYear: string, month: number, day: number, now: Date): string {
+  const candidate = `${currentYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const today = zagrebDateKey(now);
+  if (candidate >= today) return currentYear;
+  const cutoff = new Date(`${today}T12:00:00Z`);
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - ROLLOVER_MONTHS);
+  return candidate >= cutoff.toISOString().slice(0, 10) ? currentYear : String(+currentYear + 1);
+}
+
 export function sourceDates(text: string, now = new Date()): string[] {
   const normalized = fold(text);
   const year = zagrebDateKey(now).slice(0, 4);
@@ -47,7 +63,7 @@ export function sourceDates(text: string, now = new Date()): string[] {
   const assumed = new Set<string>();
   const add = (y: string | undefined, m: number, d: number) => {
     if (!m || !d) return;
-    const key = `${y || year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const key = `${y || assumedYear(year, m, d, now)}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     const date = new Date(`${key}T12:00:00Z`);
     if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== key) return;
     (y ? dated : assumed).add(key);

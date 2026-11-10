@@ -628,7 +628,7 @@ Mapiranje Facebook kategorija u naše:
 - "Outdoor" → outdoor
 
 Datumi i vremena: lokalni ISO 8601 bez UTC pomaka, zona Europe/Zagreb. Server određuje CET/CEST prema datumu.
-Danas je ${zagrebDateKey()}. Ako nema godine, koristi tekuću godinu ${zagrebDateKey().slice(0, 4)} i dodaj upozorenje za provjeru godine; ne prebacuj automatski u sljedeću godinu.
+Danas je ${zagrebDateKey()}. Ako nema godine, koristi tekuću godinu ${zagrebDateKey().slice(0, 4)} i dodaj upozorenje za provjeru godine. Jedina iznimka: ako bi takav datum pao više od pola godine u prošlost (npr. plakat u prosincu koji najavljuje 5. siječnja), koristi sljedeću godinu i upozori.
 Hrvatski mjeseci: siječanj/siječnja=01, veljača/veljače=02, ožujak/ožujka=03, travanj/travnja=04, svibanj/svibnja=05, lipanj/lipnja=06, srpanj/srpnja=07, kolovoz/kolovoza=08, rujan/rujna=09 (rujan je rujan, September), listopad/listopada=10 (October), studeni/studenoga=11, prosinac/prosinca=12.
 Vrijeme: 20:00, 20.00, 20 h, 20 sati znače 20:00. Datum 12.10. NIKADA nije vrijeme 12:10. Ako je zapis dvosmislen, upozori i ostavi startsAt prazan.
 Ne izmišljaj vrijeme (ni 18:00 ni ponoć). Ako vrijeme nije navedeno, startsAt ostavi prazan i dodaj startsAt u missingFields te upozorenje s poznatim datumom. isAllDay=true samo ako izvor izričito kaže cijeli dan.

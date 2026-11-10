@@ -177,6 +177,15 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.missingFields).toContain("startsAt");
   });
 
+  it.each([
+    ["2026-12-20", "5. siječnja", "2027-01-05"],
+    ["2026-12-20", "5. prosinca", "2026-12-05"],
+    ["2026-11-10", "5. prosinca", "2026-12-05"],
+    ["2026-11-10", "5. listopada", "2026-10-05"],
+  ])("on %s reads the yearless %s as %s", (today, text, expected) => {
+    expect(sourceDates(text, new Date(`${today}T09:00:00Z`))).toEqual([expected]);
+  });
+
   // The year belongs to the source. A model that picks a different one for
   // a poster that prints none used to lose the term outright — that is how
   // the fourth sign-up term (5. prosinca) disappeared on one run.
