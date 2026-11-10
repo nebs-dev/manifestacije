@@ -109,6 +109,13 @@ export function sourceTimes(text: string): string[] {
   return [...new Set(times)];
 }
 
+/** "17:30 – 19:00" states a start and an end; "20:00 ili 21:00" states two
+ *  candidate starts. Only the first kind lets the opening time be taken
+ *  without asking the model which one it meant. */
+export function isTimeRange(text: string): boolean {
+  return new RegExp(`\\d\\s*(?::|\\.)?\\s*\\d*\\s*${DASH}\\s*\\d`).test(fold(text));
+}
+
 /** Date-only listings and assumed years need attention even when required
  * fields are structurally present in the legacy candidate contract. */
 export function candidateNeedsReview(candidate: { missingFields: string[]; warnings: string[] }): boolean {

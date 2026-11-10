@@ -123,12 +123,17 @@ describe("LLM screenshot/text date validation", () => {
     const result = await run({ startsAt: `${date}T20:00:00+02:00`, dateText, timeText: "20.00" });
     expect(result.startsAt).toBe(`${date}T20:00:00${offset}`);
   });
-  it.each([["2027-11-12", "12. listopada 2027."], ["2027-10-12", "12. rujna 2027."]])("rejects month confusion %s / %s", async (date, dateText) => {
+  // Month confusion (the reported rujan/listopad swap) is the model's
+  // arithmetic going wrong next to a quote that is right. Dropping the term
+  // left the editor with nothing; the quote carries the date instead.
+  it.each([
+    ["2027-11-12", "12. listopada 2027.", "2027-10-12"],
+    ["2027-10-12", "12. rujna 2027.", "2027-09-12"],
+  ])("corrects month confusion %s against the quote %s", async (date, dateText, expected) => {
     const result = await run({ startsAt: `${date}T20:00:00`, dateText, timeText: "20:00", confidence: 0.99 });
-    expect(result.startsAt).toBe("");
-    expect(result.missingFields).toContain("startsAt");
+    expect(result.startsAt).toBe(`${expected}T20:00:00+02:00`);
     expect(result.confidence).toBeLessThanOrEqual(0.6);
-    expect(result.warnings.join(" ")).toMatch(/pregled/);
+    expect(result.warnings.join(" ")).toMatch(/parser je predložio 2027-1[01]-12T20:00:00/i);
   });
   it.each(["", "12.10.", "20:00 ili 21:00"])("rejects invented 18:00 when source time is %s", async (timeText) => {
     const result = await run({ startsAt: "2027-10-12T18:00:00", dateText: "12. listopada 2027.", timeText });
@@ -196,10 +201,25 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.warnings.join(" ")).toMatch(/godin/i);
   });
 
-  it("still rejects a month the source does not state, even with no year on the poster", async () => {
+  // Exactly the production case: the model turned "Subota, 5. prosinca"
+  // into 2027-01-05, wrong in both month and year.
+  it("takes the quoted date when the model is wrong in month and year at once", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-11-10T09:00:00Z"));
-    const result = await run({ startsAt: "2026-10-05T17:30:00", dateText: "Subota, 5. prosinca", timeText: "17:30" });
+    const result = await run({ startsAt: "2027-01-05T17:30:00", dateText: "Subota, 5. prosinca", timeText: "17:30 – 19:00" });
+    expect(result.startsAt).toBe("2026-12-05T17:30:00+01:00");
+    expect(result.endsAt).toBe("2026-12-05T19:00:00+01:00");
+  });
+
+  it.each([
+    ["two candidate dates", { dateText: "5. prosinca 2026. ili 12. prosinca 2026.", timeText: "17:30" }],
+    ["two candidate times", { dateText: "5. prosinca 2026.", timeText: "20:00 ili 21:00" }],
+    ["no time at all", { dateText: "5. prosinca 2026.", timeText: "" }],
+  ])("still refuses to choose when the quote is ambiguous: %s", async (_label, evidence) => {
+    // The proposed value is one the quote never states, so there is nothing
+    // to confirm it and nothing unambiguous to put in its place.
+    const result = await run({ startsAt: "2026-12-20T18:00:00", ...evidence });
     expect(result.startsAt).toBe("");
+    expect(result.missingFields).toContain("startsAt");
   });
 
   // Reported case (10. 11. 2026., second pass): three of the four terms on
@@ -210,7 +230,11 @@ describe("LLM screenshot/text date validation", () => {
       startsAt: date, dateText: `Subota, ${day}. studenoga 2026.`, timeText: "17:30",
     });
     const result = await run({
-      occurrences: [term(14, "2026-11-14T17:30:00"), term(21, "2026-11-21T17:30:00"), term(28, "2026-12-28T17:30:00")],
+      occurrences: [
+        term(14, "2026-11-14T17:30:00"),
+        term(21, "2026-11-21T17:30:00"),
+        { startsAt: "2026-11-28T17:30:00", dateText: "Subota, 28. studenoga 2026.", timeText: "" },
+      ],
     });
     expect(result.occurrences?.map((item) => item.startsAt)).toEqual([
       "2026-11-14T17:30:00+01:00", "2026-11-21T17:30:00+01:00",

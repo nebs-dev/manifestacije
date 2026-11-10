@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseZagrebWallTime, zagrebDateKey } from "../common/zagreb-time";
-import { sourceDates, sourceTimes } from "./date-evidence";
+import { isTimeRange, sourceDates, sourceTimes } from "./date-evidence";
 import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
 export type ParsedEventCandidate = {
@@ -742,26 +742,17 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         // trust model-generated offsets; validate source evidence independently.
         const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
         const allDayTime = /cijeli dan|cjelodnev|all.day/i.test(evidence.timeText || "") ? "00:00" : "";
-        // A model that reads the date but refuses to commit to a value — a
-        // poster with no year on it, or one listing several terms — used to
-        // lose the whole term, which is the red "no date" marker editors see.
-        // The quoted evidence is the source's own wording, so it can carry
-        // the value when the model leaves startsAt empty: one unambiguous
-        // date, and the first time the source states.
-        const derived = !wall && dates.length === 1 && (allDay ? allDayTime : times[0]);
-        // The year is the source's to give, never the model's to guess. When
-        // the poster prints no year the evidence assumes the current one; a
-        // model that picked a different year for the same day and month used
-        // to have its whole term thrown away (a four-term poster lost the one
-        // December date that way). The source wins instead.
-        const yearless = !/20\d{2}/.test(evidence.dateText || "");
-        const sameDayMonth = wall && yearless ? dates.filter((value) => value.slice(5) === wall[1].slice(5)) : [];
-        const corrected = sameDayMonth.length === 1 ? sameDayMonth[0] : "";
-        // A poster that states a range ("13.–15. studenoga", "19:00 – 23:00")
-        // leaves several supported values. Requiring exactly one dropped the
-        // whole date; the model's pick only has to be one the source states.
-        const date = wall ? (dates.includes(wall[1]) ? wall[1] : corrected) : derived ? dates[0] : "";
-        const time = wall ? (allDay ? allDayTime : times.includes(wall[2]) ? wall[2] : "") : derived || "";
+        // The quote is the source's own wording; the ISO value beside it is
+        // the model's arithmetic, and that is what goes wrong — "Subota, 5.
+        // prosinca" came back as 2027-01-05, the same month confusion
+        // reported for rujan/listopad. So where the quote is unambiguous it
+        // decides, and the model only gets to pick among values the quote
+        // actually states (a range leaves several: "13.–15. studenoga").
+        const quotedDate = dates.length === 1 ? dates[0] : "";
+        const quotedTime = allDay ? allDayTime : times.length === 1 || isTimeRange(evidence.timeText || "") ? times[0] : "";
+        const date = wall && dates.includes(wall[1]) ? wall[1] : quotedDate;
+        const time = allDay ? allDayTime : wall && times.includes(wall[2]) ? wall[2] : quotedTime;
+        const overruled = date && time && (!wall || wall[1] !== date || wall[2] !== time);
         if (!date || !time || !literal(evidence.dateText) || !literal(evidence.timeText)) {
           // Name the rejected value too: without it neither an editor nor a
           // later investigation can tell a misread date from a missing one.
@@ -769,8 +760,10 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
           warnings.push(`Datum ili vrijeme nije potvrđeno izvorom (${evidence.dateText || "datum nedostaje"}; ${evidence.timeText || "vrijeme nedostaje"}); potreban je pregled.${proposed}`);
           return "";
         }
-        if (derived) {
-          warnings.push(`Termin je izveden iz zapisa u izvoru (${evidence.dateText}${evidence.timeText ? `; ${evidence.timeText}` : ""}) jer ga parser nije vratio; provjerite.`);
+        if (overruled) {
+          warnings.push(raw
+            ? `Termin je uzet iz zapisa u izvoru (${evidence.dateText}${evidence.timeText ? `; ${evidence.timeText}` : ""}); parser je predložio ${raw}. Provjerite.`
+            : `Termin je izveden iz zapisa u izvoru (${evidence.dateText}${evidence.timeText ? `; ${evidence.timeText}` : ""}) jer ga parser nije vratio; provjerite.`);
         }
         if (dates.length > 1 || (!allDay && times.length > 1)) {
           warnings.push(`Izvor navodi više termina (${dates.join(", ")}${times.length > 1 ? `; ${times.join(", ")}` : ""}); provjerite odabrani.`);
