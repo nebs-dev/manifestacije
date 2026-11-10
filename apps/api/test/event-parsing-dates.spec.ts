@@ -143,6 +143,40 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.startsAt).toBe("2027-10-12T22:00:00+02:00");
     expect(result.endsAt).toBe("2027-10-13T02:00:00+02:00");
   });
+  // Reported case (10. 11. 2026.): the sign-up screenshot listing four
+  // Saturday terms came back with every startsAt empty — the model read the
+  // date into dateText but refused to commit a value, so the editor got the
+  // red "no date" marker. The quoted evidence carries the value.
+  it("fills the term from the quoted evidence when the model leaves startsAt empty", async () => {
+    const result = await run({
+      title: "Prijava: Hot yoga",
+      startsAt: "",
+      dateText: "Subota, 14. studenoga 2026.",
+      timeText: "17:30 – 19:00",
+      missingFields: ["startsAt"],
+    });
+    expect(result.startsAt).toBe("2026-11-14T17:30:00+01:00");
+    expect(result.endsAt).toBe("2026-11-14T19:00:00+01:00");
+    expect(result.missingFields).not.toContain("startsAt");
+    expect(result.warnings.join(" ")).toMatch(/izveden/i);
+  });
+
+  it("assumes the current year for an evidence-derived term with no year on the poster", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-11-10T09:00:00Z"));
+    const result = await run({ startsAt: "", dateText: "Subota, 14. studenog", timeText: "17:30 – 19:00" });
+    expect(result.startsAt).toBe("2026-11-14T17:30:00+01:00");
+    expect(result.warnings.join(" ")).toMatch(/godin/i);
+  });
+
+  it.each([
+    ["an ambiguous date", { dateText: "13. studenoga 2026. ili 14. studenoga 2026.", timeText: "17:30" }],
+    ["no stated time", { dateText: "Subota, 14. studenoga 2026.", timeText: "" }],
+  ])("still refuses to invent a term from %s", async (_label, evidence) => {
+    const result = await run({ startsAt: "", ...evidence });
+    expect(result.startsAt).toBe("");
+    expect(result.missingFields).toContain("startsAt");
+  });
+
   // Reported case: a sign-up poster listing four Saturday terms as
   // "17:30 – 19:00" imported with no dates at all, because each term stated
   // two times.
