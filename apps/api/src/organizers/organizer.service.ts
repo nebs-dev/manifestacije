@@ -5,6 +5,7 @@ import { EventStatus, EventSourceStatus, EventSourceType, EmailContactSource } f
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, MAX_PARSE_IMAGES, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
 import { parseFailureReason, parsedWithEvidence, pendingSourceJson, readEvidence, SCREENSHOT_MEDIA_TYPES, submissionKey, withoutInlinePoster } from "../ai-parser/source-evidence";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -375,7 +376,9 @@ export class OrganizerService {
     const confidence = result.candidates.length
       ? result.candidates.reduce((sum, candidate) => sum + candidate.confidence, 0) / result.candidates.length
       : 0;
-    const needsReview = forceReview || result.candidates.some((candidate) => candidate.missingFields.length > 0);
+    // Same bar as the admin ingestion path: an unconfirmed or ambiguous
+    // date/time is flagged even when every required field came through.
+    const needsReview = forceReview || result.candidates.some(candidateNeedsReview);
     return { confidence, status: needsReview ? "NEEDS_REVIEW" : "PARSED" };
   }
 

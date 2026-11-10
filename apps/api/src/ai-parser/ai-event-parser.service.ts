@@ -736,16 +736,22 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       const normalizeStart = (raw: string, evidence: Evidence, allDay: boolean): string => {
         const dates = sourceDates(evidence.dateText || "");
         const times = sourceTimes(evidence.timeText || "");
-        const date = dates.length === 1 ? dates[0] : "";
-        const time = allDay ? /cijeli dan|cjelodnev|all.day/i.test(evidence.timeText || "") ? "00:00" : "" : times.length === 1 ? times[0] : "";
         const literal = (value: string | undefined) => isScreenshot || !value || text.includes(value);
         // The wall-clock portion is authoritative for Croatian sources. Do not
         // trust model-generated offsets; validate source evidence independently.
         const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
-        if (!date || !time || !wall || !literal(evidence.dateText) || !literal(evidence.timeText)
-            || wall[1] !== date || wall[2] !== time) {
+        // A poster that states a range ("13.–15. studenoga", "19:00 – 23:00")
+        // leaves several supported values. Requiring exactly one dropped the
+        // whole date; the model's pick only has to be one the source states.
+        const date = wall && dates.includes(wall[1]) ? wall[1] : "";
+        const allDayTime = /cijeli dan|cjelodnev|all.day/i.test(evidence.timeText || "") ? "00:00" : "";
+        const time = allDay ? allDayTime : wall && times.includes(wall[2]) ? wall[2] : "";
+        if (!date || !time || !wall || !literal(evidence.dateText) || !literal(evidence.timeText)) {
           warnings.push(`Datum ili vrijeme nije potvrđeno izvorom (${evidence.dateText || "datum nedostaje"}; ${evidence.timeText || "vrijeme nedostaje"}); potreban je pregled.`);
           return "";
+        }
+        if (dates.length > 1 || (!allDay && times.length > 1)) {
+          warnings.push(`Izvor navodi više termina (${dates.join(", ")}${times.length > 1 ? `; ${times.join(", ")}` : ""}); provjerite odabrani.`);
         }
         const normalized = parseZagrebWallTime(date, time);
         if (!normalized) warnings.push("Nevažeće ili dvosmisleno vrijeme pri promjeni sata; potreban je pregled.");
@@ -756,8 +762,10 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         if (!raw) return "";
         const dates = sourceDates(evidence.endDateText || "");
         const times = sourceTimes(evidence.endTimeText || "");
-        let date = dates.length === 1 ? dates[0] : start.slice(0, 10);
-        const time = times.length === 1 ? times[0] : "";
+        const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+        // Same rule as the start: the model picks, the source has to state it.
+        let date = wall && dates.includes(wall[1]) ? wall[1] : start.slice(0, 10);
+        const time = wall && times.includes(wall[2]) ? wall[2] : "";
         if (!evidence.endDateText && time && time < start.slice(11, 16)) {
           const next = new Date(`${date}T12:00:00Z`);
           if (Number.isFinite(next.getTime())) {
