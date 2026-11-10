@@ -88,6 +88,73 @@ testovima (tuđi slug, drugi ključ, istekao token, pokušaj prijave preview tok
 
 ---
 
+### 1.5 Prijava i resetiranje lozinke za organizatora bez računa (AUTH-01, AUTH-02, str. 1, 7–9)
+
+**Stanje u produkciji.** Nije bilo greške u lozinkama, nego organizatora bez korisničkog
+računa:
+
+| adresa | korisnik | organizator | što se događalo |
+|---|---|---|---|
+| `hoochymammma@gmail.com` | ne postoji | 341 „d", status `CLAIMED`, `hasUser: false` | prijava → „Email ili lozinka nisu ispravni"; zaboravljena lozinka → generička potvrda, **bez slanja ikakve poruke** |
+| `schleisv@gmail.com` | 32 (vezan na organizatora 342 „Zjen") | i 107 „udruga rasta", `CLAIMED`, `hasUser: false`, 2 događaja | registracija → „adresa je već registrirana"; prijava radi s točnom lozinkom; događaji pod 107 su joj nedostupni |
+
+Tablica Dostava emailova nije sadržavala **ni jedan** zapis predloška `password_reset`
+prije 10. 11. 2026. — potvrda da zahtjev nikad nije došao do slanja, a ne da je poruka
+izgubljena kod pružatelja.
+
+**Uzrok.** `AuthService.login` je ponudu „preuzmite profil" vezao na `OrganizerStatus`
+(`status: "UNCLAIMED"`). Admin koji organizatora prebaci u `CLAIMED`/`VERIFIED` time ne
+stvara račun, pa je svaki takav organizator postao slijepa ulica u oba smjera: generička
+pogreška na prijavi i ništa na resetu. Claim servis isti uvjet već ima ispravno zapisan
+(„`users.length > 0` je pravi signal, NE `OrganizerStatus`") — prijava je odstupala od
+toga.
+
+**Popravljeno** (`6ea40ae6`):
+
+- prijava nudi claim kad organizator nema vezanog korisnika, bez obzira na status
+- `forgot-password` za adresu bez računa, a s nepreuzetim organizatorom, šalje **poveznicu
+  za preuzimanje profila** (`OrganizerClaimService.inviteUnclaimedByEmail`); odgovor
+  ostaje znak za znak isti, pa to ne odaje postoji li račun
+- `register` stvara organizatora i korisnika u jednoj transakciji — neuspjeli unos
+  korisnika više ne može ostaviti organizatora bez računa
+- testovi: prijava za `CLAIMED` organizatora bez računa, oba ishoda `forgot-password`,
+  i dva testa za `inviteUnclaimedByEmail`
+
+**Reset lozinke radi.** Zahtjev poslan s produkcijskog `/forgot-password` za adminovu
+adresu stvorio je zapis `password_reset / accepted / prov=resend` u 12:05, 10. 11. 2026.
+Statusi dostave ipak ostaju na `accepted` jer Resend webhook nije spojen (vidi 3).
+
+**Provjereno na produkciji nakon deploya (10. 11. 2026., 13:16):**
+
+- prijava za `hoochymammma@gmail.com` prije deploya: `401 {"message":"Email ili lozinka
+  nisu ispravni."}`; u 13:16:45 ista prijava vraća
+  `403 {"code":"CLAIM_REQUIRED","organizerSlug":"d"}` — osoba sada dobiva uputu, ne
+  slijepu ulicu
+- poslan poziv za preuzimanje profila organizatoru 341 kroz Administracija →
+  Organizatori (poruka „Poziv poslan: d"); zahtjev 4 u bazi ima
+  `EMAIL_VERIFICATION_SENT`, adresa `hoochymammma@gmail.com`
+- put `forgot-password` → claim poveznica pokriven je testovima; provjera na produkciji
+  tražila bi privremenu izmjenu tuđeg zapisa, što je blokirano zaštitom od pisanja u
+  produkciju
+
+**Dodatni nalaz: zahtjev koji nitko nije obradio.** Zahtjev za preuzimanje broj **2**
+(organizator 107 „udruga rasta", `schleisv@gmail.com`) stoji u statusu
+`NEEDS_ADMIN_REVIEW` od **21. 7. 2026.** Odobrenje samo po sebi ne pomaže: korisnik 32
+već je vezan na organizatora 342 „Zjen", pa bi `completeClaim` pao na „Ovaj račun je već
+povezan s drugim organizatorom". Stanje:
+
+| organizator | događaji | korisnik |
+|---|---|---|
+| 107 „udruga rasta" | 2 | nema |
+| 342 „Zjen" | 0 | 32 (`schleisv@gmail.com`) |
+| 369 „test" | 1 | 33 (`vanesa.schleis.zjen@gmail.com`) |
+
+Predlažem: u Administracija → Događaji prebaciti ta 2 događaja s „udruga rasta" na „Zjen"
+(obrazac za uređivanje ima polje Organizator), pa zahtjev 2 odbiti i 107 obrisati. Druga
+mogućnost — prevezati korisnika 32 na 107 — nema admin sučelje ni rutu.
+
+---
+
 ## 2. Provjereno — već radi, nije trebalo dirati
 
 | Stavka iz dokumenta | Nalaz |
@@ -117,7 +184,9 @@ testovima (tuđi slug, drugi ključ, istekao token, pokušaj prijave preview tok
 | Stavka | Status | Zašto |
 |---|---|---|
 | Upload godišnjeg/mjesečnog plana kao PDF/DOC (EVT-01) | **odgođeno (tvoja odluka, 10. 11. 2026.)** | organizatori i dalje šalju screenshotove (do 4 odjednom) |
-| Prijava `schleis` / `hoochy` / `schleisv@gmail` (AUTH-01) | **preskočeno (tvoja odluka)** | traži podatke iz produkcije; kod prijave i resetiranja je ispravan (normalizacija emaila, poruka za nepreuzeti profil, admin može postaviti lozinku na Organizatori → Resetiraj lozinku) |
+| Prijava `schleis` / `hoochy` / `schleisv@gmail` (AUTH-01) | **riješeno 10. 11. 2026., vidi 1.5** | prvotno preskočeno tvojom odlukom; naknadno obrađeno s podacima iz produkcije |
+| Spajanje profila „udruga rasta" (organizator 107) i „Zjen" (342) | treba tvoja odluka | ista adresa `schleisv@gmail.com`, ali 107 nema korisnika i nosi 2 događaja; claim ne može proći jer je korisnik 32 već vezan na 342 |
+| Resend webhook za statuse dostave | otvoreno | svi zapisi u Dostavi emailova stoje na `accepted`, nikad `delivered`/`bounced`; `POST /api/webhooks/resend` postoji i traži `RESEND_WEBHOOK_SECRET` — treba ga spojiti u Resendu da se vidi je li poruka stigla |
 | „Na mobitelu karta izgleda čudno" | treba tvoja potvrda | prethodno provjereno na 390/360 px u listopadu; ako i dalje izgleda krivo, treba screenshot s uređaja i modelom |
 
 ---
@@ -174,5 +243,8 @@ Ostaje neprovjereno klikom: slanje e-maila organizatoru pri objavi (NOT-03) i pr
 | `03c135ce` | fix(parser): keep dates a poster states as a range or in shorthand |
 | `9fe926a7` | test(parser): cover the reported sign-up poster schedule |
 | `dfb1bd97` | feat(admin): preview an unpublished event on its real public page |
+| `7772a2e1` | fix(web): show the map first on a phone |
+| `9c45d876` | fix(web): open the calendar on the current week |
+| `6ea40ae6` | fix(api): let an organizer with no account actually get in |
 
 Svaki je razvijen na vlastitoj grani i spojen u `main` s `--no-ff`.
