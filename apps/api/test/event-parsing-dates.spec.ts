@@ -177,6 +177,23 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.missingFields).toContain("startsAt");
   });
 
+  // Reported case (10. 11. 2026., second pass): three of the four terms on
+  // the sign-up screenshot checked out and the fourth did not, which blanked
+  // the whole event. The confirmed terms stay, with the warning.
+  it("keeps the confirmed terms when one term in a schedule fails", async () => {
+    const term = (day: number, date: string) => ({
+      startsAt: date, dateText: `Subota, ${day}. studenoga 2026.`, timeText: "17:30",
+    });
+    const result = await run({
+      occurrences: [term(14, "2026-11-14T17:30:00"), term(21, "2026-11-21T17:30:00"), term(28, "2026-12-28T17:30:00")],
+    });
+    expect(result.occurrences?.map((item) => item.startsAt)).toEqual([
+      "2026-11-14T17:30:00+01:00", "2026-11-21T17:30:00+01:00",
+    ]);
+    expect(result.startsAt).toBe("2026-11-14T17:30:00+01:00");
+    expect(result.warnings.join(" ")).toMatch(/Neki termini nisu potvr/);
+  });
+
   // Reported case: a sign-up poster listing four Saturday terms as
   // "17:30 – 19:00" imported with no dates at all, because each term stated
   // two times.
@@ -197,13 +214,17 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.warnings.join(" ")).toContain("više termina");
   });
 
-  it("does not silently drop an invalid occurrence and import the remaining schedule", async () => {
+  // Until 10. 11. 2026. one unconfirmed term blanked the whole event. It
+  // cost the reported four-term sign-up poster every one of its dates, so
+  // the confirmed terms are now kept and the warning carries the rest.
+  it("keeps the confirmed terms and warns instead of dropping a whole schedule", async () => {
     const result = await run({ occurrences: [
       { startsAt: "2027-10-12T20:00:00", dateText: "12. listopada 2027.", timeText: "20:00" },
       { startsAt: "2027-10-13T18:00:00", dateText: "13. listopada 2027.", timeText: "" },
     ] });
-    expect(result.startsAt).toBe("");
-    expect(result.occurrences).toBeUndefined();
-    expect(result.missingFields).toContain("startsAt");
+    expect(result.startsAt).toBe("2027-10-12T20:00:00+02:00");
+    expect(result.occurrences?.map((item) => item.startsAt)).toEqual(["2027-10-12T20:00:00+02:00"]);
+    expect(result.missingFields).not.toContain("startsAt");
+    expect(result.warnings.join(" ")).toMatch(/Neki termini nisu potvr/);
   });
 });

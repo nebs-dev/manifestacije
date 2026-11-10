@@ -815,8 +815,12 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         : [];
       const invalidSchedule = Array.isArray(p.occurrences) && occurrences.length !== p.occurrences.length;
       if (invalidSchedule) warnings.push("Neki termini nisu potvrđeni; provjerite cijeli raspored prije uvoza.");
-      const firstStart = invalidSchedule ? "" : occurrences[0]?.startsAt;
-      const start = firstStart ?? normalizeStart(p.startsAt || "", p, p.isAllDay === true);
+      // One unconfirmed term among several used to blank the whole event —
+      // a four-date sign-up poster lost all four because the last one did
+      // not check out. Keep the confirmed terms and let the warning above
+      // send the source to review.
+      const firstStart = occurrences[0]?.startsAt;
+      const start = firstStart || normalizeStart(p.startsAt || "", p, p.isAllDay === true);
       const lastEnd = occurrences.reduce<string | undefined>((latest, item) => {
         const endpoint = item.endsAt || item.startsAt;
         return !latest || new Date(endpoint) > new Date(latest) ? endpoint : latest;
@@ -825,9 +829,9 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         title: p.title ?? "",
         description: this.normalizeDescription(p.description ?? ""),
         startsAt: start,
-        endsAt: invalidSchedule ? "" : lastEnd ?? normalizeEnd(p.endsAt, p, start),
+        endsAt: lastEnd ?? normalizeEnd(p.endsAt, p, start),
         isAllDay: occurrences.length ? occurrences.every((item) => item.isAllDay) : p.isAllDay ?? false,
-        occurrences: !invalidSchedule && occurrences.length ? occurrences : undefined,
+        occurrences: occurrences.length ? occurrences : undefined,
         venueName: p.venueName ?? "",
         address: p.address ?? "",
         city: p.city ?? "",
