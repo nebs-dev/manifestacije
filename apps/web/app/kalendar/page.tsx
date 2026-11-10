@@ -5,6 +5,8 @@ import { CalendarExplorer } from "@/components/public/calendar-explorer"
 import { SiteFooter } from "@/components/public/site-footer"
 import { SiteHeader } from "@/components/public/site-header"
 import { fetchEvents, WEB_URL, type PublicFilters } from "@/lib/public-api"
+import { zagrebDateKey } from "@/lib/event-end"
+import { calendarInitialDate } from "@/lib/calendar-initial-date"
 
 export const metadata: Metadata = {
   title: "Digitalni kalendar događanja",
@@ -50,16 +52,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Rec
   const results = await fetchEvents(filters)
 
   const now = new Date()
-  let year = now.getFullYear()
-  let month = now.getMonth()
-  let initialDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
-  if (results.length) {
-    const earliest = results.reduce((a, b) => (a.date <= b.date ? a : b))
-    const d = new Date(`${earliest.date}T00:00:00`)
-    year = d.getFullYear()
-    month = d.getMonth()
-    initialDate = earliest.date
-  }
+  // Without a date in the URL the calendar opens on today, or on the first day
+  // that still has something on it. An event that started earlier and is still
+  // running must not drag the view back into a week that is already over.
+  const today = zagrebDateKey(now)
+  const initialDate = calendarInitialDate(results.map((event) => event.date), today)
+  let year = Number(initialDate.slice(0, 4))
+  let month = Number(initialDate.slice(5, 7)) - 1
   const selectedDate = validDate(str(searchParams.datum)) ?? initialDate
   const selectedView = validView(str(searchParams.pogled)) ?? "tjedan"
   const selectedDateObj = new Date(`${selectedDate}T00:00:00`)
