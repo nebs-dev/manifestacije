@@ -42,9 +42,10 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] md:h-[calc(100dvh-4rem)] md:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
-      {/* List panel */}
-      <div className="flex min-h-0 min-w-0 flex-col border-b border-border md:border-b-0 md:border-r">
-        <div className="border-b border-border px-4 py-3">
+      {/* List panel. `contents` lets the phone layout order the search, the map
+          and the list individually; from md it is the left column again. */}
+      <div className="contents md:flex md:min-h-0 md:min-w-0 md:flex-col md:border-r md:border-border">
+        <div className="order-1 border-b border-border px-4 py-3 md:order-none">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <input
@@ -78,7 +79,7 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
           <p className="mt-2 text-xs text-muted-foreground">{filtered.length} događanja na karti</p>
         </div>
 
-        <ul className="min-h-0 max-h-96 flex-1 overflow-y-auto md:max-h-none">
+        <ul className="order-3 min-h-0 max-h-96 flex-1 overflow-y-auto border-t border-border md:order-none md:max-h-none md:border-t-0">
           {filtered.map((e) => {
             const d = dateParts(e.date)
             return (
@@ -124,7 +125,9 @@ export function DiscoveryExplorer({ events }: { events: CroEvent[] }) {
       </div>
 
       {/* Map */}
-      <div className="relative h-[55dvh] min-h-[360px] min-w-0 md:h-auto">
+      {/* On a phone the map comes straight after the search, not below the
+          whole list — this page is the map. */}
+      <div className="relative order-2 h-[60dvh] min-h-[360px] min-w-0 md:order-none md:h-auto">
         <DiscoveryMap cityCenter={cityCenter} events={filtered} selected={selected} onSelect={setSelected} />
       </div>
     </div>
