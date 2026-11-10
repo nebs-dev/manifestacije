@@ -618,3 +618,36 @@ describe("OrganizerClaimService.bulkInviteUnclaimedOrganizers", () => {
     expect(contacts.syncClaimedOrganizer).not.toHaveBeenCalled();
   });
 });
+
+describe("OrganizerClaimService.inviteUnclaimedByEmail", () => {
+  const revalidate = { revalidate: jest.fn().mockResolvedValue(true) };
+
+  it("emails a claim link for an organizer that has no account, whatever its admin status", async () => {
+    const prisma = makePrisma({
+      organizer: { findFirst: jest.fn().mockResolvedValue(organizer({ status: OrganizerStatus.VERIFIED })), findUnique: jest.fn() },
+    });
+    const email = emailMock();
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, revalidate as never);
+
+    await expect(service.inviteUnclaimedByEmail(" Organizer@Example.hr ")).resolves.toBe(true);
+
+    expect(prisma.organizer.findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: "organizer@example.hr", mode: "insensitive" }, users: { none: {} } },
+    });
+    expect(email.sendOrganizerClaim).toHaveBeenCalledTimes(1);
+    const [to, data] = email.sendOrganizerClaim.mock.calls[0];
+    expect(to).toBe("organizer@example.hr");
+    expect(data.claimUrl).toContain("https://manifestacije.hr/preuzmi-profil?token=");
+  });
+
+  it("does nothing and reports false when no unclaimed organizer has that email", async () => {
+    const prisma = makePrisma({ organizer: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn() } });
+    const email = emailMock();
+    const service = new OrganizerClaimService(prisma as never, email as never, contactsMock() as never, revalidate as never);
+
+    await expect(service.inviteUnclaimedByEmail("nobody@example.hr")).resolves.toBe(false);
+
+    expect(prisma.organizerClaim.create).not.toHaveBeenCalled();
+    expect(email.sendOrganizerClaim).not.toHaveBeenCalled();
+  });
+});

@@ -100,6 +100,23 @@ export class OrganizerClaimService {
     return { message: GENERIC_REQUEST_MESSAGE };
   }
 
+  /**
+   * "Forgot password" for an address that has no account yet. If it is the
+   * contact email of an organizer nobody has claimed, the way in is the
+   * claim link — a password reset link would be pointless, since there is no
+   * password to reset. Returns whether an invite went out so the caller can
+   * keep its own response generic either way.
+   */
+  async inviteUnclaimedByEmail(email: string): Promise<boolean> {
+    const normalized = this.normalizeEmail(email);
+    const organizer = await this.prisma.organizer.findFirst({
+      where: { email: { equals: normalized, mode: "insensitive" }, users: { none: {} } },
+    });
+    if (!organizer) return false;
+    await this.sendAutomaticClaim(organizer.id, organizer.name, normalized);
+    return true;
+  }
+
   async verifyToken(dto: VerifyOrganizerClaimDto): Promise<{ valid: boolean; requiresPassword?: boolean; organizerName?: string }> {
     const claim = await this.findActiveClaimByToken(dto.token);
     if (!claim) return { valid: false };

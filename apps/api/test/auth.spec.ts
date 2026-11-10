@@ -87,7 +87,22 @@ describe("AuthService", () => {
       response: expect.objectContaining({ code: "CLAIM_REQUIRED", organizerSlug: "test-organizer" }),
     });
     expect(prisma.organizer.findFirst).toHaveBeenCalledWith({
-      where: { email: { equals: "orga@example.hr", mode: "insensitive" }, status: "UNCLAIMED" },
+      where: { email: { equals: "orga@example.hr", mode: "insensitive" }, users: { none: {} } },
+    });
+  });
+
+  // An admin bumping an organizer to CLAIMED/VERIFIED does not give its owner
+  // an account; reading the status here used to make that a dead end.
+  it("tells an organizer with no account to claim it even when an admin already marked it CLAIMED", async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+      organizer: { findFirst: jest.fn().mockResolvedValue({ id: 8, slug: "already-claimed", status: "CLAIMED" }) },
+    };
+    const service = new AuthService(prisma as never, { sign: jest.fn() } as never, {} as never, contactsMock() as never);
+
+    await expect(service.login({ email: "orga@example.hr", password: "whatever123" })).rejects.toMatchObject({
+      status: 403,
+      response: expect.objectContaining({ code: "CLAIM_REQUIRED", organizerSlug: "already-claimed" }),
     });
   });
 
@@ -101,7 +116,9 @@ describe("AuthService", () => {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 5, name: "New Organizer Co", createdAt: new Date("2026-07-21T20:00:00.000Z") }),
       },
+      $transaction: undefined as unknown as jest.Mock,
     };
+    prisma.$transaction = jest.fn((work: (tx: unknown) => unknown) => work(prisma));
     const jwt = { sign: jest.fn().mockReturnValue("signed-token") };
     const email = emailMock();
     const contacts = contactsMock();
@@ -134,7 +151,9 @@ describe("AuthService", () => {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 5, name: "New Organizer Co" }),
       },
+      $transaction: undefined as unknown as jest.Mock,
     };
+    prisma.$transaction = jest.fn((work: (tx: unknown) => unknown) => work(prisma));
     const jwt = { sign: jest.fn().mockReturnValue("signed-token") };
     // EmailService.sendOrganizerWelcome never throws in real usage — this simulates
     // an unexpected failure anyway to prove register()'s own try/catch guard keeps
@@ -199,6 +218,30 @@ describe("AuthService.forgotPassword", () => {
     const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never);
 
     const result = await service.forgotPassword({ email: "unknown@example.hr" });
+
+    expect(result).toEqual({ message: "Ako račun s tom adresom postoji, poslali smo upute za promjenu lozinke." });
+  });
+
+  it("sends a claim invite instead of nothing when the address belongs to an organizer with no account", async () => {
+    const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(null) } });
+    const claims = { inviteUnclaimedByEmail: jest.fn().mockResolvedValue(true) };
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never, claims as never);
+
+    const result = await service.forgotPassword({ email: " Orga@Example.hr " });
+
+    expect(claims.inviteUnclaimedByEmail).toHaveBeenCalledWith("orga@example.hr");
+    // The response stays byte-identical — the claim path must not become an
+    // account-enumeration oracle.
+    expect(result).toEqual({ message: "Ako račun s tom adresom postoji, poslali smo upute za promjenu lozinke." });
+    expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
+  });
+
+  it("returns the generic message when the address is neither an account nor an unclaimed organizer", async () => {
+    const prisma = makePrisma({ user: { findUnique: jest.fn().mockResolvedValue(null) } });
+    const claims = { inviteUnclaimedByEmail: jest.fn().mockResolvedValue(false) };
+    const service = new AuthService(prisma as never, {} as never, emailMock() as never, contactsMock() as never, claims as never);
+
+    const result = await service.forgotPassword({ email: "nobody@example.hr" });
 
     expect(result).toEqual({ message: "Ako račun s tom adresom postoji, poslali smo upute za promjenu lozinke." });
   });
