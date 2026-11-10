@@ -362,6 +362,24 @@ describe("AdminService ingestion workflow", () => {
     expect(updatedParsed.candidates[0].warnings).toEqual(["Needs city"]);
   });
 
+  it("restores an ignored candidate to pending when undo is requested", async () => {
+    const sourceParsed = parsedResult([candidate()]);
+    sourceParsed.candidates[0]._status = "ignored";
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+    };
+    const service = new AdminService(transactionalPrisma(prisma) as never, {} as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+
+    await service.ignoreCandidate(1, 0, true);
+
+    const update = prisma.eventSource.update.mock.calls[0][0].data as { parsedJson: ParsedSourceResult; status: string };
+    expect(update.parsedJson.candidates[0]._status).toBe("pending");
+    expect(update.status).toBe("PARSED");
+  });
+
   it("deletes an organizer's linked User accounts too, so the email can register again", async () => {
     const prisma = {
       event: { count: jest.fn().mockResolvedValue(0) },
