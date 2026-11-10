@@ -143,6 +143,26 @@ describe("LLM screenshot/text date validation", () => {
     expect(result.startsAt).toBe("2027-10-12T22:00:00+02:00");
     expect(result.endsAt).toBe("2027-10-13T02:00:00+02:00");
   });
+  // Reported case: a sign-up poster listing four Saturday terms as
+  // "17:30 – 19:00" imported with no dates at all, because each term stated
+  // two times.
+  it("imports a schedule whose terms state a time range", async () => {
+    const term = (day: number) => ({
+      startsAt: `2026-11-${day}T17:30:00`,
+      endsAt: `2026-11-${day}T19:00:00`,
+      dateText: `Subota, ${day}. studenoga 2026.`,
+      timeText: "17:30 – 19:00",
+      endTimeText: "17:30 – 19:00",
+    });
+    const result = await run({ occurrences: [term(14), term(21), term(28)] });
+    expect(result.occurrences?.map((item) => item.startsAt)).toEqual([
+      "2026-11-14T17:30:00+01:00", "2026-11-21T17:30:00+01:00", "2026-11-28T17:30:00+01:00",
+    ]);
+    expect(result.occurrences?.[0].endsAt).toBe("2026-11-14T19:00:00+01:00");
+    expect(result.startsAt).toBe("2026-11-14T17:30:00+01:00");
+    expect(result.warnings.join(" ")).toContain("više termina");
+  });
+
   it("does not silently drop an invalid occurrence and import the remaining schedule", async () => {
     const result = await run({ occurrences: [
       { startsAt: "2027-10-12T20:00:00", dateText: "12. listopada 2027.", timeText: "20:00" },
