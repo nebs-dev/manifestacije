@@ -755,7 +755,10 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         const date = wall ? (dates.includes(wall[1]) ? wall[1] : "") : derived ? dates[0] : "";
         const time = wall ? (allDay ? allDayTime : times.includes(wall[2]) ? wall[2] : "") : derived || "";
         if (!date || !time || !literal(evidence.dateText) || !literal(evidence.timeText)) {
-          warnings.push(`Datum ili vrijeme nije potvrđeno izvorom (${evidence.dateText || "datum nedostaje"}; ${evidence.timeText || "vrijeme nedostaje"}); potreban je pregled.`);
+          // Name the rejected value too: without it neither an editor nor a
+          // later investigation can tell a misread date from a missing one.
+          const proposed = raw ? ` Parser je predložio ${raw}, što izvor ne potvrđuje.` : "";
+          warnings.push(`Datum ili vrijeme nije potvrđeno izvorom (${evidence.dateText || "datum nedostaje"}; ${evidence.timeText || "vrijeme nedostaje"}); potreban je pregled.${proposed}`);
           return "";
         }
         if (derived) {
