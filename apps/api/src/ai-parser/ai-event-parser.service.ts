@@ -633,7 +633,8 @@ Hrvatski mjeseci: siječanj/siječnja=01, veljača/veljače=02, ožujak/ožujka=
 Vrijeme: 20:00, 20.00, 20 h, 20 sati znače 20:00. Datum 12.10. NIKADA nije vrijeme 12:10. Ako je zapis dvosmislen, upozori i ostavi startsAt prazan.
 Ne izmišljaj vrijeme (ni 18:00 ni ponoć). Ako vrijeme nije navedeno, startsAt ostavi prazan i dodaj startsAt u missingFields te upozorenje s poznatim datumom. isAllDay=true samo ako izvor izričito kaže cijeli dan.
 Za svaki događaj i svaki occurrence obavezno prepiši dateText i timeText DOSLOVNO iz izvora, bez prijevoda mjeseci ili pretvaranja brojeva. Za screenshot prepiši vidljivi zapis; nečitljiv zapis ostavi prazan i upozori. Ti zapisi služe provjeri datuma i sata.
-Ako screenshot i dodatni sadržaj navode različite datume ili sate istog događaja, ostavi startsAt prazan i dodaj upozorenje za admin pregled; ne biraj proizvoljno između izvora.
+Ako screenshot i dodatni sadržaj (dopuna urednika) navode PROTURJEČNE datume ili sate za isti termin, ostavi startsAt prazan i dodaj upozorenje za admin pregled; ne biraj proizvoljno između izvora. Ovo se NE odnosi na izvor koji uredno nabraja više termina (npr. popis prijava: "Subota, 14. studenoga", "Subota, 21. studenoga"…) — tada svaki termin ide kao zaseban candidate s ispunjenim startsAt.
+Ako je datum vidljiv u izvoru, startsAt MORA biti ispunjen. Nedostatak godine, popis više termina ili neodlučnost nisu razlog da startsAt ostane prazan — koristi tekuću godinu i dodaj upozorenje.
 Ako je izvor cjelodnevni, timeText mora sadržavati doslovni izraz "cijeli dan".
 Za završetak obavezno prepiši endDateText i endTimeText (za noćni završetak bez datuma endDateText ostavi prazan, server zaključuje sljedeći dan iz sata). Za vrijeme završetka koristi endsAt samo ako je izvor jasan; ne pretpostavljaj trajanje. Preko ponoći sačuvaj sljedeći datum.
 
@@ -740,15 +741,25 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         // The wall-clock portion is authoritative for Croatian sources. Do not
         // trust model-generated offsets; validate source evidence independently.
         const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+        const allDayTime = /cijeli dan|cjelodnev|all.day/i.test(evidence.timeText || "") ? "00:00" : "";
+        // A model that reads the date but refuses to commit to a value — a
+        // poster with no year on it, or one listing several terms — used to
+        // lose the whole term, which is the red "no date" marker editors see.
+        // The quoted evidence is the source's own wording, so it can carry
+        // the value when the model leaves startsAt empty: one unambiguous
+        // date, and the first time the source states.
+        const derived = !wall && dates.length === 1 && (allDay ? allDayTime : times[0]);
         // A poster that states a range ("13.–15. studenoga", "19:00 – 23:00")
         // leaves several supported values. Requiring exactly one dropped the
         // whole date; the model's pick only has to be one the source states.
-        const date = wall && dates.includes(wall[1]) ? wall[1] : "";
-        const allDayTime = /cijeli dan|cjelodnev|all.day/i.test(evidence.timeText || "") ? "00:00" : "";
-        const time = allDay ? allDayTime : wall && times.includes(wall[2]) ? wall[2] : "";
-        if (!date || !time || !wall || !literal(evidence.dateText) || !literal(evidence.timeText)) {
+        const date = wall ? (dates.includes(wall[1]) ? wall[1] : "") : derived ? dates[0] : "";
+        const time = wall ? (allDay ? allDayTime : times.includes(wall[2]) ? wall[2] : "") : derived || "";
+        if (!date || !time || !literal(evidence.dateText) || !literal(evidence.timeText)) {
           warnings.push(`Datum ili vrijeme nije potvrđeno izvorom (${evidence.dateText || "datum nedostaje"}; ${evidence.timeText || "vrijeme nedostaje"}); potreban je pregled.`);
           return "";
+        }
+        if (derived) {
+          warnings.push(`Termin je izveden iz zapisa u izvoru (${evidence.dateText}${evidence.timeText ? `; ${evidence.timeText}` : ""}) jer ga parser nije vratio; provjerite.`);
         }
         if (dates.length > 1 || (!allDay && times.length > 1)) {
           warnings.push(`Izvor navodi više termina (${dates.join(", ")}${times.length > 1 ? `; ${times.join(", ")}` : ""}); provjerite odabrani.`);
@@ -759,7 +770,17 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         return normalized;
       };
       const normalizeEnd = (raw: string | null | undefined, evidence: Evidence, start: string): string => {
-        if (!raw) return "";
+        const span = sourceTimes(evidence.timeText || "");
+        if (!raw) {
+          // "17:30 – 19:00" states both ends in one string. When the model
+          // fills only the start, the closing time is still the source's own.
+          const startTime = start.slice(11, 16);
+          if (!start || span.length !== 2 || span[0] !== startTime || span[1] <= startTime) return "";
+          const closing = parseZagrebWallTime(start.slice(0, 10), span[1]);
+          if (!closing) return "";
+          warnings.push(`Završetak je izveden iz raspona u izvoru (${evidence.timeText}); provjerite.`);
+          return closing;
+        }
         const dates = sourceDates(evidence.endDateText || "");
         const times = sourceTimes(evidence.endTimeText || "");
         const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
@@ -822,7 +843,9 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
         imageCredit: p.imageCredit,
         imageSourceUrl: p.imageSourceUrl,
         confidence: warnings.length ? Math.min(p.confidence ?? 0.7, 0.6) : p.confidence ?? 0.7,
-        missingFields: [...new Set([...(p.missingFields ?? []), ...(!start ? ["startsAt"] : [])])],
+        // A model that declared startsAt missing can be overruled by the
+        // evidence: once a term is resolved, the field is not missing.
+        missingFields: [...new Set([...(p.missingFields ?? []).filter((field) => field !== "startsAt" || !start), ...(!start ? ["startsAt"] : [])])],
         warnings,
       };
     };
