@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors , ParseIntPipe } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Patch, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors , ParseIntPipe } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { EventStatus, UserRole } from "@prisma/client";
 import { CurrentUser, Roles } from "../auth/auth.decorators";
@@ -8,6 +8,7 @@ import { AdminService, AdminEventListParams } from "./admin.service";
 import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto , SupplementDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
+import { EventPreviewService } from "../events/event-preview.service";
 import { RejectOrganizerClaimDto, BulkInviteUnclaimedDto } from "../organizer-claims/organizer-claim.dto";
 
 @Controller("admin")
@@ -17,7 +18,8 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly uploads: UploadsService,
-    private readonly claims: OrganizerClaimService
+    private readonly claims: OrganizerClaimService,
+    private readonly preview: EventPreviewService
   ) {}
 
   @Get("pending-counts") @Header("Cache-Control", "private, no-store") pendingCounts(@CurrentUser() user: AuthUser) { return this.admin.pendingCounts(user.id); }
@@ -59,6 +61,12 @@ export class AdminController {
     const event = await this.admin.event(Number(id));
     if (event) await this.admin.markItemViewed(user.id, "event", Number(id));
     return event;
+  }
+  /** A link that opens an unpublished event on its real public page. */
+  @Post("events/:id/preview-link") @Header("Cache-Control", "private, no-store") async previewLink(@Param("id", ParseIntPipe) id: number) {
+    const event = await this.admin.event(id);
+    if (!event) throw new NotFoundException("Događaj nije pronađen");
+    return { slug: event.slug, token: this.preview.sign(event), expiresInMinutes: this.preview.expiresInMinutes };
   }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }
   @Post("events/:id/approve") approve(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }

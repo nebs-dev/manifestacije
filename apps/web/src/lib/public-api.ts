@@ -272,9 +272,16 @@ export async function fetchPastEvents(page = 1, pageSize = 24): Promise<PastEven
   return { ...data, items: data.items.map((event) => toCroEvent(event, now)) }
 }
 
-export async function fetchEvent(slug: string) {
-  const event = await fetchApi<ApiEvent | null>(`/api/public/events/${slug}`).catch(() => null)
+/** `previewToken` comes from an admin preview link: it asks the API for the
+ *  event whatever its status, so the response must never be cached or reused
+ *  for ordinary visitors. */
+export async function fetchEvent(slug: string, previewToken?: string) {
+  const path = `/api/public/events/${slug}${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ""}`
+  const event = previewToken
+    ? await fetchApiUncached<ApiEvent | null>(path).catch(() => null)
+    : await fetchApi<ApiEvent | null>(path).catch(() => null)
   if (event) return toCroEvent(event)
+  if (previewToken) return null
   return fallbackEvents.find((item) => item.slug === slug) || null
 }
 
@@ -401,6 +408,12 @@ function levenshtein(a: string, b: string, maxDistance: number) {
 
 function citySlugForFallback(event: CroEvent) {
   return event.citySlug || slugifyLabel(event.city)
+}
+
+async function fetchApiUncached<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json() as Promise<T>
 }
 
 async function fetchApi<T>(path: string, revalidate = 60, tags: string[] = ["events"]): Promise<T> {

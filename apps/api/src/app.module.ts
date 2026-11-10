@@ -4,6 +4,7 @@ import { Controller, Get, Module } from "@nestjs/common";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { ScheduleModule } from "@nestjs/schedule";
 import { JwtModule } from "@nestjs/jwt";
+import { EventPreviewService } from "./events/event-preview.service";
 import { PrismaService } from "./prisma/prisma.service";
 import { AuthController } from "./auth/auth.controller";
 import { AuthService } from "./auth/auth.service";
@@ -113,6 +114,7 @@ export class HealthController {
     AiEventParserService,
     DuplicatesService,
     EventsService,
+    EventPreviewService,
     EventRevisionsService,
     EmailService,
     EmailTrackingService,
