@@ -66,13 +66,14 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
   const paths = ["/api/admin/event-sources/manual-email", "/api/organizer/events/submit-url"];
   for (const path of paths) {
     it.each([
-      ["12. siječnja 2099.", "20:00", "2099-01-12", "+01:00"],
-      ["12. srpnja 2099.", "20.00", "2099-07-12", "+02:00"],
-      ["12. rujna 2099.", "20 h", "2099-09-12", "+02:00"],
-      ["12. listopada 2099.", "20:00", "2099-10-12", "+02:00"],
-      ["12. listopada 2099.", "", "2099-10-12", ""],
-      ["12. listopada 2099.", "20:00 ili 21:00", "2099-10-12", ""],
-    ])(`${path}: preserves Croatian date evidence and review state for %s / %s`, async (dateText, timeText, date, offset) => {
+      ["12. siječnja 2099.", "20:00", "2099-01-12", "+01:00", "PARSED"],
+      ["12. srpnja 2099.", "20.00", "2099-07-12", "+02:00", "PARSED"],
+      ["12. rujna 2099.", "20 h", "2099-09-12", "+02:00", "PARSED"],
+      ["12. listopada 2099.", "20:00", "2099-10-12", "+02:00", "PARSED"],
+      ["12. listopada 2099.", "", "2099-10-12", "", "NEEDS_REVIEW"],
+      // Two stated times keep the model's pick, but the source still needs review.
+      ["12. listopada 2099.", "20:00 ili 21:00", "2099-10-12", "+02:00", "NEEDS_REVIEW"],
+    ])(`${path}: preserves Croatian date evidence and review state for %s / %s`, async (dateText, timeText, date, offset, expectedStatus) => {
       create.mockResolvedValue({ content: [{ type: "text", text: JSON.stringify({
         title: "Testni koncert", city: "Osijek", category: "glazba", startsAt: `${date}T20:00:00`, dateText, timeText, confidence: 0.9,
       }) }] });
@@ -83,7 +84,8 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
       const source = await response.json();
       const candidate = source.parsedJson.candidates[0];
       expect(candidate.startsAt).toBe(offset ? `${date}T20:00:00${offset}` : "");
-      expect(source.status).toBe(offset ? "PARSED" : "NEEDS_REVIEW");
+      expect(source.status).toBe(expectedStatus);
+      if (expectedStatus === "NEEDS_REVIEW" && offset) expect(candidate.warnings.join(" ")).toContain("više termina");
       if (!offset) {
         expect(candidate.missingFields).toContain("startsAt");
         expect(candidate.warnings.join(" ")).toContain("pregled");

@@ -38,6 +38,25 @@ describe("Zagreb parser regressions", () => {
   it.each(["12. listopada 2027.", "12 listopad 2027", "12. LISTOPADA 2027"])("maps October from %s", (text) => {
     expect(sourceDates(text)).toEqual(["2027-10-12"]);
   });
+  it.each([
+    ["13.–29. studenoga 2026.", ["2026-11-13", "2026-11-29"]],
+    ["13. - 15. 11. 2026.", ["2026-11-13", "2026-11-15"]],
+    ["3.-4.7.2026.", ["2026-07-03", "2026-07-04"]],
+    ["12.10.-13.10.2027.", ["2027-10-12", "2027-10-13"]],
+  ])("reads both ends of the range %s", (text, expected) => {
+    expect(sourceDates(text as string)).toEqual(expected);
+  });
+  it.each([
+    ["13. stu. 2026.", "2026-11-13"],
+    ["5. svi. 2026.", "2026-05-05"],
+    ["13/11/2026", "2026-11-13"],
+    ["13-11-2026", "2026-11-13"],
+  ])("reads the shorthand date %s", (text, expected) => {
+    expect(sourceDates(text as string)).toEqual([expected]);
+  });
+  it.each(["svi su dobrodošli 5. 2026.", "13. studenoga 2026."])("does not invent a month from ordinary words in %s", (text) => {
+    expect(sourceDates(text)).not.toContain("2026-05-05");
+  });
   it.each(["20:00", "20.00", "20 h", "20h", "20.00h", "20:00h", "20 sati", "u 20.00 sati"])("recognizes %s", (text) => {
     expect(sourceTimes(`12.10.2027. ${text}`)).toEqual(["20:00"]);
   });
