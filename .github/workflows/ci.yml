@@ -16,10 +16,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pinned, and matched to the versions the project is developed on. Playwright
-  # is pinned exactly in package.json so the browser build and the library
-  # never drift apart.
-  NODE_VERSION: "22.20.0"
+  # Matches the Vercel project's configured runtime (24.x) and .nvmrc, so CI,
+  # the deployed web app and a developer running `nvm use` are all on the same
+  # major. Verified green on 22.13.0, 24.22.2 and 26.5.0 before pinning.
+  # Playwright is pinned exactly in package.json so the library and the browser
+  # build never drift apart.
+  NODE_VERSION: "24.22.2"
   PNPM_VERSION: "11.9.0"
 
 jobs:
@@ -86,12 +88,15 @@ jobs:
           NEXT_PUBLIC_CARTO_BASEMAP_KEY: ""
         run: pnpm --filter web build
 
-  # The critical-path browser tests. Only @smoke runs here: it is the set that
-  # must hold for the product to be usable at all, and it keeps the gate short
-  # enough that nobody is tempted to skip it. The full suite, WebKit and the
-  # phone profiles are run locally and on demand with `pnpm e2e`.
+  # The whole Chromium project, not just @smoke. Measured cold on this repo:
+  # the @smoke subset takes 53s and all 28 specs take 58-64s, because building
+  # apps/api and apps/web dominates and the extra 17 tests add about ten
+  # seconds. There is no reason to run the smaller set.
+  # WebKit and the two phone profiles stay out of the gate: they need a second
+  # browser download and add roughly 45s, and they cover presentation rather
+  # than the critical path. Run them locally with `pnpm e2e`.
   e2e:
-    name: E2E smoke (Chromium)
+    name: E2E (Chromium, full suite)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
@@ -136,12 +141,12 @@ jobs:
       # runner; the browser build itself comes from the cache above when warm.
       - run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run the smoke suite
+      - name: Run the Chromium suite
         # No secrets are passed in, by design. support/env.ts sets every
         # provider variable explicitly — the AI goes to a local stub, email is
         # logged rather than sent, and the upload and geocoding keys are blank.
         # So there is nothing for a trace, a screenshot or this log to leak.
-        run: pnpm e2e:smoke
+        run: pnpm e2e:ci
 
       - name: Upload the report on failure
         if: failure()

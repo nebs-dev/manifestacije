@@ -1,6 +1,10 @@
 {
   "name": "manifestacije",
   "private": true,
+  "engines": {
+    "node": ">=22.20.0",
+    "pnpm": ">=11.9.0"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter api --filter web dev",
     "build": "pnpm --recursive build",
@@ -18,7 +22,8 @@
     "e2e:report": "playwright show-report e2e/.artifacts/report",
     "e2e:typecheck": "tsc -p e2e/tsconfig.json --noEmit",
     "typecheck": "pnpm --recursive lint && pnpm e2e:typecheck",
-    "e2e:audit": "playwright test -c playwright.audit.config.ts"
+    "e2e:audit": "playwright test -c playwright.audit.config.ts",
+    "e2e:ci": "playwright test --project=chromium"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",
