@@ -15,3 +15,9 @@ dist/
 .kiro/
 .kiroq/
 skills-lock.json
+
+# Playwright E2E
+/e2e/.artifacts/
+.next-e2e/
+/playwright-report/
+/test-results/

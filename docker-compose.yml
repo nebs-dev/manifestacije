@@ -10,5 +10,24 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  # Disposable database for the Playwright end-to-end suite. Deliberately on a
+  # different port with no volume: `docker compose down` throws the data away,
+  # and nothing here can reach the development database on 5432.
+  postgres-e2e:
+    image: postgres:16-alpine
+    ports:
+      - "5443:5432"
+    environment:
+      POSTGRES_DB: e2e_qa
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: e2e
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U e2e -d e2e_qa"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
 volumes:
   postgres-data:
