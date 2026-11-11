@@ -120,6 +120,14 @@ export const apiServerEnv: Record<string, string> = {
   // apps/api/src/main.ts hardcodes localhost:3000; the suite runs on its own
   // port, so both spellings of the loopback origin are allowed through CORS.
   CORS_ALLOWED_ORIGINS: `${WEB_URL},http://localhost:${WEB_PORT}`,
+
+  // The SSRF guard refuses to fetch a URL that resolves to a loopback
+  // address, which is exactly what the stub's fixture page is. Listing the
+  // host here is the only way the suite can exercise the real "submit a link"
+  // path. The API refuses to start with this set in a production runtime, so
+  // it cannot leak out of the test environment. Harmless before that guard
+  // exists: an unread variable.
+  SSRF_ALLOW_PRIVATE_HOSTS: "127.0.0.1",
 };
 
 export const webServerEnv: Record<string, string> = {
