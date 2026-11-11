@@ -11,6 +11,21 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The repository is public, so this workflow is a supply-chain surface. It is
+# deliberately boring:
+#   - `pull_request`, never `pull_request_target`. A fork's pull request runs
+#     with a read-only token and no access to repository secrets. Using
+#     pull_request_target would run that fork's code with a writable token,
+#     which is the mistake this note exists to prevent.
+#   - No `secrets.*` anywhere. Nothing here needs one: the AI is a local stub,
+#     email is logged rather than sent, and the upload and geocoding keys are
+#     blank. So there is nothing for a log, a trace or a screenshot to leak,
+#     and a fork's run behaves exactly like a branch's.
+#   - The database is a throwaway service container on its own port, created
+#     and destroyed with the job.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -49,11 +64,22 @@ jobs:
       # The API's Prisma client is generated code; tsc and jest both need it.
       - run: pnpm --filter api exec prisma generate
 
-      - name: Typecheck API, web and the E2E suite
-        run: |
-          pnpm --filter api lint
-          pnpm --filter web lint
-          pnpm e2e:typecheck
+      # Run separately, not through `pnpm --filter web lint`. That script is
+      # `next lint || tsc --noEmit`, so a real ESLint failure falls through to
+      # the typecheck and the job would go green on a lint error.
+      - name: ESLint (web)
+        run: pnpm --filter web exec next lint --max-warnings=0
+
+      # apps/api has no ESLint configuration; its `lint` script is tsc. Both
+      # typechecks are run explicitly so each failure says which one it was.
+      - name: Typecheck API
+        run: pnpm --filter api exec tsc -p tsconfig.json --noEmit
+
+      - name: Typecheck web
+        run: pnpm --filter web exec tsc -p tsconfig.json --noEmit
+
+      - name: Typecheck the E2E suite
+        run: pnpm e2e:typecheck
 
       - name: API unit and integration tests
         run: pnpm --filter api test
