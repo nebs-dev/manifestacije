@@ -1,5 +1,4 @@
-import { lookup } from "node:dns/promises";
-import { isIPv4, isIPv6 } from "node:net";
+import { assertPublicHttpUrl, safeFetch } from "../common/ssrf";
 
 const USER_AGENT = "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)";
 const TIMEOUT_MS = 12_000;
@@ -69,16 +68,16 @@ export async function politeFetch(
  * the admin as a broken box. Only headers are read, never the body.
  */
 export async function imageIsReachable(url: string): Promise<boolean> {
-  const guard = await assertPublicHttpUrl(url);
-  if (!guard.ok) return false;
-
   try {
-    const response = await fetch(url, {
+    // safeFetch, not fetch: this used to pass `redirect: "follow"` after a
+    // single check, so a public URL answering 302 to an internal address was
+    // followed unchecked. safeFetch re-checks every hop.
+    const response = await safeFetch(url, {
       // Some CDNs answer HEAD with 405 while serving GET fine; a one-byte
       // range keeps this as cheap as HEAD without tripping that.
       headers: { "User-Agent": USER_AGENT, Range: "bytes=0-0" },
-      redirect: "follow",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      timeoutMs: TIMEOUT_MS,
+      maxBytes: MAX_BYTES,
     });
     if (!response.ok && response.status !== 206) return false;
     const type = response.headers.get("content-type") ?? "";
@@ -106,58 +105,4 @@ async function readCapped(response: Response, maxBytes: number): Promise<string 
     chunks.push(value);
   }
   return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf-8");
-}
-
-async function assertPublicHttpUrl(rawUrl: string): Promise<{ ok: true } | { ok: false; reason: string }> {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return { ok: false, reason: "Invalid URL" };
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return { ok: false, reason: `Disallowed protocol: ${url.protocol}` };
-  }
-
-  const hostname = url.hostname.toLowerCase();
-  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-    return { ok: false, reason: "Refusing to fetch localhost" };
-  }
-
-  let address: string;
-  if (isIPv4(hostname) || isIPv6(hostname)) {
-    address = hostname;
-  } else {
-    try {
-      address = (await lookup(hostname)).address;
-    } catch {
-      return { ok: false, reason: `DNS lookup failed for ${hostname}` };
-    }
-  }
-
-  if (isPrivateAddress(address)) {
-    return { ok: false, reason: `Refusing to fetch private/internal address ${address}` };
-  }
-  return { ok: true };
-}
-
-function isPrivateAddress(address: string): boolean {
-  if (isIPv4(address)) {
-    const [a, b] = address.split(".").map(Number);
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    return false;
-  }
-  if (isIPv6(address)) {
-    const normalized = address.toLowerCase();
-    if (normalized === "::1") return true;
-    if (normalized.startsWith("fe80:")) return true;
-    if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true; // fc00::/7 (ULA)
-    return false;
-  }
-  return true; // unrecognized shape — fail closed
 }

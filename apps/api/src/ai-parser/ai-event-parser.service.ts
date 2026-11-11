@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, ServiceUnavailableException } 
 import Anthropic from "@anthropic-ai/sdk";
 import { parseZagrebWallTime, zagrebDateKey } from "../common/zagreb-time";
 import { isTimeRange, sourceDates, sourceTimes } from "./date-evidence";
+import { safeFetch } from "../common/ssrf";
 import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
 export type ParsedEventCandidate = {
@@ -498,9 +499,12 @@ export class AiEventParserService {
     const toFetch = links.slice(0, MAX);
     const results = await Promise.allSettled(
       toFetch.map(async (url) => {
-        const res = await fetch(url, {
+        // The sub-links come out of a page the submitter controls, so each of
+        // them is as untrusted as the URL they sent. Their text is stored in
+        // rawText, which GET /api/organizer/sources returns to them verbatim.
+        const res = await safeFetch(url, {
           headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
-          signal: AbortSignal.timeout(8000),
+          timeoutMs: 8_000,
         });
         if (!res.ok) return "";
         return this.htmlToText(await res.text()).slice(0, 2000);

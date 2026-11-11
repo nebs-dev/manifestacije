@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { createHash } from "crypto";
+import { safeFetch } from "../common/ssrf";
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -38,9 +39,10 @@ export class UploadsService {
    */
   async uploadEventImageFromUrl(imageUrl: string): Promise<UploadedEventImage | null> {
     try {
-      const response = await fetch(imageUrl, {
+      const response = await safeFetch(imageUrl, {
         headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
-        signal: AbortSignal.timeout(15_000),
+        timeoutMs: 15_000,
+        maxBytes: MAX_IMAGE_SIZE_BYTES,
       });
       if (!response.ok) return null;
 

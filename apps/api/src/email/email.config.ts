@@ -1,4 +1,5 @@
 import type { EmailProviderName } from "./email.types";
+import { isProductionRuntime } from "../common/runtime";
 
 export interface EmailConfig {
   deliveryMode: EmailProviderName;
@@ -13,13 +14,6 @@ export interface EmailConfig {
   passwordResetTokenTtlMinutes: number;
   organizerClaimUrl: string;
   organizerClaimTokenTtlMinutes: number;
-}
-
-function isProductionRuntime(): boolean {
-  return process.env.NODE_ENV === "production"
-    || process.env.VERCEL_ENV === "production"
-    || process.env.RAILWAY_ENVIRONMENT === "production"
-    || process.env.RAILWAY_ENVIRONMENT_NAME === "production";
 }
 
 /**
