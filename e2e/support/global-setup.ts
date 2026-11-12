@@ -18,10 +18,19 @@ function run(label: string, args: string[], env: Record<string, string>) {
   process.stdout.write(`[e2e] ${label}…\n`);
   execFileSync("pnpm", args, {
     cwd: repoRoot,
-    // The developer's own keys live in a .env symlinked into both apps. Only
-    // the variables listed in env.ts reach these child processes, and PATH is
-    // needed for pnpm itself.
-    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env },
+    // The inherited environment is kept, with this call's variables layered on
+    // top so they win. An earlier version passed only PATH, HOME and the
+    // overrides; that stripped the variables pnpm and the Prisma client need
+    // to resolve themselves, which worked on a developer's machine, where a
+    // generated client was already on disk, and failed on a clean runner with
+    // "@prisma/client did not initialize yet".
+    //
+    // Nothing is weakened by this. What keeps these scripts off a real
+    // database is not a short environment, it is DATABASE_URL being set
+    // explicitly below plus the hard guard inside reset-db.ts and
+    // seed-accounts.ts, which refuse any host, port or database but the
+    // disposable one.
+    env: { ...process.env, ...env },
     stdio: ["ignore", "inherit", "inherit"],
   });
 }
