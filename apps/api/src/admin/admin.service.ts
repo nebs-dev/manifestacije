@@ -1,6 +1,6 @@
 import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
-import { EventStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
+import { EventStatus, EventSourceStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
@@ -45,6 +45,22 @@ export type AdminEventListParams = {
   page?: string;
   pageSize?: string;
   fieldFilters?: string;
+};
+
+/** Filters for the editorial source inbox — see `eventSourceListWhere`. */
+export type AdminEventSourceListParams = {
+  page?: string;
+  pageSize?: string;
+  /** An `EventSourceType`: EMAIL, URL, MANUAL or SCRAPE_DISCOVERY. */
+  type?: string;
+  /** An `EventSourceStatus`. */
+  status?: string;
+  /** Only rows that still hold at least one undecided candidate. */
+  actionable?: boolean;
+  /** Only rows this admin has never opened. Implies `actionable`. */
+  unviewed?: boolean;
+  /** Matches the source URL, e-mail subject or sender, or organizer name. */
+  q?: string;
 };
 
 type AdminEventFieldFilter = {
@@ -553,20 +569,109 @@ export class AdminService {
     return this.prisma.eventSource.delete({ where: { id } });
   }
 
+  /**
+   * The editorial inbox filter.
+   *
+   * The queue only grows — 928 rows in production, 38 pages of 25 — and the
+   * three kinds of source are interleaved, so "show me the discovery
+   * candidates nobody has looked at" meant paging through everything. 290 of
+   * 325 discovery rows were never opened once.
+   *
+   * "Actionable" is a property of the row: not yet linked to an event, still
+   * open, and holding at least one candidate that is neither created nor
+   * ignored. It deliberately does **not** come from the
+   * `ActiveAdminNotification` view, although that view encodes something
+   * similar — the view's trigger only records a notification for a monitored
+   * batch or an organizer's submission (`type = 'SCRAPE_DISCOVERY' OR
+   * organizerId IS NOT NULL`), because an admin pasting a URL does not need
+   * to be notified about their own paste. Filtering on the view therefore hid
+   * every source an editor had entered by hand, which is the one thing they
+   * are certain to be looking for.
+   *
+   * `unviewed` is a different question — "has this admin opened it" — and that
+   * one genuinely lives in the notification tables, so it is an additional
+   * join rather than a replacement.
+   */
+  private async eventSourceListWhere(
+    params: AdminEventSourceListParams | undefined,
+    userId?: number,
+  ): Promise<Prisma.EventSourceWhereInput> {
+    const and: Prisma.EventSourceWhereInput[] = [];
+
+    if (params?.type && Object.values(EventSourceType).includes(params.type as EventSourceType)) {
+      and.push({ type: params.type as EventSourceType });
+    }
+    if (params?.status && Object.values(EventSourceStatus).includes(params.status as EventSourceStatus)) {
+      and.push({ status: params.status as EventSourceStatus });
+    }
+    const search = params?.q?.trim();
+    if (search) {
+      and.push({
+        OR: [
+          { sourceUrl: { contains: search, mode: "insensitive" } },
+          { rawEmailSubject: { contains: search, mode: "insensitive" } },
+          { rawEmailFrom: { contains: search, mode: "insensitive" } },
+          { organizer: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      });
+    }
+
+    const wantsActionable = params?.actionable === true || params?.unviewed === true;
+    if (wantsActionable) {
+      // One candidate is enough to make a row actionable, and the array has to
+      // be walked to know that — which Prisma's JSON filters cannot express,
+      // hence the raw query. Both candidate shapes are handled: the batch
+      // format, and the legacy single-candidate one still in the oldest rows.
+      const openCandidates = Prisma.sql`
+        es."eventId" IS NULL
+        AND es."status" IN ('NEW', 'PARSED', 'NEEDS_REVIEW')
+        AND CASE WHEN jsonb_typeof(es."parsedJson"->'candidates') = 'array' THEN
+              EXISTS (
+                SELECT 1 FROM jsonb_array_elements(es."parsedJson"->'candidates') c
+                WHERE COALESCE(c->>'_status', '') NOT IN ('created', 'ignored')
+              )
+            ELSE COALESCE(es."parsedJson"->>'_status', '') NOT IN ('created', 'ignored') END`;
+
+      // "Never opened" is per-admin and does live in the notification tables.
+      // A row the trigger never recorded counts as seen — that is also what
+      // the table's own bold-row rule does with it — so this narrows the set
+      // rather than replacing it. Without a caller there is no read state to
+      // consult, and it degrades to plain actionable instead of silently
+      // showing another admin's.
+      const unviewedOnly = params?.unviewed === true && userId
+        ? Prisma.sql`
+            AND EXISTS (
+              SELECT 1 FROM "ActiveAdminNotification" n
+              LEFT JOIN "AdminNotificationRead" r ON r."key" = n."key" AND r."userId" = ${userId}
+              WHERE n."kind" IN ('source', 'discovery') AND n."entityId" = es."id" AND r."key" IS NULL
+            )`
+        : Prisma.empty;
+
+      const rows = await this.prisma.$queryRaw<{ id: number }[]>(
+        Prisma.sql`SELECT es."id" FROM "EventSource" es WHERE ${openCandidates}${unviewedOnly}`
+      );
+      and.push({ id: { in: rows.length ? rows.map((row) => row.id) : [-1] } });
+    }
+
+    return and.length ? { AND: and } : {};
+  }
+
   /** Paginated because the list only grows: every parsed URL, screenshot and
    *  monitored-source check adds a row, and the flat take: 200 it replaces
    *  both truncated silently and shipped 200 rows to the browser at once. */
-  async eventSources(params?: { page?: string; pageSize?: string }, userId?: number) {
+  async eventSources(params?: AdminEventSourceListParams, userId?: number) {
     const page = this.parsePositiveInt(params?.page, 1, 1, 10_000);
     const pageSize = this.parsePositiveInt(params?.pageSize, 25, 10, 100);
+    const where = await this.eventSourceListWhere(params, userId);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.eventSource.findMany({
+        where,
         include: { event: true, organizer: true },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.eventSource.count(),
+      this.prisma.eventSource.count({ where }),
     ]);
     if (userId) {
       const reads = await this.prisma.$queryRaw<{ entityId: number; readAt: Date | null }[]>`
@@ -900,14 +1005,14 @@ export class AdminService {
     if (source.eventId || source.status === "LINKED") throw new ConflictException("Izvor je već obrađen.");
 
     const parsedJson = source.parsedJson as Record<string, unknown>;
-    let originalCandidate: ParsedEventCandidate;
+    let originalCandidate: ParsedSourceResult["candidates"][number];
     let candidate: ParsedEventCandidate;
     let isBatchFormat = false;
 
     if (Array.isArray((parsedJson as ParsedSourceResult).candidates)) {
       isBatchFormat = true;
       const result = parsedJson as ParsedSourceResult;
-      const candidates = result.candidates as (ParsedEventCandidate & { _status?: string; _eventId?: number })[];
+      const candidates = result.candidates;
       if (candidateIndex < 0 || candidateIndex >= candidates.length) {
         throw new BadRequestException(`Invalid candidateIndex ${candidateIndex} (source has ${candidates.length} candidates)`);
       }
@@ -990,7 +1095,34 @@ export class AdminService {
       await db.eventSource.update({ where: { id }, data: { eventId: event.id, status: "LINKED" } });
     }
 
+    // Record the decision against the discovered event, not just this review
+    // row: the next check has to recognise that this event is dealt with even
+    // though the row it arrived in may later be deleted.
+    await this.recordDiscoveryDecision(db, originalCandidate._discoveryKey, { importedEventId: event.id });
+
     return { event, candidateIndex };
+  }
+
+  /**
+   * Carries an editor's decision back to `DiscoveredEvent`, which is what the
+   * monitored-source check consults before queueing an event again.
+   *
+   * Advisory on purpose: a missing or stale key must never fail an import an
+   * editor has already confirmed, so this swallows its own errors. The cost of
+   * a miss is one duplicate card on the next check; the cost of throwing here
+   * is a published event rolled back.
+   */
+  private async recordDiscoveryDecision(
+    db: Prisma.TransactionClient,
+    discoveryKey: string | undefined,
+    data: { importedEventId?: number; ignoredAt?: Date | null },
+  ) {
+    if (!discoveryKey) return;
+    try {
+      await db.discoveredEvent.updateMany({ where: { identityKey: discoveryKey }, data });
+    } catch {
+      /* advisory — see the doc comment */
+    }
   }
 
   /** Marks a parsed candidate as ignored, or, with `undo`, puts an ignored one
@@ -1015,6 +1147,10 @@ export class AdminService {
         i === candidateIndex ? { ...c, _status: nextStatus } : c
       );
       const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
+
+      await this.recordDiscoveryDecision(db, result.candidates[candidateIndex]._discoveryKey, {
+        ignoredAt: undo ? null : new Date(),
+      });
 
       return db.eventSource.update({
         where: { id },

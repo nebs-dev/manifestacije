@@ -10,6 +10,11 @@ import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-
 import { imageIsReachable, politeFetch } from "./source-fetch";
 import { lookupVenueGeo } from "../common/croatia-geo";
 import { normalizeUrl } from "./url-normalize";
+import { decideDiscovery, discoveryContentHash, discoveryIdentityKey, discoveryScope, discoveryTitleKey } from "./discovery-identity";
+
+/** Two names for the same place, allowing for casing and diacritics. */
+const squashedEqual = (a: string | null | undefined, b: string | null | undefined) =>
+  discoveryTitleKey(a) === discoveryTitleKey(b);
 import { CreateMonitoredSourceDto, UpdateMonitoredSourceDto } from "./monitored-sources.dto";
 
 const MAX_CONSECUTIVE_FAILURES_BEFORE_DISABLE = 10;
@@ -356,17 +361,221 @@ export class MonitoredSourcesService {
     parsed = await this.fillMissingAddresses(parsed);
     parsed = await flagAlreadyImported(this.prisma, this.duplicates, parsed);
 
+    // Everything the page offered is now parsed. Which of it an editor has
+    // not already seen is a separate question, and the one that decides how
+    // big the review queue gets.
+    const triage = await this.triageByIdentity(source, parsed);
+
     // Only create a review-queue row when there's actually something to
-    // review — a zero-candidate result just means "checked, nothing found"
-    // and belongs in this source's own run log, not in the shared admin
-    // Izvori queue where it'd be one more empty row to click through.
-    const eventSource = parsed.candidates.length > 0 ? await this.createDiscoverySource(source, html, parsed) : null;
+    // review — a zero-candidate result, or one where every event is already
+    // on record unchanged, just means "checked, nothing new" and belongs in
+    // this source's own run log, not in the shared admin Izvori queue where
+    // it'd be one more row to click through.
+    const eventSource = triage.queued.candidates.length > 0
+      ? await this.createDiscoverySource(source, html, triage.queued)
+      : null;
+    await this.recordDiscoveredEvents(source, triage, eventSource?.id);
     await this.prisma.discoveredSourceItem.updateMany({
       where: { monitoredSourceId: source.id, normalizedUrl: { in: normalized } },
       data: { status: DiscoveredItemStatus.PROCESSED, linkedEventSourceId: eventSource?.id },
     });
 
-    return { outcome: "changed", itemsFound: normalized.length, itemsNew: newCount, candidatesCreated: parsed.candidates.length, eventSourceId: eventSource?.id };
+    return {
+      outcome: "changed",
+      itemsFound: normalized.length,
+      itemsNew: newCount,
+      candidatesFound: parsed.candidates.length,
+      candidatesCreated: triage.queued.candidates.length,
+      candidatesSkipped: parsed.candidates.length - triage.queued.candidates.length,
+      skipReasons: triage.skipReasons,
+      eventSourceId: eventSource?.id,
+    };
+  }
+
+  /**
+   * Splits a fresh parse into "an editor needs to see this" and "already on
+   * record", using the per-event identity in discovery-identity.ts.
+   *
+   * This is the deduplication. Without it one changed byte on a listing page
+   * re-queues every event on that page: production accumulated 3 179 candidate
+   * cards for 748 distinct events, 40 cards for one comedy. The identity is
+   * deliberately conservative — an undated or untitled candidate gets no key
+   * and is queued every time, because over-queueing costs a click and a wrong
+   * merge loses an event.
+   */
+  private async triageByIdentity(source: { id: number; url: string }, parsed: ParsedSourceResult) {
+    const scope = discoveryScope(source.url);
+    const assessed = parsed.candidates.map((candidate) => ({
+      candidate,
+      identityKey: discoveryIdentityKey(candidate, parsed.sourceUrl || source.url, scope),
+      titleKey: discoveryTitleKey(candidate.title),
+      contentHash: discoveryContentHash(candidate),
+    }));
+
+    const keys = assessed.map((item) => item.identityKey).filter((key): key is string => key !== null);
+    const records = keys.length
+      ? await this.prisma.discoveredEvent.findMany({ where: { identityKey: { in: keys } } })
+      : [];
+    const byKey = new Map(records.map((record) => [record.identityKey, record]));
+
+    // A record pointing at a review row that has since been deleted must not
+    // keep its event out of the queue — nobody ever decided on it.
+    const referenced = [...new Set(records.map((record) => record.lastEventSourceId).filter((id): id is number => id !== null))];
+    const live = referenced.length
+      ? await this.prisma.eventSource.findMany({ where: { id: { in: referenced } }, select: { id: true } })
+      : [];
+    const liveIds = new Set(live.map((row) => row.id));
+
+    // A date that moves produces a new identity — deliberately, because four
+    // nights of one play are four events. The cost is that a postponed event
+    // arrives looking brand new next to the one already published under the
+    // same name. Same host, same title, same city, already imported: enough
+    // to put a hint on the card, never enough to block the import.
+    const titleKeys = [...new Set(assessed.map((item) => item.titleKey).filter(Boolean))];
+    const siblings = titleKeys.length
+      ? await this.prisma.discoveredEvent.findMany({
+          where: { sourceScope: scope, titleKey: { in: titleKeys }, importedEventId: { not: null } },
+          select: { titleKey: true, cityName: true, importedEventId: true, startsAt: true },
+          take: 200,
+        })
+      : [];
+
+    const queued: typeof assessed = [];
+    const skipped: typeof assessed = [];
+    const skipReasons: Record<string, number> = {};
+    const queueReasons: Record<string, number> = {};
+
+    for (const item of assessed) {
+      const decision = decideDiscovery(item.identityKey, item.contentHash, byKey.get(item.identityKey ?? ""), liveIds);
+      if (decision.action === "queue") {
+        queueReasons[decision.reason] = (queueReasons[decision.reason] ?? 0) + 1;
+        // An event the source has changed after it was already published is an
+        // update, not a find. Say so on the card, or the editor reads it as a
+        // duplicate of the event they published last week and ignores it.
+        if (decision.reason === "changed-after-import") {
+          const eventId = byKey.get(item.identityKey!)!.importedEventId!;
+          queued.push({
+            ...item,
+            candidate: {
+              ...item.candidate,
+              _discoveryKey: item.identityKey ?? undefined,
+              _existingEventId: item.candidate._existingEventId ?? eventId,
+              warnings: [
+                ...item.candidate.warnings,
+                `Izvor je promijenio podatke za već objavljeni događaj #${eventId}. Provjerite i uredite postojeći događaj umjesto da kreirate novi.`,
+              ],
+            },
+          });
+          continue;
+        }
+
+        // A new identity whose title is already published at this host on a
+        // different date. The wording has to be true of both readings — a
+        // postponed event and a genuine extra term — because nothing here can
+        // tell them apart, and only the editor can.
+        const sibling = item.titleKey
+          ? siblings.find(
+              (row) =>
+                row.titleKey === item.titleKey &&
+                squashedEqual(row.cityName, item.candidate.city) &&
+                row.startsAt?.toISOString() !== item.candidate.startsAt,
+            )
+          : undefined;
+        if (sibling?.importedEventId) {
+          queued.push({
+            ...item,
+            candidate: {
+              ...item.candidate,
+              _discoveryKey: item.identityKey ?? undefined,
+              _existingEventId: item.candidate._existingEventId ?? sibling.importedEventId,
+              warnings: [
+                ...item.candidate.warnings,
+                `Događaj istog naslova već je objavljen kao #${sibling.importedEventId}, s drugim datumom. Provjerite je li ovo novi termin ili je izvor promijenio datum.`,
+              ],
+            },
+          });
+          continue;
+        }
+
+        queued.push({ ...item, candidate: { ...item.candidate, _discoveryKey: item.identityKey ?? undefined } });
+      } else {
+        skipReasons[decision.reason] = (skipReasons[decision.reason] ?? 0) + 1;
+        skipped.push(item);
+      }
+    }
+
+    if (skipped.length) {
+      this.logger.log(
+        `Source ${source.id}: ${queued.length} of ${assessed.length} candidate(s) queued, ${skipped.length} already on record (${JSON.stringify(skipReasons)})`
+      );
+    }
+
+    return {
+      queued: { ...parsed, candidates: queued.map((item) => item.candidate) },
+      queuedAssessments: queued,
+      skipped,
+      skipReasons,
+      queueReasons,
+    };
+  }
+
+  /**
+   * Writes back what this check saw. Queued events get their new content hash
+   * and the row that carries them; skipped ones only get `lastSeenAt` bumped,
+   * so a later orphan check can still tell a decided event from a forgotten
+   * one.
+   */
+  private async recordDiscoveredEvents(
+    source: { id: number; url: string },
+    triage: Awaited<ReturnType<MonitoredSourcesService["triageByIdentity"]>>,
+    eventSourceId: number | undefined,
+  ) {
+    const scope = discoveryScope(source.url);
+    const now = new Date();
+
+    for (const item of triage.queuedAssessments) {
+      if (!item.identityKey) continue;
+      const startsAt = item.candidate.startsAt ? new Date(item.candidate.startsAt) : null;
+      await this.prisma.discoveredEvent.upsert({
+        where: { identityKey: item.identityKey },
+        create: {
+          identityKey: item.identityKey,
+          sourceScope: scope,
+          monitoredSourceId: source.id,
+          contentHash: item.contentHash,
+          title: item.candidate.title || "(bez naslova)",
+          titleKey: item.titleKey,
+          startsAt: startsAt && Number.isFinite(startsAt.getTime()) ? startsAt : null,
+          cityName: item.candidate.city || null,
+          detailUrl: item.candidate.sourceUrl || null,
+          lastEventSourceId: eventSourceId,
+        },
+        update: {
+          contentHash: item.contentHash,
+          title: item.candidate.title || "(bez naslova)",
+          titleKey: item.titleKey,
+          startsAt: startsAt && Number.isFinite(startsAt.getTime()) ? startsAt : null,
+          cityName: item.candidate.city || null,
+          detailUrl: item.candidate.sourceUrl || null,
+          lastSeenAt: now,
+          lastEventSourceId: eventSourceId,
+          timesSeen: { increment: 1 },
+          timesQueued: { increment: 1 },
+          // Re-queued because the source changed: the old decision no longer
+          // covers the new content, so it goes back on the pending list.
+          ignoredAt: null,
+          monitoredSourceId: source.id,
+        },
+      });
+    }
+
+    const seenKeys = triage.skipped.map((item) => item.identityKey).filter((key): key is string => key !== null);
+    if (seenKeys.length) {
+      await this.prisma.discoveredEvent.updateMany({
+        where: { identityKey: { in: seenKeys } },
+        data: { lastSeenAt: now, timesSeen: { increment: 1 }, monitoredSourceId: source.id },
+      });
+    }
   }
 
   private async processEventPage(source: { id: number; url: string }, html: string) {
@@ -392,8 +601,15 @@ export class MonitoredSourcesService {
     // forward so the admin review screen can flag it as a possible update
     // instead of an unrelated new candidate (design doc §12).
     const linkedEventId = existing?.linkedEventSource?.eventId ?? undefined;
+    // An EVENT_PAGE is re-checked on the same schedule as a listing, and its
+    // page hash changes for the same incidental reasons, so it needs the same
+    // gate: a page whose event has not changed produces no new review row.
+    const triage = await this.triageByIdentity(source, parsed);
     // Same "don't queue empty reviews" rule as the listing-page path.
-    const eventSource = parsed.candidates.length > 0 ? await this.createDiscoverySource(source, html, parsed, linkedEventId) : null;
+    const eventSource = triage.queued.candidates.length > 0
+      ? await this.createDiscoverySource(source, html, triage.queued, linkedEventId)
+      : null;
+    await this.recordDiscoveredEvents(source, triage, eventSource?.id);
 
     await this.prisma.discoveredSourceItem.upsert({
       where: { monitoredSourceId_normalizedUrl: { monitoredSourceId: source.id, normalizedUrl } },
@@ -401,7 +617,16 @@ export class MonitoredSourcesService {
       create: { monitoredSourceId: source.id, normalizedUrl, sourceUrl: source.url, status: DiscoveredItemStatus.PROCESSED, linkedEventSourceId: eventSource?.id },
     });
 
-    return { outcome: "changed", itemsFound: 1, itemsNew: existing ? 0 : 1, candidatesCreated: parsed.candidates.length, eventSourceId: eventSource?.id };
+    return {
+      outcome: "changed",
+      itemsFound: 1,
+      itemsNew: existing ? 0 : 1,
+      candidatesFound: parsed.candidates.length,
+      candidatesCreated: triage.queued.candidates.length,
+      candidatesSkipped: parsed.candidates.length - triage.queued.candidates.length,
+      skipReasons: triage.skipReasons,
+      eventSourceId: eventSource?.id,
+    };
   }
 
   /**
@@ -723,6 +948,10 @@ export class MonitoredSourcesService {
     return this.prisma.eventSource.create({
       data: {
         type: EventSourceType.SCRAPE_DISCOVERY,
+        // Provenance, so a deleted source no longer leaves anonymous rows in
+        // the queue. SET NULL on delete, never cascade: the candidates and the
+        // decisions taken on them have to outlive the source.
+        monitoredSourceId: source.id,
         sourceUrl: source.url,
         rawHtml,
         organizerId: source.organizerId ?? undefined,

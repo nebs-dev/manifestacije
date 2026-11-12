@@ -347,6 +347,7 @@ model Event {
   isFeatured           Boolean   @default(false)
   publishedAt          DateTime?
   sources              EventSource[]
+  discoveredEvents     DiscoveredEvent[]
   duplicatesA          EventDuplicateCandidate[] @relation("DuplicateA")
   duplicatesB          EventDuplicateCandidate[] @relation("DuplicateB")
   createdAt            DateTime  @default(now())
@@ -414,9 +415,18 @@ model EventSource {
   confidence      Float?
   status          EventSourceStatus @default(NEW)
   adminViewedAt   DateTime?
+  /// Which monitored source produced this review row. Nulled rather than
+  /// cascaded when the source is deleted: the queue row and its candidates
+  /// outlive the source, and before this column there was no way to tell
+  /// afterwards where a discovery row had come from.
+  monitoredSourceId Int?
+  monitoredSource MonitoredSource? @relation(fields: [monitoredSourceId], references: [id], onDelete: SetNull)
   discoveredItems DiscoveredSourceItem[]
+  discoveredEvents DiscoveredEvent[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([type, createdAt])
 }
 
 model MonitoredSource {
@@ -443,10 +453,61 @@ model MonitoredSource {
   /// as a crashed run and reclaimed on the next due-scan.
   checkingSince        DateTime?
   discoveredItems      DiscoveredSourceItem[]
+  discoveredEvents     DiscoveredEvent[]
+  eventSources         EventSource[]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   @@index([nextCheckAt])
+}
+
+/// One real event this platform has discovered, with the decision an editor
+/// made about it. The dedup unit of the Sources workflow: `identityKey` is
+/// derived in discovery-identity.ts from the source's host plus the event's
+/// own term, so re-checking a page recognises the events already on it instead
+/// of queueing them again.
+///
+/// Deliberately not cascaded from MonitoredSource. Deleting a source used to
+/// erase every DiscoveredSourceItem it owned, and with them the knowledge of
+/// what had already been found and imported — re-adding the source then
+/// rediscovered everything as new. These rows survive both.
+model DiscoveredEvent {
+  id                 Int       @id @default(autoincrement())
+  identityKey        String    @unique
+  /// Host the identity is scoped to, kept as text so it outlives the source row.
+  sourceScope        String
+  monitoredSourceId  Int?
+  monitoredSource    MonitoredSource? @relation(fields: [monitoredSourceId], references: [id], onDelete: SetNull)
+  /// What the event looked like when last queued — decides "changed".
+  contentHash        String
+  title              String
+  /// Normalised title, so a postponed event can be matched back to the one
+  /// already published under the same name at this host (the identity key
+  /// itself carries the term, and therefore changes when a date moves).
+  titleKey           String    @default("")
+  startsAt           DateTime?
+  cityName           String?
+  detailUrl          String?
+  firstSeenAt        DateTime  @default(now())
+  lastSeenAt         DateTime  @default(now())
+  /// How many checks have seen this event. 1 means the dedup did its job.
+  timesSeen          Int       @default(1)
+  /// How often it has been put in front of an editor. Above 1 is re-review.
+  timesQueued        Int       @default(1)
+  /// The review row that last carried it; if that row is gone and nobody
+  /// decided, the event is queued again rather than lost.
+  lastEventSourceId  Int?
+  lastEventSource    EventSource? @relation(fields: [lastEventSourceId], references: [id], onDelete: SetNull)
+  importedEventId    Int?
+  importedEvent      Event?    @relation(fields: [importedEventId], references: [id], onDelete: SetNull)
+  ignoredAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([sourceScope, lastSeenAt])
+  @@index([sourceScope, titleKey])
+  @@index([monitoredSourceId])
+  @@index([importedEventId])
 }
 
 model DiscoveredSourceItem {

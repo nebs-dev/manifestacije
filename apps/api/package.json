@@ -15,7 +15,8 @@
     "contacts:backfill-engaged-organizers": "tsx src/scripts/contacts-backfill-engaged-organizers.ts",
     "claims:invite-unclaimed-organizers": "tsx src/scripts/claims-invite-unclaimed-organizers.ts",
     "locations:repair": "tsx src/scripts/repair-event-locations.ts",
-    "urls:audit": "tsx src/scripts/audit-unsafe-urls.ts"
+    "urls:audit": "tsx src/scripts/audit-unsafe-urls.ts",
+    "discovery:consolidate": "tsx src/scripts/discovery-consolidation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
