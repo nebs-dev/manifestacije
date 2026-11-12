@@ -31,12 +31,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Matches the Vercel project's configured runtime (24.x) and .nvmrc, so CI,
-  # the deployed web app and a developer running `nvm use` are all on the same
-  # major. Verified green on 22.13.0, 24.22.2 and 26.5.0 before pinning.
-  # Playwright is pinned exactly in package.json so the library and the browser
-  # build never drift apart.
-  NODE_VERSION: "24.22.2"
+  # Matches what the API actually runs. Railway builds this service with
+  # railpack (not nixpacks) and its build log reports Node 22.23.4, so CI runs
+  # the same major rather than a version nothing is deployed on. The Vercel
+  # project is separately set to 24.x for the web app; see docs/NODE_VERSION.md.
+  # Verified green on 22, 24 and 26 before pinning. Playwright is pinned
+  # exactly in package.json so the library and the browser build never drift.
+  NODE_VERSION: "22.23.4"
   PNPM_VERSION: "11.9.0"
 
 jobs:
