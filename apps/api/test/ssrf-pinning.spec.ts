@@ -30,6 +30,10 @@ describe("safeFetch pins the connection to a validated address", () => {
   });
 
   afterAll(async () => {
+    // closeAllConnections first: keep-alive sockets otherwise hold the server
+    // open and the runner reports "Jest did not exit", which in CI is a job
+    // that hangs to its timeout.
+    server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
@@ -61,4 +65,69 @@ describe("safeFetch pins the connection to a validated address", () => {
       delete process.env.SSRF_ALLOW_PRIVATE_HOSTS;
     }
   }, 15000);
+});
+
+/**
+ * Proves the pin is applied per hop and across address families, rather than
+ * only on the first request.
+ *
+ * The two servers listen on 127.0.0.1 and ::1 — different addresses, and
+ * different families, both available anywhere. Which one the socket actually
+ * reached is then readable from the body that comes back, which is the only
+ * way to observe a pin from outside.
+ */
+describe("the pin is applied to every connection, not just the first", () => {
+  const lookupSpy = lookup as unknown as jest.Mock;
+  let hop1: Server;
+  let hop2: Server;
+  let port1: number;
+  let port2: number;
+
+  const listen = (server: Server, host: string) =>
+    new Promise<number>((resolve) => server.listen(0, host, () => resolve((server.address() as AddressInfo).port)));
+
+  beforeAll(async () => {
+    hop2 = createServer((_q, r) => { r.writeHead(200); r.end("HOP2-OVER-IPV6"); });
+    port2 = await listen(hop2, "::1");
+    hop1 = createServer((_q, r) => { r.writeHead(302, { location: `http://hop2.test:${port2}/` }); r.end(); });
+    port1 = await listen(hop1, "127.0.0.1");
+  });
+
+  afterAll(async () => {
+    for (const s of [hop1, hop2]) {
+      if (!s) continue;
+      s.closeAllConnections();
+      await new Promise<void>((r) => s.close(() => r()));
+    }
+  });
+
+  beforeEach(() => {
+    lookupSpy.mockReset();
+    process.env.NODE_ENV = "test";
+    process.env.SSRF_ALLOW_PRIVATE_HOSTS = "hop1.test,hop2.test";
+  });
+
+  afterEach(() => { delete process.env.SSRF_ALLOW_PRIVATE_HOSTS; });
+
+  it("re-pins on a redirect, including across address families", async () => {
+    lookupSpy.mockImplementation(async (hostname: string) =>
+      hostname === "hop1.test" ? [{ address: "127.0.0.1", family: 4 }] : [{ address: "::1", family: 6 }]
+    );
+
+    const response = await safeFetch(`http://hop1.test:${port1}/`, { timeoutMs: 8000 });
+    // Reaching the second server at all means hop two was pinned to its own
+    // validated address — a different family from hop one's, so no connection
+    // could have been carried over.
+    expect(await response.text()).toBe("HOP2-OVER-IPV6");
+    expect(lookupSpy.mock.calls.map((c) => c[0])).toEqual(["hop1.test", "hop2.test"]);
+  }, 20000);
+
+  it("never consults the resolver again once the guard has validated", async () => {
+    // Exactly one lookup, from assertPublicHttpUrl. The connector asks the
+    // pinned resolver instead, which answers from memory and never reaches DNS
+    // — that is what closes the rebinding window.
+    lookupSpy.mockResolvedValue([{ address: "::1", family: 6 }]);
+    await safeFetch(`http://hop2.test:${port2}/`, { timeoutMs: 8000 });
+    expect(lookupSpy).toHaveBeenCalledTimes(1);
+  }, 20000);
 });
