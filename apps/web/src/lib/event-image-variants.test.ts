@@ -36,3 +36,24 @@ describe("event image variants", () => {
     expect(eventImageSrcSet(external, "card")).toBeUndefined()
   })
 })
+
+describe("the Cloudinary check matches the host, not a substring (CodeQL js/incomplete-url-substring-sanitization)", () => {
+  // `url.includes("res.cloudinary.com")` treated any URL merely containing the
+  // string as one of ours, and rewrote its path as a Cloudinary transform.
+  const impostors = [
+    "https://evil.example/res.cloudinary.com/upload/x.jpg",
+    "https://res.cloudinary.com.evil.example/upload/x.jpg",
+    "https://evil.example/?u=res.cloudinary.com",
+  ]
+
+  it.each(impostors)("leaves %s untouched", (url) => {
+    expect(eventImageVariant(url, 800)).toBe(url)
+    expect(eventImageSrcSet(url, "card")).toBeUndefined()
+  })
+
+  it("still transforms a real Cloudinary URL", () => {
+    const real = "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+    expect(eventImageVariant(real, 800)).toContain("w_800")
+    expect(eventImageSrcSet(real, "card")).toContain("800w")
+  })
+})

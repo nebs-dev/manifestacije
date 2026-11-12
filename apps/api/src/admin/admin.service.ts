@@ -8,6 +8,15 @@ import { formatZagrebIso } from "../common/zagreb-time";
 import { findOrCreateCity } from "../common/city-resolver";
 import { safeHttpUrlOrUndefined } from "../common/safe-url";
 import { safeFetch } from "../common/ssrf";
+
+/** True only when the host really is our Cloudinary delivery domain. */
+function isOurCloudinary(url: string): boolean {
+  try {
+    return new URL(url).hostname === "res.cloudinary.com";
+  } catch {
+    return false;
+  }
+}
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, MAX_PARSE_IMAGES, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -860,7 +869,10 @@ export class AdminService {
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== "https:" || parsed.hostname !== "res.cloudinary.com") return undefined;
-      const res = await fetch(parsed, { signal: AbortSignal.timeout(12000) });
+      // safeFetch, not fetch: the hostname check is exact and sound, but a
+      // bare fetch still follows redirects wherever they point. Going through
+      // the guard re-checks each hop, pins the connection and caps the body.
+      const res = await safeFetch(parsed.toString(), { timeoutMs: 12_000, maxBytes: 5 * 1024 * 1024 });
       const mediaType = (res.headers.get("content-type") || "").split(";")[0].trim();
       if (!res.ok || !SCREENSHOT_MEDIA_TYPES.has(mediaType)) return undefined;
       const bytes = Buffer.from(await res.arrayBuffer());
@@ -1467,7 +1479,10 @@ export class AdminService {
    *  keeps the original URL rather than losing the image entirely. */
   private async rehostCandidateImage(imageUrl?: string): Promise<string | undefined> {
     const url = safeHttpUrlOrUndefined(imageUrl);
-    if (!url || url.includes("res.cloudinary.com")) return url;
+    // Exact hostname, not a substring: "https://evil.example/res.cloudinary.com/x"
+    // contains the string and would have been treated as already ours, leaving
+    // an attacker-controlled URL as the stored image.
+    if (!url || isOurCloudinary(url)) return url;
     const uploaded = await this.uploads.uploadEventImageFromUrl(url);
     return uploaded?.imageUrl ?? url;
   }
