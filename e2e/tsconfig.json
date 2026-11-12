@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    // DOM.Iterable: the audit spreads NodeListOf inside page.evaluate.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      // reset-db.ts and seed-accounts.ts run through `pnpm --filter api exec
+      // tsx`, so at runtime these resolve from apps/api. Point the typechecker
+      // at the same copies rather than duplicating the dependencies here.
+      "@prisma/client": ["../apps/api/node_modules/@prisma/client"],
+      "bcryptjs": ["../apps/api/node_modules/@types/bcryptjs"]
+    }
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
