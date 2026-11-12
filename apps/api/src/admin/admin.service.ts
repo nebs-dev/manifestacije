@@ -7,6 +7,7 @@ import { slugify, uniqueSlug } from "../common/slug";
 import { formatZagrebIso } from "../common/zagreb-time";
 import { findOrCreateCity } from "../common/city-resolver";
 import { safeHttpUrlOrUndefined } from "../common/safe-url";
+import { safeFetch } from "../common/ssrf";
 import { EventsService } from "../events/events.service";
 import { AiEventParserService, MAX_PARSE_IMAGES, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
@@ -617,9 +618,9 @@ export class AdminService {
 
     if (!skipFetch) {
       try {
-        const response = await fetch(dto.sourceUrl, {
+        const response = await safeFetch(dto.sourceUrl, {
           headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
-          signal: AbortSignal.timeout(12000),
+          timeoutMs: 12_000,
         });
         if (response.ok) {
           rawHtml = await response.text();
@@ -828,9 +829,9 @@ export class AdminService {
     // Re-fetch URL if we have one (stored rawHtml may be stale or listing-only)
     if (sourceUrl && !this.isFacebookUrl(sourceUrl)) {
       try {
-        const res = await fetch(sourceUrl, {
+        const res = await safeFetch(sourceUrl, {
           headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
-          signal: AbortSignal.timeout(12000),
+          timeoutMs: 12_000,
         });
         if (res.ok) rawHtml = await res.text();
       } catch { /* use stored rawHtml */ }

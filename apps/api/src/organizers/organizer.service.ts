@@ -1,5 +1,5 @@
 import { RevalidateService } from "../admin/revalidate.service";
-import { BadRequestException, ForbiddenException, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { EventRevisionsService } from "../event-revisions/event-revisions.service";
 import { EventStatus, EventSourceStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -13,12 +13,14 @@ import { EmailService } from "../email/email.service";
 import { formatHrDate } from "../email/format-date";
 import { ResendContactsService } from "../contacts/resend-contacts.service";
 import { OrganizerEventDto, OrganizerProfileDto, SubmitSourceDto, pickOrganizerEventInput } from "./organizer.dto";
+import { safeFetch, SsrfBlockedError, SSRF_PUBLIC_MESSAGE } from "../common/ssrf";
 
 /** Same organizer + same content within this window is treated as a retry of one submission. */
 const SUBMISSION_DEDUPE_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class OrganizerService {
+  private readonly logger = new Logger("OrganizerService");
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
@@ -171,9 +173,9 @@ export class OrganizerService {
     const fetchWarnings: string[] = [];
     if (sourceUrl && !isFacebook) {
       try {
-        const response = await fetch(sourceUrl, {
+        const response = await safeFetch(sourceUrl, {
           headers: { "User-Agent": "Manifestacije/1.0 event-ingestion-bot (+https://manifestacije.hr)" },
-          signal: AbortSignal.timeout(12000),
+          timeoutMs: 12_000,
         });
         if (response.ok) {
           rawHtml = await response.text();
@@ -181,7 +183,15 @@ export class OrganizerService {
           fetchWarnings.push(`HTTP ${response.status} when fetching URL`);
         }
       } catch (err) {
-        fetchWarnings.push(`Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`);
+        // A refused address is reported generically. The submitter can reach
+        // this endpoint after self-registering, so confirming which of their
+        // addresses resolved privately would turn it into a network probe.
+        if (err instanceof SsrfBlockedError) {
+          this.logger.warn(`organizer submission refused: ${err.reason}`);
+          fetchWarnings.push(SSRF_PUBLIC_MESSAGE);
+        } else {
+          fetchWarnings.push(`Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
 

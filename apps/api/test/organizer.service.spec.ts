@@ -1,5 +1,12 @@
 import { BadRequestException, ServiceUnavailableException } from "@nestjs/common";
 import { OrganizerService } from "../src/organizers/organizer.service";
+
+// submitSource now resolves a submitted URL through the SSRF guard before
+// fetching it. Resolving for real would make this unit test depend on DNS, so
+// every name answers with one public address.
+jest.mock("node:dns/promises", () => ({
+  lookup: jest.fn(async () => [{ address: "93.184.216.34", family: 4 }]),
+}));
 import { ParsedEventCandidate, ParsedSourceResult } from "../src/ai-parser/ai-event-parser.service";
 
 function candidate(overrides: Partial<ParsedEventCandidate> = {}): ParsedEventCandidate {
@@ -82,7 +89,9 @@ describe("OrganizerService submitSource", () => {
     const prisma = { event: { findMany: jest.fn().mockResolvedValue([]) }, eventSource: sourceTable(1) };
     const parser = { extractJsonLdEvents: jest.fn().mockReturnValue(parsedResult()), parseBatchWithLlm: jest.fn().mockResolvedValue(result), parseBatch: jest.fn() };
     const service = new OrganizerService(withTx(prisma) as never, {} as never, parser as never, { findCandidates: jest.fn().mockResolvedValue([]) } as never, emailMock() as never, contactsMock() as never, { revalidate: jest.fn() } as never);
-    const fetch = jest.spyOn(global, "fetch").mockResolvedValueOnce({ ok: true, text: async () => "<html>old schedule</html>" } as never);
+    // A real Response: safeFetch reads `status` and `headers` to decide
+    // whether the reply is a redirect it has to re-check.
+    const fetch = jest.spyOn(global, "fetch").mockResolvedValueOnce(new Response("<html>old schedule</html>", { status: 200 }));
     try {
       await service.submitSource(7, { sourceUrl: "https://example.com/event", screenshotBase64: "fixture", screenshotMediaType: "image/png", sourceImageUrl: "https://cdn.example/evidence.png" });
       expect(parser.extractJsonLdEvents).not.toHaveBeenCalled();
