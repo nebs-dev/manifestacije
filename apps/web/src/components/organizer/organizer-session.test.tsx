@@ -14,7 +14,14 @@ vi.mock("next/navigation", () => ({ useRouter: () => nav, usePathname: () => nav
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }))
 const user = { id: 1, email: "organizer@example.test", role: "ORGANIZER", organizerId: 5 }
 const other = { ...user, id: 2, email: "other@example.test", organizerId: 6 }
-const jwt = (id = 1, seconds = 3600) => `header.${btoa(JSON.stringify({ id, exp: Math.floor(Date.now() / 1000) + seconds }))}.sig`
+// The epoch is captured once, not read per call. Several tests build the same
+// token twice and compare the two — `storeOrganizerSession(jwt(2), ...)` and
+// then `expect(...).toBe(jwt(2))` — so reading the clock inside the helper made
+// them disagree by one second whenever the two calls straddled a second
+// boundary. That is what failed once in roughly twenty local runs and then in
+// CI. Relative offsets still mean what they did: +3600 is valid, -10 expired.
+const ISSUED_AT = Math.floor(Date.now() / 1000)
+const jwt = (id = 1, seconds = 3600) => `header.${btoa(JSON.stringify({ id, exp: ISSUED_AT + seconds }))}.sig`
 const response = (status: number, body: unknown = user) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response
 function deferred() { let resolve!: (value: Response) => void; const promise = new Promise<Response>(r => { resolve = r }); return { promise, resolve } }
 let container: HTMLDivElement, root: Root, fetchMock: ReturnType<typeof vi.fn>

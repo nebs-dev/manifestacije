@@ -28,6 +28,11 @@ const regionAliasRedirects = Object.entries(REGION_SLUG_ALIASES).flatMap(([alias
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The E2E suite builds with its own NEXT_PUBLIC_API_URL, so it needs a build
+  // directory of its own; otherwise each run would invalidate the developer's
+  // `.next` and the next `pnpm dev` would rebuild from scratch. Unset
+  // everywhere else, which keeps the default.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },

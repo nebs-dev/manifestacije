@@ -9,9 +9,21 @@
     "prisma:migrate": "pnpm --filter api prisma:migrate",
     "prisma:seed": "pnpm --filter api prisma:seed",
     "locations:repair": "pnpm --filter api locations:repair -- --apply",
-    "smoke:ingestion": "node scripts/smoke-ingestion.mjs"
+    "smoke:ingestion": "node scripts/smoke-ingestion.mjs",
+    "e2e:db:up": "docker compose up -d --wait postgres-e2e",
+    "e2e:db:down": "docker compose rm -sfv postgres-e2e",
+    "e2e": "playwright test",
+    "e2e:smoke": "playwright test --project=chromium --grep @smoke",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report e2e/.artifacts/report",
+    "e2e:typecheck": "tsc -p e2e/tsconfig.json --noEmit",
+    "typecheck": "pnpm --recursive lint && pnpm e2e:typecheck",
+    "e2e:audit": "playwright test -c playwright.audit.config.ts",
+    "e2e:ci": "playwright test --project=chromium"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "22.20.0",
     "kiroq": "^0.1.6",
     "typescript": "^5.6.3"
   }
