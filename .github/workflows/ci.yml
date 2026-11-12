@@ -153,6 +153,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # The suite's database reset imports @prisma/client directly, so the
+      # generated client has to exist before Playwright's global setup runs.
+      # It cannot rely on the API server's own build step for this: the server
+      # and the global setup start in the same moment, and in CI the setup won
+      # the race. The `checks` job generates it for the same reason.
+      - run: pnpm --filter api exec prisma generate
+
       - name: Resolve the pinned Playwright version
         id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
