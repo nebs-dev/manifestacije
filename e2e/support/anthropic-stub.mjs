@@ -52,6 +52,17 @@ const json = (res, status, body) => {
   res.end(payload);
 };
 
+/**
+ * HTML-escapes anything the request supplied before it goes into a fixture
+ * page. Every fixture route echoes part of the request back, so each one needs
+ * this — one of them did not, and CodeQL caught the reflected-XSS path.
+ */
+const escapeHtml = (value) =>
+  String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/** Fixture slugs are ours to choose, so hold them to a shape with no HTML in it. */
+const safeSlug = (value) => String(value).replace(/[^a-zA-Z0-9-]/g, "").slice(0, 120);
+
 const message = (text) => ({
   id: `msg_e2e_${requests.length}`,
   type: "message",
@@ -87,8 +98,7 @@ const server = createServer(async (req, res) => {
    */
   if (req.method === "GET" && url.pathname === "/fixture/source-page") {
     const text = url.searchParams.get("text") ?? "";
-    const escape = (value) => value.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
-    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E izvor</title></head><body><main><pre>${escape(text)}</pre></main></body></html>`;
+    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E izvor</title></head><body><main><pre>${escapeHtml(text)}</pre></main></body></html>`;
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
     return res.end(html);
   }
@@ -103,12 +113,12 @@ const server = createServer(async (req, res) => {
    * matcher compares a candidate title against.
    */
   if (req.method === "GET" && url.pathname === "/fixture/listing-page") {
-    const given = (url.searchParams.get("slugs") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    const given = (url.searchParams.get("slugs") ?? "").split(",").map((s) => safeSlug(s.trim())).filter(Boolean);
     const count = given.length || Math.max(1, Math.min(Number(url.searchParams.get("events")) || 3, 60));
     const items = Array.from({ length: count }, (_, i) => {
       const slug = given[i] ?? `dogadaj-${i + 1}`;
-      const href = `/fixture/event/${slug}`;
-      return `<article><h2><a href="${href}">${slug.replace(/-/g, " ")}</a></h2><p>Opis događaja ${i + 1}.</p></article>`;
+      const href = `/fixture/event/${encodeURIComponent(slug)}`;
+      return `<article><h2><a href="${escapeHtml(href)}">${escapeHtml(slug.replace(/-/g, " "))}</a></h2><p>Opis događaja ${i + 1}.</p></article>`;
     }).join("");
     const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E listing</title></head><body><main><h1>Kalendar događanja</h1>${items}</main></body></html>`;
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
@@ -117,8 +127,9 @@ const server = createServer(async (req, res) => {
 
   /** The detail page the listing above links to. */
   if (req.method === "GET" && url.pathname.startsWith("/fixture/event/")) {
-    const slug = url.pathname.slice("/fixture/event/".length);
-    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>${slug}</title></head><body><main><h1>${slug}</h1><p>Detalji događaja ${slug}.</p></main></body></html>`;
+    const slug = safeSlug(decodeURIComponent(url.pathname.slice("/fixture/event/".length)));
+    const safe = escapeHtml(slug);
+    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>${safe}</title></head><body><main><h1>${safe}</h1><p>Detalji događaja ${safe}.</p></main></body></html>`;
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
     return res.end(html);
   }
