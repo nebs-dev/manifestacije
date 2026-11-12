@@ -136,7 +136,12 @@ describe("assertPublicHttpUrl", () => {
 
   it("allows a hostname whose records are all public", async () => {
     resolvesTo("93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946");
-    expect(await assertPublicHttpUrl("https://example.test/program")).toEqual({ ok: true });
+    // The verdict carries the addresses that passed, which is what safeFetch
+    // pins the connection to.
+    expect(await assertPublicHttpUrl("https://example.test/program")).toEqual({
+      ok: true,
+      addresses: ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"],
+    });
   });
 
   it("rejects a hostname that does not resolve", async () => {
@@ -148,7 +153,12 @@ describe("assertPublicHttpUrl", () => {
 describe("the development allowlist", () => {
   it("lets an explicitly listed private host through", async () => {
     process.env.SSRF_ALLOW_PRIVATE_HOSTS = "127.0.0.1";
-    expect(await assertPublicHttpUrl("http://127.0.0.1:3302/fixture/source-page")).toEqual({ ok: true });
+    // An exempt host is still resolved — its address is what the connection
+    // is pinned to, it is simply not rejected.
+    expect(await assertPublicHttpUrl("http://127.0.0.1:3302/fixture/source-page")).toEqual({
+      ok: true,
+      addresses: ["127.0.0.1"],
+    });
   });
 
   it("does not let an unlisted private host through", async () => {

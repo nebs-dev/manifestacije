@@ -25,8 +25,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { authedFetch } from "@/lib/admin/api"
 
 function isFacebookUrl(url: string) {
-  try { return new URL(url).hostname.replace("www.", "").startsWith("facebook.com") }
-  catch { return false }
+  // `hostname.replace("www.", "")` replaced the first occurrence anywhere, not
+  // a prefix, so "www.facebook.com.evil.example" became
+  // "facebook.com.evil.example" and passed startsWith. Match the host itself.
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
+    return host === "facebook.com" || host === "fb.me" || host.endsWith(".facebook.com")
+  } catch { return false }
 }
 
 async function resizeToBase64(file: File, maxWidth = 1600): Promise<{ data: string; mediaType: string }> {

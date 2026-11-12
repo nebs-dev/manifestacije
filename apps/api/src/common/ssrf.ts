@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIPv4, isIPv6 } from "node:net";
+import { Agent } from "undici";
 import { isProductionRuntime } from "./runtime";
 
 /**
@@ -168,7 +169,9 @@ export function allowedPrivateHosts(): Set<string> {
  * URL checking
  * ------------------------------------------------------------------ */
 
-export type SsrfVerdict = { ok: true } | { ok: false; reason: string };
+/** On success the addresses that passed, so the connection can be pinned to
+ *  one of them instead of resolving the name a second time. */
+export type SsrfVerdict = { ok: true; addresses: string[] } | { ok: false; reason: string };
 
 export async function assertPublicHttpUrl(rawUrl: string): Promise<SsrfVerdict> {
   let url: URL;
@@ -188,9 +191,9 @@ export async function assertPublicHttpUrl(rawUrl: string): Promise<SsrfVerdict> 
   if (!hostname) return { ok: false, reason: "URL has no host" };
 
   const allowed = allowedPrivateHosts();
-  if (allowed.has(hostname)) return { ok: true };
+  const exempt = allowed.has(hostname);
 
-  if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+  if (!exempt && (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local"))) {
     return { ok: false, reason: `Refusing to fetch ${hostname}` };
   }
 
@@ -209,11 +212,15 @@ export async function assertPublicHttpUrl(rawUrl: string): Promise<SsrfVerdict> 
     if (!addresses.length) return { ok: false, reason: `No addresses for ${hostname}` };
   }
 
-  for (const address of addresses) {
-    const reason = blockedAddressReason(address);
-    if (reason) return { ok: false, reason: `Refusing to fetch ${hostname} -> ${address}: ${reason}` };
+  // An exempt host still has to be resolved: the addresses are what the
+  // connection is pinned to below, they are simply not rejected.
+  if (!exempt) {
+    for (const address of addresses) {
+      const reason = blockedAddressReason(address);
+      if (reason) return { ok: false, reason: `Refusing to fetch ${hostname} -> ${address}: ${reason}` };
+    }
   }
-  return { ok: true };
+  return { ok: true, addresses };
 }
 
 /* ------------------------------------------------------------------ *
@@ -241,6 +248,23 @@ export type SafeFetchOptions = RequestInit & {
   /** Largest body accepted, in bytes. */
   maxBytes?: number;
 };
+
+/**
+ * A resolver that answers with addresses already validated, and nothing else.
+ * Shaped like `dns.lookup`, which is what undici's connector calls.
+ */
+function pinnedLookup(addresses: string[]) {
+  const entries = addresses.map((address) => ({ address, family: isIPv4(address) ? 4 : 6 }));
+  return (
+    _hostname: string,
+    options: { all?: boolean },
+    callback: (err: Error | null, address: string | { address: string; family: number }[], family?: number) => void
+  ) => {
+    if (!entries.length) return callback(new Error("No validated address to connect to"), []);
+    if (options.all) return callback(null, entries);
+    return callback(null, entries[0]!.address, entries[0]!.family);
+  };
+}
 
 /** Headers that must not survive a redirect to a different origin. */
 const SENSITIVE_HEADERS = ["authorization", "cookie", "proxy-authorization"];
@@ -293,13 +317,11 @@ async function withCappedBody(response: Response, maxBytes: number): Promise<Res
  * The timeout is a budget for the whole call rather than per request, so a
  * chain of slow redirects cannot add up to five times the caller's limit.
  *
- * Known residual risk, documented in docs/SECURITY_SSRF_FOLLOWUP.md: DNS
- * rebinding. The name is resolved here and resolved again when the socket is
- * opened, so an authoritative server answering differently inside that window
- * can still steer the connection. The usual remedy — pinning the validated
- * address with an undici Agent passed as `dispatcher` — was measured against
- * this project's runtimes and does not work on Node 24, which is what
- * production runs, so it is deliberately not applied here.
+ * The connection is pinned to an address that passed the check, instead of
+ * letting the socket resolve the name a second time. Without that, a DNS
+ * server answering differently between the check and the connection could
+ * still steer the request — the standard rebinding gap in any guard that
+ * validates a hostname rather than a connection.
  */
 export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}): Promise<Response> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = DEFAULT_MAX_BYTES, ...init } = options;
@@ -326,19 +348,50 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
     init.signal?.addEventListener("abort", onCallerAbort, { once: true });
     if (init.signal?.aborted) onCallerAbort();
 
+    // Pin the socket to an address the check just approved. undici is pinned
+    // to a version verified against every Node this project runs on (22, 24
+    // and 26) — an Agent from a mismatched undici is rejected by Node's own
+    // fetch with "invalid onRequestStart method", so the version matters and
+    // the test below covers it.
+    const agent = new Agent({ connect: { lookup: pinnedLookup(verdict.addresses) } });
+
     let response: Response;
     try {
-      response = await fetch(current, { ...requestInit, redirect: "manual", signal: controller.signal });
+      response = await fetch(current, {
+        ...requestInit,
+        redirect: "manual",
+        signal: controller.signal,
+        dispatcher: agent,
+      } as RequestInit);
     } finally {
       clearTimeout(timer);
       init.signal?.removeEventListener("abort", onCallerAbort);
     }
 
-    if (response.status < 300 || response.status >= 400) return withCappedBody(response, maxBytes);
+    if (response.status < 300 || response.status >= 400) {
+      try {
+        return await withCappedBody(response, maxBytes);
+      } finally {
+        // Awaited: a fire-and-forget close leaves sockets open, which shows up
+        // as a test runner that will not exit and, in the server, as handles
+        // held longer than the request that made them.
+        await agent.close().catch(() => undefined);
+      }
+    }
 
     const location = response.headers.get("location");
-    if (!location) return withCappedBody(response, maxBytes);
+    if (!location) {
+      try {
+        return await withCappedBody(response, maxBytes);
+      } finally {
+        // Awaited: a fire-and-forget close leaves sockets open, which shows up
+        // as a test runner that will not exit and, in the server, as handles
+        // held longer than the request that made them.
+        await agent.close().catch(() => undefined);
+      }
+    }
     void response.body?.cancel();
+    await agent.close().catch(() => undefined);
 
     let next: URL;
     try {

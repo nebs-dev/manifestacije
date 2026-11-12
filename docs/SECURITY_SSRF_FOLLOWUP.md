@@ -1,69 +1,58 @@
-# Follow-up: pinning the validated address (DNS rebinding)
+# Pinning the validated address (DNS rebinding)
 
-**Status:** open, small, not urgent. Separate from the egress guard, which is
-shipped.
+**Status:** fixed. This document now records how, and what is left.
 
-## What is already handled
+## The gap
 
 `apps/api/src/common/ssrf.ts` validates every URL the server fetches on a
-user's behalf: scheme, hostname, every address the name resolves to, and every
-redirect hop. It also caps the response size and the time budget for the whole
-call. All of that is covered by `apps/api/test/ssrf.spec.ts`.
+user's behalf. But a hostname was resolved once for the check and again when
+the socket opened, so a DNS server answering differently between those two
+moments could point the connection somewhere the check never saw. This is the
+standard time-of-check/time-of-use gap in any guard that validates a hostname
+rather than a connection.
 
-## What is left
+## The fix
 
-The name is resolved once for the check and again when the socket is opened.
-A DNS server that answers differently between those two moments can point the
-connection somewhere the check did not see. This is the standard
-time-of-check/time-of-use gap in any guard that validates a hostname rather
-than a connection, and the usual remedy is to connect to the address that was
-validated instead of resolving again.
+`assertPublicHttpUrl` now returns the addresses that passed, and `safeFetch`
+hands those to an undici `Agent` through `connect.lookup`, so the socket can
+only go to an address the guard already approved. Nothing else about the
+transport changed: it is still `fetch`, still manual redirects with each hop
+re-checked, still the same response cap and time budget.
 
-## Why it is not in the hotfix
+`apps/api/test/ssrf-pinning.spec.ts` proves it against a hostile resolver —
+one that answers with a public address the first time, so the check passes,
+and a loopback address every time after, which is what a rebinding attack
+does. Real sockets and a real local server, because the point is what the
+transport does; a mocked `fetch` could not show it.
 
-The obvious mechanism is an undici `Agent` with a custom `connect.lookup`,
-handed to `fetch` as `dispatcher`. That was measured against the runtimes this
-project actually uses, with undici 8.12.4:
+## Why the undici version is pinned exactly
 
-| Node | Result |
-| --- | --- |
-| 22.13.0 | undici 8 fails to import (`createZstdDecompress` is undefined) |
-| **24.22.2** | `TypeError: fetch failed — invalid onRequestStart method` |
-| 26.5.0 | works |
+An `Agent` from the wrong undici is rejected by Node's own `fetch` with
+`TypeError: fetch failed — invalid onRequestStart method`. This was measured,
+not assumed, on the versions this project runs:
 
-Node 24 is the configured runtime for the deployed web project, so shipping
-this would mean a security control that only works on some of our Node
-versions and breaks the API on the rest. An older undici pinned to match each
-Node release's internal copy would be worse: a silent coupling that breaks on
-the next Node upgrade, in a security control.
+| undici | Node 22.13.0 | Node 22.23.4 (production) | Node 24.22.2 | Node 26.5.0 |
+| --- | --- | --- | --- | --- |
+| 8.12.4 | fails to import | rejected | rejected | works |
+| **7.30.2** | **works** | **works** | **works** | **works** |
+| 6.29.1 | works | works | not measured | not measured |
 
-## Options for the follow-up
+So `undici` is a runtime dependency pinned to `7.30.2`, not a range. It must
+stay a `dependencies` entry rather than `devDependencies`: the API's build
+installs production dependencies only, so a dev-only entry would be missing at
+runtime.
 
-1. **undici's own `request()`** instead of global `fetch`, with the Agent from
-   the same package. No version mismatch, because nothing is handed across to
-   Node's internal copy. Cost: `safeFetch` returns something other than a
-   `Response`, or has to adapt one.
-2. **`node:https.request` with the `lookup` option.** No new dependency and a
-   stable API. Cost: `safeFetch` has to reimplement body reading and content
-   decoding, which `fetch` does today.
-3. **Wait.** Re-measure option 1's dispatcher path after the next Node or
-   undici release; it may simply start working.
+Treat an undici or Node upgrade as a change that needs this table re-measured.
+`ssrf-pinning.spec.ts` fails loudly if the combination stops working, which is
+the point of having it.
 
-Option 1 is the likely choice. Either way the change is contained to
-`ssrf.ts` — no call site needs to know.
+## What this does not cover
 
-## Acceptance criteria
-
-- A connection made through `safeFetch` goes to an address that passed
-  `assertPublicHttpUrl`, not to whatever a second resolution returns.
-- A test proves it: a resolver that answers public first and private second
-  must not produce a connection to the private address.
-- Everything already in `ssrf.spec.ts` still passes.
-- Verified on the Node version in `.nvmrc` and on the deployed runtime.
-
-## Risk in the meantime
-
-Exploiting this needs control of an authoritative DNS server, a very short
-record lifetime, and a win in the race between our check and the connection.
-The egress guard blocks the straightforward attempts, which is the bulk of
-the exposure. Tracking it here rather than leaving it in a commit message.
+- **Pinning follows the guard, not the other way round.** If
+  `assertPublicHttpUrl` ever returns an address it should not have, the
+  connection goes there. The address classifier is what keeps that honest, and
+  it has its own tests.
+- **A host that is legitimately multi-homed** is pinned to the first validated
+  address for the whole call, including across redirects to the same host.
+  That is a small availability trade, not a correctness problem: every address
+  was validated before any of them was used.

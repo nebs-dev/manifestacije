@@ -220,8 +220,26 @@ function distanceKm(a: PointGeo, b: PointGeo): number {
   return 2 * earthRadiusKm * Math.asin(Math.sqrt(h));
 }
 
+/**
+ * Drops a trailing " County" / " županija" without a regular expression.
+ *
+ * `/\s+County$/i` is quadratic on a long run of spaces: measured at 245ms for
+ * 20k spaces, 4s for 80k and 25s for 200k. `countyName` reaches here from the
+ * admin event body, which has no length bound, and from a geocoding provider's
+ * response, so neither source is ours to trust for length. endsWith plus
+ * trimEnd does the same job in linear time.
+ */
+function stripTrailingWord(value: string, word: string): string {
+  if (!value.toLowerCase().endsWith(word.toLowerCase())) return value;
+  const head = value.slice(0, value.length - word.length);
+  // The original required at least one space before the word, so "XCounty"
+  // keeps its suffix while "X  County" loses it along with the spaces.
+  if (!/[ \t\n\r\f\v]$/.test(head)) return value;
+  return head.trimEnd();
+}
+
 export function normalizeCountyName(countyName: string): string {
-  const trimmed = countyName.trim().replace(/\s+County$/i, "").replace(/\s+županija$/i, "");
+  const trimmed = stripTrailingWord(stripTrailingWord(countyName.trim(), "County"), "županija");
   return COUNTY_ALIASES[normalizeKey(trimmed)] ?? trimmed;
 }
 

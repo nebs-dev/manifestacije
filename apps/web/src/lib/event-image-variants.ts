@@ -7,8 +7,14 @@ const VARIANT_WIDTHS: Record<EventImageVariant, readonly number[]> = {
 
 const GENERATED_TRANSFORM = /\/upload\/(?=[^/]*c_(?:fill|limit))(?=[^/]*q_auto)(?=[^/]*w_\d+)[^/]*\//
 
+/** Exact host, not a substring: a URL merely containing the string would
+ *  otherwise have its path rewritten as if it were a Cloudinary asset. */
+function isCloudinary(url: string): boolean {
+  try { return new URL(url).hostname === "res.cloudinary.com" } catch { return false }
+}
+
 export function eventImageVariant(url: string, width: number, variant: EventImageVariant = "card") {
-  if (!url.includes("res.cloudinary.com")) return url
+  if (!isCloudinary(url)) return url
   const replacement = variant === "card"
     ? `c_fill,g_auto,f_auto,q_auto,w_${width},h_${Math.round(width * 0.75)}`
     : `c_limit,f_auto,q_auto,w_${width}`
@@ -18,7 +24,7 @@ export function eventImageVariant(url: string, width: number, variant: EventImag
 }
 
 export function eventImageSrcSet(url: string, variant: EventImageVariant) {
-  if (!url.includes("res.cloudinary.com")) return undefined
+  if (!isCloudinary(url)) return undefined
   return VARIANT_WIDTHS[variant]
     .map((width) => `${eventImageVariant(url, width, variant)} ${width}w`)
     .join(", ")
