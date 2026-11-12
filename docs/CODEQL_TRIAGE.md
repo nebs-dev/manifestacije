@@ -156,22 +156,41 @@ per position is a slice. Linear, not a blow-up.
 
 ## Should CodeQL be a required check?
 
-**Not yet, and the reason is mechanical rather than cautious.**
+**Not yet — and this was tested on a real pull request rather than predicted.**
 
-Default setup's pull request check reports on alerts introduced *by that pull
-request*, so pre-existing alerts on `main` do not block unrelated work — which
-is the behaviour wanted here. But that only holds once `main`'s own baseline is
-settled. With 24 alerts open, the first pull request that touches any of those
-files risks the check attributing an existing alert to it.
+Default setup produces **two** checks, which matters for a ruleset:
+
+| Check name | What it is | On pull request #3 |
+| --- | --- | --- |
+| `Analyze (javascript-typescript)` | the scan job; passes if analysis completes | **pass** |
+| `CodeQL` | the alert gate | **fail** |
+
+The gate's own words on #3: *"1 new alert including 1 critical severity
+security vulnerability — New alerts in code changed by this pull request."*
+
+So the behaviour is the one wanted: it reports alerts **introduced by that pull
+request**, and the 24 pre-existing ones on `main` do not block unrelated work.
+
+But the failure on #3 shows the catch. The new alert was `js/request-forgery`
+at `ssrf.ts:360` — the same chokepoint as #5, re-raised at a new line number
+because the pinning change added code above it. The fetch there is now *more*
+protected than before, and CodeQL counted it as new because the line moved.
+
+That is the whole problem with requiring it today: a known false positive
+re-raises itself every time the surrounding code shifts, and a required check
+would block the change that improved it.
 
 Sequence that gets there without surprises:
 
 1. These five fixes land, so the real ones are gone from `main`.
-2. The remaining alerts are dismissed in the Security tab, each with the reason
-   from this file. That is a decision for whoever owns the repository; this
-   triage is the evidence, not the authority.
-3. Re-run the scan and confirm `main` is clean.
-4. Only then add `CodeQL` to the required checks in the `main` ruleset.
+2. `#5` is dismissed in the Security tab as a false positive, with the reason
+   from this file. Once dismissed, CodeQL keeps it dismissed as the code moves,
+   and the gate stops re-raising it. That is a decision for whoever owns the
+   repository; this triage is the evidence, not the authority.
+3. The remaining non-reachable alerts are dismissed the same way.
+4. Re-run the scan and confirm `main` is clean.
+5. Only then add **`CodeQL`** — that exact name, not `Analyze
+   (javascript-typescript)` — to the required checks in the `main` ruleset.
 
-Adding it before step 3 means a red check nobody can clear without doing step 2
+Adding it before step 2 means a red check nobody can clear without doing step 2
 anyway.
