@@ -83,6 +83,22 @@ function withTx<T extends object>(prisma: T) {
 }
 
 describe("OrganizerService submitSource", () => {
+  // No test in this file is about reaching a real server, and several submit a
+  // URL. They used to drift onto the network and happen to come back quickly;
+  // once safeFetch began pinning the connection to the address the mocked
+  // resolver returns, that address stopped answering and the tests hung. A
+  // default stub keeps them off the network entirely. Individual tests still
+  // override it with mockResolvedValueOnce.
+  let fetchStub: jest.SpyInstance
+  beforeEach(() => {
+    // Rejecting, not answering: these tests have no server to talk to, and
+    // that is the path they were always exercising — the stray network call
+    // they used to make did not succeed either. A test that wants a fetched
+    // page overrides this with mockResolvedValueOnce.
+    fetchStub = jest.spyOn(global, "fetch").mockRejectedValue(new TypeError("fetch failed"))
+  })
+  afterEach(() => fetchStub.mockRestore())
+
   it("does not bypass an attached poster with structured metadata from the accompanying URL", async () => {
     const result = parsedResult({ candidates: [{ ...candidate({ startsAt: "", missingFields: ["startsAt"],
       warnings: ["Vrijeme nije navedeno; potreban je pregled."] }), _status: "pending" }] });
