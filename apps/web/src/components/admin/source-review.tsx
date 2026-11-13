@@ -215,6 +215,14 @@ function SourceTools({ source, onReparse }: { source: EventSource; onReparse?: (
 
   useEffect(() => { setSourceUrl(source.sourceUrl || "") }, [source.sourceUrl])
 
+  // `safeExternalUrl` already parses the value and rejects anything that is
+  // not http(s), but it returns the original string rather than the parsed
+  // URL, so neither a reader nor CodeQL can see the guarantee at the point the
+  // value becomes an href. The explicit test states it where it matters; it
+  // rejects nothing the sanitizer lets through.
+  const sanitized = safeExternalUrl(sourceUrl)
+  const externalHref = sanitized && /^https?:\/\//i.test(sanitized) ? sanitized : undefined
+
   async function saveSourceUrl() {
     setSavingUrl(true)
     try {
@@ -253,8 +261,8 @@ function SourceTools({ source, onReparse }: { source: EventSource; onReparse?: (
               <label htmlFor={`source-url-${source.id}`} className="text-xs text-muted-foreground">URL izvora</label>
               <div className="flex gap-2">
                 <Input id={`source-url-${source.id}`} value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." />
-                {safeExternalUrl(sourceUrl) && (
-                  <Button variant="outline" size="icon" nativeButton={false} render={<a href={safeExternalUrl(sourceUrl)} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
+                {externalHref && (
+                  <Button variant="outline" size="icon" nativeButton={false} render={<a href={externalHref} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
                     <ExternalLink className="size-4" />
                   </Button>
                 )}
