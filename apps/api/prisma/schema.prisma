@@ -446,6 +446,15 @@ model MonitoredSource {
   etag                 String?
   lastModified         String?
   contentHash          String?
+  /// Fingerprint of the page's readable text, event links and structured
+  /// payloads — see content-fingerprint.ts. Replaces `contentHash` as the
+  /// change gate: the raw-byte hash moved on every fetch because of a nonce,
+  /// which re-parsed an unchanged programme and re-queued every event on it.
+  contentFingerprint   String?
+  /// When the page was last parsed in full. The fingerprint reads the listing
+  /// only, so a change made on a linked detail page does not move it; this is
+  /// what makes a stale source parse again anyway.
+  lastFullParseAt      DateTime?
   consecutiveFailures  Int       @default(0)
   lastError            String?
   /// Overlap-prevention lock — set when a check claims this row, cleared when

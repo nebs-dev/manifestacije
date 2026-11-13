@@ -557,7 +557,10 @@ describe("listing re-check deduplication", () => {
     expect(state.eventSources).toHaveLength(1);
   });
 
-  it("re-queues an event whose time the source moved", async () => {
+  it("does not add a second card for an event whose card is still waiting unread", async () => {
+    // The price changed, but the editor has not looked at the event yet. A
+    // second card for it would be the duplicate this is all about; the one
+    // already in the queue is the one they will act on.
     let roster = [candidateFor(1), candidateFor(2)];
     const { service } = build(() => roster.map((c) => ({ ...c })));
 
@@ -565,8 +568,25 @@ describe("listing re-check deduplication", () => {
     roster = [candidateFor(1, { priceText: "25 €" }), candidateFor(2)];
     const second = await check(service, "<html>v2</html>");
 
+    expect(second.candidatesCreated).toBe(0);
+    expect((second as Outcome & { skipReasons: Record<string, number> }).skipReasons).toEqual({ unchanged: 2 });
+  });
+
+  it("re-queues a changed event once an editor has published it", async () => {
+    let roster = [candidateFor(1)];
+    const { service, state } = build(() => roster.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    for (const row of state.discoveredEvents.values()) row.importedEventId = 42;
+    roster = [candidateFor(1, { priceText: "25 €" })];
+    const second = await check(service, "<html>v2</html>");
+
     expect(second.candidatesCreated).toBe(1);
-    expect((second as Outcome & { skipReasons: Record<string, number> }).skipReasons).toEqual({ unchanged: 1 });
+    const card = (state.eventSources.at(-1) as {
+      parsedJson: { candidates: { warnings: string[]; _existingEventId?: number }[] };
+    }).parsedJson.candidates[0];
+    expect(card._existingEventId).toBe(42);
+    expect(card.warnings.join(" ")).toMatch(/#42/);
   });
 
   it("keeps the separate terms of one title apart", async () => {

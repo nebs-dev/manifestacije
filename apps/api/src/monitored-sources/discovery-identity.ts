@@ -70,14 +70,49 @@ export function discoveryTitleKey(title: string | undefined | null): string {
   return squash(title);
 }
 
-/** The day a candidate's first term falls on, in Zagreb — "" when undated. */
-export function firstTermDateKey(candidate: IdentifiableCandidate): string {
+/** The candidate's first term, as an instant, or null when it has none. */
+function firstTerm(candidate: IdentifiableCandidate): Date | null {
   const first = candidate.occurrences?.length
     ? [...candidate.occurrences].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0]?.startsAt
     : candidate.startsAt;
-  if (!first) return "";
+  if (!first) return null;
   const parsed = new Date(first);
-  return Number.isFinite(parsed.getTime()) ? zagrebDateKey(parsed) : "";
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+/** The day a candidate's first term falls on, in Zagreb — "" when undated. */
+export function firstTermDateKey(candidate: IdentifiableCandidate): string {
+  const term = firstTerm(candidate);
+  return term ? zagrebDateKey(term) : "";
+}
+
+/**
+ * The term a candidate is keyed on: the day, plus the time of day when the
+ * source states one.
+ *
+ * The time has to be in the key. A cinema shows the same film twice on the
+ * same day, and in this very backlog there are screenings that differ in
+ * nothing but the hour — keying on the date alone would make the second
+ * showing an alias of the first, and once an editor published one the other
+ * would be skipped forever as "already imported". Hiding a real event is the
+ * failure this whole mechanism must not have.
+ *
+ * Using the time is only safe because the term is read at extraction time,
+ * before enrichment can overwrite it: parsing one stored page twice through
+ * the real provider returned the same 40 instants both times, while two full
+ * pipeline runs over the same page disagreed on 44 of them.
+ */
+export function termKey(candidate: IdentifiableCandidate): string {
+  const term = firstTerm(candidate);
+  if (!term) return "";
+  const day = zagrebDateKey(term);
+  // A midnight instant is how an all-day or time-less event is represented,
+  // and appending "00:00" to it would be inventing precision the source did
+  // not give.
+  const iso = term.toISOString();
+  const wall = `${iso.slice(11, 13)}:${iso.slice(14, 16)}`;
+  if (candidate.isAllDay === true) return day;
+  return wall === "00:00" ? day : `${day}T${wall}Z`;
 }
 
 /**
@@ -114,26 +149,37 @@ export function discoveryIdentityKey(
   listingUrl: string,
   scope = discoveryScope(listingUrl),
 ): string | null {
-  const dateKey = firstTermDateKey(candidate);
+  const term = termKey(candidate);
   const detailUrl = ownDetailUrl(candidate, listingUrl);
 
-  // A detail URL is the strongest signal available, but it still cannot stand
-  // alone: one page may announce several terms, and those are several events.
-  if (detailUrl) return `${scope}|url|${detailUrl}|${dateKey}`;
+  // A detail URL is used only when the *extraction* produced it — structured
+  // data (JSON-LD, embedded JSON) carries a real per-event URL, and that is
+  // deterministic. It must never come from enrichment, which resolves a URL
+  // for some candidates and not others depending on a fetch cap and the
+  // network; `stampCandidates` is what guarantees that, by running first.
+  if (detailUrl) return `${scope}|url|${detailUrl}|${term}`;
 
   const title = squash(candidate.title);
   if (!title) return null;
-  if (!dateKey) return null;
+  if (!term) return null;
 
-  return `${scope}|ev|${title}|${dateKey}|${squash(candidate.city)}`;
+  return `${scope}|ev|${title}|${term}|${squash(candidate.city)}`;
 }
 
 /**
- * Hash of the fields an editor would act on. Deliberately field-by-field and
- * in a fixed order: `JSON.stringify` over the whole candidate would fold in
- * `_status`, warnings, confidence and parser bookkeeping, and every one of
- * those wobbles between runs — which would report "changed" forever and undo
- * the deduplication.
+ * Hash of the facts an editor would act on, for telling a changed event from
+ * an unchanged one.
+ *
+ * Two fields an earlier version hashed are deliberately absent. `description`
+ * is model-written prose and `imageUrl` is whichever picture the image stage
+ * happened to resolve; neither changes what the event *is*, and letting a
+ * reworded sentence count as a change re-queues an event the editor has
+ * already dealt with. The schedule, the place, the price and the ticket link
+ * are what matter.
+ *
+ * Like the identity key, this is taken from the extraction snapshot, before
+ * enrichment, geocoding and image verification get to rewrite fields — see
+ * `stampCandidates`.
  */
 export function discoveryContentHash(candidate: IdentifiableCandidate): string {
   const terms = (candidate.occurrences ?? [])
@@ -152,10 +198,44 @@ export function discoveryContentHash(candidate: IdentifiableCandidate): string {
     candidate.isFree === null || candidate.isFree === undefined ? "" : String(candidate.isFree),
     (candidate.priceText ?? "").trim(),
     (candidate.ticketUrl ?? "").trim(),
-    (candidate.description ?? "").replace(/\s+/g, " ").trim(),
-    (candidate.imageUrl ?? "").trim(),
   ].join("\u0000");
   return createHash("sha256").update(payload).digest("hex");
+}
+
+/** What a stamped candidate carries from extraction through the pipeline. */
+export type IdentityStamp = { _discoveryKey?: string; _discoveryHash: string };
+
+/**
+ * Stamps every candidate with its identity and content hash at the moment of
+ * extraction — the one point in the pipeline where the data is deterministic.
+ *
+ * This is the fix for the defect that shipped in PR #4. Identity used to be
+ * computed at the end of `processListingPage`, after `enrichThinCandidates`,
+ * `verifyImages` and `fillMissingAddresses`. Those three stages fetch over the
+ * network, are capped, and merge whatever they get back into the candidate
+ * (`candidate.startsAt || detail.startsAt`, `detail.venueName || …`,
+ * `sourceUrl: match`). Two production checks of one unchanged page therefore
+ * produced candidates differing in `venueName` (every pair), `startsAt`,
+ * `sourceUrl` and `imageUrl` — and so a different identity and a different
+ * hash, which re-queued all 34 events both times.
+ *
+ * The model itself was not the problem: parsing the same stored page twice
+ * through the real provider returned 40 candidates with identical titles,
+ * dates and times both times. The network-dependent stages after it were.
+ *
+ * Stamping here makes those stages free to improve a card without being able
+ * to change what event it is, or whether it counts as changed.
+ */
+export function stampCandidates<T extends IdentifiableCandidate>(
+  candidates: T[],
+  listingUrl: string,
+  scope = discoveryScope(listingUrl),
+): (T & IdentityStamp)[] {
+  return candidates.map((candidate) => ({
+    ...candidate,
+    _discoveryKey: discoveryIdentityKey(candidate, listingUrl, scope) ?? undefined,
+    _discoveryHash: discoveryContentHash(candidate),
+  }));
 }
 
 /** What is already on record for one identity key. */
@@ -188,17 +268,26 @@ export function decideDiscovery(
   if (!identityKey) return { action: "queue", reason: "unkeyed" };
   if (!record) return { action: "queue", reason: "new" };
 
+  // Order matters, and an earlier version had it wrong: it tested the content
+  // hash first, so any difference at all put the event back in the queue even
+  // when an identical card was already sitting there unread. That is the
+  // duplicate this whole mechanism exists to prevent, so the question "is an
+  // editor already looking at this?" is asked first.
+  const waiting = record.lastEventSourceId !== null && liveEventSourceIds.has(record.lastEventSourceId);
+  const decided = record.importedEventId !== null || record.ignoredAt !== null;
+  if (!decided && waiting) return { action: "skip", reason: "unchanged" };
+
   if (record.contentHash !== contentHash) {
-    // The source changed its mind about an event that is already published.
-    // That is an update for a human to apply, not a new event, and saying so
-    // is the difference between a useful card and a duplicate.
+    // A change to an event somebody already published is an update for a
+    // human to apply, not a new event, and saying which is the difference
+    // between a useful card and a duplicate.
     return { action: "queue", reason: record.importedEventId ? "changed-after-import" : "changed" };
   }
 
   if (record.importedEventId) return { action: "skip", reason: "imported" };
   if (record.ignoredAt) return { action: "skip", reason: "ignored" };
-  if (record.lastEventSourceId && liveEventSourceIds.has(record.lastEventSourceId)) {
-    return { action: "skip", reason: "unchanged" };
-  }
+
+  // Undecided, unchanged, and the row that carried it is gone: nobody ever
+  // judged this event, so it has to be put back in front of someone.
   return { action: "queue", reason: "orphaned" };
 }
