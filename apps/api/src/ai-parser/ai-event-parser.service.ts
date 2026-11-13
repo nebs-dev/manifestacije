@@ -50,8 +50,18 @@ export type ParsedSourceResult = {
    * it. It deliberately does not touch `_status`, because a "created" status
    * makes a candidate un-importable — mislabelling one event would then hide
    * a genuinely new event instead of merely warning about it.
+   *
+   * `_discoveryKey` is the per-event identity from discovery-identity.ts,
+   * carried on the candidate so that importing or ignoring it can record the
+   * decision against the event rather than against this one review row. A
+   * candidate too thin to be identified (no date, no title) carries none.
    */
-  candidates: (ParsedEventCandidate & { _status?: "pending" | "created" | "ignored"; _eventId?: number; _existingEventId?: number })[];
+  candidates: (ParsedEventCandidate & {
+    _status?: "pending" | "created" | "ignored";
+    _eventId?: number;
+    _existingEventId?: number;
+    _discoveryKey?: string;
+  })[];
 };
 
 // Backward-compatible alias

@@ -250,7 +250,18 @@ export function SourceTable({
                   <TableCell className="text-right">
                     {s.confidence > 0 ? <ConfidenceBadge value={s.confidence} /> : <span className="text-muted-foreground">—</span>}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{s.candidateCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {s.pendingCandidateCount > 0 ? (
+                      <span>
+                        <span className="font-semibold">{s.pendingCandidateCount}</span>
+                        {s.candidateCount !== s.pendingCandidateCount && (
+                          <span className="text-muted-foreground"> / {s.candidateCount}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">{s.candidateCount ? "obrađeno" : "—"}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-sm text-muted-foreground">
                     {formatRelative(s.createdAt)}
                   </TableCell>

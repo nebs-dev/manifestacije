@@ -33,6 +33,9 @@ export function adaptEventSource(src: BE): EventSource {
     status: adaptSourceStatus(src.status as string),
     confidence: (src.confidence as number) ?? 0,
     candidateCount: parsedJson?.candidates?.length ?? 0,
+    pendingCandidateCount: (parsedJson?.candidates ?? []).filter(
+      (candidate) => candidate._status !== "created" && candidate._status !== "ignored"
+    ).length,
     createdAt: src.createdAt as string,
     adminViewedAt: (src.adminViewedAt as string | null) ?? null,
     rawText: (src.rawText as string) ?? undefined,

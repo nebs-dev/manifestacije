@@ -370,3 +370,315 @@ describe("splitIntoWeeklySeries", () => {
     })).rejects.toThrow();
   });
 });
+
+/**
+ * The deduplication, at the level it has to hold: one check of a listing page,
+ * then another check of the same page after it gained a single event.
+ *
+ * Production numbers this reproduces: 379 "changed" checks produced 3 179
+ * candidate cards for 748 distinct events, because the only dedup key was a
+ * hash of the whole page. The measurement asserted below is the one that
+ * matters to editorial — how many cards a second check adds.
+ */
+describe("listing re-check deduplication", () => {
+  const LISTING = "https://tz-primjer.hr/kalendar/";
+  const day = (offset: number) => {
+    const date = new Date(Date.now() + offset * 86_400_000);
+    return `${date.toISOString().slice(0, 10)}T20:00:00+01:00`;
+  };
+
+  const candidateFor = (index: number, over: Record<string, unknown> = {}) => ({
+    title: `Koncert broj ${index}`,
+    description: `Opis koncerta ${index}.`,
+    startsAt: day(30 + index),
+    endsAt: "",
+    venueName: "Dom kulture",
+    address: "Trg slobode 1",
+    city: "Osijek",
+    county: "",
+    region: "",
+    category: "glazba",
+    isFree: false,
+    priceText: "10 €",
+    ticketUrl: "",
+    sourceUrl: "",
+    organizerName: "",
+    // Left empty on purpose: a non-empty image would send verifyImages to the
+    // network, and these tests must not touch it.
+    imageUrl: "",
+    confidence: 0.9,
+    missingFields: [],
+    warnings: [],
+    _status: "pending" as const,
+    ...over,
+  });
+
+  /**
+   * In-memory stand-in for the two tables the gate reads and writes. Only the
+   * calls processListingPage makes are implemented; anything else would be
+   * scaffolding nobody reads.
+   */
+  function fakePrisma() {
+    const discoveredEvents = new Map<string, Record<string, unknown>>();
+    const eventSources: { id: number; parsedJson: unknown }[] = [];
+    let nextSourceId = 1;
+
+    const bump = (row: Record<string, unknown>, data: Record<string, unknown>) => {
+      for (const [key, value] of Object.entries(data)) {
+        if (value && typeof value === "object" && "increment" in (value as object)) {
+          row[key] = ((row[key] as number) ?? 0) + (value as { increment: number }).increment;
+        } else {
+          row[key] = value;
+        }
+      }
+    };
+
+    return {
+      state: { discoveredEvents, eventSources },
+      prisma: {
+        event: { findMany: async () => [] },
+        discoveredSourceItem: {
+          upsert: async () => ({ status: "NEW", createdAt: new Date(0), updatedAt: new Date(1) }),
+          updateMany: async () => ({ count: 0 }),
+          findUnique: async () => null,
+        },
+        discoveredEvent: {
+          // Two shapes are asked for: the identity lookup, and the
+          // same-title-already-published lookup that spots a moved date.
+          findMany: async ({ where }: { where: { identityKey?: { in: string[] }; titleKey?: { in: string[] }; sourceScope?: string; importedEventId?: unknown } }) => {
+            if (where.identityKey) return where.identityKey.in.map((key) => discoveredEvents.get(key)).filter(Boolean);
+            const titles = new Set(where.titleKey?.in ?? []);
+            return [...discoveredEvents.values()].filter(
+              (row) =>
+                titles.has(row.titleKey as string) &&
+                (!where.sourceScope || row.sourceScope === where.sourceScope) &&
+                (where.importedEventId === undefined || row.importedEventId !== null)
+            );
+          },
+          upsert: async ({ where, create, update }: { where: { identityKey: string }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+            const found = discoveredEvents.get(where.identityKey);
+            if (found) bump(found, update);
+            else discoveredEvents.set(where.identityKey, { identityKey: where.identityKey, importedEventId: null, ignoredAt: null, ...create });
+            return discoveredEvents.get(where.identityKey);
+          },
+          updateMany: async ({ where, data }: { where: { identityKey: { in: string[] } }; data: Record<string, unknown> }) => {
+            for (const key of where.identityKey.in) {
+              const found = discoveredEvents.get(key);
+              if (found) bump(found, data);
+            }
+            return { count: 0 };
+          },
+        },
+        eventSource: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            const row = { id: nextSourceId++, parsedJson: data.parsedJson };
+            eventSources.push(row);
+            return row;
+          },
+          findMany: async ({ where }: { where: { id: { in: number[] } } }) =>
+            eventSources.filter((row) => where.id.in.includes(row.id)).map((row) => ({ id: row.id })),
+        },
+      },
+    };
+  }
+
+  /** A parser that returns a fixed listing and never calls a model. */
+  function fakeParser(candidates: () => Record<string, unknown>[]) {
+    return {
+      extractEventSubLinks: () => [],
+      extractAllPageLinks: () => [],
+      extractEmbeddedEvents: () => null,
+      extractJsonLdEvents: () => null,
+      parseBatchWithLlm: async () => ({ sourceUrl: LISTING, sourceType: "batch", candidates: candidates() }),
+      crawlListingSubPages: async () => ({ subTexts: [], totalFound: 0, fetched: 0 }),
+    };
+  }
+
+  type Outcome = { candidatesFound: number; candidatesCreated: number; candidatesSkipped: number; eventSourceId?: number };
+
+  const check = (service: MonitoredSourcesService, html: string) =>
+    (service as never as { processListingPage(s: { id: number; url: string }, h: string): Promise<Outcome> })
+      .processListingPage({ id: 1, url: LISTING }, html);
+
+  function build(candidates: () => Record<string, unknown>[]) {
+    const fake = fakePrisma();
+    const service = new MonitoredSourcesService(
+      fake.prisma as never,
+      fakeParser(candidates) as never,
+      new DuplicatesService(null as never),
+    );
+    return { service, state: fake.state };
+  }
+
+  it("queues every event the first time the page is read", async () => {
+    const six = Array.from({ length: 6 }, (_, i) => candidateFor(i + 1));
+    const { service, state } = build(() => six.map((c) => ({ ...c })));
+
+    const first = await check(service, "<html>prva verzija</html>");
+
+    expect(first.candidatesFound).toBe(6);
+    expect(first.candidatesCreated).toBe(6);
+    expect(state.eventSources).toHaveLength(1);
+  });
+
+  it("adds one card, not seven, when the page gains one event", async () => {
+    // The headline measurement. Before this gate the second check produced a
+    // second row holding all seven events: 11 cards for 6 real events in the
+    // browser audit, 4,25 cards per event in production.
+    let roster = Array.from({ length: 6 }, (_, i) => candidateFor(i + 1));
+    const { service, state } = build(() => roster.map((c) => ({ ...c })));
+
+    await check(service, "<html>prva verzija</html>");
+    roster = [...roster, candidateFor(7)];
+    const second = await check(service, "<html>druga verzija, jedan novi</html>");
+
+    expect(second.candidatesFound).toBe(7);
+    expect(second.candidatesCreated).toBe(1);
+    expect(second.candidatesSkipped).toBe(6);
+    // Two checks, seven cards in total — one per real event.
+    const cards = state.eventSources.reduce(
+      (sum, row) => sum + ((row.parsedJson as { candidates: unknown[] }).candidates.length),
+      0,
+    );
+    expect(cards).toBe(7);
+  });
+
+  it("creates no review row at all when nothing on the page changed", async () => {
+    const six = Array.from({ length: 6 }, (_, i) => candidateFor(i + 1));
+    const { service, state } = build(() => six.map((c) => ({ ...c })));
+
+    await check(service, "<html>prva verzija</html>");
+    // A changed page hash with an unchanged programme: a new sidebar banner,
+    // a rotated advert, a visitor counter. This was the common case.
+    const second = await check(service, "<html>isti program, novi banner</html>");
+
+    expect(second.candidatesCreated).toBe(0);
+    expect(second.eventSourceId).toBeUndefined();
+    expect(state.eventSources).toHaveLength(1);
+  });
+
+  it("re-queues an event whose time the source moved", async () => {
+    let roster = [candidateFor(1), candidateFor(2)];
+    const { service } = build(() => roster.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    roster = [candidateFor(1, { priceText: "25 €" }), candidateFor(2)];
+    const second = await check(service, "<html>v2</html>");
+
+    expect(second.candidatesCreated).toBe(1);
+    expect((second as Outcome & { skipReasons: Record<string, number> }).skipReasons).toEqual({ unchanged: 1 });
+  });
+
+  it("keeps the separate terms of one title apart", async () => {
+    // A weekly programme lists the same play on four nights. Those are four
+    // events and all four have to reach the editor.
+    const terms = [0, 1, 2, 3].map((offset) => candidateFor(1, { startsAt: day(40 + offset) }));
+    const { service } = build(() => terms.map((c) => ({ ...c })));
+
+    const first = await check(service, "<html>v1</html>");
+
+    expect(first.candidatesCreated).toBe(4);
+  });
+
+  it("queues an undated candidate on every check rather than risk merging two events", async () => {
+    const undated = [candidateFor(1, { startsAt: "", missingFields: ["startsAt"] })];
+    const { service } = build(() => undated.map((c) => ({ ...c })));
+
+    const first = await check(service, "<html>v1</html>");
+    const second = await check(service, "<html>v2</html>");
+
+    expect(first.candidatesCreated).toBe(1);
+    expect(second.candidatesCreated).toBe(1);
+  });
+
+  it("stops asking about an event an editor has already published", async () => {
+    const one = [candidateFor(1)];
+    const { service, state } = build(() => one.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    // What AdminService.recordDiscoveryDecision writes when the candidate is
+    // imported.
+    for (const row of state.discoveredEvents.values()) row.importedEventId = 42;
+    const second = await check(service, "<html>v2 — isti događaj</html>");
+
+    expect(second.candidatesCreated).toBe(0);
+  });
+
+  it("says so on the card when the source changes an event that is already published", async () => {
+    let roster = [candidateFor(1)];
+    const { service, state } = build(() => roster.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    for (const row of state.discoveredEvents.values()) row.importedEventId = 42;
+    roster = [candidateFor(1, { startsAt: day(99) })];
+    await check(service, "<html>v2 — novi datum</html>");
+
+    // A moved date is a new term, so it arrives as its own event; what must
+    // not happen is the editor being handed it with no hint that #42 exists.
+    const latest = state.eventSources.at(-1) as { parsedJson: { candidates: { warnings: string[]; _existingEventId?: number }[] } };
+    const card = latest.parsedJson.candidates[0];
+    expect(card.warnings.join(" ") + String(card._existingEventId ?? "")).toMatch(/42|promijenio/);
+  });
+
+  it("hints at the published event without ever blocking the import", async () => {
+    // The hint is advisory on purpose. A legitimate extra term of a recurring
+    // event reads exactly like a postponed one from here, and marking it
+    // created or ignored would hide a real event instead of warning about it.
+    let roster = [candidateFor(1)];
+    const { service, state } = build(() => roster.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    for (const row of state.discoveredEvents.values()) row.importedEventId = 42;
+    roster = [candidateFor(1, { startsAt: day(99) })];
+    await check(service, "<html>v2</html>");
+
+    const card = (state.eventSources.at(-1) as { parsedJson: { candidates: { _status?: string }[] } })
+      .parsedJson.candidates[0];
+    expect(card._status).toBe("pending");
+  });
+
+  it("does not hint across cities — same name, another town is another event", async () => {
+    let roster = [candidateFor(1)];
+    const { service, state } = build(() => roster.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    for (const row of state.discoveredEvents.values()) row.importedEventId = 42;
+    roster = [candidateFor(1, { startsAt: day(99), city: "Vinkovci" })];
+    await check(service, "<html>v2</html>");
+
+    const card = (state.eventSources.at(-1) as {
+      parsedJson: { candidates: { warnings: string[]; _existingEventId?: number }[] };
+    }).parsedJson.candidates[0];
+    expect(card._existingEventId).toBeUndefined();
+    expect(card.warnings.join(" ")).not.toMatch(/#42/);
+  });
+
+  it("queues a forgotten event again when the review row that held it was deleted", async () => {
+    const one = [candidateFor(1)];
+    const { service, state } = build(() => one.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    // Bulk delete is the only bulk action the queue has, and it was used.
+    state.eventSources.length = 0;
+    const second = await check(service, "<html>v2</html>");
+
+    expect(second.candidatesCreated).toBe(1);
+  });
+
+  it("recognises the page again after the monitored source is deleted and re-added", async () => {
+    // DiscoveredSourceItem cascades on delete and 34 of 35 production sources
+    // were deleted, which erased the memory of everything they had found.
+    // Identity is scoped to the host, so a new source row on the same URL
+    // inherits that memory.
+    const six = Array.from({ length: 6 }, (_, i) => candidateFor(i + 1));
+    const { service, state } = build(() => six.map((c) => ({ ...c })));
+
+    await check(service, "<html>v1</html>");
+    const readded = await (service as never as {
+      processListingPage(s: { id: number; url: string }, h: string): Promise<Outcome>;
+    }).processListingPage({ id: 99, url: LISTING }, "<html>v1 again, new source row</html>");
+
+    expect(readded.candidatesCreated).toBe(0);
+    expect(state.eventSources).toHaveLength(1);
+  });
+});

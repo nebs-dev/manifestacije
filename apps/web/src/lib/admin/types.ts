@@ -33,6 +33,8 @@ export interface EventSource {
   status: SourceStatus
   confidence: number
   candidateCount: number
+  /** Candidates nobody has created or ignored yet — the work left on this row. */
+  pendingCandidateCount: number
   createdAt: string
   adminViewedAt: string | null
   rawText?: string

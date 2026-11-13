@@ -52,6 +52,17 @@ const json = (res, status, body) => {
   res.end(payload);
 };
 
+/**
+ * HTML-escapes anything the request supplied before it goes into a fixture
+ * page. Every fixture route echoes part of the request back, so each one needs
+ * this — one of them did not, and CodeQL caught the reflected-XSS path.
+ */
+const escapeHtml = (value) =>
+  String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/** Fixture slugs are ours to choose, so hold them to a shape with no HTML in it. */
+const safeSlug = (value) => String(value).replace(/[^a-zA-Z0-9-]/g, "").slice(0, 120);
+
 const message = (text) => ({
   id: `msg_e2e_${requests.length}`,
   type: "message",
@@ -87,8 +98,38 @@ const server = createServer(async (req, res) => {
    */
   if (req.method === "GET" && url.pathname === "/fixture/source-page") {
     const text = url.searchParams.get("text") ?? "";
-    const escape = (value) => value.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
-    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E izvor</title></head><body><main><pre>${escape(text)}</pre></main></body></html>`;
+    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E izvor</title></head><body><main><pre>${escapeHtml(text)}</pre></main></body></html>`;
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
+    return res.end(html);
+  }
+
+  /**
+   * A listing page that links out to per-event detail pages, which
+   * `/fixture/source-page` alone cannot be: the monitored-source check only
+   * pays for detail fetches when the listing carries sub-links, and the audit
+   * needs to count the model calls one such check really makes.
+   * `?events=N` controls how many links the listing carries; `?slugs=a,b,c`
+   * sets their last path segment, which is what the service's title-to-link
+   * matcher compares a candidate title against.
+   */
+  if (req.method === "GET" && url.pathname === "/fixture/listing-page") {
+    const given = (url.searchParams.get("slugs") ?? "").split(",").map((s) => safeSlug(s.trim())).filter(Boolean);
+    const count = given.length || Math.max(1, Math.min(Number(url.searchParams.get("events")) || 3, 60));
+    const items = Array.from({ length: count }, (_, i) => {
+      const slug = given[i] ?? `dogadaj-${i + 1}`;
+      const href = `/fixture/event/${encodeURIComponent(slug)}`;
+      return `<article><h2><a href="${escapeHtml(href)}">${escapeHtml(slug.replace(/-/g, " "))}</a></h2><p>Opis događaja ${i + 1}.</p></article>`;
+    }).join("");
+    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E listing</title></head><body><main><h1>Kalendar događanja</h1>${items}</main></body></html>`;
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
+    return res.end(html);
+  }
+
+  /** The detail page the listing above links to. */
+  if (req.method === "GET" && url.pathname.startsWith("/fixture/event/")) {
+    const slug = safeSlug(decodeURIComponent(url.pathname.slice("/fixture/event/".length)));
+    const safe = escapeHtml(slug);
+    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>${safe}</title></head><body><main><h1>${safe}</h1><p>Detalji događaja ${safe}.</p></main></body></html>`;
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
     return res.end(html);
   }
@@ -102,9 +143,15 @@ const server = createServer(async (req, res) => {
       /* record the call anyway */
     }
     const blocks = parsed?.messages?.[0]?.content ?? [];
+    const systemBlocks = Array.isArray(parsed.system) ? parsed.system : parsed.system ? [{ text: parsed.system }] : [];
     requests.push({
       at: new Date().toISOString(),
       model: parsed.model,
+      maxTokens: parsed.max_tokens,
+      // Sizes only, so the audit can report what one call really carries.
+      systemChars: systemBlocks.reduce((sum, block) => sum + (block?.text?.length ?? 0), 0),
+      systemCached: systemBlocks.some((block) => block?.cache_control),
+      userTextChars: blocks.filter((b) => b?.type === "text").reduce((sum, b) => sum + b.text.length, 0),
       // Never store the image bytes, only how many arrived.
       images: blocks.filter((b) => b?.type === "image").length,
       text: blocks

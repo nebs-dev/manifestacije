@@ -112,7 +112,21 @@ export class AdminController {
   }
 
   // Literal routes must be declared before parametric :id routes
-  @Get("event-sources") @Header("Cache-Control", "private, no-store") eventSources(@CurrentUser() user: AuthUser, @Query("page") page?: string, @Query("pageSize") pageSize?: string) { return this.admin.eventSources({ page, pageSize }, user.id); }
+  @Get("event-sources") @Header("Cache-Control", "private, no-store") eventSources(
+    @CurrentUser() user: AuthUser,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+    @Query("type") type?: string,
+    @Query("status") status?: string,
+    @Query("actionable") actionable?: string,
+    @Query("unviewed") unviewed?: string,
+    @Query("q") q?: string,
+  ) {
+    return this.admin.eventSources(
+      { page, pageSize, type, status, actionable: actionable === "true", unviewed: unviewed === "true", q },
+      user.id,
+    );
+  }
   @Post("event-sources/manual-email") manualEmail(@Body() dto: ManualEmailDto) { return this.admin.createManualEmail(dto); }
   @Post("event-sources/parse-url") parseUrl(@Body() dto: ParseUrlDto) { return this.admin.parseUrl(dto); }
   @Get("event-sources/:id") @Header("Cache-Control", "private, no-store") async getEventSource(@CurrentUser() user: AuthUser, @Param("id") id: string) {
