@@ -37,6 +37,8 @@ export class Journey {
   private current: Step | null = null;
   private navigations = 0;
   readonly findings: Finding[] = [];
+  /** Free-form measured values, printed above the step table. */
+  readonly metrics: Record<string, string | number> = {};
   private shots = 0;
 
   constructor(
@@ -47,6 +49,48 @@ export class Journey {
     page.on("framenavigated", (frame) => {
       if (frame === page.mainFrame()) this.navigations += 1;
     });
+  }
+
+  /**
+   * Starts counting how far the editor scrolls, in pixels.
+   *
+   * Listening in the capture phase at document level catches whichever element
+   * actually scrolls — the admin shell scrolls an inner container, not the
+   * document, and which one it is has changed before. Absolute deltas, so
+   * scrolling down and back up counts as the work it is rather than cancelling
+   * out. Installed as an init script so it survives navigation.
+   */
+  async trackScrolling(): Promise<void> {
+    await this.page.addInitScript(() => {
+      const w = window as unknown as { __scrolled?: number };
+      w.__scrolled = 0;
+      const last = new WeakMap<EventTarget, number>();
+      document.addEventListener(
+        "scroll",
+        (event) => {
+          const target = (event.target === document ? document.scrollingElement : event.target) as HTMLElement | null;
+          if (!target) return;
+          const top = target.scrollTop ?? 0;
+          w.__scrolled = (w.__scrolled ?? 0) + Math.abs(top - (last.get(target) ?? 0));
+          last.set(target, top);
+        },
+        true,
+      );
+    });
+  }
+
+  /** Pixels scrolled since `trackScrolling`, on the page as it stands now. */
+  async scrolled(): Promise<number> {
+    const value = await this.page.evaluate(() => (window as unknown as { __scrolled?: number }).__scrolled ?? 0);
+    return Math.round(value);
+  }
+
+  /** How far down the viewport the actual work starts. */
+  async offsetOf(headingText: string): Promise<number> {
+    return this.page.evaluate((text) => {
+      const heading = [...document.querySelectorAll("h1,h2,h3")].find((element) => element.textContent?.includes(text));
+      return heading ? Math.round(heading.getBoundingClientRect().top) : -1;
+    }, headingText);
   }
 
   step(label: string): void {
@@ -136,11 +180,15 @@ export class Journey {
     const rows = this.steps
       .map((step) => `| ${step.label} | ${step.clicks} | ${step.fills} | ${step.navigations} | ${step.note ?? ""} |`)
       .join("\n");
+    const metrics = Object.entries(this.metrics);
     return [
       `### ${this.name}`,
       "",
       `**${clicks} clicks · ${fills} fields typed · ${navigations} page loads**`,
       "",
+      ...(metrics.length
+        ? ["| Measure | Value |", "| --- | --- |", ...metrics.map(([key, value]) => `| ${key} | ${value} |`), ""]
+        : []),
       "| Step | Clicks | Fields | Page loads | Note |",
       "| --- | --- | --- | --- | --- |",
       rows,

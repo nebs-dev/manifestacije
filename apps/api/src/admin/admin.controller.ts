@@ -5,7 +5,7 @@ import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser } from "../auth/auth.types";
 import { AdminService, AdminEventListParams } from "./admin.service";
-import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto , SupplementDto } from "./admin.dto";
+import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, IgnoreCandidatesDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto , SupplementDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
 import { EventPreviewService } from "../events/event-preview.service";
@@ -144,6 +144,9 @@ export class AdminController {
   }
   @Post("event-sources/:id/create-event") createEvent(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: CreateEventFromCandidateDto) {
     return this.admin.createEventFromSource(Number(id), dto.candidateIndex ?? 0, dto.candidate, dto.publish ?? false, user.id);
+  }
+  @Post("event-sources/:id/ignore-candidates") ignoreCandidates(@Param("id") id: string, @Body() dto: IgnoreCandidatesDto) {
+    return this.admin.ignoreCandidates(Number(id), dto.candidateIndexes);
   }
   @Post("event-sources/:id/ignore-candidate") ignoreCandidate(@Param("id") id: string, @Body() dto: IgnoreCandidateDto) {
     return this.admin.ignoreCandidate(Number(id), dto.candidateIndex, dto.undo ?? false);

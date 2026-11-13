@@ -2,11 +2,9 @@
 
 import { Textarea } from "@/components/ui/textarea"
 import { ScreenshotsPicker, screenshotsPayload, type ScreenshotInput } from "@/components/screenshots-picker"
-import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, RefreshCw, ExternalLink, Search, Save, Loader2, Undo2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { ChevronDown, RefreshCw, ExternalLink, Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import Link from "next/link"
-import Image from "next/image"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,17 +21,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
 import { ParsedCandidateCard } from "@/components/admin/parsed-candidate-card"
+import { CandidateRail, type RailFilter } from "@/components/admin/candidate-rail"
+import { SourceEvidence } from "@/components/admin/source-evidence"
 import { EmptyState } from "@/components/admin/states"
 import { formatDateTime } from "@/lib/admin/format"
 import { authedFetch } from "@/lib/admin/api"
@@ -48,98 +40,21 @@ const typeLabels: Record<string, string> = {
   "tourist-board": "Turistička zajednica",
 }
 
-type Tab = "pending" | "created" | "ignored" | "all"
-
-function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm">{value}</span>
-    </div>
-  )
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={[
-        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-        active
-          ? "bg-foreground text-background"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  )
-}
-
-function CreatedRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void }) {
-  return (
-    <TableRow className="opacity-60">
-      <TableCell className="font-medium text-sm">
-        {c._eventId ? (
-          <Link href={`/admin/events/${c._eventId}`} className="hover:underline text-success">
-            {c.title || "—"}
-          </Link>
-        ) : c.title || "—"}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-        {c.startsAt ? new Date(c.startsAt).toLocaleDateString("hr") : "—"}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">{c.city || "—"}</TableCell>
-      <TableCell className="text-sm text-muted-foreground">{c.category || "—"}</TableCell>
-      <TableCell className="text-right">
-        {c._eventId && (
-          <Link href={`/admin/events/${c._eventId}`} className="text-xs text-success hover:underline">
-            Event #{c._eventId} →
-          </Link>
-        )}
-      </TableCell>
-    </TableRow>
-  )
-}
-
-function IgnoredRow({ c, onUpdate }: { c: ParsedCandidate; onUpdate?: () => void }) {
-  const [restoring, setRestoring] = useState(false)
-
-  async function unignore() {
-    if (restoring) return
-    setRestoring(true)
-    try {
-      const res = await authedFetch(`/api/admin/event-sources/${c.sourceId}/ignore-candidate`, {
-        method: "POST",
-        body: JSON.stringify({ candidateIndex: c.candidateIndex, undo: true }),
-      })
-      if (res.ok) { toast.success("Vraćeno na čekanje"); onUpdate?.() }
-      else toast.error("Vraćanje nije uspjelo", { description: await apiMessage(res) })
-    } finally {
-      setRestoring(false)
-    }
-  }
-
-  return (
-    <TableRow className="opacity-50">
-      <TableCell className="text-sm line-through text-muted-foreground">{c.title || "—"}</TableCell>
-      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-        {c.startsAt ? new Date(c.startsAt).toLocaleDateString("hr") : "—"}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">{c.city || "—"}</TableCell>
-      <TableCell className="text-sm text-muted-foreground">{c.category || "—"}</TableCell>
-      <TableCell className="text-right">
-        <span className="inline-flex items-center justify-end gap-2">
-          <ConfidenceBadge value={c.confidence} />
-          <Button variant="outline" size="sm" onClick={unignore} disabled={restoring}>
-            {restoring ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Undo2 data-icon="inline-start" />}
-            {restoring ? "Vraćanje…" : "Vrati"}
-          </Button>
-        </span>
-      </TableCell>
-    </TableRow>
-  )
-}
-
+/**
+ * The review screen, rearranged around the work instead of around the source.
+ *
+ * Measured on the screen this replaces, clearing six candidates took 14 clicks
+ * and 20 256 px of scrolling, and the first candidate sat 1 697 px below the
+ * top of a 900 px window — under a source summary, an image card, a textarea
+ * with a four-image dropzone, and a collapsed raw-text panel. Six of those
+ * clicks only opened a candidate so its fields existed.
+ *
+ * So: the candidates come first, one is open at a time across the full width,
+ * the list of the others is a narrow rail beside it, and what the source
+ * actually said sits in a third column next to the fields rather than two
+ * screens above them. The tools used once a day — supplement, re-parse,
+ * editing the source URL — moved below the fold where they belong.
+ */
 export function SourceReview({
   source,
   candidates,
@@ -149,44 +64,156 @@ export function SourceReview({
   candidates: ParsedCandidate[]
   onReparse?: () => void
 }) {
-  const [tab, setTab] = useState<Tab>("pending")
-  const [search, setSearch] = useState("")
-  const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
-  const images = source.sourceImageSrcs?.length ? source.sourceImageSrcs
-    : [safeExternalUrl(source.sourceImageUrl) ?? source.pendingScreenshotSrc].filter((src): src is string => Boolean(src))
-  const [savingUrl, setSavingUrl] = useState(false)
-  const [reparsing, setReparsing] = useState(false)
+  const [filter, setFilter] = useState<RailFilter>("pending")
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
 
-  useEffect(() => {
-    setSourceUrl(source.sourceUrl || "")
-  }, [source.sourceUrl])
-
-  const pending = useMemo(() => candidates.filter((c) => c._status === "pending" || (!c._status)), [candidates])
+  const pending = useMemo(() => candidates.filter((c) => c._status === "pending" || !c._status), [candidates])
   const created = useMemo(() => candidates.filter((c) => c._status === "created"), [candidates])
   const ignored = useMemo(() => candidates.filter((c) => c._status === "ignored"), [candidates])
+  const counts = { pending: pending.length, created: created.length, ignored: ignored.length, all: candidates.length }
 
-  const visible = useMemo(() => {
-    const base = tab === "pending" ? pending : tab === "created" ? created : tab === "ignored" ? ignored : candidates
-    if (!search.trim()) return base
-    const q = search.toLowerCase()
-    return base.filter((c) =>
-      c.title?.toLowerCase().includes(q) ||
-      c.city?.toLowerCase().includes(q) ||
-      c.category?.toLowerCase().includes(q)
-    )
-  }, [tab, search, pending, created, ignored, candidates])
+  const listed = useMemo(() => {
+    if (filter === "pending") return pending
+    if (filter === "created") return created
+    if (filter === "ignored") return ignored
+    return candidates
+  }, [filter, pending, created, ignored, candidates])
+
+  // The active candidate follows the work: when the open one is decided it
+  // leaves the pending list, and the next one takes its place without the
+  // editor going back to a list to pick it.
+  const active = listed.find((c) => c.id === activeId) ?? listed[0] ?? null
+  useEffect(() => {
+    if (active && active.id !== activeId) setActiveId(active.id)
+  }, [active, activeId])
+
+  /** Refuses to drop edits silently; the editor decides. */
+  const leaveActive = useCallback(() => {
+    if (!dirty) return true
+    const ok = window.confirm("Ovaj kandidat ima nespremljene izmjene. Napustiti ga i izgubiti ih?")
+    if (ok) setDirty(false)
+    return ok
+  }, [dirty])
+
+  // The same protection for closing the tab or following a link out, which no
+  // in-app handler can intercept.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = "" }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [dirty])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SourceStrip source={source} counts={counts} onReparse={onReparse} />
+
+      {/* The evidence column stays even when nothing parsed: a source that
+          yielded no candidates is precisely when an editor needs to see what
+          it actually contained. */}
+      <section
+        className={[
+          "grid items-start gap-4",
+          candidates.length === 0
+            ? "xl:grid-cols-[minmax(0,1fr)_minmax(260px,330px)]"
+            : "xl:grid-cols-[minmax(200px,230px)_minmax(0,1fr)_minmax(260px,330px)]",
+        ].join(" ")}
+      >
+        <h2 className="sr-only">Kandidati</h2>
+        {candidates.length > 0 && (
+          <CandidateRail
+            candidates={listed}
+            activeId={active?.id ?? null}
+            onSelect={(candidate) => { if (leaveActive()) setActiveId(candidate.id) }}
+            filter={filter}
+            onFilterChange={(next) => { if (leaveActive()) { setFilter(next); setActiveId(null) } }}
+            counts={counts}
+            sourceId={source.id}
+            onBulkDone={() => { setDirty(false); onReparse?.() }}
+          />
+        )}
+
+        <div className="min-w-0">
+          {candidates.length === 0 ? (
+            <EmptyState title="Nema kandidata" description="Ovaj izvor nije dao nijednog kandidata." />
+          ) : active ? (
+            <ParsedCandidateCard
+              key={active.id}
+              candidate={active}
+              alwaysOpen
+              onUpdate={onReparse}
+              onProcessed={() => { setDirty(false); setActiveId(null) }}
+              onDirtyChange={setDirty}
+            />
+          ) : (
+            <EmptyState
+              title="Sve je obrađeno"
+              description="Nijedan kandidat u ovom filtru ne čeka odluku."
+            />
+          )}
+        </div>
+
+        <SourceEvidence source={source} highlight={active?.title} />
+      </section>
+
+      <SourceTools source={source} onReparse={onReparse} />
+    </div>
+  )
+}
+
+/** One line of source context, in place of three stacked cards. */
+function SourceStrip({
+  source,
+  counts,
+  onReparse,
+}: {
+  source: EventSource
+  counts: { pending: number; created: number; ignored: number; all: number }
+  onReparse?: () => void
+}) {
+  const [reparsing, setReparsing] = useState(false)
 
   async function handleReparse() {
     if (reparsing) return
     setReparsing(true)
     try {
       const res = await authedFetch(`/api/admin/event-sources/${source.id}/reparse`, { method: "POST" })
-      if (res.ok) { toast.success("Ponovno parsiranje završeno", { description: "Promjene za otvorene kandidate prikazane su kao prijedlozi." }); onReparse?.() }
-      else { toast.error("Ponovno parsiranje nije uspjelo", { description: await apiMessage(res) }); onReparse?.() }
+      if (res.ok) toast.success("Ponovno parsiranje završeno", { description: "Promjene za otvorene kandidate prikazane su kao prijedlozi." })
+      else toast.error("Ponovno parsiranje nije uspjelo", { description: await apiMessage(res) })
+      onReparse?.()
     } finally {
       setReparsing(false)
     }
   }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5">
+      <span className="text-sm font-medium">{typeLabels[source.type] ?? source.type}</span>
+      <StatusBadge status={source.status} />
+      {source.confidence > 0 && <ConfidenceBadge value={source.confidence} />}
+      <span className="text-sm text-muted-foreground" data-testid="candidate-counts">
+        {counts.pending > 0 ? <span className="font-semibold text-warning">{counts.pending} čeka</span> : <span>sve obrađeno</span>}
+        {counts.created > 0 && <span className="text-success"> · {counts.created} kreirano</span>}
+        {counts.ignored > 0 && <span> · {counts.ignored} ignorirano</span>}
+        <span> · {counts.all} ukupno</span>
+      </span>
+      {source.from && <span className="truncate text-sm text-muted-foreground">{source.from}</span>}
+      <span className="text-sm text-muted-foreground">{formatDateTime(source.createdAt)}</span>
+      <Button variant="outline" size="sm" className="ml-auto" onClick={handleReparse} disabled={reparsing}>
+        {reparsing ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}
+        {reparsing ? "Reparsiranje…" : "Ponovno parsiraj"}
+      </Button>
+    </div>
+  )
+}
+
+/** Everything that is not the daily work: below the candidates, folded away. */
+function SourceTools({ source, onReparse }: { source: EventSource; onReparse?: () => void }) {
+  const [sourceUrl, setSourceUrl] = useState(source.sourceUrl || "")
+  const [savingUrl, setSavingUrl] = useState(false)
+
+  useEffect(() => { setSourceUrl(source.sourceUrl || "") }, [source.sourceUrl])
 
   async function saveSourceUrl() {
     setSavingUrl(true)
@@ -196,205 +223,52 @@ export function SourceReview({
         body: JSON.stringify({ sourceUrl: sourceUrl.trim() || null }),
       })
       if (res.ok) { toast.success("URL izvora spremljen"); onReparse?.() }
-      else toast.error("Spremanje URL-a neuspješno", { description: await res.text() })
+      else toast.error("Spremanje URL-a neuspješno", { description: await apiMessage(res) })
     } finally {
       setSavingUrl(false)
     }
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Source summary */}
-      <Card>
+    <Card>
+      <Collapsible defaultOpen={false}>
         <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <CardTitle>{source.subject}</CardTitle>
-              <CardDescription>Sažetak izvora i dokazi parsiranja.</CardDescription>
+          <CollapsibleTrigger render={<button type="button" className="group/tools flex w-full items-center justify-between gap-2 text-left" />}>
+            <div className="flex flex-col gap-0.5">
+              <CardTitle className="text-base">Alati izvora</CardTitle>
+              <CardDescription>URL izvora, dopuna podataka i ponovno parsiranje.</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={handleReparse} disabled={reparsing}>
-              {reparsing ? (
-                <Loader2 data-icon="inline-start" className="animate-spin" />
-              ) : (
-                <RefreshCw data-icon="inline-start" />
-              )}
-              {reparsing ? "Reparsiranje…" : "Ponovno parsiraj"}
-            </Button>
-          </div>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]/tools:rotate-180" />
+          </CollapsibleTrigger>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
-            <span className="text-xs text-muted-foreground">URL izvora</span>
-            <div className="flex gap-2">
-              <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." />
-              {safeExternalUrl(sourceUrl) && (
-                <Button variant="outline" size="icon" nativeButton={false} render={<a href={safeExternalUrl(sourceUrl)} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
-                  <ExternalLink className="size-4" />
-                </Button>
-              )}
-              <Button variant="outline" onClick={saveSourceUrl} disabled={savingUrl || sourceUrl === (source.sourceUrl || "")}>
-                <Save data-icon="inline-start" />
-                Spremi
-              </Button>
-            </div>
-          </div>
-          <SummaryRow label="Tip" value={typeLabels[source.type] ?? source.type} />
-          <SummaryRow label="Status" value={<StatusBadge status={source.status} />} />
-          <SummaryRow label="Pouzdanost" value={source.confidence > 0 ? <ConfidenceBadge value={source.confidence} /> : "—"} />
-          <SummaryRow label="Pošiljatelj" value={source.from || "—"} />
-          <SummaryRow label="Kandidati" value={
-            <span className="flex gap-3">
-              <span>{candidates.length} ukupno</span>
-              {created.length > 0 && <span className="text-success">{created.length} kreirana</span>}
-              {pending.length > 0 && <span className="text-warning">{pending.length} čeka</span>}
-              {ignored.length > 0 && <span className="text-muted-foreground">{ignored.length} ignorirano</span>}
-            </span>
-          } />
-          <SummaryRow label="Kreirano" value={formatDateTime(source.createdAt)} />
-        </CardContent>
-      </Card>
-
-      {source.parseError && (
-        <Card role="status" className="border-warning/40 bg-warning/10">
-          <CardHeader>
-            <CardTitle className="font-heading text-base">Automatska obrada nije dovršena</CardTitle>
-            <CardDescription>{source.parseError}</CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
-      {/* Source image evidence (EVT-07: several posters/screenshots) */}
-      {images.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-base">{images.length > 1 ? `Slike izvora (${images.length})` : "Screenshot / plakat izvora"}</CardTitle>
-            <CardDescription>Slike korištene kao dokaz za parsiranje. Ne koriste se automatski kao javna slika događaja.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {images.map((src, index) => (
-                <li key={src.slice(0, 120) + index} className="flex flex-col gap-1">
-                  <Image src={src} alt={`Slika izvora ${index + 1}`} width={1200} height={900} unoptimized className="h-auto max-h-[420px] w-full rounded-lg border border-border object-contain" />
-                  {!src.startsWith("data:") && (
-                    <a href={src} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">Otvori sliku {index + 1}</a>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      <SourceSupplementPanel source={source} onDone={onReparse} />
-
-      {/* Raw text */}
-      {source.rawText && (
-        <Card>
-          <Collapsible defaultOpen={false}>
-            <CardHeader>
-              <CollapsibleTrigger render={<button type="button" className="group/raw flex w-full items-center justify-between gap-2 text-left" />}>
-                <div className="flex flex-col gap-0.5">
-                  <CardTitle className="text-base">Neobrađeni tekst izvora</CardTitle>
-                  <CardDescription>Originalni tekst korišten za parsiranje.</CardDescription>
-                </div>
-                <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]/raw:rotate-180" />
-              </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                <Separator className="mb-4" />
-                <pre className="overflow-x-auto rounded-lg bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground">
-                  {source.rawText}
-                </pre>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-      )}
-
-      {/* Candidates */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-heading text-lg font-semibold">Parsirani kandidati</h2>
-
-          <div className="flex items-center gap-2">
-            {/* Tabs */}
-            <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
-              <TabButton active={tab === "pending"} onClick={() => setTab("pending")}>
-                Na čekanju{pending.length > 0 && <span className="ml-1.5 rounded-full bg-warning/20 px-1.5 py-0.5 text-xs text-warning">{pending.length}</span>}
-              </TabButton>
-              <TabButton active={tab === "created"} onClick={() => setTab("created")}>
-                Kreirani{created.length > 0 && <span className="ml-1.5 rounded-full bg-success/20 px-1.5 py-0.5 text-xs text-success">{created.length}</span>}
-              </TabButton>
-              <TabButton active={tab === "ignored"} onClick={() => setTab("ignored")}>
-                Ignorirani{ignored.length > 0 && <span className="ml-1.5 text-xs text-muted-foreground">{ignored.length}</span>}
-              </TabButton>
-              <TabButton active={tab === "all"} onClick={() => setTab("all")}>
-                Sve
-              </TabButton>
-            </div>
-
-            {/* Search */}
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Pretraži…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-44 pl-8 h-8"
-              />
-            </div>
-
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {visible.length} / {candidates.length}
-            </span>
-          </div>
-        </div>
-
-        {visible.length === 0 ? (
-          <EmptyState title="Nema kandidata" description="Nema kandidata koji odgovaraju odabranom filtru." />
-        ) : tab === "pending" || tab === "all" ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
-            {visible.map((c) => (
-              c._status === "created" ? (
-                <div key={c.id} className="overflow-x-auto rounded-xl border border-border bg-card">
-                  <Table><TableBody><CreatedRow c={c} onUpdate={onReparse} /></TableBody></Table>
-                </div>
-              ) : c._status === "ignored" ? (
-                <div key={c.id} className="overflow-x-auto rounded-xl border border-border bg-card">
-                  <Table><TableBody><IgnoredRow c={c} onUpdate={onReparse} /></TableBody></Table>
-                </div>
-              ) : (
-                <ParsedCandidateCard key={c.id} candidate={c} onUpdate={onReparse} />
-              )
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>Naslov</TableHead>
-                  <TableHead className="whitespace-nowrap">Datum</TableHead>
-                  <TableHead>Grad</TableHead>
-                  <TableHead>Kategorija</TableHead>
-                  <TableHead className="text-right">
-                    {tab === "created" ? "Event" : "Pouzdanost"}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((c) =>
-                  tab === "created"
-                    ? <CreatedRow key={c.id} c={c} onUpdate={onReparse} />
-                    : <IgnoredRow key={c.id} c={c} onUpdate={onReparse} />
+        <CollapsibleContent>
+          <CardContent className="flex flex-col gap-4">
+            <Separator />
+            {source.parseError && (
+              <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                {source.parseError}
+              </p>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`source-url-${source.id}`} className="text-xs text-muted-foreground">URL izvora</label>
+              <div className="flex gap-2">
+                <Input id={`source-url-${source.id}`} value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." />
+                {safeExternalUrl(sourceUrl) && (
+                  <Button variant="outline" size="icon" nativeButton={false} render={<a href={safeExternalUrl(sourceUrl)} target="_blank" rel="noreferrer" aria-label="Otvori URL izvora" />}>
+                    <ExternalLink className="size-4" />
+                  </Button>
                 )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </section>
-    </div>
+                <Button variant="outline" onClick={saveSourceUrl} disabled={savingUrl || sourceUrl === (source.sourceUrl || "")}>
+                  <Save data-icon="inline-start" />
+                  Spremi
+                </Button>
+              </div>
+            </div>
+            <SourceSupplementPanel source={source} onDone={onReparse} />
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   )
 }
 

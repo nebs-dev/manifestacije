@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
 import { Transform, Type } from "class-transformer";
 import { sanitizeDescriptionInput } from "../common/rich-text";
 import { MAX_SCREENSHOTS_PER_REQUEST, ScreenshotInputDto } from "../ai-parser/screenshot.dto";
@@ -154,6 +154,18 @@ export class IgnoreCandidateDto {
   @Transform(({ value }) => (typeof value === "string" ? value === "true" : value))
   @IsBoolean()
   undo?: boolean;
+}
+
+export class IgnoreCandidatesDto {
+  /** Bounded so one request cannot be made to walk an arbitrary array; the
+   *  largest production review row holds far fewer than this. */
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(200)
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  candidateIndexes!: number[];
 }
 
 export class UpdateEventSourceDto {

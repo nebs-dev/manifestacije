@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import { Copy, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,21 +36,25 @@ export function EventScheduleEditor({
     }
     onChange([...rows.slice(0, index + 1), copy, ...rows.slice(index + 1)])
   }
+  // Labels have to name a control, and this editor can appear twice on one
+  // screen, so the ids are namespaced per instance.
+  const uid = useId()
+
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row, index) => (
         <div key={row.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-[1.2fr_1fr_1fr_auto]">
           <div className="flex flex-col gap-1.5">
-            <Label>Datum</Label>
-            <Input type="date" value={row.date} disabled={disabled} onChange={(event) => update(row.key, { date: event.target.value })} />
+            <Label htmlFor={`${uid}-${row.key}-date`}>Datum</Label>
+            <Input id={`${uid}-${row.key}-date`} type="date" value={row.date} disabled={disabled} onChange={(event) => update(row.key, { date: event.target.value })} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Početak</Label>
-            <Input type="time" value={row.startTime} disabled={disabled || row.isAllDay} onChange={(event) => update(row.key, { startTime: event.target.value })} />
+            <Label htmlFor={`${uid}-${row.key}-start`}>Početak</Label>
+            <Input id={`${uid}-${row.key}-start`} type="time" value={row.startTime} disabled={disabled || row.isAllDay} onChange={(event) => update(row.key, { startTime: event.target.value })} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Završetak</Label>
-            <Input type="time" value={row.endTime} disabled={disabled || row.isAllDay} onChange={(event) => update(row.key, { endTime: event.target.value })} />
+            <Label htmlFor={`${uid}-${row.key}-end`}>Završetak</Label>
+            <Input id={`${uid}-${row.key}-end`} type="time" value={row.endTime} disabled={disabled || row.isAllDay} onChange={(event) => update(row.key, { endTime: event.target.value })} />
           </div>
           <div className="flex items-end gap-2 pb-1">
             <label className="flex items-center gap-2 text-xs">

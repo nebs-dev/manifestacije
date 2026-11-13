@@ -1159,6 +1159,56 @@ export class AdminService {
     });
   }
 
+  /**
+   * Ignores several candidates of one source in a single transaction.
+   *
+   * The editor's reason for wanting this is a listing page that produced a
+   * dozen entries which are not events at all; doing it one request at a time
+   * leaves the row half-decided if one of them fails. The rules are the single
+   * candidate's rules, unchanged: a candidate that already has an event is
+   * refused rather than quietly skipped, every decision is carried back to
+   * `DiscoveredEvent` so the next check does not re-queue it, and the row
+   * becomes LINKED only when nothing undecided is left.
+   *
+   * There is deliberately no bulk *create*: publishing is the one decision
+   * that must stay one event at a time, in front of an editor.
+   */
+  async ignoreCandidates(id: number, candidateIndexes: number[]) {
+    const unique = [...new Set(candidateIndexes)].sort((a, b) => a - b);
+    if (unique.length === 0) throw new BadRequestException("Nije odabran nijedan kandidat.");
+
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      const source = await db.eventSource.findUnique({ where: { id } });
+      if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
+
+      const result = source.parsedJson as unknown as ParsedSourceResult;
+      if (!Array.isArray(result.candidates)) throw new BadRequestException("Source is not in batch format");
+
+      for (const index of unique) {
+        if (index < 0 || index >= result.candidates.length) throw new BadRequestException(`Invalid candidateIndex ${index}`);
+        if (result.candidates[index]._status === "created") {
+          throw new ConflictException(`Kandidat "${result.candidates[index].title || index}" već ima kreiran događaj.`);
+        }
+      }
+
+      const ignoredAt = new Date();
+      const chosen = new Set(unique);
+      const updatedCandidates = result.candidates.map((c, i) => (chosen.has(i) ? { ...c, _status: "ignored" as const } : c));
+      const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
+
+      for (const index of unique) {
+        await this.recordDiscoveryDecision(db, result.candidates[index]._discoveryKey, { ignoredAt });
+      }
+
+      await db.eventSource.update({
+        where: { id },
+        data: { parsedJson: { ...result, candidates: updatedCandidates } as object, status: allDone ? "LINKED" : "PARSED" },
+      });
+      return { ignored: unique.length, candidateIndexes: unique };
+    });
+  }
+
   duplicatesList() {
     return this.duplicates.list();
   }

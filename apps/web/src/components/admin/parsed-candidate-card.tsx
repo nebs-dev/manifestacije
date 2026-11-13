@@ -13,6 +13,7 @@ import {
   ExternalLink,
   TriangleAlert,
   ChevronDown,
+  Undo2,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -52,16 +53,24 @@ type CandidateForm = {
   sourceUrl: string
 }
 
+/**
+ * `htmlFor` is not decoration here. Without it the label names no control, so
+ * a screen reader reads the input as unlabelled and `getByLabel` — the locator
+ * a test for this form would naturally use — finds nothing; the audit had to
+ * reach fields through an XPath sibling hop instead.
+ */
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string
+  htmlFor?: string
   children: React.ReactNode
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">{label}</Label>
       {children}
     </div>
   )
@@ -74,11 +83,21 @@ function slugToId(slug: string, cats: BackendCategory[]): number | undefined {
 export function ParsedCandidateCard({
   candidate,
   onUpdate,
+  alwaysOpen = false,
+  onProcessed,
+  onDirtyChange,
 }: {
   candidate: ParsedCandidate
   onUpdate?: () => void
+  /** Rendered as the one candidate being worked on: no disclosure to click. */
+  alwaysOpen?: boolean
+  /** Called once a decision has been recorded, so the caller can advance. */
+  onProcessed?: () => void
+  /** Reports whether this form holds edits that are not saved anywhere. */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const router = useRouter()
+  const fid = (name: string) => `cand-${candidate.id}-${name}`
   const [busy, setBusy] = useState(false)
   const [allCategories, setAllCategories] = useState<BackendCategory[]>([])
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
@@ -128,7 +147,14 @@ export function ParsedCandidateCard({
   const isCreated = candidate._status === "created"
   const isIgnored = candidate._status === "ignored"
   const isPending = !isCreated && !isIgnored
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(alwaysOpen)
+  const [dirty, setDirty] = useState(false)
+  // Only the caller knows whether losing these edits matters — it is the one
+  // that can refuse to switch candidates or warn on leaving the page.
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  // A decision clears the edits: they are either in the created event now, or
+  // deliberately discarded with the candidate.
+  const settle = () => { setDirty(false); onProcessed?.() }
   const proposal = isPending ? candidate._proposal : undefined
   const proposalKey = proposal ? JSON.stringify(proposal) : ""
   const [dismissedProposal, setDismissedProposal] = useState<string | null>(null)
@@ -173,10 +199,12 @@ export function ParsedCandidateCard({
   })
 
   function setField<K extends keyof CandidateForm>(key: K, value: CandidateForm[K]) {
+    setDirty(true)
     setForm((current) => ({ ...current, [key]: value }))
   }
 
   function toggleCategory(id: number) {
+    setDirty(true)
     setSelectedCategoryIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]
     )
@@ -241,12 +269,32 @@ export function ParsedCandidateCard({
         toast.success(publish ? "Događaj kreiran i objavljen" : "Događaj kreiran", {
           action: { label: "Otvori", onClick: () => router.push(`/admin/events/${data.event.id}`) },
         })
+        settle()
         onUpdate?.()
       } else {
         toast.error("Greška pri kreiranju", { description: await res.text() })
       }
     } catch (error) {
       toast.error("Neispravan raspored", { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Puts an ignored candidate back on the pending list. */
+  async function unignoreCandidate() {
+    setBusy(true)
+    try {
+      const res = await authedFetch(
+        `/api/admin/event-sources/${candidate.sourceId}/ignore-candidate`,
+        { method: "POST", body: JSON.stringify({ candidateIndex: candidate.candidateIndex, undo: true }) }
+      )
+      if (res.ok) {
+        toast.success("Vraćeno na čekanje")
+        onUpdate?.()
+      } else {
+        toast.error("Vraćanje nije uspjelo", { description: await res.text() })
+      }
     } finally {
       setBusy(false)
     }
@@ -264,6 +312,7 @@ export function ParsedCandidateCard({
       )
       if (res.ok) {
         toast.success("Kandidat ignoriran")
+        settle()
         onUpdate?.()
       } else {
         toast.error("Greška", { description: await res.text() })
@@ -281,11 +330,19 @@ export function ParsedCandidateCard({
 
   return (
     <Card onInputCapture={duplicates.cancelPending} onChangeCapture={duplicates.cancelPending} className={isIgnored ? "opacity-50" : undefined}>
-      {/* Collapsed header — always visible */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-start gap-3 px-5 py-4 text-left hover:bg-muted/30 transition-colors rounded-t-xl"
+      {/* The header. As the active candidate there is nothing to disclose, so
+          it is a heading rather than a button: one fewer click per candidate,
+          which over a six-candidate row was six of the fourteen clicks the
+          walkthrough measured. */}
+      {(() => {
+        const Tag = alwaysOpen ? "div" : "button"
+        return (
+      <Tag
+        {...(alwaysOpen ? {} : { type: "button" as const, onClick: () => setOpen((o) => !o) })}
+        className={[
+          "flex w-full items-start gap-3 px-5 py-4 text-left rounded-t-xl",
+          alwaysOpen ? "" : "hover:bg-muted/30 transition-colors",
+        ].join(" ")}
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -312,9 +369,13 @@ export function ParsedCandidateCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <ConfidenceBadge value={candidate.confidence} />
-          <ChevronDown className={["size-4 text-muted-foreground transition-transform", open ? "rotate-180" : ""].join(" ")} />
+          {!alwaysOpen && (
+            <ChevronDown className={["size-4 text-muted-foreground transition-transform", open ? "rotate-180" : ""].join(" ")} />
+          )}
         </div>
-      </button>
+      </Tag>
+        )
+      })()}
 
       <div className="px-5 pb-3">{duplicates.warning}</div>
       {/* Expanded body */}
@@ -326,12 +387,12 @@ export function ParsedCandidateCard({
             onApply={applyProposal} onDismiss={() => setDismissedProposal(proposalKey)} />
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Naslov">
-            <Input value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
+          <Field label="Naslov" htmlFor={fid("title")}>
+            <Input id={fid("title")} value={form.title} disabled={!isPending} onChange={(e) => setField("title", e.target.value)} />
           </Field>
           <div className="sm:col-span-2">
             <Field label="Raspored">
-              <EventScheduleEditor rows={scheduleRows} onChange={setScheduleRows} disabled={!isPending} />
+              <EventScheduleEditor rows={scheduleRows} onChange={(rows) => { setDirty(true); setScheduleRows(rows) }} disabled={!isPending} />
             </Field>
           </div>
           {!isCreated && candidate._existingEventId && (
@@ -354,14 +415,14 @@ export function ParsedCandidateCard({
               </span>
             </div>
           )}
-          <Field label="Grad">
-            <Input value={form.city} disabled={!isPending} onChange={(e) => setField("city", e.target.value)} placeholder="npr. Osijek" />
+          <Field label="Grad" htmlFor={fid("city")}>
+            <Input id={fid("city")} value={form.city} disabled={!isPending} onChange={(e) => setField("city", e.target.value)} placeholder="npr. Osijek" />
           </Field>
-          <Field label="Lokacija / venue">
-            <Input value={form.venueName} disabled={!isPending} onChange={(e) => setField("venueName", e.target.value)} />
+          <Field label="Lokacija / venue" htmlFor={fid("venue")}>
+            <Input id={fid("venue")} value={form.venueName} disabled={!isPending} onChange={(e) => setField("venueName", e.target.value)} />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Adresa">
+            <Field label="Adresa" htmlFor={`address-${candidate.id}`}>
               <Input
                 id={`address-${candidate.id}`}
                 value={form.address}
@@ -385,14 +446,14 @@ export function ParsedCandidateCard({
               />
             </Field>
           </div>
-          <Field label="Organizator">
-            <Input value={form.organizerName} disabled={!isPending} onChange={(e) => setField("organizerName", e.target.value)} />
+          <Field label="Organizator" htmlFor={fid("organizer")}>
+            <Input id={fid("organizer")} value={form.organizerName} disabled={!isPending} onChange={(e) => setField("organizerName", e.target.value)} />
           </Field>
-          <Field label="Cijena">
-            <Input value={form.priceText} disabled={!isPending} onChange={(e) => setField("priceText", e.target.value)} placeholder="npr. 8 EUR" />
+          <Field label="Cijena" htmlFor={fid("price")}>
+            <Input id={fid("price")} value={form.priceText} disabled={!isPending} onChange={(e) => setField("priceText", e.target.value)} placeholder="npr. 8 EUR" />
           </Field>
-          <Field label="Ulaznice URL">
-            <Input value={form.ticketUrl} disabled={!isPending} onChange={(e) => setField("ticketUrl", e.target.value)} />
+          <Field label="Ulaznice URL" htmlFor={fid("ticket")}>
+            <Input id={fid("ticket")} value={form.ticketUrl} disabled={!isPending} onChange={(e) => setField("ticketUrl", e.target.value)} />
           </Field>
           <Field label="Način naplate">
             <PricingSelect value={form.isFree} disabled={!isPending} onChange={(v) => setField("isFree", v)} />
@@ -407,7 +468,7 @@ export function ParsedCandidateCard({
         <div className="rounded-2xl border border-border p-3">
           <EventImagePicker
             value={image}
-            onChange={setImage}
+            onChange={(next) => { setDirty(true); setImage(next) }}
             disabled={!isPending}
             suggestedImageUrl={candidate.imageUrl}
           />
@@ -471,9 +532,10 @@ export function ParsedCandidateCard({
           </>
         )}
 
-        <Field label="URL izvora">
+        <Field label="URL izvora" htmlFor={fid("sourceUrl")}>
           <div className="flex items-center gap-2">
             <Input
+              id={fid("sourceUrl")}
               value={form.sourceUrl}
               disabled={!isPending}
               onChange={(e) => setField("sourceUrl", e.target.value)}
@@ -506,6 +568,15 @@ export function ParsedCandidateCard({
           <Button variant="outline" onClick={ignoreCandidate} disabled={busy} className="ml-auto">
             <X data-icon="inline-start" />
             Ignoriraj
+          </Button>
+        </CardFooter>
+      )}
+
+      {isIgnored && (
+        <CardFooter>
+          <Button variant="outline" onClick={unignoreCandidate} disabled={busy}>
+            <Undo2 data-icon="inline-start" />
+            Vrati na čekanje
           </Button>
         </CardFooter>
       )}
