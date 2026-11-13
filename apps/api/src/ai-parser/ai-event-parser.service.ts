@@ -61,6 +61,12 @@ export type ParsedSourceResult = {
     _eventId?: number;
     _existingEventId?: number;
     _discoveryKey?: string;
+    /**
+     * The content hash taken at extraction time, alongside `_discoveryKey`.
+     * Both are stamped before enrichment so that the network-dependent stages
+     * cannot change an event's identity or make it look changed.
+     */
+    _discoveryHash?: string;
   })[];
 };
 
@@ -978,6 +984,18 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
    *  pure cost on each model call. Unlike stripChrome this leaves <header>
    *  alone: article markup often puts the event's own title inside one, and
    *  losing the title costs far more than the tokens it saves. */
+  /**
+   * Exactly the text `parseBatchWithLlm` would send for this page.
+   *
+   * The monitored-source checker fingerprints this rather than the raw bytes,
+   * so the gate and the parse agree by construction: if this string has not
+   * moved, the model would be asked the same question and would answer it the
+   * same way, and there is nothing to re-queue.
+   */
+  textForFingerprint(html: string): string {
+    return this.normalizeTextPreservingParagraphs(this.htmlToText(this.stripNavAndFooter(html)));
+  }
+
   private stripNavAndFooter(html: string): string {
     return html
       .replace(/<nav\b[\s\S]*?<\/nav>/gi, "")

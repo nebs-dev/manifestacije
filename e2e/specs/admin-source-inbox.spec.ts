@@ -89,14 +89,19 @@ test("@critical a check whose page changed but whose programme did not adds no r
   expect(await myRows(adminApi, label)).toHaveLength(1);
 
   // Same three events, different page bytes — a rotated banner, a visitor
-  // counter, a reordered sidebar. This was the common case in production.
+  // counter, a reordered sidebar. This was the common case in production: two
+  // checks of one cinema programme ten minutes apart were both 314 079 bytes
+  // with different hashes, and each queued all 34 events on it.
   await ai.willReturn(three.map((c) => c.candidate));
   await adminApi.put(`/api/admin/monitored-sources/${source.id}`, {
     data: { url: `${listingUrl(three)}&banner=${Date.now()}` },
   });
+  const callsBefore = await ai.callCount();
   await adminApi.post(`/api/admin/monitored-sources/${source.id}/run`, { data: {} });
 
   expect(await myRows(adminApi, label)).toHaveLength(1);
+  // And it cost nothing: the fingerprint settled it before the model was asked.
+  expect(await ai.callCount()).toBe(callsBefore);
 });
 
 test("@critical separate terms of one event all reach the editor", async ({ adminApi, ai }) => {

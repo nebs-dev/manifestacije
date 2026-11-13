@@ -2,19 +2,39 @@ import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { createHash } from "node:crypto";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { DiscoveredItemStatus, EventSourceType, MonitoredSourceCheckStatus, MonitoredSourceType } from "@prisma/client";
+import { DiscoveredEvent, DiscoveredItemStatus, EventSourceType, MonitoredSourceCheckStatus, MonitoredSourceType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
 import { imageIsReachable, politeFetch } from "./source-fetch";
 import { lookupVenueGeo } from "../common/croatia-geo";
+import { zagrebDateKey } from "../common/zagreb-time";
 import { normalizeUrl } from "./url-normalize";
-import { decideDiscovery, discoveryContentHash, discoveryIdentityKey, discoveryScope, discoveryTitleKey } from "./discovery-identity";
+import { decideDiscovery, discoveryScope, discoveryTitleKey, stampCandidates } from "./discovery-identity";
+import { contentFingerprint } from "./content-fingerprint";
 
 /** Two names for the same place, allowing for casing and diacritics. */
 const squashedEqual = (a: string | null | undefined, b: string | null | undefined) =>
   discoveryTitleKey(a) === discoveryTitleKey(b);
+
+/**
+ * "This event, at this exact time, in this town, from this site" — the handle
+ * used to carry an editor's decision across a change in how identity keys are
+ * built.
+ *
+ * The term is matched exactly, not by day. Matching by day looked tempting
+ * and is wrong: a cinema shows the same film twice in an evening, so a
+ * decision taken on the 18:00 screening would silently swallow the 20:00 one,
+ * and a source that moves an event by an hour would never be able to tell
+ * anybody. Exact-term matching bridges the only difference this is meant to
+ * bridge — the shape of the key — and nothing else.
+ */
+const termIdentity = (scope: string, titleKey: string, city: string | null | undefined, startsAt: string | null | undefined) => {
+  const instant = startsAt ? new Date(startsAt) : null;
+  const term = instant && Number.isFinite(instant.getTime()) ? instant.toISOString() : "";
+  return `${scope}|${titleKey}|${discoveryTitleKey(city)}|${term}`;
+};
 import { CreateMonitoredSourceDto, UpdateMonitoredSourceDto } from "./monitored-sources.dto";
 
 const MAX_CONSECUTIVE_FAILURES_BEFORE_DISABLE = 10;
@@ -36,6 +56,12 @@ const MAX_AJAX_PAGES = 5;
 // Caps geocoder lookups per check. Distinct venues per listing are far fewer
 // than candidates (the same hall hosts many events), so this is generous.
 const MAX_GEOCODE_LOOKUPS = 25;
+// How long a source may go without a full parse while its fingerprint keeps
+// matching. The fingerprint reads the listing only, so a change made on a
+// linked detail page is invisible to it; this bounds how long such a change
+// can stay hidden. Checks are daily at the default interval, so this is one
+// full parse a week for a page that never changes.
+const FULL_PARSE_AFTER_DAYS = 7;
 
 const STOPWORDS = new Set([
   "za", "od", "do", "na", "sa", "iz", "kod", "pod", "nad", "pri", "bez",
@@ -195,9 +221,22 @@ export class MonitoredSourcesService {
 
       const html = await this.collectHtml(source.url, result.body);
       const contentHash = sha256(html);
-      if (contentHash === source.contentHash) {
-        await this.recordSuccess(source.id, { status: "UNCHANGED", httpStatus: result.httpStatus, etag: result.etag, lastModified: result.lastModified, contentHash });
-        await this.prisma.ingestionJob.update({ where: { id: job.id }, data: { status: "DONE", result: { outcome: "unchanged" } } });
+      const fingerprint = this.fingerprintOf(source.url, html);
+
+      // A fingerprint over the page's readable content, its event links and
+      // its structured payloads, rather than over the raw bytes. Two fetches
+      // of the same cinema programme ten minutes apart differed only in a
+      // nonce, which the byte hash read as "changed" and which cost a full
+      // re-parse and 34 duplicate review cards, twice.
+      //
+      // The staleness floor is the price of that: a change made only on a
+      // detail page moves nothing on the listing, so a source is parsed in
+      // full at least every FULL_PARSE_AFTER_DAYS days regardless.
+      const stale = !source.lastFullParseAt
+        || Date.now() - source.lastFullParseAt.getTime() > FULL_PARSE_AFTER_DAYS * 86_400_000;
+      if (fingerprint === source.contentFingerprint && !stale) {
+        await this.recordSuccess(source.id, { status: "UNCHANGED", httpStatus: result.httpStatus, etag: result.etag, lastModified: result.lastModified, contentHash, fingerprint });
+        await this.prisma.ingestionJob.update({ where: { id: job.id }, data: { status: "DONE", result: { outcome: "unchanged", reason: "fingerprint" } } });
         return;
       }
 
@@ -205,7 +244,7 @@ export class MonitoredSourcesService {
         ? await this.processListingPage(source, html)
         : await this.processEventPage(source, html);
 
-      await this.recordSuccess(source.id, { status: "OK", httpStatus: result.httpStatus, etag: result.etag, lastModified: result.lastModified, contentHash });
+      await this.recordSuccess(source.id, { status: "OK", httpStatus: result.httpStatus, etag: result.etag, lastModified: result.lastModified, contentHash, fingerprint, fullParse: true });
       await this.prisma.ingestionJob.update({ where: { id: job.id }, data: { status: "DONE", result: outcome } });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -348,6 +387,13 @@ export class MonitoredSourcesService {
       }
     }
 
+    // Identity and change-detection are stamped HERE, on the extraction, and
+    // never recomputed. Everything below this line fetches over the network,
+    // is capped, and merges what it gets back into the candidate — so letting
+    // any of it influence identity is what made two checks of one unchanged
+    // page queue all 34 events twice.
+    parsed = { ...parsed, candidates: stampCandidates(parsed.candidates, parsed.sourceUrl || source.url) };
+
     // A summary/calendar listing often gives only a title + rough date —
     // the real description/image/precise date usually live on that event's
     // own article page. Match thin candidates to a same-page link by title
@@ -403,20 +449,94 @@ export class MonitoredSourcesService {
    * and is queued every time, because over-queueing costs a click and a wrong
    * merge loses an event.
    */
+  /**
+   * The fingerprint of a fetched page, built from what the parser reads.
+   *
+   * Kept next to the check so the listing path and the event-page path cannot
+   * drift apart: both gate on exactly the text, links and structured payloads
+   * that decide what candidates come out.
+   */
+  private fingerprintOf(sourceUrl: string, html: string): string {
+    const text = this.parser.textForFingerprint(html);
+    const links = this.parser.extractEventSubLinks(html, sourceUrl);
+    return contentFingerprint({ text, links, html, baseUrl: sourceUrl });
+  }
+
+  /**
+   * Decided identities for the days this extraction covers, indexed by what
+   * the event is rather than by its key.
+   *
+   * Only `importedEventId`/`ignoredAt` rows are loaded: this exists to keep
+   * an editor's decision working across a change in how keys are built, not
+   * to deduplicate on a looser rule than the key itself.
+   */
+  private async decidedByDay(scope: string, assessed: { titleKey: string; candidate: { city?: string; startsAt?: string } }[]) {
+    const titleKeys = [...new Set(assessed.map((item) => item.titleKey).filter(Boolean))];
+    if (!titleKeys.length) return new Map<string, DiscoveredEvent>();
+
+    const rows = await this.prisma.discoveredEvent.findMany({
+      where: {
+        sourceScope: scope,
+        titleKey: { in: titleKeys },
+        OR: [{ importedEventId: { not: null } }, { ignoredAt: { not: null } }],
+      },
+      take: 500,
+    });
+
+    const index = new Map<string, DiscoveredEvent>();
+    for (const row of rows) {
+      const key = termIdentity(scope, row.titleKey, row.cityName, row.startsAt?.toISOString());
+      // An imported decision outranks an ignored one for the same term: the
+      // event exists on the site, so "already published" is the truer answer.
+      const held = index.get(key);
+      if (!held || (!held.importedEventId && row.importedEventId)) index.set(key, row);
+    }
+    return index;
+  }
+
   private async triageByIdentity(source: { id: number; url: string }, parsed: ParsedSourceResult) {
     const scope = discoveryScope(source.url);
-    const assessed = parsed.candidates.map((candidate) => ({
-      candidate,
-      identityKey: discoveryIdentityKey(candidate, parsed.sourceUrl || source.url, scope),
-      titleKey: discoveryTitleKey(candidate.title),
-      contentHash: discoveryContentHash(candidate),
-    }));
+    // Read off the stamp rather than recomputed: by the time triage runs, the
+    // candidate has been through enrichment, geocoding and image verification,
+    // and its startsAt, venueName, sourceUrl and imageUrl may all have moved.
+    // `stampCandidates` is called on the extraction, before any of that.
+    const assessed = parsed.candidates.map((candidate) => {
+      const stamped = candidate as typeof candidate & { _discoveryKey?: string; _discoveryHash?: string };
+      if (stamped._discoveryHash === undefined) {
+        throw new Error("Candidate reached triage without an identity stamp — stampCandidates must run on the extraction");
+      }
+      return {
+        candidate,
+        identityKey: stamped._discoveryKey ?? null,
+        titleKey: discoveryTitleKey(candidate.title),
+        contentHash: stamped._discoveryHash,
+      };
+    });
 
     const keys = assessed.map((item) => item.identityKey).filter((key): key is string => key !== null);
+    // Keys are computed from the extraction; the 1 260 identities seeded from
+    // the historical backlog were computed from candidates that had already
+    // been through enrichment, so some of them carry a different key for the
+    // same event. Where that happens the key lookup misses and the event
+    // would be offered again — including the 43 an editor has published and
+    // the 69 they rejected.
+    //
+    // So a decided identity is also findable by what it is rather than by its
+    // key: same host, same title, same city, same day. Deliberately limited
+    // to decided rows — an undecided one being offered once more costs a
+    // click, while re-offering a rejected event wastes the decision.
+    const decidedFallbacks = await this.decidedByDay(scope, assessed);
     const records = keys.length
       ? await this.prisma.discoveredEvent.findMany({ where: { identityKey: { in: keys } } })
       : [];
     const byKey = new Map(records.map((record) => [record.identityKey, record]));
+    for (const item of assessed) {
+      if (!item.identityKey || byKey.has(item.identityKey)) continue;
+      const fallback = decidedFallbacks.get(termIdentity(scope, item.titleKey, item.candidate.city, item.candidate.startsAt));
+      // Adopt the decision under the key this run computed, so the next check
+      // finds it directly and the fallback is needed once, not forever.
+      if (fallback) byKey.set(item.identityKey, { ...fallback, identityKey: item.identityKey, contentHash: item.contentHash });
+    }
 
     // A record pointing at a review row that has since been deleted must not
     // keep its event out of the queue — nobody ever decided on it.
@@ -585,8 +705,15 @@ export class MonitoredSourcesService {
       include: { linkedEventSource: true },
     });
 
-    const detailParsed = this.parser.extractJsonLdEvents(html, source.url)
+    const extracted = this.parser.extractJsonLdEvents(html, source.url)
       ?? await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url });
+    // Same rule as the listing path: stamp the extraction, then let the
+    // network-dependent stages below improve the card without being able to
+    // change what event it is.
+    const detailParsed: ParsedSourceResult = {
+      ...extracted,
+      candidates: stampCandidates(extracted.candidates, extracted.sourceUrl || source.url),
+    };
     const parsed = await flagAlreadyImported(
       this.prisma,
       this.duplicates,
@@ -965,7 +1092,16 @@ export class MonitoredSourcesService {
 
   private async recordSuccess(
     id: number,
-    opts: { status: MonitoredSourceCheckStatus; httpStatus?: number; etag?: string | null; lastModified?: string | null; contentHash?: string },
+    opts: {
+      status: MonitoredSourceCheckStatus;
+      httpStatus?: number;
+      etag?: string | null;
+      lastModified?: string | null;
+      contentHash?: string;
+      fingerprint?: string;
+      /** Set only when the page was actually parsed, which resets the staleness floor. */
+      fullParse?: boolean;
+    },
   ) {
     const now = new Date();
     const source = await this.prisma.monitoredSource.findUniqueOrThrow({ where: { id } });
@@ -978,6 +1114,8 @@ export class MonitoredSourcesService {
         lastHttpStatus: opts.httpStatus,
         etag: opts.etag ?? source.etag,
         lastModified: opts.lastModified ?? source.lastModified,
+        contentFingerprint: opts.fingerprint ?? source.contentFingerprint,
+        lastFullParseAt: opts.fullParse ? now : source.lastFullParseAt,
         contentHash: opts.contentHash ?? source.contentHash,
         consecutiveFailures: 0,
         lastError: null,

@@ -191,12 +191,21 @@ describe("discoveryContentHash", () => {
     expect(discoveryContentHash(two)).not.toBe(discoveryContentHash(one));
   });
 
-  it("changes when the venue, the price or the poster changes", () => {
+  it("changes when the venue or the price changes", () => {
     const base = discoveryContentHash(candidate());
 
     expect(discoveryContentHash(candidate({ venueName: "Dvorana Franjo Krežma" }))).not.toBe(base);
     expect(discoveryContentHash(candidate({ priceText: "20 €" }))).not.toBe(base);
-    expect(discoveryContentHash(candidate({ imageUrl: "https://cdn.example/poster.jpg" }))).not.toBe(base);
+  });
+
+  it("ignores the description and the poster, which are prose and pictures, not facts", () => {
+    // Both are written or resolved downstream and neither changes what the
+    // event is. Counting them re-queued events editors had already published
+    // every time the model reworded a sentence.
+    const base = discoveryContentHash(candidate());
+
+    expect(discoveryContentHash(candidate({ description: "Posve drukčiji opis iste predstave." }))).toBe(base);
+    expect(discoveryContentHash(candidate({ imageUrl: "https://cdn.example/poster.jpg" }))).toBe(base);
   });
 
   it("does not change when only whitespace in the description moves", () => {
@@ -236,8 +245,21 @@ describe("decideDiscovery", () => {
     expect(decideDiscovery("k", "h", record({ ignoredAt: new Date() }), live)).toEqual({ action: "skip", reason: "ignored" });
   });
 
-  it("queues again when the source changed the event", () => {
-    expect(decideDiscovery("k", "h2", record(), live)).toEqual({ action: "queue", reason: "changed" });
+  it("does not re-queue an event an editor has not judged yet, however the content moved", () => {
+    // The card is already in front of them. Adding a second one for the same
+    // event is precisely the duplicate this mechanism exists to prevent, and
+    // testing the hash before this was the defect that shipped in PR #4.
+    expect(decideDiscovery("k", "h2", record(), live)).toEqual({ action: "skip", reason: "unchanged" });
+  });
+
+  it("queues again when the source changed an event whose card is gone and was never judged", () => {
+    expect(decideDiscovery("k", "h2", record({ lastEventSourceId: 999 }), live))
+      .toEqual({ action: "queue", reason: "changed" });
+  });
+
+  it("queues again when the source changed an event an editor had rejected", () => {
+    expect(decideDiscovery("k", "h2", record({ ignoredAt: new Date() }), live))
+      .toEqual({ action: "queue", reason: "changed" });
   });
 
   it("tells a changed-after-publishing event apart, so the card can say 'edit #55' not 'create'", () => {
