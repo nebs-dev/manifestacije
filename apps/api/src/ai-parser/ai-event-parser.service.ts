@@ -3,7 +3,22 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseZagrebWallTime, zagrebDateKey } from "../common/zagreb-time";
 import { isTimeRange, sourceDates, sourceTimes } from "./date-evidence";
 import { safeFetch } from "../common/ssrf";
+import { MAX_WINDOWS, selectListingWindows, type WindowSelection } from "./listing-windows";
+// Pure identity helpers, no Nest provider behind them: the window merge has to
+// agree with the deduplication downstream, and the only way to guarantee that
+// is to use the same function.
+import { discoveryIdentityKey, discoveryTitleKey } from "../monitored-sources/discovery-identity";
 import type { ImageBlockParam, TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
+
+/** What one listing read cost and recovered, for the run log. */
+export type ListingParseStats = {
+  windowsTotal: number;
+  windowsParsed: number;
+  charsRead: number;
+  charsRecovered: number;
+  reason: WindowSelection["reason"];
+  mergedDuplicates: number;
+};
 
 export type ParsedEventCandidate = {
   title: string;
@@ -571,6 +586,11 @@ export class AiEventParserService {
     /** Editor-supplied corrections and additions (EVT-08); take precedence over the source. */
     supplementText?: string;
     contextHint?: string;
+    /** Page text already extracted and chosen by the caller — one window of a
+     *  long listing (see `parseListingWithLlm`). It replaces the html→text
+     *  step and the blind prefix cut, and `rawHtml` may still be passed
+     *  alongside it purely for the page's fallback image. */
+    preparedText?: string;
   }): Promise<ParsedSourceResult> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -595,11 +615,13 @@ export class AiEventParserService {
     }
 
     const htmlImageUrl = input.rawHtml ? this.extractHtmlImage(input.rawHtml, sourceUrl) : "";
-    const htmlText = input.rawHtml ? this.htmlToText(this.stripNavAndFooter(input.rawHtml)) : "";
-    const combined = [htmlText, input.rawText ?? ""].filter(Boolean).join("\n\n---\n\n");
+    const htmlText = input.preparedText || !input.rawHtml ? "" : this.htmlToText(this.stripNavAndFooter(input.rawHtml));
+    const combined = [input.preparedText ?? "", htmlText, input.rawText ?? ""].filter(Boolean).join("\n\n---\n\n");
     const text = this.normalizeTextPreservingParagraphs(combined);
     const isScreenshot = images.length > 0;
-    const charLimit = isScreenshot ? 12000 : 24000;
+    // A window the caller chose is already within budget; cutting it again here
+    // would reintroduce the blind truncation it exists to avoid.
+    const charLimit = isScreenshot ? 12000 : input.preparedText ? text.length : 24000;
     const truncated = text.length > charLimit ? text.slice(0, charLimit) + "\n[sadržaj skraćen]" : text;
 
     const eventSchema = `{
@@ -896,6 +918,112 @@ Iz listinga izvuci SVE događaje koje možeš identificirati (do 50). Ne preska�
       sourceType: "single",
       candidates: [{ ...normalize(rawParsed as Partial<ParsedEventCandidate>), _status: "pending" }],
     };
+  }
+
+  /**
+   * Read a listing page, including the parts that do not fit in one model call.
+   *
+   * The page text is cut into windows on its own paragraph boundaries and only
+   * the windows that still state upcoming dates are parsed — at most
+   * `MAX_WINDOWS` of them. A page that fits in one window takes exactly one
+   * call and behaves as it always did, so nothing short gets more expensive.
+   *
+   * Candidates from several windows are merged on the same identity rule the
+   * deduplication uses later, so an event that appears in two windows (a
+   * boundary, or a long-running exhibition repeated under every day of a month
+   * calendar) arrives once.
+   */
+  async parseListingWithLlm(input: {
+    rawHtml: string;
+    sourceUrl: string;
+    maxWindows?: number;
+    now?: Date;
+  }): Promise<{ result: ParsedSourceResult; stats: ListingParseStats }> {
+    const text = this.textForFingerprint(input.rawHtml);
+    const selection = selectListingWindows({
+      text,
+      maxWindows: input.maxWindows ?? MAX_WINDOWS,
+      now: input.now,
+    });
+
+    const groups: ParsedEventCandidate[][] = [];
+    for (const window of selection.windows) {
+      const parsed = await this.parseBatchWithLlm({
+        preparedText: window.text,
+        rawHtml: input.rawHtml,
+        sourceUrl: input.sourceUrl,
+      });
+      groups.push(parsed.candidates);
+    }
+
+    const { candidates, merged } = this.mergeWindowCandidates(groups, input.sourceUrl);
+    return {
+      result: {
+        sourceUrl: input.sourceUrl,
+        sourceType: candidates.length > 1 ? "batch" : "single",
+        candidates,
+      },
+      stats: {
+        windowsTotal: selection.total,
+        windowsParsed: selection.windows.length,
+        charsRead: selection.windows.reduce((sum, w) => sum + w.text.length, 0),
+        charsRecovered: selection.recovered,
+        reason: selection.reason,
+        mergedDuplicates: merged,
+      },
+    };
+  }
+
+  /**
+   * One candidate per event across all windows.
+   *
+   * Keyed on `discoveryIdentityKey` — the same rule that decides what reaches
+   * the review queue — so this step can never disagree with the deduplication
+   * downstream of it. A candidate the identity rule declines to key (no date,
+   * or no title) falls back to title plus venue, which within a single page
+   * read is the repeated-listing case and not two different events.
+   *
+   * Where two windows describe one event, the fuller reading wins outright
+   * rather than being spliced field by field: a merged candidate could pair one
+   * window's date with another's time and state a term neither window does.
+   */
+  private mergeWindowCandidates(
+    groups: ParsedEventCandidate[][],
+    sourceUrl: string,
+  ): { candidates: ParsedEventCandidate[]; merged: number } {
+    const filled = (candidate: ParsedEventCandidate) =>
+      [candidate.startsAt, candidate.venueName, candidate.address, candidate.city,
+        candidate.priceText, candidate.ticketUrl, candidate.imageUrl, candidate.description]
+        .filter((value) => typeof value === "string" && value.trim().length > 0).length;
+
+    const order: string[] = [];
+    const byKey = new Map<string, ParsedEventCandidate>();
+    let merged = 0;
+
+    for (const group of groups) {
+      for (const candidate of group) {
+        const key = discoveryIdentityKey(candidate, sourceUrl)
+          ?? `fallback|${discoveryTitleKey(candidate.title)}|${discoveryTitleKey(candidate.venueName)}`;
+        // Nothing to key on at all: keep it, because an unidentifiable
+        // candidate is still an event an editor may want, and collapsing them
+        // together would merge every untitled row on the page into one.
+        if (key === "fallback||") {
+          order.push(`unkeyed|${order.length}`);
+          byKey.set(order[order.length - 1], candidate);
+          continue;
+        }
+        const existing = byKey.get(key);
+        if (!existing) {
+          order.push(key);
+          byKey.set(key, candidate);
+          continue;
+        }
+        merged++;
+        if (filled(candidate) > filled(existing)) byKey.set(key, candidate);
+      }
+    }
+
+    return { candidates: order.map((key) => byKey.get(key)!), merged };
   }
 
   /** A listing with many events can run the model out of output tokens

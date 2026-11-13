@@ -4,7 +4,7 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { DiscoveredEvent, DiscoveredItemStatus, EventSourceType, MonitoredSourceCheckStatus, MonitoredSourceType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { AiEventParserService, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
+import { AiEventParserService, ListingParseStats, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { DuplicatesService } from "../duplicates/duplicates.service";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
 import { imageIsReachable, politeFetch } from "./source-fetch";
@@ -377,9 +377,19 @@ export class MonitoredSourcesService {
     // render nothing scrapeable, and schema.org markup states the same facts
     // structurally — either beats anything an LLM can recover from the
     // rendered shell, and costs no LLM call.
+    // The page's own structured data costs no model call and states the facts
+    // the model would otherwise have to re-derive, so it still goes first. Only
+    // when neither is present does the text get read, and then by window: a
+    // long listing does not fit in one call, and a blind prefix of it read the
+    // wrong third of a month calendar (see `listing-windows.ts`).
+    let listing: ListingParseStats | null = null;
     let parsed = this.parser.extractEmbeddedEvents(html, source.url)
-      ?? this.parser.extractJsonLdEvents(html, source.url)
-      ?? await this.parser.parseBatchWithLlm({ rawHtml: html, sourceUrl: source.url });
+      ?? this.parser.extractJsonLdEvents(html, source.url);
+    if (!parsed) {
+      const read = await this.parser.parseListingWithLlm({ rawHtml: html, sourceUrl: source.url });
+      parsed = read.result;
+      listing = read.stats;
+    }
     if (parsed.candidates.length === 0 && normalized.length >= 3) {
       const crawl = await this.parser.crawlListingSubPages(html, source.url);
       if (crawl.subTexts.length > 0) {
@@ -435,6 +445,9 @@ export class MonitoredSourcesService {
       candidatesSkipped: parsed.candidates.length - triage.queued.candidates.length,
       skipReasons: triage.skipReasons,
       eventSourceId: eventSource?.id,
+      // Null whenever the page's own structured data answered and no model
+      // call was needed at all.
+      listing,
     };
   }
 
@@ -804,15 +817,24 @@ export class MonitoredSourcesService {
     // only lacks a street address is already reviewable, and addresses are
     // the field detail pages most often don't carry anyway — enriching those
     // first would spend the whole budget for nothing.
+    // A candidate with no date at all goes first within that budget. It is the
+    // one kind the deduplication cannot key, so it is re-queued on every
+    // single check until something gives it a date — and on a month-calendar
+    // listing, where the day is a bare "8." heading and never part of the
+    // entry, that is most of the page. The date is on the detail page, so
+    // spending the first fetches there turns recurring inbox noise into real
+    // events, at no extra cost: the cap and the fetch count are unchanged.
+    const missingDate: number[] = [];
     const missingCore: number[] = [];
     const missingAddressOnly: number[] = [];
     candidates.forEach((candidate, i) => {
       const hasRealImage = candidate.imageUrl && !this.isGenericImage(candidate.imageUrl);
-      if (!hasRealImage || !candidate.startsAt || !candidate.description) missingCore.push(i);
+      if (!candidate.startsAt) missingDate.push(i);
+      else if (!hasRealImage || !candidate.description) missingCore.push(i);
       else if (!candidate.address) missingAddressOnly.push(i);
     });
 
-    for (const i of [...missingCore, ...missingAddressOnly]) {
+    for (const i of [...missingDate, ...missingCore, ...missingAddressOnly]) {
       if (fetched >= MAX_ENRICH_FETCHES) break;
       const candidate = candidates[i];
       const hasRealImage = candidate.imageUrl && !this.isGenericImage(candidate.imageUrl);
