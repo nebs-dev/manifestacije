@@ -490,6 +490,14 @@ describe("listing re-check deduplication", () => {
       extractEmbeddedEvents: () => null,
       extractJsonLdEvents: () => null,
       parseBatchWithLlm: async () => ({ sourceUrl: LISTING, sourceType: "batch", candidates: candidates() }),
+      // The listing read goes through the window selection in the real parser;
+      // here the page is a stub string, so there is exactly one window and the
+      // stats say so. These tests are about what reaches the queue, not about
+      // how the page was cut up.
+      parseListingWithLlm: async () => ({
+        result: { sourceUrl: LISTING, sourceType: "batch", candidates: candidates() },
+        stats: { windowsTotal: 1, windowsParsed: 1, charsRead: 0, charsRecovered: 0, reason: "fits", mergedDuplicates: 0 },
+      }),
       crawlListingSubPages: async () => ({ subTexts: [], totalFound: 0, fetched: 0 }),
     };
   }

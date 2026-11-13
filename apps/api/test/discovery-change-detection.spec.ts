@@ -168,6 +168,20 @@ describe("a monitored source check, end to end", () => {
         modelCalls += 1;
         return { sourceUrl: LISTING, sourceType: "batch" as const, candidates: candidates() };
       },
+      // Routed through the same counter on purpose: the point of these tests is
+      // how many model calls a re-check costs, and the listing read is where
+      // those calls are now made. The fixture pages are short, so the real
+      // selection would give exactly one window for each of them.
+      parseListingWithLlm: async () => {
+        modelCalls += 1;
+        return {
+          result: { sourceUrl: LISTING, sourceType: "batch" as const, candidates: candidates() },
+          stats: {
+            windowsTotal: 1, windowsParsed: 1, charsRead: 0, charsRecovered: 0,
+            reason: "fits" as const, mergedDuplicates: 0,
+          },
+        };
+      },
     };
 
     fetchMock.mockImplementation(async () => ({

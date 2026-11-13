@@ -125,6 +125,47 @@ const server = createServer(async (req, res) => {
     return res.end(html);
   }
 
+  /**
+   * A long month-calendar listing, shaped like the page the fix was measured
+   * on: entries printed oldest day first, each one carrying a teaser, so the
+   * page runs well past what one model call is given and its upcoming events
+   * sit at the far end. `?past=` and `?upcoming=` are day counts, `?tag=`
+   * changes the bytes without changing the programme.
+   */
+  if (req.method === "GET" && url.pathname === "/fixture/calendar-page") {
+    const clamp = (value, max) => Math.max(0, Math.min(Number(value) || 0, max));
+    const past = clamp(url.searchParams.get("past") ?? 90, 400);
+    const upcoming = clamp(url.searchParams.get("upcoming") ?? 40, 400);
+    const tag = escapeHtml((url.searchParams.get("tag") ?? "").slice(0, 40));
+    const GENITIVE = ["siječnja", "veljače", "ožujka", "travnja", "svibnja", "lipnja",
+      "srpnja", "kolovoza", "rujna", "listopada", "studenoga", "prosinca"];
+    const dayOf = (offset) => new Date(Date.now() + offset * 86_400_000);
+    const numeric = (d) => `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}.`;
+    const written = (d) => `${d.getDate()}. ${GENITIVE[d.getMonth()]} ${d.getFullYear()}.`;
+    // One long-running event, dated once and repeated under every day exactly
+    // as the measured page repeats its permanent exhibition. Every window
+    // therefore carries this date, which is what lets a stubbed reply about it
+    // be quoted from whichever window the model was handed.
+    const running = dayOf(upcoming + 1);
+    const day = (offset, index) => {
+      const date = dayOf(offset);
+      const filler = "Program počinje u dvorani i traje do večeri. ".repeat(6);
+      return `<section><h3>${index}.</h3>`
+        + `<p>E2E trajna izložba<br>Datum: ${written(running)}<br>Vrijeme: 19:00</p>`
+        + `<p>Opis dana ${index}. ${filler}</p>`
+        + `<p>Program dana ${index}<br>${numeric(date)} (${written(date)}) u 20:00</p>`
+        + `<p>Nastavak opisa ${index}. ${filler}</p></section>`;
+    };
+    const days = [
+      ...Array.from({ length: past }, (_, i) => day(-(past - i), i + 1)),
+      ...Array.from({ length: upcoming }, (_, i) => day(i + 1, past + i + 1)),
+    ].join("");
+    const html = `<!doctype html><html lang="hr"><head><meta charset="utf-8"><title>E2E kalendar</title></head>`
+      + `<body><main><h1>Svi događaji — E2E grad</h1>${tag ? `<p>${tag}</p>` : ""}${days}</main></body></html>`;
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Content-Length": Buffer.byteLength(html) });
+    return res.end(html);
+  }
+
   /** The detail page the listing above links to. */
   if (req.method === "GET" && url.pathname.startsWith("/fixture/event/")) {
     const slug = safeSlug(decodeURIComponent(url.pathname.slice("/fixture/event/".length)));
