@@ -56,37 +56,20 @@ test("source → parse → review → correct → publish", async ({ adminPage: 
 
   journey.step("Open the source");
   await journey.click(page.getByRole("link", { name: title }).first());
-  await page.getByRole("heading", { name: "Parsirani kandidati" }).waitFor();
-  await journey.shot("source-review-collapsed");
-  journey.find(
-    "clicks",
-    "/admin/sources/[id]",
-    "Every candidate arrives collapsed to a one-line summary; its fields and its Kreiraj/Ignoriraj buttons do not exist until it is expanded — one extra click per candidate, before any work."
-  );
+  await page.getByTestId("candidate-rail").waitFor();
+  await journey.shot("source-review");
   const foldOffset = await page.evaluate(() => {
-    const heading = [...document.querySelectorAll("h2")].find((h) => h.textContent?.includes("Parsirani kandidati"));
-    return heading ? Math.round(heading.getBoundingClientRect().top) : -1;
+    const rail = document.querySelector("[data-testid='candidate-rail']");
+    return rail ? Math.round(rail.getBoundingClientRect().top) : -1;
   });
   journey.find(
     "clicks",
     "/admin/sources/[id]",
-    `The work starts ${foldOffset}px down a 900px viewport: the source summary and the full "Dopuni i ponovno parsiraj" panel (a textarea plus a four-image dropzone) sit above "Parsirani kandidati", so every visit begins by scrolling past tools that are rarely used.`
-  );
-  journey.find(
-    "memory",
-    "/admin/sources/[id]",
-    "The source's own text is behind a collapsed 'Neobrađeni tekst izvora' panel, so checking a parsed date against the source means opening it, reading, and holding the date in mind while scrolling back to the candidate."
+    `The work starts ${foldOffset}px down a 900px viewport: the first undecided candidate is open on arrival, with the other candidates in a rail beside it and the source's own text in a third column.`
   );
   journey.end();
 
-  journey.step("Expand the first candidate");
-  // The second candidate's name contains the first one's title, so the plain
-  // title is ambiguous; exclude the one marked "(drugi termin)".
-  const cardSummary = page
-    .getByRole("button", { name: new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })
-    .filter({ hasNotText: "drugi termin" })
-    .first();
-  await journey.click(cardSummary);
+  journey.step("Work the first candidate");
   const footer = page.getByRole("button", { name: "Kreiraj i objavi" }).first();
   await footer.waitFor();
   // The card that actually holds the expanded candidate is the one carrying
@@ -263,13 +246,12 @@ test("@phone the editorial screens on a phone", async ({ adminPage: page, ai }) 
   await journey.click(manual.getByRole("button", { name: "Kreiraj izvor" }));
   await page.getByRole("link", { name: /Audit mobilni/ }).first().waitFor({ timeout: 60_000 });
   await journey.click(page.getByRole("link", { name: /Audit mobilni/ }).first());
-  await page.getByRole("heading", { name: "Parsirani kandidati" }).waitFor();
-  await journey.click(page.getByRole("button", { name: /Audit mobilni/ }).first());
-  await journey.shot("phone-candidate-expanded");
+  await page.getByTestId("candidate-rail").waitFor();
+  await journey.shot("phone-candidate");
   journey.find(
     "mobile",
     "candidate card on a phone",
-    "An expanded candidate is a long single column; the Kreiraj/Ignoriraj footer is at the very bottom, so acting on it means scrolling the whole card each time."
+    "On a phone the rail, the editor and the source stack into one column; the Kreiraj/Ignoriraj footer is still at the bottom of the open candidate, so acting on it means scrolling its length."
   );
   journey.end();
 });

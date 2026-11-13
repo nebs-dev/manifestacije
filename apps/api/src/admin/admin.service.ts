@@ -47,6 +47,15 @@ export type AdminEventListParams = {
   fieldFilters?: string;
 };
 
+/** Characters of derived source text the review screen is given. One screenful
+ *  of a long listing is plenty for checking a date against the source, and the
+ *  link to the page is on the panel beside it. */
+const DERIVED_TEXT_LIMIT = 20_000;
+
+/** Markup beyond this is not read. `politeFetch` caps a fetch at 5 MB, so this
+ *  only bites on the largest pages and only costs their tail. */
+const DERIVED_HTML_LIMIT = 2_000_000;
+
 /** Filters for the editorial source inbox — see `eventSourceListWhere`. */
 export type AdminEventSourceListParams = {
   page?: string;
@@ -686,8 +695,43 @@ export class AdminService {
     return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
+  /**
+   * One source, with text the review screen can actually show.
+   *
+   * A monitored-source check stores the page it fetched in `rawHtml` and never
+   * fills `rawText` — so on exactly the rows the editorial inbox exists for,
+   * the panel that compares the AI's reading against the source had nothing to
+   * compare against. The text is derived here, from markup already on the row,
+   * with the same extractor the parser itself reads with, so what an editor
+   * sees is what the model saw. Nothing is written, so this works for rows
+   * that already exist and needs no migration.
+   *
+   * `rawHtml` itself is left out of the response: no client reads it, it is
+   * untrusted markup, and a discovery row carries hundreds of kilobytes of it.
+   */
   async getSource(id: number) {
-    return this.prisma.eventSource.findUnique({ where: { id }, include: { event: true, organizer: true } });
+    const source = await this.prisma.eventSource.findUnique({ where: { id }, include: { event: true, organizer: true } });
+    if (!source) return source;
+    const { rawHtml, ...rest } = source;
+    return { ...rest, rawText: rest.rawText || this.textFromStoredHtml(rawHtml) };
+  }
+
+  /** Readable text from stored markup, bounded at both ends. */
+  private textFromStoredHtml(rawHtml: string | null): string | null {
+    if (!rawHtml) return null;
+    let text: string;
+    try {
+      // The cap is on the markup, not the text: extraction walks the whole
+      // string, and a stored page is only bounded by the 5 MB fetch limit.
+      text = this.parser.textForFingerprint(rawHtml.slice(0, DERIVED_HTML_LIMIT)).trim();
+    } catch {
+      // Malformed stored markup must not take down the review screen.
+      return null;
+    }
+    if (!text) return null;
+    return text.length > DERIVED_TEXT_LIMIT
+      ? `${text.slice(0, DERIVED_TEXT_LIMIT)}\n\n[tekst skraćen — otvorite izvor za ostatak]`
+      : text;
   }
 
   updateEventSource(id: number, dto: UpdateEventSourceDto) {
@@ -1156,6 +1200,56 @@ export class AdminService {
         where: { id },
         data: { parsedJson: { ...result, candidates: updatedCandidates } as object, status: allDone ? "LINKED" : "PARSED" },
       });
+    });
+  }
+
+  /**
+   * Ignores several candidates of one source in a single transaction.
+   *
+   * The editor's reason for wanting this is a listing page that produced a
+   * dozen entries which are not events at all; doing it one request at a time
+   * leaves the row half-decided if one of them fails. The rules are the single
+   * candidate's rules, unchanged: a candidate that already has an event is
+   * refused rather than quietly skipped, every decision is carried back to
+   * `DiscoveredEvent` so the next check does not re-queue it, and the row
+   * becomes LINKED only when nothing undecided is left.
+   *
+   * There is deliberately no bulk *create*: publishing is the one decision
+   * that must stay one event at a time, in front of an editor.
+   */
+  async ignoreCandidates(id: number, candidateIndexes: number[]) {
+    const unique = [...new Set(candidateIndexes)].sort((a, b) => a - b);
+    if (unique.length === 0) throw new BadRequestException("Nije odabran nijedan kandidat.");
+
+    return this.prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT "id" FROM "EventSource" WHERE "id" = ${id} FOR UPDATE`;
+      const source = await db.eventSource.findUnique({ where: { id } });
+      if (!source?.parsedJson) throw new BadRequestException("Source has no parsed JSON");
+
+      const result = source.parsedJson as unknown as ParsedSourceResult;
+      if (!Array.isArray(result.candidates)) throw new BadRequestException("Source is not in batch format");
+
+      for (const index of unique) {
+        if (index < 0 || index >= result.candidates.length) throw new BadRequestException(`Invalid candidateIndex ${index}`);
+        if (result.candidates[index]._status === "created") {
+          throw new ConflictException(`Kandidat "${result.candidates[index].title || index}" već ima kreiran događaj.`);
+        }
+      }
+
+      const ignoredAt = new Date();
+      const chosen = new Set(unique);
+      const updatedCandidates = result.candidates.map((c, i) => (chosen.has(i) ? { ...c, _status: "ignored" as const } : c));
+      const allDone = updatedCandidates.every((c) => c._status === "created" || c._status === "ignored");
+
+      for (const index of unique) {
+        await this.recordDiscoveryDecision(db, result.candidates[index]._discoveryKey, { ignoredAt });
+      }
+
+      await db.eventSource.update({
+        where: { id },
+        data: { parsedJson: { ...result, candidates: updatedCandidates } as object, status: allDone ? "LINKED" : "PARSED" },
+      });
+      return { ignored: unique.length, candidateIndexes: unique };
     });
   }
 

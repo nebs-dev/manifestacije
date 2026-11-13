@@ -183,32 +183,25 @@ test("discovery to published: clicks for a six-candidate listing", async ({ admi
     "A discovery row is labelled by the source's hostname; the first event's title sits in a secondary line that is not part of the link, so the queue cannot be scanned by event name."
   );
   await journey.click(inboxRow.getByRole("link").first());
-  await page.getByRole("heading", { name: "Parsirani kandidati" }).waitFor({ timeout: 30_000 });
+  await page.getByTestId("candidate-rail").waitFor({ timeout: 30_000 });
   await journey.shot("discovery-review");
   journey.find(
     "memory",
     "/admin/sources/[id] (SCRAPE_DISCOVERY)",
-    "A discovery row stores rawHtml and no rawText, so the 'Neobrađeni tekst izvora' panel never renders: the only evidence on screen is the candidate card, and checking it against the source means opening the site in another tab."
+    "A discovery row stores rawHtml and no rawText; the source text shown beside the candidate is derived from that markup on read, so the comparison works on rows that were stored long before the panel existed."
   );
   journey.end();
 
-  // How much of the screen one candidate takes, and whether several can be
-  // acted on at once.
-  const firstSummary = page.getByRole("button", { name: new RegExp(`${label} 1`) });
-  await expect(firstSummary).toBeVisible();
-  const cardCheckboxes = await page.locator("[data-slot='card'] input[type='checkbox']").count();
-  const selectAll = await page.getByRole("checkbox", { name: /odaberi sve|sve/i }).count();
+  // Whether several candidates can be acted on at once.
+  const selectAll = await page.getByRole("checkbox", { name: /odaberi sve/i }).count();
   journey.find(
     "clicks",
     "/admin/sources/[id] (SCRAPE_DISCOVERY)",
-    `Candidates carry no selection control (${selectAll} select-all, ${cardCheckboxes} in-card checkboxes, all of which are category pickers): six candidates are six expand-and-publish cycles with no bulk action.`
+    `The rail carries ${selectAll} select-all control and a per-candidate checkbox, so a row of junk can be ignored in one confirmed action; creating events stays one at a time.`
   );
 
   journey.step("Publish all six candidates");
   for (let i = 1; i <= 6; i++) {
-    const summary = page.getByRole("button", { name: new RegExp(`${label} ${i}\\b`) }).first();
-    await summary.scrollIntoViewIfNeeded();
-    await journey.click(summary, i === 1 ? "one expand click per candidate before any field is visible" : undefined);
     const publish = page.getByRole("button", { name: "Kreiraj i objavi" }).first();
     await publish.scrollIntoViewIfNeeded();
     await journey.click(publish);

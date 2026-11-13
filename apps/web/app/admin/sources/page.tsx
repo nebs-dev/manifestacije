@@ -25,6 +25,7 @@ export default function SourcesPage() {
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
       if (filter.type) params.set("type", filter.type)
+      if (filter.status) params.set("status", filter.status)
       if (filter.actionable) params.set("actionable", "true")
       if (filter.unviewed) params.set("unviewed", "true")
       if (filter.q.trim()) params.set("q", filter.q.trim())

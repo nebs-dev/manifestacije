@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input"
 export type SourceFilter = {
   /** An EventSourceType, or "" for every kind. */
   type: "" | "SCRAPE_DISCOVERY" | "EMAIL" | "URL" | "MANUAL"
+  /** An EventSourceStatus, or "" for every status. */
+  status: "" | "NEW" | "PARSED" | "NEEDS_REVIEW" | "LINKED" | "FAILED"
   /** Only rows holding at least one candidate nobody has decided on. */
   actionable: boolean
   /** Only rows this admin has never opened. */
@@ -25,13 +27,29 @@ export type SourceFilter = {
   q: string
 }
 
-export const DEFAULT_SOURCE_FILTER: SourceFilter = { type: "", actionable: true, unviewed: false, q: "" }
+export const DEFAULT_SOURCE_FILTER: SourceFilter = { type: "", status: "", actionable: true, unviewed: false, q: "" }
 
 const TYPES: { value: SourceFilter["type"]; label: string }[] = [
   { value: "", label: "Svi tipovi" },
   { value: "SCRAPE_DISCOVERY", label: "Nadzirani izvori" },
   { value: "EMAIL", label: "E-mail / ručno" },
   { value: "URL", label: "Poveznice" },
+]
+
+/**
+ * Row status, which answers a different question from "is anything undecided":
+ * NEEDS_REVIEW is the parser saying it is unsure, FAILED is a check that did
+ * not finish. Both are worth going to directly, and neither was reachable
+ * without paging. The backend already filters on this column — see
+ * `eventSourceListWhere` — so this adds a control, not a second source of
+ * truth.
+ */
+const STATUSES: { value: SourceFilter["status"]; label: string }[] = [
+  { value: "", label: "Svi statusi" },
+  { value: "NEEDS_REVIEW", label: "Treba pregled" },
+  { value: "PARSED", label: "Obrađeno" },
+  { value: "NEW", label: "Novo" },
+  { value: "FAILED", label: "Neuspjelo" },
 ]
 
 function Chip({
@@ -71,6 +89,7 @@ export function SourceFilters({
 }) {
   const isDefault =
     value.type === DEFAULT_SOURCE_FILTER.type &&
+    value.status === DEFAULT_SOURCE_FILTER.status &&
     value.actionable === DEFAULT_SOURCE_FILTER.actionable &&
     value.unviewed === DEFAULT_SOURCE_FILTER.unviewed &&
     value.q === ""
@@ -87,6 +106,20 @@ export function SourceFilters({
             {option.label}
           </Chip>
         ))}
+
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+
+        <label className="sr-only" htmlFor="source-status-filter">Status izvora</label>
+        <select
+          id="source-status-filter"
+          value={value.status}
+          onChange={(event) => onChange({ ...value, status: event.target.value as SourceFilter["status"] })}
+          className="cursor-pointer rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+        >
+          {STATUSES.map((option) => (
+            <option key={option.value || "all"} value={option.value}>{option.label}</option>
+          ))}
+        </select>
 
         <span className="mx-1 h-5 w-px bg-border" aria-hidden />
 

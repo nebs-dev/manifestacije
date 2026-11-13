@@ -9,6 +9,21 @@ import { authedFetch } from "@/lib/admin/api"
 import { adaptEventSource, adaptEventSourceCandidates } from "@/lib/admin/adapters"
 import type { EventSource, ParsedCandidate } from "@/lib/admin/types"
 
+/**
+ * A heading an editor can read.
+ *
+ * A monitored source's subject is its URL, and a listing URL carrying an
+ * encoded page of text rendered as a four-line heading plus the same string in
+ * the breadcrumb — roughly 600px of chrome before the first candidate, on a
+ * screen whose whole point is to start with the work.
+ */
+function sourceHeading(source: EventSource): string {
+  const subject = source.subject?.trim() ?? ""
+  if (subject && !/^https?:\/\//i.test(subject) && !/^Source #\d+$/i.test(subject)) return subject
+  const url = source.sourceUrl || subject
+  try { return new URL(url).hostname.replace(/^www\./, "") } catch { return subject || "Izvor" }
+}
+
 export default function SourceDetailPage({
   params,
 }: {
@@ -46,15 +61,17 @@ export default function SourceDetailPage({
   if (loading) return <TableLoadingState />
   if (error || !source) return <ErrorState description={error} onRetry={load} />
 
+  const heading = sourceHeading(source)
+
   return (
     <>
       <PageHeader
-        title={source.subject}
+        title={heading}
         description="Pregled i obrada parsiranih kandidata."
         breadcrumbs={[
           { label: "Administracija", href: "/admin" },
           { label: "Izvori", href: "/admin/sources" },
-          { label: source.subject },
+          { label: heading },
         ]}
       />
       <SourceReview source={source} candidates={candidates} onReparse={load} />

@@ -32,14 +32,12 @@ test("@smoke @critical an editor parses a source, reviews the candidate and publ
   await expect(sourceLink).toBeVisible({ timeout: 30_000 });
   await sourceLink.click();
 
-  await expect(page.getByRole("heading", { name: "Parsirani kandidati" })).toBeVisible();
-
-  // Every candidate arrives collapsed into a summary button; its fields and its
-  // Kreiraj/Ignoriraj actions only exist once it is expanded. That extra click
-  // per candidate is friction #1 in the UX audit.
-  const summary = page.getByRole("button", { name: new RegExp(title) });
-  await expect(summary).toBeVisible();
-  await summary.click();
+  // The review screen opens on the work: the first undecided candidate is
+  // already open with its fields and its actions, beside the list of the rest
+  // and the source's own text. Nothing has to be expanded first.
+  await expect(page.getByTestId("candidate-rail")).toBeVisible();
+  await expect(page.getByTestId("source-evidence")).toBeVisible();
+  await expect(page.getByLabel("Naslov")).toHaveValue(title);
 
   await page.getByRole("button", { name: "Kreiraj i objavi" }).click();
   await confirmDuplicateIfOffered(page);
