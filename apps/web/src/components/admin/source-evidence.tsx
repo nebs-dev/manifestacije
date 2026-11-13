@@ -22,6 +22,23 @@ import type { EventSource } from "@/lib/admin/types"
  * the same reason: on a listing page the raw text is thousands of characters
  * and the editor wants the two lines about *this* event.
  */
+/** Lines around each hit, in source order, with gaps marked. */
+export function withContext(lines: string[], hits: number[], around = 3): string[] {
+  const keep = new Set<number>()
+  for (const hit of hits) {
+    for (let i = Math.max(0, hit - around); i <= Math.min(lines.length - 1, hit + around); i++) keep.add(i)
+  }
+  const ordered = [...keep].sort((a, b) => a - b)
+  const out: string[] = []
+  let previous = -1
+  for (const index of ordered) {
+    if (previous !== -1 && index > previous + 1) out.push("…")
+    out.push(lines[index])
+    previous = index
+  }
+  return out
+}
+
 export function SourceEvidence({ source, highlight }: { source: EventSource; highlight?: string }) {
   const [query, setQuery] = useState("")
   const images = source.sourceImageSrcs?.length
@@ -33,10 +50,13 @@ export function SourceEvidence({ source, highlight }: { source: EventSource; hig
   // line the editor is looking for, and typing it again is work.
   const needle = (query || highlight || "").trim()
   const lines = (source.rawText ?? "").split(/\r?\n/)
-  const matched = needle
-    ? lines.filter((line) => line.toLowerCase().includes(needle.toLowerCase()))
+  const hits = needle
+    ? lines.flatMap((line, index) => (line.toLowerCase().includes(needle.toLowerCase()) ? [index] : []))
     : []
-  const shown = needle && matched.length ? matched : lines
+  // A hit on its own is almost never the answer: the title matches and the
+  // date, the place and the price are the lines under it. Keep a few lines
+  // around each hit, and mark where a jump in the source was cut out.
+  const shown = hits.length ? withContext(lines, hits) : lines
 
   return (
     <aside
@@ -97,8 +117,8 @@ export function SourceEvidence({ source, highlight }: { source: EventSource; hig
           </div>
           <p className="text-xs text-muted-foreground">
             {needle
-              ? matched.length
-                ? `${matched.length} redak(a) sadrži „${needle}”`
+              ? hits.length
+                ? `${hits.length} podudaranje(a) za „${needle}”, s okolnim redcima`
                 : `Nema podudaranja za „${needle}” — prikazan je cijeli tekst`
               : `${lines.length} redaka izvornog teksta`}
           </p>

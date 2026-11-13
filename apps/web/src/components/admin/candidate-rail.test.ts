@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { missingOf } from "./candidate-rail"
 import { DEFAULT_SOURCE_FILTER } from "./source-filters"
+import { withContext } from "./source-evidence"
 import type { ParsedCandidate } from "@/lib/admin/types"
 
 const candidate = (over: Partial<ParsedCandidate> = {}): ParsedCandidate =>
@@ -65,5 +66,29 @@ describe("DEFAULT_SOURCE_FILTER", () => {
     expect(DEFAULT_SOURCE_FILTER.status).toBe("")
     expect(DEFAULT_SOURCE_FILTER.type).toBe("")
     expect(DEFAULT_SOURCE_FILTER.unviewed).toBe(false)
+  })
+})
+
+describe("withContext", () => {
+  const lines = ["a", "b", "HIT", "c", "d", "e", "f", "g", "HIT2", "h"]
+
+  it("keeps the lines around a hit, because the title matches and the date is under it", () => {
+    expect(withContext(lines, [2], 2)).toEqual(["a", "b", "HIT", "c", "d"])
+  })
+
+  it("marks where it cut the source out", () => {
+    const out = withContext(lines, [2, 8], 1)
+    expect(out).toEqual(["b", "HIT", "c", "…", "g", "HIT2", "h"])
+  })
+
+  it("does not repeat a line two hits share", () => {
+    const out = withContext(lines, [2, 4], 2)
+    expect(out).toEqual(["a", "b", "HIT", "c", "d", "e", "f"])
+    expect(new Set(out).size).toBe(out.length)
+  })
+
+  it("stays inside the text at either end", () => {
+    expect(withContext(lines, [0], 3)).toEqual(lines.slice(0, 4))
+    expect(withContext(lines, [lines.length - 1], 2)).toEqual(lines.slice(-3))
   })
 })

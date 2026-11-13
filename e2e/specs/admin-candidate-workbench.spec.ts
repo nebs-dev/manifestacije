@@ -78,6 +78,39 @@ test("@smoke @critical the review screen opens on a candidate that is ready to w
   expect(offset, "the candidates should start inside the first screen").toBeLessThan(600);
 });
 
+test("@smoke @critical a discovery row shows what the page said, beside the AI's reading of it", async ({ adminPage: page, adminApi, ai }) => {
+  // The row under test is a real SCRAPE_DISCOVERY row: a monitored-source
+  // check stores the fetched page in rawHtml and never fills rawText, so this
+  // is the case where the comparison panel used to have nothing to show.
+  const label = unique("E2E izvorni tekst");
+  const built = programme(label, 2);
+  const row = await sourceWith(adminApi, ai, label, built);
+
+  await page.goto(`/admin/sources/${row.id}`);
+  const evidence = page.getByTestId("source-evidence");
+  await expect(evidence).toBeVisible();
+
+  // The page's own wording is on screen next to the fields, not behind a link.
+  const text = evidence.getByTestId("source-evidence-text");
+  await expect(text).toBeVisible();
+  await expect(text).toContainText(`${label} 1`);
+  await expect(text).toContainText("Datum:");
+  await expect(evidence).not.toContainText("nema spremljen tekst");
+
+  // It is text, not a page: nothing from the stored markup is rendered.
+  const tags = await text.evaluate((node) => node.querySelectorAll("*").length);
+  expect(tags).toBe(0);
+  await expect(text).not.toContainText("<script");
+
+  // It arrives narrowed to the candidate on screen, without anyone typing —
+  // which is the point: the lines about *this* event, not the whole page.
+  await expect(text).not.toContainText(`${label} 2`);
+
+  // And the editor can look anywhere else in the page from the same panel.
+  await evidence.getByLabel("Traži u tekstu izvora").fill(`${label} 2`);
+  await expect(text).toContainText(`${label} 2`);
+});
+
 test("@critical deciding a candidate moves to the next one without going back to a list", async ({ adminPage: page, adminApi, ai }) => {
   const label = unique("E2E sljedeci");
   const row = await sourceWith(adminApi, ai, label, programme(label, 3));

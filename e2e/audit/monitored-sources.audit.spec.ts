@@ -188,7 +188,7 @@ test("discovery to published: clicks for a six-candidate listing", async ({ admi
   journey.find(
     "memory",
     "/admin/sources/[id] (SCRAPE_DISCOVERY)",
-    "A discovery row stores rawHtml and no rawText, so the evidence column has no source text to show and falls back to the link: checking a candidate against the source still means opening the site."
+    "A discovery row stores rawHtml and no rawText; the source text shown beside the candidate is derived from that markup on read, so the comparison works on rows that were stored long before the panel existed."
   );
   journey.end();
 
