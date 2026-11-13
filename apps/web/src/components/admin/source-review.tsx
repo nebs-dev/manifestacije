@@ -215,13 +215,22 @@ function SourceTools({ source, onReparse }: { source: EventSource; onReparse?: (
 
   useEffect(() => { setSourceUrl(source.sourceUrl || "") }, [source.sourceUrl])
 
-  // `safeExternalUrl` already parses the value and rejects anything that is
-  // not http(s), but it returns the original string rather than the parsed
-  // URL, so neither a reader nor CodeQL can see the guarantee at the point the
-  // value becomes an href. The explicit test states it where it matters; it
-  // rejects nothing the sanitizer lets through.
-  const sanitized = safeExternalUrl(sourceUrl)
-  const externalHref = sanitized && /^https?:\/\//i.test(sanitized) ? sanitized : undefined
+  // This href is built from what an admin typed into the input beside it.
+  // `safeExternalUrl` already rejects anything that is not http(s), but it
+  // hands back the original string, so the guarantee is invisible at the point
+  // of use — to a reader and to CodeQL alike. Re-parsing here and emitting the
+  // parsed URL makes the scheme check the thing that actually produces the
+  // value, rather than something that happened to it earlier.
+  const externalHref = ((): string | undefined => {
+    const sanitized = safeExternalUrl(sourceUrl)
+    if (!sanitized) return undefined
+    try {
+      const parsed = new URL(sanitized)
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : undefined
+    } catch {
+      return undefined
+    }
+  })()
 
   async function saveSourceUrl() {
     setSavingUrl(true)
