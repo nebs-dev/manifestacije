@@ -1,9 +1,29 @@
 import type { MetadataRoute } from "next";
-import { api, WEB_URL } from "@/lib/api";
+import { API_URL, WEB_URL } from "@/lib/api";
 import { canonicalRegionSlug } from "@/lib/seo-taxonomy";
 
+export const SITEMAP_REVALIDATE = 3600;
+
+// Cached for an hour instead of rebuilt on every request (PERF-02). The shared
+// `api()` helper hardcodes `cache: "no-store"`, which is right for the admin
+// screens that use it but opts this route out of static rendering entirely:
+// the sitemap was re-rendered on a function invocation for every crawl, at
+// 2-3.5s a time. This route therefore does its own tagged fetch and leaves
+// `api()` untouched. The `events` tag keeps the existing mutation webhook
+// (app/api/revalidate/route.ts) working, so a published or edited event still
+// reaches the sitemap immediately rather than waiting out the hour.
+async function fetchSitemapData<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}/api${path}`, {
+    next: { revalidate: SITEMAP_REVALIDATE, tags: ["events"] },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json() as Promise<T>;
+}
+
+export const revalidate = SITEMAP_REVALIDATE;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const data = await api<{
+  const data = await fetchSitemapData<{
     events: { slug: string; updatedAt: string }[];
     regions: { slug: string }[];
     cities: { slug: string }[];

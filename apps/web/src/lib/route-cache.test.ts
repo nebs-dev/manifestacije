@@ -110,4 +110,21 @@ describe("route caching (PERF-01)", () => {
     const feed = calls.findIndex((call) => String(call[0]).includes("/api/public/events"))
     expect(initOf(spy, feed).next?.revalidate).toBe(900)
   })
+
+  it("caches the sitemap for an hour instead of rebuilding it per crawl (PERF-02)", async () => {
+    const spy = stubFetch({
+      events: [], regions: [], cities: [], categories: [],
+      cityCategories: [], regionCategories: [], weekendCities: [], weekendRegions: [],
+    })
+    const sitemapRoute = await import("../../app/sitemap")
+
+    await sitemapRoute.default()
+
+    expect(sitemapRoute.revalidate).toBe(3600)
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0])).toContain("/api/public/seo/sitemap-data")
+    // The shared api() helper sends cache: "no-store", which opts the whole
+    // route out of static rendering; this route must not use it.
+    expect(initOf(spy).cache).toBeUndefined()
+    expect(initOf(spy).next).toEqual({ revalidate: 3600, tags: ["events"] })
+  })
 })
