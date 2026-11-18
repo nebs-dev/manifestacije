@@ -152,3 +152,21 @@ test("a preview session for one event does not open another event's draft", asyn
   await expect(page.getByRole("heading", { level: 1 })).toContainText("E2E objavljen C");
   await expect(page.getByText(/Pregled za uredništvo/)).toBeHidden();
 });
+
+test("@critical a made-up token on a public event buys no Draft Mode session", async ({ page, adminApi }) => {
+  const event = await createPublishedEvent(adminApi, { title: unique("E2E javni bez sesije") });
+
+  // The API answers a published event to anyone, so asking it once with the
+  // token could not tell a real preview from a made-up one: any token bought
+  // a session, and __prerender_bypass with it — an unauthenticated CDN cache
+  // bypass on every page that browser then loaded.
+  const res = await page.goto(`/api/preview?slug=${encodeURIComponent(event.slug)}&token=izmisljeno`);
+
+  expect(res?.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe(`/eventi/${event.slug}`);
+  const names = (await page.context().cookies()).map((cookie) => cookie.name);
+  expect(names, "no preview or Draft Mode cookie may be issued").not.toContain("event_preview_token");
+  expect(names).not.toContain("event_preview_slug");
+  expect(names).not.toContain("__prerender_bypass");
+  await expect(page.getByText(/Pregled za uredništvo/)).toBeHidden();
+});
