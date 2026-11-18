@@ -20,10 +20,10 @@ describe("/api/preview", () => {
 
     const res = await call(`?slug=${encodeURIComponent("skica đ")}&token=tok.en`)
 
-    const url = String((spy.mock.calls as unknown[][])[0]?.[0])
-    expect(url).toContain("/api/public/events/skica%20%C4%91")
-    expect(url).toContain("preview=tok.en")
-    expect((spy.mock.calls[0]?.[1] as { cache?: string })?.cache).toBe("no-store")
+    const [url, init] = (spy.mock.calls as unknown[][])[0] as [string, { cache?: string }]
+    expect(String(url)).toContain("/api/public/events/skica%20%C4%91")
+    expect(String(url)).toContain("preview=tok.en")
+    expect(init?.cache).toBe("no-store")
     expect(draft.enable).toHaveBeenCalledOnce()
     expect(res.status).toBe(307)
     // Relative on purpose: an absolute URL built from the request could name a
