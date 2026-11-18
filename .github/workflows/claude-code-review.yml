@@ -88,7 +88,6 @@ jobs:
           # its comment, so no app install is required. The comment then appears
           # as github-actions[bot] rather than as the Claude app.
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          show_full_output: true # TEMPORARY: diagnosing why the run errors on turn 1
           plugin_marketplaces: "https://github.com/anthropics/claude-plugins-official.git"
           plugins: "mattpocock-skills@claude-plugins-official"
           prompt: |
