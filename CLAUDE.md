@@ -17,18 +17,23 @@ A freshly installed plugin loads on the **next** Claude Code session, not the
 one that installed it. Only the configuration under `docs/agents/` and this
 section are shared through Git — `git pull` does not install anything.
 
-`code-review` collides by name with Claude Code's built-in skill. `/code-review`
-is the **built-in** multi-agent reviewer; the plugin's two-axis one is
-`mattpocock-skills:code-review`. Name the one you mean. The other four names
-are unambiguous.
+A session lists these under their `mattpocock-skills:` prefix, and the
+prefix matters for one of them: `code-review` also exists as a Claude Code
+built-in. `/code-review` is the **built-in** multi-agent reviewer; the
+plugin's two-axis one is `mattpocock-skills:code-review`. Name the one you
+mean.
 
 | Skill | How it fires | When |
 | --- | --- | --- |
 | `mattpocock-skills:code-review` | model-invocable | before calling any non-trivial change ready |
-| `diagnosing-bugs` | model-invocable | any non-trivial bug or regression |
-| `tdd` | model-invocable | new business logic, or changing existing behaviour |
+| `mattpocock-skills:diagnosing-bugs` | model-invocable | any non-trivial bug or regression |
+| `mattpocock-skills:tdd` | model-invocable | new business logic, or changing existing behaviour |
 | `mattpocock-skills:pr` | model-invocable | writing a PR body |
-| `retro` | **manual only** (`/retro`) | after a serious bug, an incident, or a miss that got past the checks |
+| `mattpocock-skills:retro` | **you invoke it**: `/mattpocock-skills:retro` | after a serious bug, an incident, or a miss that got past the checks |
+
+`retro` carries `disable-model-invocation: true`, so the Skill tool refuses
+it: "Ask the user to run /mattpocock-skills:retro themselves." Nothing can
+start a retro on your behalf, and the plain `/retro` form does not exist.
 
 A retro's output is a **deterministic** guard — a test, a lint rule, a
 typecheck, a CI step, better tooling — not another paragraph of instructions.
@@ -88,11 +93,11 @@ real damage before:
 
 ### TDD and debugging
 
-`tdd` applies to event and date parsing, candidate deduplication, editorial
+`mattpocock-skills:tdd` applies to event and date parsing, candidate deduplication, editorial
 status and approval, auth, API handlers, cache invalidation, and anything
 security-sensitive: red → green → refactor. Not for config or docs.
 
-`diagnosing-bugs` is the same discipline as **Fixing a defect** below, which
+`mattpocock-skills:diagnosing-bugs` is the same discipline as **Fixing a defect** below, which
 stays the authority on *where* a test goes for this repo. No fix is written
 before the cause is proven.
 
