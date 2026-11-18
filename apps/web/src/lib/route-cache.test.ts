@@ -134,18 +134,56 @@ describe("route caching (PERF-01)", () => {
     expect(initOf(spy).cache).toBeUndefined()
   })
 
+  const draftJar = (slugCookie: string | undefined, token = "tok.en") => ({
+    draftMode: () => ({ isEnabled: true }),
+    cookies: () => ({
+      get: (name: string) => {
+        if (name === "event_preview_token") return { value: token }
+        if (name === "event_preview_slug") return slugCookie === undefined ? undefined : { value: slugCookie }
+        return undefined
+      },
+    }),
+  })
+
   it("sends the preview token uncached, and only while draft mode is on", async () => {
     const spy = stubFetch(null)
-    vi.doMock("next/headers", () => ({
-      draftMode: () => ({ isEnabled: true }),
-      cookies: () => ({ get: (name: string) => (name === "event_preview_token" ? { value: "tok.en" } : undefined) }),
-    }))
+    vi.doMock("next/headers", () => draftJar("skica"))
     const { generateMetadata } = await import("../../app/eventi/[eventSlug]/page")
 
     await generateMetadata({ params: { eventSlug: "skica" } })
 
     expect(String((spy.mock.calls as unknown[][])[0]?.[0])).toContain("preview=tok.en")
     expect(initOf(spy).cache).toBe("no-store")
+  })
+
+  it("decodes the slug cookie, so a preview of a non-ASCII slug still applies to its own page", async () => {
+    const spy = stubFetch(null)
+    vi.doMock("next/headers", () => draftJar(encodeURIComponent("skica đ")))
+    const { generateMetadata } = await import("../../app/eventi/[eventSlug]/page")
+
+    await generateMetadata({ params: { eventSlug: "skica đ" } })
+
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0])).toContain("preview=tok.en")
+  })
+
+  it.each([
+    ["a different event", "skica-a"],
+    ["no slug cookie at all", undefined],
+    ["a malformed slug cookie", "%E0%A4%A"],
+  ])("does not treat the page as a preview when the session is for %s (PERF-02)", async (_label, slugCookie) => {
+    const spy = stubFetch({ id: 1, slug: "drugi-event", title: "Drugi", startsAt: "2099-01-01T10:00:00Z", category: { id: 1, name: "Glazba", slug: "glazba" } })
+    vi.doMock("next/headers", () => draftJar(slugCookie))
+    const { generateMetadata } = await import("../../app/eventi/[eventSlug]/page")
+
+    const metadata = await generateMetadata({ params: { eventSlug: "drugi-event" } })
+
+    // No token on the wire, a cacheable fetch, and none of the editorial
+    // framing: this page is not what the session is previewing.
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0])).not.toContain("preview=")
+    expect(initOf(spy).cache).toBeUndefined()
+    expect(initOf(spy).next?.revalidate).toBe(300)
+    expect(metadata.title).toBe("Drugi")
+    expect(metadata.robots).toBeUndefined()
   })
 
   it("caches the homepage for 300 seconds instead of opting out with revalidate 0 (PERF-02)", async () => {

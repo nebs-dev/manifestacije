@@ -1,7 +1,7 @@
 import { draftMode } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { API_URL } from "@/lib/api"
-import { PREVIEW_TOKEN_COOKIE, PREVIEW_TOKEN_MAX_AGE_SECONDS } from "@/lib/event-preview"
+import { PREVIEW_SLUG_COOKIE, PREVIEW_TOKEN_COOKIE, PREVIEW_TOKEN_MAX_AGE_SECONDS } from "@/lib/event-preview"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -57,12 +57,17 @@ export async function GET(req: NextRequest) {
     status: 307,
     headers: { Location: `/eventi/${encodeURIComponent(event.slug)}` },
   })
-  response.cookies.set(PREVIEW_TOKEN_COOKIE, token, {
+  const cookieOptions = {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: PREVIEW_TOKEN_MAX_AGE_SECONDS,
-  })
+  } as const
+  response.cookies.set(PREVIEW_TOKEN_COOKIE, token, cookieOptions)
+  // Which event this session is for. Draft Mode's own cookie says only that a
+  // session exists, so without this every event page would render as a
+  // preview for its whole lifetime.
+  response.cookies.set(PREVIEW_SLUG_COOKIE, encodeURIComponent(event.slug), cookieOptions)
   return response
 }

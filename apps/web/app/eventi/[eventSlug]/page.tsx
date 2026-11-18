@@ -18,7 +18,7 @@ import { EventBackLink } from "@/components/public/event-back-link";
 import { TicketLink, MapLink } from "@/components/public/tracked-links";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
 import { EVENT_DETAIL_REVALIDATE, fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
-import { PREVIEW_TOKEN_COOKIE } from "@/lib/event-preview";
+import { PREVIEW_SLUG_COOKIE, PREVIEW_TOKEN_COOKIE } from "@/lib/event-preview";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { citySlugForEvent } from "@/lib/seo-taxonomy";
 import { publicAddressLine } from "@/lib/location-display";
@@ -50,16 +50,35 @@ export async function generateStaticParams() {
  * `draftMode().isEnabled` is a plain read and does not opt the route out of
  * static rendering; `cookies()` would, so it is reached only once draft mode
  * is already on and the render is dynamic anyway.
+ *
+ * The session is for one event. Draft Mode's cookie is per-browser and says
+ * nothing about which, so the token is used only on the page it was issued
+ * for: otherwise every event an editor opened during the session rendered
+ * with the editorial banner, a "Pregled:" title and robots noindex, and sent
+ * one event's token on requests for another. Draft content was never at risk
+ * — the API refuses a token issued for a different slug — but the page said
+ * it was previewing when it was not.
  */
-function previewToken() {
+function previewToken(eventSlug: string) {
   if (!draftMode().isEnabled) return undefined;
-  return cookies().get(PREVIEW_TOKEN_COOKIE)?.value || undefined;
+  const jar = cookies();
+  const issuedFor = jar.get(PREVIEW_SLUG_COOKIE)?.value;
+  if (!issuedFor || safeDecode(issuedFor) !== eventSlug) return undefined;
+  return jar.get(PREVIEW_TOKEN_COOKIE)?.value || undefined;
+}
+
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: {
   params: { eventSlug: string };
 }): Promise<Metadata> {
-  const preview = previewToken();
+  const preview = previewToken(params.eventSlug);
   const event = await fetchEvent(params.eventSlug, preview, { revalidate: EVENT_DETAIL_REVALIDATE });
   if (!event) return { title: "Događanje nije pronađeno" };
   // A preview may show an unpublished draft; keep it out of search entirely.
@@ -89,7 +108,7 @@ export default async function EventDetailPage({
 }: {
   params: { eventSlug: string };
 }) {
-  const preview = previewToken();
+  const preview = previewToken(params.eventSlug);
   const event = await fetchEvent(params.eventSlug, preview, { revalidate: EVENT_DETAIL_REVALIDATE });
   if (!event) notFound();
   const related = await fetchRelatedEvents(event, { revalidate: EVENT_DETAIL_REVALIDATE });
