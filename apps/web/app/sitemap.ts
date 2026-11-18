@@ -12,27 +12,47 @@ export const SITEMAP_REVALIDATE = 3600;
 // `api()` untouched. The `events` tag keeps the existing mutation webhook
 // (app/api/revalidate/route.ts) working, so a published or edited event still
 // reaches the sitemap immediately rather than waiting out the hour.
-async function fetchSitemapData<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    next: { revalidate: SITEMAP_REVALIDATE, tags: ["events"] },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json() as Promise<T>;
+type SitemapData = {
+  events: { slug: string; updatedAt: string }[];
+  regions: { slug: string }[];
+  cities: { slug: string }[];
+  categories: { slug: string }[];
+  cityCategories: { citySlug: string; categorySlug: string }[];
+  regionCategories: { regionSlug: string; categorySlug: string }[];
+  weekendCities: { slug: string }[];
+  weekendRegions: { slug: string }[];
+};
+
+const EMPTY: SitemapData = {
+  events: [], regions: [], cities: [], categories: [],
+  cityCategories: [], regionCategories: [], weekendCities: [], weekendRegions: [],
+};
+
+// Caching the route means it is now also prerendered at build time, where the
+// API may be unreachable — it is during `pnpm build` on a developer machine
+// and in CI, and the other ISR pages already fall back to local data there
+// rather than failing the build. The sitemap does the same, and says so
+// loudly: a degraded sitemap keeps only the static pages, and would otherwise
+// be cached for the hour. Next never caches a failed fetch, and the `events`
+// webhook invalidates this route on the next event mutation, so the full list
+// returns on the next revalidation either way.
+async function fetchSitemapData(path: string): Promise<SitemapData> {
+  try {
+    const res = await fetch(`${API_URL}/api${path}`, {
+      next: { revalidate: SITEMAP_REVALIDATE, tags: ["events"] },
+    });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return (await res.json()) as SitemapData;
+  } catch (error) {
+    console.error({ event: "sitemap_data_unavailable", outcome: "degraded", error: String(error) });
+    return EMPTY;
+  }
 }
 
 export const revalidate = SITEMAP_REVALIDATE;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const data = await fetchSitemapData<{
-    events: { slug: string; updatedAt: string }[];
-    regions: { slug: string }[];
-    cities: { slug: string }[];
-    categories: { slug: string }[];
-    cityCategories: { citySlug: string; categorySlug: string }[];
-    regionCategories: { regionSlug: string; categorySlug: string }[];
-    weekendCities: { slug: string }[];
-    weekendRegions: { slug: string }[];
-  }>("/public/seo/sitemap-data");
+  const data = await fetchSitemapData("/public/seo/sitemap-data");
   return [
     { url: WEB_URL },
     { url: `${WEB_URL}/eventi` },
