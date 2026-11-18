@@ -5,6 +5,13 @@ import { DEFAULT_OG_IMAGE } from "./seo-images"
 
 const publicDir = path.resolve(__dirname, "../../public")
 
+// The event page reads draftMode() to decide whether an editorial preview
+// token applies; outside a request scope Next throws, so stand it down.
+vi.mock("next/headers", () => ({
+  draftMode: () => ({ isEnabled: false }),
+  cookies: () => { throw new Error("cookies() must not be read outside draft mode") },
+}))
+
 function imageUrls(metadata: { openGraph?: unknown; twitter?: unknown }) {
   const social = [metadata.openGraph, metadata.twitter] as Array<{ images?: unknown } | undefined>
   return social.flatMap((block) =>

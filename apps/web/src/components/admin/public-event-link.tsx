@@ -26,7 +26,12 @@ function DraftPreviewButton({ event }: { event: LinkedEvent }) {
       const res = await authedFetch(`/api/admin/events/${event.id}/preview-link`, { method: "POST" })
       if (!res.ok) { toast.error("Pregled nije dostupan", { description: await res.text() }); return }
       const { slug, token, expiresInMinutes } = (await res.json()) as { slug: string; token: string; expiresInMinutes: number }
-      const url = `/eventi/${encodeURIComponent(slug)}?preview=${encodeURIComponent(token)}`
+      // /api/preview validates the token against the API, turns on Draft Mode
+      // and redirects to /eventi/<slug>. The token cannot stay in the page URL:
+      // the event page is cached now (PERF-02) and a prerendered route ignores
+      // the query string in its cache key, so ?preview= would have been served
+      // the cached public page.
+      const url = `/api/preview?slug=${encodeURIComponent(slug)}&token=${encodeURIComponent(token)}`
       // A blocked popup must not look like a silent failure.
       if (!window.open(url, "_blank", "noopener,noreferrer")) window.location.href = url
       else toast.success(`Pregled otvoren u novoj kartici (vrijedi ${expiresInMinutes} min)`)

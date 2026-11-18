@@ -11,7 +11,7 @@ function stubFetch(body: unknown = []) {
 const initOf = (spy: { mock: { calls: unknown[][] } }, index = 0) =>
   (spy.mock.calls[index]?.[1] ?? {}) as FetchInit
 
-afterEach(() => { vi.unstubAllGlobals(); vi.resetModules() })
+afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); vi.doUnmock("next/headers") })
 
 describe("route caching (PERF-01)", () => {
   it("asks for a finite revalidate on every feed, so no fetch opts a route out of static rendering", async () => {
@@ -109,6 +109,43 @@ describe("route caching (PERF-01)", () => {
     const calls = spy.mock.calls as unknown[][]
     const feed = calls.findIndex((call) => String(call[0]).includes("/api/public/events"))
     expect(initOf(spy, feed).next?.revalidate).toBe(900)
+  })
+
+  it("renders the event detail page on demand and caches it for 300 seconds (PERF-02)", async () => {
+    const { revalidate, dynamicParams, generateStaticParams } = await import("../../app/eventi/[eventSlug]/page")
+
+    expect(revalidate).toBe(300)
+    expect(dynamicParams).toBe(true)
+    expect(await generateStaticParams()).toEqual([])
+  })
+
+  it("keeps the event detail page off the 60-second default, which would cap its own revalidate", async () => {
+    const spy = stubFetch(null)
+    vi.doMock("next/headers", () => ({
+      draftMode: () => ({ isEnabled: false }),
+      cookies: () => { throw new Error("cookies() must not be read outside draft mode") },
+    }))
+    const { generateMetadata } = await import("../../app/eventi/[eventSlug]/page")
+
+    await generateMetadata({ params: { eventSlug: "neki-event" } })
+
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0])).toContain("/api/public/events/neki-event")
+    expect(initOf(spy).next?.revalidate).toBe(300)
+    expect(initOf(spy).cache).toBeUndefined()
+  })
+
+  it("sends the preview token uncached, and only while draft mode is on", async () => {
+    const spy = stubFetch(null)
+    vi.doMock("next/headers", () => ({
+      draftMode: () => ({ isEnabled: true }),
+      cookies: () => ({ get: (name: string) => (name === "event_preview_token" ? { value: "tok.en" } : undefined) }),
+    }))
+    const { generateMetadata } = await import("../../app/eventi/[eventSlug]/page")
+
+    await generateMetadata({ params: { eventSlug: "skica" } })
+
+    expect(String((spy.mock.calls as unknown[][])[0]?.[0])).toContain("preview=tok.en")
+    expect(initOf(spy).cache).toBe("no-store")
   })
 
   it("caches the homepage for 300 seconds instead of opting out with revalidate 0 (PERF-02)", async () => {

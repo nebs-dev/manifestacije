@@ -166,5 +166,8 @@ it("opens an unpublished event through a short-lived preview link", async () => 
   await render(<PublicEventLink event={{ id: 9, status: "draft", slug: "skica đ", publishedAt: null } as unknown as AdminEvent} />)
   await click("Pregledaj skicu")
   expect(api).toHaveBeenCalledWith("/api/admin/events/9/preview-link", { method: "POST" })
-  expect(open.mock.calls[0][0]).toBe("/eventi/skica%20%C4%91?preview=preview.token.value")
+  // Via /api/preview, which validates the token and starts Draft Mode: the
+  // event page is cached now, and a prerendered route ignores the query
+  // string in its cache key, so ?preview= would hit the public page (PERF-02).
+  expect(open.mock.calls[0][0]).toBe("/api/preview?slug=skica%20%C4%91&token=preview.token.value")
 })

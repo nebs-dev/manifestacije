@@ -16,7 +16,9 @@ it("uses five-minute tagged discovery caches without extending unrelated caches"
   expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/public/map/events"), { next: { revalidate: 300, tags: ["events"] } })
   fetch.mockResolvedValue({ ok: true, json: async () => null })
   await fetchEvent("example")
-  expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/events/example"), { next: { revalidate: 60, tags: ["events"] } })
+  // 300, not the old 60: the event detail route caches for 300s and takes its
+  // revalidate from the lowest of its fetches (PERF-02).
+  expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/events/example"), { next: { revalidate: 300, tags: ["events"] } })
   await fetchOrganizer("example")
   expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/organizers/example"), { next: { revalidate: 60, tags: ["organizers"] } })
   await fetchPartners()

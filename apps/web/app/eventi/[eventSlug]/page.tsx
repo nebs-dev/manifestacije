@@ -2,6 +2,7 @@ import { eventTimeLabel } from "@/lib/event-end"
 import { RichText } from "@/components/rich-text";
 import { richTextSummary } from "@/lib/rich-text";
 import type { Metadata } from "next";
+import { cookies, draftMode } from "next/headers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Baby, Building2, CalendarDays, Clock, MapPin, Tags, Ticket, Trees } from "lucide-react";
@@ -16,7 +17,8 @@ import { EventDetailTracking } from "@/components/public/event-detail-tracking";
 import { EventBackLink } from "@/components/public/event-back-link";
 import { TicketLink, MapLink } from "@/components/public/tracked-links";
 import { formatDateRange, priceLabel, regionName } from "@/lib/data";
-import { fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
+import { EVENT_DETAIL_REVALIDATE, fetchEvent, fetchRelatedEvents, WEB_URL } from "@/lib/public-api";
+import { PREVIEW_TOKEN_COOKIE } from "@/lib/event-preview";
 import { eventToJsonLd, breadcrumbsToJsonLd, safeJsonLdString } from "@/lib/event-jsonld";
 import { citySlugForEvent } from "@/lib/seo-taxonomy";
 import { publicAddressLine } from "@/lib/location-display";
@@ -24,43 +26,41 @@ import { effectiveOccurrences, eventHasEnded, formatOccurrenceLabel } from "@/li
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { DEFAULT_OG_IMAGE, DEFAULT_OG_IMAGE_META } from "@/lib/seo-images";
 
-const BACK_LINKS = {
-  kalendar: { href: "/kalendar", label: "Natrag na kalendar" },
-  mapa: { href: "/mapa", label: "Natrag na kartu" },
-  eventi: { href: "/eventi", label: "Natrag" },
-} as const;
-
-function safeReturnTo(value: string | undefined) {
-  if (!value) return null;
-  if (value.startsWith("//")) return null;
-  if (value === "/eventi" || value.startsWith("/eventi?")) return value;
-  if (value === "/kalendar" || value.startsWith("/kalendar?")) return value;
-  if (value === "/mapa" || value.startsWith("/mapa?")) return value;
-  return null;
+// Cached for 5 minutes instead of rendered on every request (PERF-02). A
+// dynamic segment is only cached once generateStaticParams exists, so an empty
+// one turns the route into ISR without prerendering any slug at build time;
+// fetchEvent and fetchRelatedEvents ask for the same 300s, because a route's
+// revalidate is the lowest of the fetches it made. Event mutations still
+// refresh these pages through the existing `events` tag webhook.
+export const revalidate = EVENT_DETAIL_REVALIDATE;
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [] as { eventSlug: string }[];
 }
 
-function backLinkFrom(searchParams: Record<string, string | string[] | undefined> | undefined) {
-  const returnTo = safeReturnTo(Array.isArray(searchParams?.returnTo) ? searchParams?.returnTo[0] : searchParams?.returnTo);
-  if (returnTo?.startsWith("/kalendar")) return { href: returnTo, label: "Natrag na kalendar" };
-  if (returnTo?.startsWith("/mapa")) return { href: returnTo, label: "Natrag na kartu" };
-  if (returnTo) return { href: returnTo, label: "Natrag na rezultate" };
-  const source = Array.isArray(searchParams?.from) ? searchParams?.from[0] : searchParams?.from;
-  if (source === "kalendar" || source === "mapa") return BACK_LINKS[source];
-  return BACK_LINKS.eventi;
+/**
+ * An admin preview link carries a signed token for one event. It used to
+ * arrive as `?preview=<token>`, which is unusable on a cached route: Vercel
+ * ignores the query string in a prerendered route's cache key, and reading
+ * searchParams at all opts the route out of static rendering. /api/preview
+ * now validates the token against the API, turns on Draft Mode — which makes
+ * the CDN bypass the cache for that browser alone — and leaves the token in
+ * an httpOnly cookie for this page to forward.
+ *
+ * `draftMode().isEnabled` is a plain read and does not opt the route out of
+ * static rendering; `cookies()` would, so it is reached only once draft mode
+ * is already on and the render is dynamic anyway.
+ */
+function previewToken() {
+  if (!draftMode().isEnabled) return undefined;
+  return cookies().get(PREVIEW_TOKEN_COOKIE)?.value || undefined;
 }
 
-/** An admin preview link carries a signed token for one event. */
-function previewTokenFrom(searchParams: Record<string, string | string[] | undefined> | undefined) {
-  const value = Array.isArray(searchParams?.preview) ? searchParams?.preview[0] : searchParams?.preview;
-  return value || undefined;
-}
-
-export async function generateMetadata({ params, searchParams }: {
+export async function generateMetadata({ params }: {
   params: { eventSlug: string };
-  searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<Metadata> {
-  const preview = previewTokenFrom(searchParams);
-  const event = await fetchEvent(params.eventSlug, preview);
+  const preview = previewToken();
+  const event = await fetchEvent(params.eventSlug, preview, { revalidate: EVENT_DETAIL_REVALIDATE });
   if (!event) return { title: "Događanje nije pronađeno" };
   // A preview may show an unpublished draft; keep it out of search entirely.
   if (preview) return { title: `Pregled: ${event.title}`, robots: { index: false, follow: false } };
@@ -86,16 +86,13 @@ export async function generateMetadata({ params, searchParams }: {
 
 export default async function EventDetailPage({
   params,
-  searchParams,
 }: {
   params: { eventSlug: string };
-  searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  const preview = previewTokenFrom(searchParams);
-  const event = await fetchEvent(params.eventSlug, preview);
+  const preview = previewToken();
+  const event = await fetchEvent(params.eventSlug, preview, { revalidate: EVENT_DETAIL_REVALIDATE });
   if (!event) notFound();
-  const backLink = backLinkFrom(searchParams);
-  const related = await fetchRelatedEvents(event);
+  const related = await fetchRelatedEvents(event, { revalidate: EVENT_DETAIL_REVALIDATE });
   const eventCategories = event.categories.length > 0 ? event.categories : [{ slug: event.category, name: event.category }];
   const citySlug = event.city ? citySlugForEvent(event) : undefined;
   const addressLine = publicAddressLine(event.address, event.city, event.venue);
@@ -136,9 +133,7 @@ export default async function EventDetailPage({
         <section className="bg-ink text-ink-foreground">
           <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)] lg:grid-rows-[1fr_auto] lg:gap-x-10 lg:gap-y-6 lg:px-8 lg:py-10">
             <div className="order-1 flex min-w-0 flex-col justify-end lg:col-start-2 lg:row-start-1 lg:pt-4">
-              <EventBackLink href={backLink.href} className="mb-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm text-ink-foreground transition-colors hover:bg-ink-foreground/15 lg:hidden">
-                <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
-              </EventBackLink>
+              <EventBackLink className="mb-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-ink-foreground/10 px-3 py-1.5 text-sm text-ink-foreground transition-colors hover:bg-ink-foreground/15 lg:hidden" />
               <div className="flex flex-wrap items-center gap-2">
                 {eventCategories.map((category) => (
                   <CategoryBadge key={category.slug} category={category.slug} label={category.name} className="border-transparent bg-ink-foreground/15 text-ink-foreground" />
@@ -187,9 +182,7 @@ export default async function EventDetailPage({
                 title={event.title}
                 category={event.category}
               />
-              <EventBackLink href={backLink.href} className="absolute left-5 top-5 z-20 hidden items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 lg:inline-flex">
-                <ArrowLeft className="size-4" aria-hidden /> {backLink.label}
-              </EventBackLink>
+              <EventBackLink className="absolute left-5 top-5 z-20 hidden items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-sm text-ink-foreground shadow-poster backdrop-blur transition-colors hover:bg-ink/90 lg:inline-flex" />
             </div>
 
             <div className="order-3 flex flex-wrap items-center gap-3 lg:col-start-2 lg:row-start-2 lg:pb-4">
