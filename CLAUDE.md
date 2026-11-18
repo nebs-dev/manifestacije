@@ -4,6 +4,103 @@
 - Verification of your work is automatic (Stop hook + git hooks).
   Do not summarize or restate verify verdicts as your own claims.
 
+## Agent skills
+
+The five skills below come from the `mattpocock-skills` plugin. The plugin is
+installed **per machine, not through this repo**:
+
+```bash
+claude plugin install mattpocock-skills@claude-plugins-official
+```
+
+A freshly installed plugin loads on the **next** Claude Code session, not the
+one that installed it. Only the configuration under `docs/agents/` and this
+section are shared through Git — `git pull` does not install anything.
+
+A session lists these under their `mattpocock-skills:` prefix, and the
+prefix matters for one of them: `code-review` also exists as a Claude Code
+built-in. `/code-review` is the **built-in** multi-agent reviewer; the
+plugin's two-axis one is `mattpocock-skills:code-review`. Name the one you
+mean.
+
+| Skill | How it fires | When |
+| --- | --- | --- |
+| `mattpocock-skills:code-review` | model-invocable | before calling any non-trivial change ready |
+| `mattpocock-skills:diagnosing-bugs` | model-invocable | any non-trivial bug or regression |
+| `mattpocock-skills:tdd` | model-invocable | new business logic, or changing existing behaviour |
+| `mattpocock-skills:pr` | model-invocable | writing a PR body |
+| `mattpocock-skills:retro` | **you invoke it**: `/mattpocock-skills:retro` | after a serious bug, an incident, or a miss that got past the checks |
+
+`retro` carries `disable-model-invocation: true`, so the Skill tool refuses
+it: "Ask the user to run /mattpocock-skills:retro themselves." Nothing can
+start a retro on your behalf, and the plain `/retro` form does not exist.
+
+A retro's output is a **deterministic** guard — a test, a lint rule, a
+typecheck, a CI step, better tooling — not another paragraph of instructions.
+If the only fix on offer is prose, the finding is not yet understood.
+
+Issue tracker and domain-doc rules the skills read: `docs/agents/issue-tracker.md`,
+`docs/agents/domain.md`.
+
+### Review before a PR
+
+Run `mattpocock-skills:code-review` against `origin/main` using the merge-base
+(`git diff origin/main...HEAD`) before declaring a non-trivial change ready.
+Resolve critical and important findings before handing the work over, and say
+what you did not check. Skip it only for a trivial documentation change — a
+typo, a link, a reworded sentence. A documentation change that states how the
+system behaves is not trivial: its claims can be wrong.
+
+It reviews on two axes in parallel sub-agents — **Standards** (does it follow
+this repo's documented rules?) and **Spec** (does it do what the issue asked?)
+— and across both it must cover security, authorization, regressions, needless
+complexity and missing tests.
+
+Two things it must not do: repeat what a deterministic check already catches,
+and claim to have reviewed what it did not read. ESLint, the three typechecks
+(api, web, e2e), Vitest, Jest and the Chromium E2E suite run in
+`.github/workflows/ci.yml`; CodeQL runs separately, from GitHub's own default
+setup, not from a workflow file in this repo.
+
+**This is a local, pre-PR review that a human triggers. Nothing reviews a PR
+on GitHub automatically.** CI runs only the deterministic checks.
+
+### Writing the PR
+
+`mattpocock-skills:pr` gives the body's shape (Summary / Evidence / Merge
+Danger). On top of its template, a PR of any size here carries:
+
+- **why** the change is needed, not only what it does
+- **evidence**: the commands actually run and what they printed. Never a
+  number you did not see, never an unrun test called green
+- the **code-review outcome**, including findings left unresolved
+- **risk and blast radius**, and how to verify or roll back when that is not
+  obvious
+
+### What to look hardest at
+
+A change touching any of these gets explicit attention, because each has cost
+real damage before:
+
+- editorial decisions and existing events surviving the change
+- deduplication and a stable identity for discovery candidates
+- date, time and location correctness (`Europe/Zagreb`, all-day, occurrences)
+- admin and organizer authorization
+- SSRF protection when fetching a source (`apps/api/src/common/ssrf.ts`)
+- cache invalidation after a public event changes (`docs/agents/domain.md`
+  points at the pieces; the webhook is `apps/web/app/api/revalidate/route.ts`)
+- AI call volume and cost
+
+### TDD and debugging
+
+`mattpocock-skills:tdd` applies to event and date parsing, candidate deduplication, editorial
+status and approval, auth, API handlers, cache invalidation, and anything
+security-sensitive: red → green → refactor. Not for config or docs.
+
+`mattpocock-skills:diagnosing-bugs` is the same discipline as **Fixing a defect** below, which
+stays the authority on *where* a test goes for this repo. No fix is written
+before the cause is proven.
+
 ## Fixing a defect
 
 1. **Reproduce it first, and say how.** No fix lands on a bug you have only

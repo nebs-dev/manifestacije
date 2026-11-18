@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "lint": "next lint || tsc -p tsconfig.json --noEmit"
+    "lint": "next lint --max-warnings=0 && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

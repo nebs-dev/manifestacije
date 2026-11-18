@@ -65,9 +65,10 @@ jobs:
       # The API's Prisma client is generated code; tsc and jest both need it.
       - run: pnpm --filter api exec prisma generate
 
-      # Run separately, not through `pnpm --filter web lint`. That script is
-      # `next lint || tsc --noEmit`, so a real ESLint failure falls through to
-      # the typecheck and the job would go green on a lint error.
+      # Still run separately, not through `pnpm --filter web lint`, so each
+      # failure says which check it was. The script itself is no longer the
+      # reason to avoid it; see the note in
+      # apps/web/src/lib/lint-script.test.ts for what it used to hide.
       - name: ESLint (web)
         run: pnpm --filter web exec next lint --max-warnings=0
 
