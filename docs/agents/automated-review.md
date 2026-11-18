@@ -68,9 +68,12 @@ The token is tied to the subscription of whoever runs `claude setup-token`.
 Nothing reads it except the workflow; it is never echoed, and the workflow
 fails loudly rather than quietly passing when it is absent.
 
-The `anthropics/claude-code-action` step authenticates to GitHub as the Claude
-GitHub App by default. If the app is not installed on this repository, install
-it from <https://github.com/apps/claude>.
+No GitHub App install is needed. By default the action authenticates to GitHub
+as the Claude GitHub App, and without it installed every run fails with
+`401 Unauthorized - Claude Code is not installed on this repository`. The
+workflow passes `github_token: ${{ secrets.GITHUB_TOKEN }}` instead: the job's
+own token already has `pull-requests: write`, which is all a review comment
+needs. The comment is posted by `github-actions[bot]`.
 
 ## Limits
 
