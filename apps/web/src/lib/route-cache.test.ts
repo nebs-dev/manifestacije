@@ -111,6 +111,12 @@ describe("route caching (PERF-01)", () => {
     expect(initOf(spy, feed).next?.revalidate).toBe(900)
   })
 
+  it("caches the homepage for 300 seconds instead of opting out with revalidate 0 (PERF-02)", async () => {
+    const { revalidate } = await import("../../app/page")
+
+    expect(revalidate).toBe(300)
+  })
+
   it("caches the sitemap for an hour instead of rebuilding it per crawl (PERF-02)", async () => {
     const spy = stubFetch({
       events: [], regions: [], cities: [], categories: [],

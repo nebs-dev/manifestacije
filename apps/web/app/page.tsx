@@ -27,7 +27,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export const revalidate = 0;
+// Cached for 5 minutes instead of rendered on every request (PERF-02). The
+// page reads no searchParams, cookies or headers, so nothing here is
+// per-visitor: the daily rotation below keys off the Zagreb date, not the
+// request. 300s matches the event feed, which would cap the route anyway, and
+// event mutations still refresh the page immediately through the existing
+// `events` tag webhook (app/api/revalidate/route.ts).
+export const revalidate = 300;
 
 export default async function Home() {
   const [events, partners, categoryInventory] = await Promise.all([fetchEvents(), fetchPartners(), fetchCategoryInventory()]);
