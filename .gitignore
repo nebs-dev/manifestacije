@@ -10,7 +10,13 @@ dist/
 
 # AI/IDE tooling
 .agents/
-.claude/
+.claude/*
+# Shared with the team: project skills that any session in this repo loads.
+# Everything else under .claude/ stays local, including both settings files:
+# settings.local.json is machine-local by convention, and this repo's
+# settings.json has also only ever been local (nothing under .claude/ was
+# tracked before this line).
+!.claude/skills/
 .codex-plugins/
 .kiro/
 .kiroq/
