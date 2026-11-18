@@ -272,21 +272,27 @@ export async function fetchPastEvents(page = 1, pageSize = 24): Promise<PastEven
   return { ...data, items: data.items.map((event) => toCroEvent(event, now)) }
 }
 
+/** Default Data Cache lifetime for a single event, in seconds. It matches the
+ *  event detail route's own revalidate: Next takes a route's revalidate from
+ *  the lowest revalidate among its fetches, so the old 60-second default here
+ *  would have capped that page at 60 (PERF-02). */
+export const EVENT_DETAIL_REVALIDATE = 300
+
 /** `previewToken` comes from an admin preview link: it asks the API for the
  *  event whatever its status, so the response must never be cached or reused
  *  for ordinary visitors. */
-export async function fetchEvent(slug: string, previewToken?: string) {
+export async function fetchEvent(slug: string, previewToken?: string, options: { revalidate?: number } = {}) {
   const path = `/api/public/events/${slug}${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ""}`
   const event = previewToken
     ? await fetchApiUncached<ApiEvent | null>(path).catch(() => null)
-    : await fetchApi<ApiEvent | null>(path).catch(() => null)
+    : await fetchApi<ApiEvent | null>(path, options.revalidate ?? EVENT_DETAIL_REVALIDATE).catch(() => null)
   if (event) return toCroEvent(event)
   if (previewToken) return null
   return fallbackEvents.find((item) => item.slug === slug) || null
 }
 
-export async function fetchRelatedEvents(event: CroEvent) {
-  const all = await fetchEvents()
+export async function fetchRelatedEvents(event: CroEvent, options: { revalidate?: number } = {}) {
+  const all = await fetchEvents({}, options)
   return rankRelatedEvents(event, all)
 }
 

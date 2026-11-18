@@ -1,5 +1,5 @@
 import { expect, test, unique } from "../support/fixtures";
-import { createPublishedEvent } from "../support/factory";
+import { createPendingOrganizerEvent, createPublishedEvent } from "../support/factory";
 import { futureDate } from "../support/dates";
 
 /**
@@ -69,4 +69,57 @@ test("an unpublished event is not reachable on the public site", async ({ page, 
 
   const response = await page.goto(`/eventi/${pending.slug}`);
   expect(response?.status(), "a pending event must not be served publicly").toBe(404);
+});
+
+test("the back link picks its destination up from ?returnTo on a cached page", async ({ page, adminApi }) => {
+  const title = unique("E2E povratak");
+  const event = await createPublishedEvent(adminApi, { title });
+
+  // /eventi/[eventSlug] is statically generated (PERF-02), so the prerendered
+  // shell carries the plain "Natrag" link and the client fills in the real
+  // destination from the query string once it hydrates.
+  const returnTo = "/kalendar?pogled=mjesec&grad=osijek";
+  await page.goto(`/eventi/${event.slug}?returnTo=${encodeURIComponent(returnTo)}`);
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+
+  const back = page.getByRole("link", { name: "Natrag na kalendar" }).first();
+  await expect(back).toHaveAttribute("href", returnTo);
+  await back.click();
+  await expect(page).toHaveURL(/\/kalendar\?/);
+  await expect(page.getByRole("heading", { name: "Digitalni kalendar događanja" })).toBeVisible();
+});
+
+// Chromium only: Draft Mode's own __prerender_bypass cookie is Secure, and
+// WebKit — unlike Chromium — will not accept a Secure cookie over the suite's
+// plain-http origin, so the journey cannot run there.
+test("an editor previews an unpublished event on its real public page", async ({ page, adminApi, organizerApi }) => {
+  const title = unique("E2E pregled skice");
+  const pending = await createPendingOrganizerEvent(organizerApi, adminApi, title);
+
+  // The public page 404s for everyone else; see the test above.
+  const link = await adminApi.post(`/api/admin/events/${pending.id}/preview-link`);
+  expect(link.ok()).toBe(true);
+  const { slug, token } = (await link.json()) as { slug: string; token: string };
+
+  // /api/preview validates the token against the API, turns on Draft Mode and
+  // redirects. The Draft Mode cookie is what makes the cached page render for
+  // this browser alone.
+  await page.goto(`/api/preview?slug=${encodeURIComponent(slug)}&token=${encodeURIComponent(token)}`);
+
+  await expect(page).toHaveURL(new RegExp(`/eventi/${encodeURIComponent(slug)}$`));
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await expect(page.getByText(/Pregled za uredništvo/)).toBeVisible();
+});
+
+test("a preview link with a tampered token opens nothing", async ({ page, adminApi, organizerApi }) => {
+  const pending = await createPendingOrganizerEvent(organizerApi, adminApi, unique("E2E krivi token"));
+  const link = await adminApi.post(`/api/admin/events/${pending.id}/preview-link`);
+  const { slug, token } = (await link.json()) as { slug: string; token: string };
+
+  const response = await page.goto(`/api/preview?slug=${encodeURIComponent(slug)}&token=${token.slice(0, -2)}xx`);
+
+  expect(response?.status(), "an invalid token must not start a preview session").toBe(404);
+  // No Draft Mode cookie was set, so the page itself stays unreachable.
+  const direct = await page.goto(`/eventi/${encodeURIComponent(slug)}`);
+  expect(direct?.status()).toBe(404);
 });

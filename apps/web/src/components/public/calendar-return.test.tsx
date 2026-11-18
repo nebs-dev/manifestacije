@@ -97,8 +97,13 @@ it("restores after the Natrag na kalendar link, regardless of query parameter or
   const back = document.createElement("div"); document.body.append(back)
   const backRoot = createRoot(back)
   const reordered = "/kalendar?pogled=tjedan&grad=osijek&datum=2099-07-04"
-  await act(async () => backRoot.render(<EventBackLink href={reordered}>Natrag na kalendar</EventBackLink>))
+  // The destination now comes from ?returnTo= read on the client, so that the
+  // event page itself stays statically rendered (PERF-02).
+  nav.query = `returnTo=${encodeURIComponent(reordered)}`
+  await act(async () => backRoot.render(<EventBackLink />))
   const link = back.querySelector("a")!
+  expect(link.textContent).toContain("Natrag na kalendar")
+  expect(link.getAttribute("href")).toBe(reordered)
   link.addEventListener("click", (event) => event.preventDefault(), { once: true })
   await act(async () => link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 0 })))
   expect(stored()).toMatchObject({ armed: true })
