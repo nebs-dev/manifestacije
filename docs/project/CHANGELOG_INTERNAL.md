@@ -1,14 +1,187 @@
 # Internal Changelog
 
 ## Recent commits
-- af22027e test: add regression coverage for category fallback, endsAt clearing, and poster image fallback chain
-- 32974203 feat: SEO overhaul, admin inline edit, event geocoding fixes
-- c12f555f google analytics
-- f8e3be01 new google places api for address
-- 8554deb9 fix: coalesce null organizer filter value from base-ui Select
+- b2c0644e Page the homepage category strip 3 rows at a time instead of showing all 24
+- c0254888 Show all real categories in the homepage genre strip, not a curated 8
+- b371e912 Add a per-row duplicate button to the event schedule editor
+- 5aee6904 Crop event hero from the uncropped source, anchored top, instead of a pre-cropped 4:3
+- c3a51c7e Show full poster on event detail hero instead of center-cropping it
 
 ## Changes since last scan
-- None detected
+- .env.example
+- DEPLOYMENT.md
+- apps/api/package.json
+- apps/api/prisma/migrations/20260722090000_fix_drnis_region/migration.sql
+- apps/api/prisma/migrations/20260723183020_add_partner/migration.sql
+- apps/api/prisma/migrations/20260728120327_add_monitored_source/migration.sql
+- apps/api/prisma/migrations/20260728122146_monitored_source_default_daily_check/migration.sql
+- apps/api/prisma/migrations/20260728214409_discovered_item_parsed_detail/migration.sql
+- apps/api/prisma/migrations/20260813120000_add_event_occurrences/migration.sql
+- apps/api/prisma/schema.prisma
+- apps/api/src/admin/admin.controller.ts
+- apps/api/src/admin/admin.dto.ts
+- apps/api/src/admin/admin.service.ts
+- apps/api/src/admin/uploads.service.ts
+- apps/api/src/ai-parser/ai-event-parser.service.ts
+- apps/api/src/ai-parser/candidate-filters.ts
+- apps/api/src/app.module.ts
+- apps/api/src/common/city-resolver.ts
+- apps/api/src/common/croatia-geo.ts
+- apps/api/src/common/weekend.ts
+- apps/api/src/duplicates/duplicates.service.ts
+- apps/api/src/email/templates/admin-new-submission.template.ts
+- apps/api/src/event-sources/event-sources.module.ts
+- apps/api/src/events/event.dto.ts
+- apps/api/src/events/events.service.ts
+- apps/api/src/ingestion/ingestion.module.ts
+- apps/api/src/main.ts
+- apps/api/src/monitored-sources/monitored-sources.controller.ts
+- apps/api/src/monitored-sources/monitored-sources.dto.ts
+- apps/api/src/monitored-sources/monitored-sources.service.ts
+- apps/api/src/monitored-sources/source-fetch.ts
+- apps/api/src/monitored-sources/url-normalize.ts
+- apps/api/src/organizer-claims/organizer-claim.service.ts
+- apps/api/src/organizers/organizer.service.ts
+- apps/api/src/public-feed/public-feed.controller.ts
+- apps/api/src/public-feed/public-feed.service.ts
+- apps/api/src/scripts/repair-event-locations.ts
+- apps/api/test/admin-event-occurrences.spec.ts
+- apps/api/test/admin.service.spec.ts
+- apps/api/test/ai-parser.spec.ts
+- apps/api/test/city-resolver.spec.ts
+- apps/api/test/croatia-geo.spec.ts
+- apps/api/test/event-occurrences.spec.ts
+- apps/api/test/events-images.spec.ts
+- apps/api/test/monitored-sources.spec.ts
+- apps/api/test/public-feed.service.spec.ts
+- apps/api/test/weekend.spec.ts
+- apps/web/app/admin/events/[id]/page.tsx
+- apps/web/app/admin/events/page.tsx
+- apps/web/app/admin/events/pending/page.tsx
+- apps/web/app/admin/login/page.tsx
+- apps/web/app/admin/monitored-sources/[id]/page.tsx
+- apps/web/app/admin/monitored-sources/page.tsx
+- apps/web/app/admin/page.tsx
+- apps/web/app/admin/partners/page.tsx
+- apps/web/app/admin/regions/page.tsx
+- apps/web/app/admin/sources/page.tsx
+- apps/web/app/api/geocode/route.ts
+- apps/web/app/eventi/[eventSlug]/calendar.ics/route.ts
+- apps/web/app/eventi/[eventSlug]/page.tsx
+- apps/web/app/eventi/page.tsx
+- apps/web/app/globals.css
+- apps/web/app/gradovi/[citySlug]/kategorije/[categorySlug]/page.tsx
+- apps/web/app/gradovi/[citySlug]/page.tsx
+- apps/web/app/gradovi/page.tsx
+- apps/web/app/kalendar/page.tsx
+- apps/web/app/kamo-za-vikend/gradovi/[citySlug]/page.tsx
+- apps/web/app/kamo-za-vikend/regije/[regionSlug]/page.tsx
+- apps/web/app/kategorije/[categorySlug]/page.tsx
+- apps/web/app/layout.tsx
+- apps/web/app/organizer/events/[id]/page.tsx
+- apps/web/app/organizer/login/page.tsx
+- apps/web/app/organizer/submit-link/page.tsx
+- apps/web/app/ovaj-vikend/page.tsx
+- apps/web/app/page.tsx
+- apps/web/app/regije/[regionSlug]/kategorije/[categorySlug]/page.tsx
+- apps/web/app/regije/[regionSlug]/page.tsx
+- apps/web/app/sitemap.ts
+- apps/web/next.config.js
+- apps/web/package.json
+- apps/web/public/brand/apple-icon-v2.png
+- apps/web/public/brand/favicon-v2.ico
+- apps/web/public/brand/icon-16x16-v2.png
+- apps/web/public/brand/icon-192x192-v2.png
+- apps/web/public/brand/icon-32x32-v2.png
+- apps/web/public/brand/icon-48x48-v2.png
+- apps/web/public/brand/icon-512x512-v2.png
+- apps/web/public/manifest.webmanifest
+- apps/web/src/components/admin/admin-topbar.tsx
+- apps/web/src/components/admin/event-create-form.tsx
+- apps/web/src/components/admin/event-edit-form.tsx
+- apps/web/src/components/admin/event-image-picker.tsx
+- apps/web/src/components/admin/events-table.tsx
+- apps/web/src/components/admin/monitored-source-forms.tsx
+- apps/web/src/components/admin/monitored-source-table.tsx
+- apps/web/src/components/admin/nav.ts
+- apps/web/src/components/admin/parsed-candidate-card.tsx
+- apps/web/src/components/admin/pending-events-table.tsx
+- apps/web/src/components/admin/source-forms.tsx
+- apps/web/src/components/admin/source-review.tsx
+- apps/web/src/components/admin/source-table.tsx
+- apps/web/src/components/admin/status-badge.tsx
+- apps/web/src/components/auth/forgot-password-form.tsx
+- apps/web/src/components/auth/reset-password-form.tsx
+- apps/web/src/components/event-schedule-editor.test.ts
+- apps/web/src/components/event-schedule-editor.tsx
+- apps/web/src/components/organizer/claim-complete-form.tsx
+- apps/web/src/components/organizer/claim-request-form.tsx
+- apps/web/src/components/organizer/event-form.tsx
+- apps/web/src/components/organizer/join-form.tsx
+- apps/web/src/components/organizer/register-form.tsx
+- apps/web/src/components/public/add-to-calendar-button.tsx
+- apps/web/src/components/public/calendar-explorer.tsx
+- apps/web/src/components/public/calendar-teaser.tsx
+- apps/web/src/components/public/category-strip.tsx
+- apps/web/src/components/public/discovery-explorer.tsx
+- apps/web/src/components/public/discovery-map.tsx
+- apps/web/src/components/public/event-card-display.test.ts
+- apps/web/src/components/public/event-card-display.ts
+- apps/web/src/components/public/event-card.tsx
+- apps/web/src/components/public/event-filters.tsx
+- apps/web/src/components/public/event-poster-source.ts
+- apps/web/src/components/public/event-poster.test.ts
+- apps/web/src/components/public/event-poster.tsx
+- apps/web/src/components/public/event-rail.tsx
+- apps/web/src/components/public/home-hero.tsx
+- apps/web/src/components/public/partner-swap-logic.test.ts
+- apps/web/src/components/public/partner-swap-logic.ts
+- apps/web/src/components/public/partners-strip.tsx
+- apps/web/src/components/public/quick-filters.tsx
+- apps/web/src/components/public/random-swap-partner-strip.tsx
+- apps/web/src/components/public/results-grid.tsx
+- apps/web/src/components/public/seo-link-block.tsx
+- apps/web/src/components/public/site-header.tsx
+- apps/web/src/components/public/tracked-discovery-link.tsx
+- apps/web/src/components/public/weekend-landing.tsx
+- apps/web/src/components/route-progress.tsx
+- apps/web/src/components/ui/location-autocomplete.tsx
+- apps/web/src/lib/admin/adapters.ts
+- apps/web/src/lib/admin/types.ts
+- apps/web/src/lib/analytics.test.ts
+- apps/web/src/lib/analytics.ts
+- apps/web/src/lib/calendar.test.ts
+- apps/web/src/lib/calendar.ts
+- apps/web/src/lib/city-seo.test.ts
+- apps/web/src/lib/data.ts
+- apps/web/src/lib/event-jsonld.test.ts
+- apps/web/src/lib/event-jsonld.ts
+- apps/web/src/lib/event-schedule.test.ts
+- apps/web/src/lib/event-schedule.ts
+- apps/web/src/lib/home-calendar.test.ts
+- apps/web/src/lib/home-calendar.ts
+- apps/web/src/lib/location-display.test.ts
+- apps/web/src/lib/location-display.ts
+- apps/web/src/lib/public-api.test.ts
+- apps/web/src/lib/public-api.ts
+- apps/web/src/lib/route-progress.ts
+- apps/web/src/lib/schedule-editor-model.ts
+- apps/web/src/lib/seo-taxonomy.ts
+- apps/web/src/lib/weekend-page.ts
+- apps/web/src/lib/weekend-seo.ts
+- apps/web/src/lib/weekend.test.ts
+- apps/web/src/lib/weekend.ts
+- apps/web/vitest.config.ts
+- package.json
+- pnpm-lock.yaml
 
 ## Working tree changes
-- None detected
+- M apps/web/app/eventi/[eventSlug]/page.tsx
+- M apps/web/src/components/admin/event-image-picker.tsx
+- M apps/web/src/components/public/event-poster.tsx
+- M apps/web/src/lib/data.ts
+- M apps/web/src/lib/public-api.test.ts
+- M apps/web/src/lib/public-api.ts
+- ?? apps/web/src/lib/event-image-variants.test.ts
+- ?? apps/web/src/lib/event-image-variants.ts
+- ?? manifestacije_backup.sql
