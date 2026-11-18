@@ -64,11 +64,18 @@ jobs:
             exit 1
           fi
 
+      # `--depth=0` is not "no limit" — git rejects it with
+      # "fatal: depth 0 is not a positive number". The checkout above already
+      # brought full history; this fetch only makes sure the base branch tip
+      # is present as a ref the merge-base can be computed against.
       - name: Resolve the merge-base
         id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch --no-tags --depth=0 origin "${{ github.event.pull_request.base.ref }}"
-          echo "sha=$(git merge-base "origin/${{ github.event.pull_request.base.ref }}" HEAD)" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_REF"
+          echo "sha=$(git merge-base FETCH_HEAD HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Review
         uses: anthropics/claude-code-action@v1
@@ -106,12 +113,9 @@ jobs:
 
             On top of the skill's own axes, cover security, authorization,
             regressions, needless complexity and missing tests, and give
-            explicit attention to what CLAUDE.md lists under "What to look
-            hardest at" — editorial decisions and existing events surviving
-            the change, discovery-candidate deduplication and identity, date,
-            time and location correctness, admin and organizer authorization,
-            SSRF protection when fetching sources, cache invalidation after a
-            public event changes, and AI call volume and cost.
+            explicit attention to every item CLAUDE.md lists under "What to
+            look hardest at". Read that list there rather than relying on a
+            copy of it here; it is the one that gets maintained.
 
             Do not repeat what a deterministic check already catches. ESLint,
             the api/web/e2e typechecks, Vitest, Jest and the Chromium E2E
@@ -133,7 +137,11 @@ jobs:
 
             End with one line naming what you did not check and why. If you
             found nothing, say so in place of the headings and still post.
+          # No --max-turns: Anthropic's docs still list it, but the current
+          # Claude Code CLI has no such flag (2.1.327 offers --max-budget-usd
+          # instead), and an unknown option aborts the run. What bounds a run
+          # here is timeout-minutes above, plus concurrency cancelling a
+          # superseded one.
           claude_args: |
-            --max-turns 30
             --model claude-sonnet-5-5
-            --allowedTools "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Read,Grep,Glob,Task"
+            --allowedTools "Skill,Task,Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"

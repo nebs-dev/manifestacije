@@ -43,12 +43,17 @@ Nothing beyond what already exists, which is why it is built this way:
   on the existing subscription's quota.
 - There is deliberately **no** `ANTHROPIC_API_KEY` in the workflow. Adding one
   would move the cost to Claude API billing.
-- `--model claude-sonnet-5-5`, `--max-turns 30` and `timeout-minutes: 20` cap
-  what a single run can consume. One review per commit, never a loop: the
-  workflow does not trigger on comments, and it never pushes.
+- `--model claude-sonnet-5-5` and `timeout-minutes: 20` cap what a single run
+  can consume, with `concurrency` cancelling a run the next push supersedes.
+  There is deliberately no `--max-turns`: Anthropic's documentation still
+  lists that flag, but the current Claude Code CLI does not have it
+  (2.1.327 offers `--max-budget-usd` instead) and an unknown option aborts
+  the run. One review per commit, never a loop: the workflow does not trigger
+  on comments, and it never pushes.
 
 Heavy quota use still shows up as subscription rate limiting, not as a bill.
-If reviews start hitting limits, lower `--max-turns` or narrow the triggers.
+If reviews start hitting limits, lower `timeout-minutes` or narrow the
+triggers.
 
 ## One-time setup
 

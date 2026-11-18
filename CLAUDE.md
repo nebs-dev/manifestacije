@@ -6,8 +6,11 @@
 
 ## Agent skills
 
-The five skills below come from the `mattpocock-skills` plugin. The plugin is
-installed **per machine, not through this repo**:
+Five of the skills below come from the `mattpocock-skills` plugin; the sixth,
+`retro-after-incident`, is this repo's own and travels with it in
+`.claude/skills/`. The plugin is installed **per machine, not through this
+repo**, so a fresh clone has the routing rules but not the plugin until
+someone runs:
 
 ```bash
 claude plugin install mattpocock-skills@claude-plugins-official
@@ -32,9 +35,10 @@ mean.
 | `retro-after-incident` | model-invocable, in this repo | a production incident, a serious regression, a defect both tests and review missed, or the same class of mistake twice |
 | `mattpocock-skills:retro` | **you invoke it**: `/mattpocock-skills:retro` | a retrospective on a whole working session |
 
-Nobody has to name any of these. The first four fire from their own
-descriptions when the work matches; act on that rather than waiting to be
-asked.
+Nobody has to name any of these. Every row except the last fires from its own
+description when the work matches; act on that rather than waiting to be
+asked. That is a model's judgement, not a guarantee — the only review that is
+guaranteed is the one GitHub runs, below.
 
 `mattpocock-skills:retro` carries `disable-model-invocation: true`, so the
 Skill tool refuses it: "Ask the user to run /mattpocock-skills:retro
