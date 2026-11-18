@@ -123,3 +123,32 @@ test("a preview link with a tampered token opens nothing", async ({ page, adminA
   const direct = await page.goto(`/eventi/${encodeURIComponent(slug)}`);
   expect(direct?.status()).toBe(404);
 });
+
+test("a preview session for one event does not open another event's draft", async ({ page, adminApi, organizerApi }) => {
+  const draftA = await createPendingOrganizerEvent(organizerApi, adminApi, unique("E2E skica A"));
+  const draftB = await createPendingOrganizerEvent(organizerApi, adminApi, unique("E2E skica B"));
+  const publishedC = await createPublishedEvent(adminApi, { title: unique("E2E objavljen C") });
+
+  const link = await adminApi.post(`/api/admin/events/${draftA.id}/preview-link`);
+  const { slug: slugA, token } = (await link.json()) as { slug: string; token: string };
+
+  // A real preview session for A, cookies and all.
+  await page.goto(`/api/preview?slug=${encodeURIComponent(slugA)}&token=${encodeURIComponent(token)}`);
+  await expect(page.getByText(/Pregled za uredništvo/)).toBeVisible();
+
+  // The Draft Mode cookie is per-browser, not per-event. B's draft must stay
+  // shut: the API checks the token against the slug it was issued for on every
+  // fetch, so B is only ever asked for as a public event, and it has no public
+  // page yet.
+  const b = await page.goto(`/eventi/${encodeURIComponent(draftB.slug)}`);
+  expect(b?.status(), "another event's draft must not open in A's preview session").toBe(404);
+  await expect(page.getByRole("heading", { name: "Stranica nije pronađena" })).toBeVisible();
+
+  // A published third event opens as its ordinary public page. The preview
+  // session is bound to the slug it was issued for, so it carries none of A's
+  // editorial framing onto C.
+  const c = await page.goto(`/eventi/${encodeURIComponent(publishedC.slug)}`);
+  expect(c?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("E2E objavljen C");
+  await expect(page.getByText(/Pregled za uredništvo/)).toBeHidden();
+});

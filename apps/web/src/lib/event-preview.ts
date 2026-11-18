@@ -15,6 +15,21 @@
  */
 export const PREVIEW_TOKEN_COOKIE = "event_preview_token"
 
+/**
+ * The slug the token in PREVIEW_TOKEN_COOKIE was issued for, URL-encoded
+ * because a slug may hold characters a cookie value cannot.
+ *
+ * Draft Mode's cookie is per-browser, not per-event, so without this the
+ * session would treat every event page as a preview for as long as it lasts:
+ * an unrelated published event would render with the editorial banner, a
+ * "Pregled:" title and robots noindex, and would forward one event's token on
+ * requests for another. The API already refuses to serve a draft to a token
+ * issued for a different slug, so this is not what keeps drafts shut — it is
+ * what keeps the preview session from spilling onto pages it has nothing to
+ * do with.
+ */
+export const PREVIEW_SLUG_COOKIE = "event_preview_slug"
+
 /** Matches EventPreviewService.expiresInMinutes, so the cookie cannot outlive
  *  the token it holds. */
 export const PREVIEW_TOKEN_MAX_AGE_SECONDS = 30 * 60

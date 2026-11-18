@@ -64,6 +64,24 @@ describe("revalidation delivery", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.objectContaining({ reason: "invalid_WEB_URL" }));
   });
+  it("reports every outcome under the cache_revalidation event name, with a status and no secret", async () => {
+    fetchMock.mockResolvedValue(response(200));
+    await new RevalidateService().revalidate("events");
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ event: "cache_revalidation", outcome: "success", tag: "events" }));
+
+    log.mockClear();
+    warn.mockClear();
+    fetchMock.mockResolvedValue(response(503));
+    await new RevalidateService().revalidate("events");
+    // The status is what makes a failure diagnosable; the secret and the URL
+    // must never appear beside it.
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ event: "cache_revalidation", outcome: "http_failure", status: 503 }));
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ event: "cache_revalidation", outcome: "final_failure" }));
+    const logged = JSON.stringify([...log.mock.calls, ...warn.mock.calls]);
+    expect(logged).not.toContain("private-test-secret");
+    expect(logged).not.toContain("web.example");
+  });
+
   it("rejects an unrelated 200 response", async () => {
     fetchMock.mockResolvedValue({ ...response(200), json: async () => ({}) } as Response);
     expect(await new RevalidateService().revalidate()).toBe(false);
