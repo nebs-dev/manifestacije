@@ -505,7 +505,10 @@ function toCroEvent(event: ApiEvent, now = new Date()): CroEvent {
     image: imageUrl ? eventImageVariant(imageUrl, 640) : undefined,
     // Detail preserves the source aspect ratio and only limits its maximum width.
     heroImage: imageUrl ? eventImagePrimaryUrl(imageUrl, "detail") : undefined,
-    featured: event.isFeatured === true || (event.extractionConfidence ? event.extractionConfidence >= 0.85 : false),
+    // Editorial only: an admin ticks "Izdvojeno" in the review card or the
+    // event editor. Parser confidence used to promote events here too, which
+    // put events nobody had chosen into the featured row.
+    featured: event.isFeatured === true,
     address: event.address ?? event.venue?.address ?? undefined,
     lat: coords.lat,
     lng: coords.lng,
