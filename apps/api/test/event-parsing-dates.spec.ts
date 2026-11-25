@@ -54,6 +54,40 @@ describe("Zagreb parser regressions", () => {
   ])("reads the shorthand date %s", (text, expected) => {
     expect(sourceDates(text as string)).toEqual([expected]);
   });
+  // English posters are common in club listings: "THURSDAY | 12/NOV/2026,
+  // start 5 pm" was read correctly by the model and then thrown away, because
+  // the evidence gate only knew Croatian months and 24-hour clocks.
+  it.each([
+    ["THURSDAY | 12/NOV/2026", "2026-11-12"],
+    ["12/NOV/2026", "2026-11-12"],
+    ["NOV/12/2026", "2026-11-12"],
+    ["12 November 2026", "2026-11-12"],
+    ["November 12, 2026", "2026-11-12"],
+    ["12-NOV-2026", "2026-11-12"],
+    ["12 SEPT 2026", "2026-09-12"],
+  ])("reads the English date %s", (text, expected) => {
+    expect(sourceDates(text as string)).toEqual([expected]);
+  });
+  it.each(["THURSDAY", "FRIDAY 2026", "and so on 2026", "march of the penguins 2026"])("does not invent a date from English prose in %s", (text) => {
+    expect(sourceDates(text)).toEqual([]);
+  });
+  it.each([
+    ["start 5 pm", "17:00"],
+    ["doors 5PM", "17:00"],
+    ["5:30 pm", "17:30"],
+    ["11.30pm", "23:30"],
+    ["12 am", "00:00"],
+    ["12 pm", "12:00"],
+    ["8 a.m.", "08:00"],
+  ])("reads the 12-hour time %s", (text, expected) => {
+    expect(sourceTimes(text as string)).toEqual([expected]);
+  });
+  it("keeps a 12-hour time and its date apart on an English poster", () => {
+    const text = "BOOK AND MUSIC 1 – Afterwork Party\nTHURSDAY | 12/NOV/2026\nstart 5 pm\nClub O2, Osijek";
+    expect(sourceDates(text)).toEqual(["2026-11-12"]);
+    expect(sourceTimes(text)).toEqual(["17:00"]);
+  });
+
   it.each(["svi su dobrodošli 5. 2026.", "13. studenoga 2026."])("does not invent a month from ordinary words in %s", (text) => {
     expect(sourceDates(text)).not.toContain("2026-05-05");
   });
