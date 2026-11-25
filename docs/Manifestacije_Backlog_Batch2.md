@@ -14,9 +14,9 @@ Status: `NOT IMPLEMENTED`, `PARTIAL`, `DONE`, `BUG POTVRĐEN U KODU`, `UNKNOWN /
 
 | # | Zahtjev | Status | Effort | Prioritet |
 |---|---|---|---|---|
-| 1 | Statistika unosa (dashboard) | **FAZA 1 GOTOVA** — `/admin/statistika`; faza 2 i audit log otvoreni | L | P2 |
+| 1 | Statistika unosa (dashboard) | **GOTOVO** — `/admin/entry-statistics`, faza 1 + trendovi, statistika sadržaja i CSV izvoz | L | P2 |
 | 2 | Datum/vrijeme s plakata nije popunjen | **RIJEŠENO** — engleski mjeseci + am/pm, 16 novih testova | S–M | **P1** |
-| 3 | Memorija mjesta i adresa | **RIJEŠENO** (VEN-01…05); VEN-06 spajanje duplikata otvoreno | M | P1 |
+| 3 | Memorija mjesta i adresa | **RIJEŠENO** (VEN-01…06, uključujući spajanje duplikata na `/admin/venues`) | M | P1 |
 | 4 | Masovna obrada plakata + web istraživanje | **BULK-01 RIJEŠEN** (`/admin/masovni-unos`); web pretraga (BULK-02) odgođena odlukom | L | P3 |
 | 5 | „Izdvojeno" u pregledu parsirane objave | **RIJEŠENO** — plumbing + switch + 5 testova | S | P2 |
 
@@ -31,7 +31,9 @@ Status: `NOT IMPLEMENTED`, `PARTIAL`, `DONE`, `BUG POTVRĐEN U KODU`, `UNKNOWN /
 **Isporučeno:** `/admin/statistika` (`apps/web/app/admin/statistika/page.tsx`, `entry-stats-page.tsx`), API `GET /api/admin/stats/entries` i `/stats/entries/day` (`apps/api/src/admin/entry-stats.ts` — čiste funkcije, `admin.service.ts` — upiti). Kartice, 10 brzih razdoblja + strelice po mjesecima + prilagođeno razdoblje, tablica administratora (aktivni dani, prosjek/dan, udio, zadnji unos), organizatori odvojeno, skriveni neaktivni računi, dnevna matrica sa zbrojevima, heatmap kalendar, kronologija dana sa sekundama, razmaci (prosjek/medijan/min/max/raspon) i odbacivanje pauza >15/30/60 min, klik s brojke na filtrirani popis događaja.
 **Odluke u kodu:** grupiranje po Zagreb danu (ne UTC), tjedan počinje ponedjeljkom, tekući mjesec staje na danas, usporedba = jednak broj dana neposredno prije razdoblja, e-mail adrese se ne vraćaju ni ne prikazuju, nepoznat autor se prikazuje zasebno.
 **Dokaz:** 44 Jest testa (`entry-stats.spec.ts`, `admin-entry-stats.spec.ts`) + 32 Vitest testa (`entry-stats.test.ts`, `entry-stats-page.test.tsx`).
-**Otvoreno:** STAT-08 (grafikoni, dani/sati), STAT-09 (statistika sadržaja), izvoz CSV/Excel, STAT-RISK-01 (audit log).
+**Faza 2 isporučena 2026-11-25:** trendovi po mjesecima, godinama, danima u tjednu i satima; usporedba tekućeg mjeseca s istim brojem dana prethodnog; statistika sadržaja (gradovi, županije, kategorije, objavljeno/neobjavljeno, nadolazeći, uneseno na dan održavanja, vrijeme najave kao medijan i prosjek, neriješeni duplikati, nepotpun sadržaj s popisom); izvoz u CSV za hrvatski Excel (`;`, decimalni zarez, BOM, zaštita od formula u ćelijama).
+
+**Otvoreno:** automatsko generiranje mjesečnog izvještaja (točka 11), evidencija uređivanja (nema povijesti izmjena — vidi odluku 2).
 
 **Prethodni nalaz (zadržan radi konteksta):** PARTIAL
 
@@ -226,6 +228,21 @@ Napomena uz prikaz: javni feed smatra događaj izdvojenim i kad je `extractionCo
 5. **STAT-05/06/07** — dnevna matrica, heatmap, kronologija razmaka (raw SQL po `Europe/Zagreb`, logika razmaka kroz TDD). (M–L.)
 
 Otvoreno za odluku prije kodiranja: **STAT-RISK-01** (uvodimo li `EventActivity` audit log ili izbacujemo metrike uređivanja/brisanja) i **BULK-02** (opseg i budžet web pretrage). `VEN-04` ne raditi prije `VEN-05` — automatsko povezivanje bez grada upisuje pogrešne adrese.
+
+## Lokalni review prije PR-a (2026-11-25)
+
+Dvoosni review (Standards + Spec) pronašao je i popravljeno je u istom branchu:
+
+- spajanje mjesta nije invalidiralo javni cache, pa bi posjetitelji vidjeli staru adresu i pin;
+- preset `Sve vrijeme` počinjao je 2000. godinom → prosjek dijeljen izmišljenim brojem dana i tablica od tisuća praznih redaka;
+- statistika je za taj preset dvaput čitala sve događaje (prozor „danas/tjedan/mjesec" bio je proširen na odabrano razdoblje);
+- pretraga mjesta uzimala je 20 redaka abecedno **prije** rangiranja po gradu, pa je kod mnogo istoimenih mjesta grad događaja mogao ispasti s popisa i automatsko popunjavanje bi upisalo adresu iz drugog grada (točno VEN-05 rizik);
+- CSV ćelije koje počinju s `=`, `+`, `-` ili `@` sada se neutraliziraju (naslovi dolaze iz scrape/LLM izvora);
+- masovna obrada ograničena na 40 plakata po pokretanju, uz oslobađanje `objectURL`-ova;
+- organizatorsko brisanje odvezivalo je izvore izvan transakcije;
+- napomena o evidenciji brisanja više nema ukucan datum.
+
+Svjesno **nije** mijenjano: nema backfilla `isFeatured` za događaje koji su dosad bili izdvojeni samo zbog `extractionConfidence` — odluka je bila da izdvojeno znači isključivo ručnu oznaku.
 
 ## Provjere koje ovaj triage nije napravio
 
