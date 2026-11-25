@@ -23,3 +23,17 @@ describe("CSV export", () => {
     expect(toCsv([[null, undefined, ""]])).toBe("﻿;;")
   })
 })
+
+describe("spreadsheet formula injection", () => {
+  it.each(["=SUM(A1:A9)", "+1+1", "-1+1", "@SUM(1)"])("neutralises %s, which Excel would otherwise run", value => {
+    expect(toCsv([[value]])).toContain(`'${value}`)
+  })
+
+  it("leaves an ordinary title alone", () => {
+    expect(toCsv([["Koncert u Tvrđi"]])).toBe("﻿Koncert u Tvrđi")
+  })
+
+  it("does not turn a negative number into text", () => {
+    expect(toCsv([[-5]])).toBe("﻿-5")
+  })
+})

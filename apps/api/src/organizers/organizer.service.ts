@@ -138,10 +138,12 @@ export class OrganizerService {
     if (event.status !== "PENDING_REVIEW" && event.status !== "DRAFT") {
       throw new ForbiddenException("Možete obrisati samo evente na pregledu ili nacrte.");
     }
-    await this.prisma.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
     // An organizer deleting their own submission is counted the same way an
-    // admin deletion is, and attributed to them.
+    // admin deletion is, and attributed to them. Unlinking the sources runs
+    // inside the same transaction: a failed delete must not leave sources
+    // detached from an event that still exists.
     return this.prisma.$transaction(async (tx) => {
+      await tx.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
       await recordEventDeletion(tx, id, userId);
       return tx.event.delete({ where: { id } });
     });

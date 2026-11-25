@@ -37,7 +37,7 @@ test("an admin merges a duplicate venue and the events move with it", async ({ a
   });
   expect(merged.ok(), await merged.text()).toBe(true);
 
-  await page.goto("/admin/mjesta");
+  await page.goto("/admin/venues");
   await expect(page.getByRole("heading", { name: "Mjesta održavanja" })).toBeVisible();
 
   const duplicates = page.getByRole("region", { name: "Mogući duplikati" });

@@ -14,8 +14,10 @@ const venue = (id: number, name: string, address: string | null, city: string, e
 });
 
 function service(found: ReturnType<typeof venue>[]) {
-  const findMany = jest.fn().mockResolvedValue(found);
-  const prisma = { venue: { findMany } };
+  // The search runs two queries — this city, then the rest — and the second
+  // one carries the rows in these tests.
+  const findMany = jest.fn().mockResolvedValueOnce([]).mockResolvedValue(found);
+  const prisma = { venue: { findMany }, $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)) };
   return { findMany, admin: new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn() } as never, {} as never, {} as never) };
 }
 
@@ -37,7 +39,7 @@ describe("admin venue suggestions", () => {
 
     await admin.searchVenues("oxygene");
 
-    const where = findMany.mock.calls[0][0].where;
+    const where = findMany.mock.calls[1][0].where;
     for (const clause of where.OR) {
       expect(Object.values(clause)[0]).toEqual(expect.objectContaining({ mode: "insensitive" }));
     }
@@ -179,5 +181,53 @@ describe("merging duplicate venues (VEN-06)", () => {
   it("refuses when one of the venues no longer exists", async () => {
     const { admin } = mergeService(venueRow(1, "Oxygene", 1), null);
     await expect(admin.mergeVenues(1, 2)).rejects.toThrow("nije pronađeno");
+  });
+});
+
+describe("the event's own city is never crowded out (VEN-05)", () => {
+  it("asks for the city's venues in a query of their own", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = { venue: { findMany }, $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)) };
+    const admin = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn() } as never, {} as never, {} as never);
+
+    await admin.searchVenues("dvorana", { cityName: "Osijek" });
+
+    // Two queries: this city, then the rest. Twenty alphabetical rows can no
+    // longer push every Osijek venue past the cut-off and leave the prefill
+    // with a single match in another town.
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(findMany.mock.calls[0][0].where)).toContain("Osijek");
+    expect(JSON.stringify(findMany.mock.calls[1][0].where)).toContain("NOT");
+  });
+
+  it("searches everything when no city is known", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = { venue: { findMany }, $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)) };
+    const admin = new AdminService(prisma as never, {} as never, {} as never, {} as never, { revalidate: jest.fn() } as never, {} as never, {} as never);
+
+    await admin.searchVenues("oxygene");
+
+    expect(JSON.stringify(findMany.mock.calls[0][0].where)).toContain("-1");
+    expect(JSON.stringify(findMany.mock.calls[1][0].where)).toContain("oxygene");
+  });
+});
+
+describe("a merge changes what visitors see", () => {
+  it("invalidates the public cache after the events have moved", async () => {
+    const tx = {
+      venue: {
+        findUnique: jest.fn().mockImplementation(async ({ where }) => ({ id: where.id, name: `V${where.id}`, cityId: 1, address: null, lat: null, lng: null })),
+        update: jest.fn().mockResolvedValue({ id: 2 }),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      event: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    };
+    const revalidate = { revalidate: jest.fn().mockResolvedValue(true) };
+    const prisma = { $transaction: jest.fn().mockImplementation((work: (client: unknown) => unknown) => work(tx)) };
+    const admin = new AdminService(prisma as never, {} as never, {} as never, {} as never, revalidate as never, {} as never, {} as never);
+
+    await admin.mergeVenues(1, 2);
+
+    expect(revalidate.revalidate).toHaveBeenCalledWith("events");
   });
 });

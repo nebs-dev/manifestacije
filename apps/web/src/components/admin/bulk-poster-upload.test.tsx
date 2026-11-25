@@ -110,6 +110,14 @@ describe("bulk poster processing", () => {
     expect(container.querySelectorAll("li")).toHaveLength(1)
   })
 
+  it("caps one run so a mis-dropped folder cannot spend hundreds of vision calls", async () => {
+    await render()
+    await choose(...Array.from({ length: 45 }, (_, index) => poster(`p${index}.png`)))
+
+    expect(container.querySelectorAll("li")).toHaveLength(40)
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("od 40")
+  })
+
   it("publishes nothing on its own", async () => {
     await render()
     await choose(poster("a.png"))

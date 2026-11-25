@@ -28,10 +28,12 @@ export const ENTRY_PRESETS = [
 ] as const;
 export type EntryPreset = (typeof ENTRY_PRESETS)[number];
 
-/** The first instant Manifestacije could possibly hold an entry for. Kept as a
- *  real date rather than `undefined` so every range is a closed interval and
- *  the "previous comparable period" arithmetic has something to subtract. */
-const ALL_TIME_START = "2000-01-01";
+/** Fallback start for "all time" when the caller does not know when the
+ *  first event was entered. The caller should pass the real first day — an
+ *  invented start stretches the range over empty years, which would divide
+ *  the daily average by a denominator nobody recognises and draw a table of
+ *  thousands of empty rows. */
+const ALL_TIME_FALLBACK_DAYS = 365;
 
 const shiftDays = (dateKey: string, days: number): string => {
   const date = new Date(`${dateKey}T12:00:00Z`);
@@ -70,7 +72,12 @@ export const rangeFromDays = (firstDay: string, lastDay: string): EntryRange => 
   to: startOfZagrebDay(shiftDays(lastDay, 1)).toISOString(),
 });
 
-export function presetRange(preset: EntryPreset, now = new Date()): EntryRange {
+/**
+ * `firstEntryDay` is the Zagreb day of the oldest entry, for "all time".
+ * Without it that preset falls back to the last year rather than inventing a
+ * start in 2000 and reporting averages over empty decades.
+ */
+export function presetRange(preset: EntryPreset, now = new Date(), firstEntryDay?: string): EntryRange {
   const today = zagrebDateKey(now);
   switch (preset) {
     case "today": return rangeFromDays(today, today);
@@ -85,7 +92,10 @@ export function presetRange(preset: EntryPreset, now = new Date()): EntryRange {
     }
     case "last-30": return rangeFromDays(shiftDays(today, -29), today);
     case "this-year": return rangeFromDays(`${today.slice(0, 4)}-01-01`, today);
-    case "all-time": return rangeFromDays(ALL_TIME_START, today);
+    case "all-time": {
+      const first = firstEntryDay && firstEntryDay <= today ? firstEntryDay : shiftDays(today, -ALL_TIME_FALLBACK_DAYS);
+      return rangeFromDays(first, today);
+    }
   }
 }
 
@@ -356,6 +366,8 @@ export type EntryTrends = {
   weekdays: { weekday: number; total: number }[];
   /** Always 24 entries: an empty hour is part of the shape. */
   hours: { hour: number; total: number }[];
+  /** Whole years covered by the window, for a year-on-year comparison. */
+  years: { year: string; total: number }[];
   /** The current month against the same number of days of the one before. */
   monthToDate: { month: string; total: number; previousMonth: string; previousTotal: number; throughDay: number };
 };
@@ -396,10 +408,16 @@ export function buildTrends(input: { rows: EntryRow[]; months: number; now?: Dat
     return date.startsWith(key) && Number(date.slice(8)) <= throughDay;
   }).length;
 
+  const years = [...new Set(monthKeys.map(month => month.slice(0, 4)))].map(year => ({
+    year,
+    total: months.filter(month => month.month.startsWith(year)).reduce((sum, month) => sum + month.total, 0),
+  }));
+
   return {
     months,
     weekdays,
     hours,
+    years,
     monthToDate: { month, total: inMonthThroughDay(month), previousMonth, previousTotal: inMonthThroughDay(previousMonth), throughDay },
   };
 }

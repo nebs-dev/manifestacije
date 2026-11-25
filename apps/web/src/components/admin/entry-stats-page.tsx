@@ -237,7 +237,8 @@ export function EntryStatsPage() {
                 : `prije: ${stats.totals.previousTotal} (${comparison!.percent > 0 ? "+" : ""}${comparison!.percent}%)`}
             />
             <Card label="Objavljeno u razdoblju" value={String(stats.totals.published)} hint="po datumu objave" />
-            <Card label="Obrisano u razdoblju" value={String(stats.totals.deleted)} hint="evidentira se od 25.11.2026." />
+            <Card label="Obrisano u razdoblju" value={String(stats.totals.deleted)}
+              hint="broje se samo brisanja od uvođenja evidencije" />
             {stats.totals.unknown > 0 && (
               <Card label="Nepoznat autor" value={String(stats.totals.unknown)} hint="unosi bez zabilježenog autora" />
             )}
@@ -356,6 +357,19 @@ export function EntryStatsPage() {
                   onPick={month => { setSelection({ kind: "month", month }); setDay(null) }}
                 />
               </div>
+              {trends.years.length > 1 && (
+                <div className="rounded-lg border border-border p-3">
+                  <p className="mb-2 text-sm text-muted-foreground">Po godinama (unutar prikazanih 12 mjeseci)</p>
+                  <ul className="flex flex-wrap gap-4 text-sm">
+                    {trends.years.map(year => (
+                      <li key={year.year} className="flex items-baseline gap-2">
+                        <span className="font-medium">{year.year}</span>
+                        <span className="tabular-nums">{year.total}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-lg border border-border p-3">
                   <p className="mb-2 text-sm text-muted-foreground">Po danima u tjednu (12 mjeseci)</p>

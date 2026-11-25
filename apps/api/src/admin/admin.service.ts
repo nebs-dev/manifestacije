@@ -4,7 +4,7 @@ import { DuplicateStatus, EventStatus, EventSourceStatus, EventSourceType, Organ
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
-import { formatZagrebIso } from "../common/zagreb-time";
+import { formatZagrebIso, zagrebDateKey } from "../common/zagreb-time";
 import { findOrCreateCity } from "../common/city-resolver";
 import { buildContentStats, buildEntryStats, buildTimeline, buildTrends, ENTRY_PRESETS, EntryPreset, monthRange, presetRange, previousRange, rangeFromDays, startOfZagrebDay } from "./entry-stats";
 import { recordEventDeletion } from "../events/event-deletion";
@@ -1403,11 +1403,13 @@ export class AdminService {
    *  rather than attributed to anybody. */
   async entryStats(params: { preset?: string; month?: string; from?: string; to?: string } = {}) {
     const now = new Date();
-    const range = this.resolveStatsRange(params, now);
+    const range = await this.resolveStatsRange(params, now);
     const previous = previousRange(range);
     // Today / this week / this month stay on the cards whatever range is
-    // selected, so they are counted over their own window.
-    const currentFrom = [range.from, presetRange("this-month", now).from, presetRange("this-week", now).from, presetRange("yesterday", now).from]
+    // selected, so they are counted over their own window — and only that
+    // window. Widening it to the selected range once meant "all time" read
+    // every event row twice to answer "how many today".
+    const currentFrom = [presetRange("this-month", now).from, presetRange("this-week", now).from, presetRange("yesterday", now).from]
       .reduce((earliest, candidate) => (candidate < earliest ? candidate : earliest));
     const select = { createdByUserId: true, createdAt: true } as const;
     const inRange = { gte: new Date(range.from), lt: new Date(range.to) };
@@ -1465,7 +1467,7 @@ export class AdminService {
    *  ahead events are entered, and what is still missing from them. */
   async contentStats(params: { preset?: string; month?: string; from?: string; to?: string } = {}) {
     const now = new Date();
-    const range = this.resolveStatsRange(params, now);
+    const range = await this.resolveStatsRange(params, now);
     const inRange = { gte: new Date(range.from), lt: new Date(range.to) };
     const [rows, cities, counties, categories, pendingDuplicates] = await this.prisma.$transaction([
       this.prisma.event.findMany({
@@ -1490,7 +1492,7 @@ export class AdminService {
     });
   }
 
-  private resolveStatsRange(params: { preset?: string; month?: string; from?: string; to?: string }, now: Date) {
+  private async resolveStatsRange(params: { preset?: string; month?: string; from?: string; to?: string }, now: Date) {
     const day = /^\d{4}-\d{2}-\d{2}$/;
     if (params.from && params.to) {
       if (!day.test(params.from) || !day.test(params.to)) throw new BadRequestException("Razdoblje mora biti u obliku YYYY-MM-DD.");
@@ -1503,8 +1505,15 @@ export class AdminService {
     }
     const preset = (params.preset ?? "this-month") as EntryPreset;
     if (!ENTRY_PRESETS.includes(preset)) throw new BadRequestException(`Nepoznato razdoblje '${params.preset}'.`);
+    // "All time" starts at the oldest entry there actually is. Inventing a
+    // start would stretch the range over empty years, dividing the daily
+    // average by a denominator nobody recognises and drawing a table of
+    // thousands of empty rows.
+    const first = preset === "all-time"
+      ? await this.prisma.event.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } })
+      : null;
     // Opening the page shows the current month without anyone picking a date.
-    return presetRange(preset, now);
+    return presetRange(preset, now, first ? zagrebDateKey(first.createdAt) : undefined);
   }
 
   /** Every stored venue with how many events point at it (VEN-06). */
@@ -1553,6 +1562,12 @@ export class AdminService {
       const kept = await tx.venue.update({ where: { id: targetId }, data: filled });
       await tx.venue.delete({ where: { id: sourceId } });
       return { movedEvents: moved.count, venue: kept, removedVenueId: sourceId };
+    }).then(async (result) => {
+      // Published pages render the venue's name, address and map pin, so a
+      // merge changes public output even though it touches no event field
+      // the editor can see.
+      await this.revalidate.revalidate("events");
+      return result;
     });
   }
 
@@ -1571,23 +1586,38 @@ export class AdminService {
   async searchVenues(q: string, opts: { cityName?: string } = {}) {
     const query = q.trim();
     if (query.length < 2) return [];
-    const venues = await this.prisma.venue.findMany({
-      where: {
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { address: { contains: query, mode: "insensitive" } },
-        ],
-      },
-      include: { city: true },
-      take: 20,
-      orderBy: { name: "asc" },
-    });
+    const matches: Prisma.VenueWhereInput = {
+      OR: [
+        { name: { contains: query, mode: "insensitive" } },
+        { address: { contains: query, mode: "insensitive" } },
+      ],
+    };
+    const city = opts.cityName?.trim();
+    // The event's own city is fetched in its own query. Taking 20 rows in
+    // alphabetical order and ranking afterwards could push every venue of
+    // this city past the cut-off, and the prefill would then see a single
+    // match in another town — the one thing VEN-05 must never allow.
+    const [inCity, others] = await this.prisma.$transaction([
+      this.prisma.venue.findMany({
+        where: city ? { AND: [matches, { city: { name: { equals: city, mode: "insensitive" } } }] } : { id: -1 },
+        include: { city: true },
+        take: 20,
+        orderBy: { name: "asc" },
+      }),
+      this.prisma.venue.findMany({
+        where: city ? { AND: [matches, { NOT: { city: { name: { equals: city, mode: "insensitive" } } } }] } : matches,
+        include: { city: true },
+        take: 20,
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    const venues = [...inCity, ...others];
     const needle = query.toLowerCase();
-    const city = opts.cityName?.trim().toLowerCase();
+    const cityKey = city?.toLowerCase();
     // Same city outranks everything; a name that starts with what was typed
     // outranks one that merely contains it.
     const rank = (venue: (typeof venues)[number]) =>
-      (city && venue.city.name.toLowerCase() === city ? 0 : 2) + (venue.name.toLowerCase().startsWith(needle) ? 0 : 1);
+      (cityKey && venue.city.name.toLowerCase() === cityKey ? 0 : 2) + (venue.name.toLowerCase().startsWith(needle) ? 0 : 1);
     return venues
       .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "hr"))
       .slice(0, 8)

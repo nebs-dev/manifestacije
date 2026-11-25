@@ -220,6 +220,18 @@ describe("entry trends", () => {
     expect(trends.months[0].total).toBe(0);
   });
 
+  it("totals whole years inside the window", () => {
+    const trends = buildTrends({ rows: [row(1, "2026-01-02T09:00:00Z"), row(1, "2025-12-28T09:00:00Z")], months: 14, now: new Date("2026-11-25T10:00:00Z") });
+    expect(trends.years).toEqual([{ year: "2025", total: 1 }, { year: "2026", total: 1 }]);
+  });
+
+  it("starts all time at the oldest entry rather than inventing a decade", () => {
+    const today = "2026-11-25T10:00:00Z";
+    expect(daysInRange(presetRange("all-time", new Date(today), "2026-11-20"))).toHaveLength(6);
+    // Without a first entry day it falls back to the last year, never to 2000.
+    expect(daysInRange(presetRange("all-time", new Date(today))).length).toBeLessThanOrEqual(366);
+  });
+
   it("buckets by weekday Monday-first and by the Zagreb hour", () => {
     // 2026-11-02 is a Monday; 23:30 UTC is 00:30 the next day in Zagreb.
     const trends = buildTrends({ rows: [row(1, "2026-11-02T09:00:00Z"), row(1, "2026-11-02T23:30:00Z")], months: 1, now: new Date("2026-11-25T10:00:00Z") });

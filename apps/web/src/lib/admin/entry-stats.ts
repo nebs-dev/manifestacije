@@ -147,6 +147,7 @@ export type EntryTrends = {
   months: { month: string; total: number; byUser: Record<number, number> }[]
   weekdays: { weekday: number; total: number }[]
   hours: { hour: number; total: number }[]
+  years: { year: string; total: number }[]
   monthToDate: { month: string; total: number; previousMonth: string; previousTotal: number; throughDay: number }
 }
 

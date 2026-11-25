@@ -11,7 +11,12 @@ const BOM = "﻿"
 const cell = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined) return ""
   // Decimal comma, so Excel treats 2.5 as a number rather than a date.
-  const text = typeof value === "number" ? String(value).replace(".", ",") : value
+  const number = typeof value === "number"
+  // Event titles come from scraped pages and LLM output. A cell starting
+  // with =, +, - or @ is a formula to Excel, so it is prefixed with an
+  // apostrophe: the spreadsheet shows the text and runs nothing.
+  const raw = number ? String(value).replace(".", ",") : value
+  const text = !number && /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
   return /[";\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 

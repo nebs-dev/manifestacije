@@ -48,6 +48,7 @@ const trends: EntryTrends = {
   ],
   weekdays: [0, 1, 2, 3, 4, 5, 6].map(weekday => ({ weekday, total: weekday === 2 ? 20 : 4 })),
   hours: Array.from({ length: 24 }, (_, hour) => ({ hour, total: hour === 9 ? 15 : 1 })),
+  years: [{ year: "2026", total: 80 }, { year: "2025", total: 12 }],
   monthToDate: { month: "2026-11", total: 42, previousMonth: "2026-10", previousTotal: 26, throughDay: 25 },
 }
 
@@ -108,7 +109,7 @@ describe("entry statistics page", () => {
     // Deletions only exist from the day the record was introduced, and the
     // card says so rather than implying the history is complete.
     expect(summary).toContain("Obrisano u razdoblju")
-    expect(summary).toContain("evidentira se od")
+    expect(summary).toContain("od uvođenja evidencije")
   })
 
   it("never shows an email address", async () => {
@@ -218,6 +219,14 @@ describe("trends, content statistics and export", () => {
     expect(section.querySelectorAll("[aria-label]").length).toBeGreaterThanOrEqual(34)
     expect(section.textContent).toContain("42")
     expect(section.textContent).toContain("26")
+  })
+
+  it("compares whole years when the window spans more than one", async () => {
+    await render()
+    const section = container.querySelector('[aria-label="Trendovi"]')!.textContent ?? ""
+    expect(section).toContain("Po godinama")
+    expect(section).toContain("2025")
+    expect(section).toContain("80")
   })
 
   it("steps to a month when its bar is clicked", async () => {

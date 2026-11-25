@@ -15,7 +15,7 @@ test("@smoke an admin opens the entry statistics and sees today's work without p
   const title = unique("E2E statistika događaj");
   await createPublishedEvent(adminApi, { title });
 
-  await page.goto("/admin/statistika");
+  await page.goto("/admin/entry-statistics");
   await expect(page.getByRole("heading", { name: "Statistika unosa" })).toBeVisible();
 
   // The summary is there before any filter is touched.
@@ -43,7 +43,7 @@ test("a day's chronology opens from the number in the daily table", async ({ adm
   const title = unique("E2E kronologija događaj");
   await createPublishedEvent(adminApi, { title });
 
-  await page.goto("/admin/statistika");
+  await page.goto("/admin/entry-statistics");
   const daily = page.getByRole("region", { name: "Dnevna statistika" });
   await expect(daily.getByRole("table")).toBeVisible();
 
@@ -63,7 +63,7 @@ test("a day's chronology opens from the number in the daily table", async ({ adm
 });
 
 test("the period buttons and the month arrows reload the whole page", async ({ adminPage: page }) => {
-  await page.goto("/admin/statistika");
+  await page.goto("/admin/entry-statistics");
   await expect(page.getByRole("heading", { name: "Statistika unosa" })).toBeVisible();
 
   await page.getByRole("button", { name: "Prošli mjesec" }).click();

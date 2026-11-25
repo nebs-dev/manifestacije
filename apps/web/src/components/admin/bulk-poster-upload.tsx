@@ -14,6 +14,10 @@ import { cn } from "@/lib/utils"
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 /** Each poster is its own LLM call; two at a time keeps the provider happy. */
 const CONCURRENCY = 2
+/** One run is one editorial sitting. The cap is about cost, not capacity:
+ *  every poster is a vision call, and a mis-drop of a photo folder would
+ *  otherwise spend hundreds of them before anyone noticed. */
+const MAX_POSTERS = 40
 
 type ItemStatus = "pending" | "running" | "done" | "error"
 
@@ -69,7 +73,15 @@ export function BulkPosterUpload() {
     }
     setItems(current => {
       const known = new Set(current.map(item => item.id))
-      return [...current, ...accepted.filter(item => !known.has(item.id))]
+      const fresh = accepted.filter(item => !known.has(item.id))
+      const room = Math.max(0, MAX_POSTERS - current.length)
+      if (fresh.length > room) {
+        toast.error(`Najviše ${MAX_POSTERS} plakata po obradi.`, {
+          description: `Dodano ${room}, preskočeno ${fresh.length - room}. Obradite ove pa dodajte ostale.`,
+        })
+        for (const skipped of fresh.slice(room)) URL.revokeObjectURL(skipped.previewUrl)
+      }
+      return [...current, ...fresh.slice(0, room)]
     })
   }
 
@@ -124,7 +136,7 @@ export function BulkPosterUpload() {
           className="sr-only"
           onChange={event => { addFiles(event.target.files); event.target.value = "" }}
         />
-        <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={running}>
+        <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={running || items.length >= MAX_POSTERS}>
           <Upload className="size-4" /> Odaberi plakate
         </Button>
         <Button type="button" onClick={() => processAll()} disabled={running || !items.some(item => item.status !== "done")}>
@@ -141,7 +153,11 @@ export function BulkPosterUpload() {
           </Button>
         )}
         {items.length > 0 && !running && (
-          <Button type="button" variant="ghost" onClick={() => setItems([])}>Očisti popis</Button>
+          <Button type="button" variant="ghost" onClick={() => setItems(current => {
+            // Each preview holds a blob in memory until it is revoked.
+            for (const item of current) URL.revokeObjectURL(item.previewUrl)
+            return []
+          })}>Očisti popis</Button>
         )}
       </div>
 
@@ -176,7 +192,10 @@ export function BulkPosterUpload() {
               )}
               {!running && item.status !== "done" && (
                 <button type="button" aria-label={`Ukloni ${item.name}`} className="cursor-pointer text-muted-foreground hover:text-foreground"
-                  onClick={() => setItems(current => current.filter(other => other.id !== item.id))}>
+                  onClick={() => setItems(current => {
+                    URL.revokeObjectURL(item.previewUrl)
+                    return current.filter(other => other.id !== item.id)
+                  })}>
                   <X className="size-4" />
                 </button>
               )}
