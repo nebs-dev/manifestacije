@@ -92,6 +92,52 @@ describe("AdminService ingestion workflow", () => {
     expect(events.createFromDto).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ createdByUserId: 91 }), expect.anything());
   });
 
+  // The review card's "Izdvojeno" checkbox is an editorial decision made
+  // before the event exists. CandidateOverrideDto has always validated the
+  // flag, so a client sending it got a 200 while the import silently dropped
+  // it — the event came out not featured and nothing said so.
+  it("carries the Izdvojeno flag from the candidate review into the created event", async () => {
+    const sourceParsed = parsedResult([candidate({ city: "", organizerName: "" })]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+
+    await service.createEventFromSource(1, 0, { isFeatured: true }, false, 91);
+
+    expect(events.createFromDto).toHaveBeenCalledWith(
+      expect.objectContaining({ isFeatured: true }),
+      expect.objectContaining({ createdByUserId: 91 }),
+      expect.anything(),
+    );
+  });
+
+  it("leaves an imported event not featured when the review did not ask for it", async () => {
+    const sourceParsed = parsedResult([candidate({ city: "", organizerName: "" })]);
+    const prisma = {
+      eventSource: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, parsedJson: sourceParsed, sourceUrl: "https://source.example", organizerId: null }),
+        update: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      category: { findFirst: jest.fn().mockResolvedValue({ id: 22 }) },
+    };
+    const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44 }) };
+    const service = new AdminService(transactionalPrisma(prisma) as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
+
+    await service.createEventFromSource(1, 0, undefined, false, 91);
+
+    expect(events.createFromDto).toHaveBeenCalledWith(
+      expect.not.objectContaining({ isFeatured: true }),
+      expect.any(Object),
+      expect.anything(),
+    );
+  });
+
   it("passes the creating admin to manually created events", async () => {
     const events = { createFromDto: jest.fn().mockResolvedValue({ id: 44, organizerId: null }) };
     const service = new AdminService({} as never, events as never, {} as never, {} as never, { revalidate: jest.fn().mockResolvedValue(true) } as never, {} as never, uploadsStub as never);
@@ -413,7 +459,13 @@ describe("AdminService ingestion workflow", () => {
     const tx = {
       eventSource: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       eventDuplicateCandidate: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
-      event: { delete: jest.fn().mockResolvedValue({ id: 9 }) },
+      event: {
+        delete: jest.fn().mockResolvedValue({ id: 9 }),
+        // Read inside the transaction for the deletion record.
+        findUnique: jest.fn().mockResolvedValue({ id: 9, title: "Događaj", slug: "dogadaj", startsAt: new Date("2099-01-01T00:00:00Z"),
+          cityName: "Osijek", status: "DRAFT", createdAt: new Date("2026-11-01T00:00:00Z"), createdByUserId: 7 }),
+      },
+      eventDeletion: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     };
     const prisma = {
       $transaction: jest.fn((callback) => callback(tx)),
@@ -426,6 +478,7 @@ describe("AdminService ingestion workflow", () => {
     expect(tx.eventSource.updateMany).toHaveBeenCalledWith({ where: { eventId: 9 }, data: { eventId: null } });
     expect(tx.eventDuplicateCandidate.deleteMany).toHaveBeenCalledWith({ where: { OR: [{ eventAId: 9 }, { eventBId: 9 }] } });
     expect(tx.event.delete).toHaveBeenCalledWith({ where: { id: 9 } });
+    expect(tx.eventDeletion.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventId: 9 }) }));
   });
 
   it("duplicates an event as draft and copies category joins", async () => {

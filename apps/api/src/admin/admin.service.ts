@@ -1,11 +1,14 @@
 import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
-import { EventStatus, EventSourceStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
+import { DuplicateStatus, EventStatus, EventSourceStatus, EventSourceType, OrganizerStatus, Prisma } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { slugify, uniqueSlug } from "../common/slug";
 import { formatZagrebIso } from "../common/zagreb-time";
 import { findOrCreateCity } from "../common/city-resolver";
+import { buildContentStats, buildEntryStats, buildTimeline, buildTrends, ENTRY_PRESETS, EntryPreset, monthRange, presetRange, previousRange, rangeFromDays, startOfZagrebDay } from "./entry-stats";
+import { recordEventDeletion } from "../events/event-deletion";
+import { venueDuplicateGroups } from "./venue-duplicates";
 import { safeHttpUrlOrUndefined } from "../common/safe-url";
 import { safeFetch } from "../common/ssrf";
 
@@ -121,7 +124,7 @@ export class AdminService {
     if (publicChange) await this.revalidate.revalidate("events");
   }
 
-  async bulkSetStatus(eventIds: number[], status: EventStatus) {
+  async bulkSetStatus(eventIds: number[], status: EventStatus, userId?: number) {
     const publicChange = await this.hasPublicEvents(eventIds);
     const changedIds = (status === EventStatus.PUBLISHED || status === EventStatus.REJECTED)
       ? (await this.prisma.event.findMany({ where: { id: { in: eventIds }, status: { not: status }, ...(status === EventStatus.PUBLISHED ? { publishedAt: null } : {}) }, select: { id: true } })).map((e) => e.id)
@@ -129,7 +132,8 @@ export class AdminService {
 
     const result = await this.prisma.event.updateMany({
       where: { id: { in: eventIds } },
-      data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined },
+      data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined,
+        publishedByUserId: status === EventStatus.PUBLISHED ? userId : undefined },
     });
     if (publicChange || (status === EventStatus.PUBLISHED && result.count > 0)) await this.revalidate.revalidate("events");
 
@@ -349,11 +353,17 @@ export class AdminService {
     return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
   }
 
-  async setEventStatus(id: number, status: EventStatus) {
+  async setEventStatus(id: number, status: EventStatus, userId?: number) {
     const current = await this.prisma.event.findUnique({ where: { id }, select: { status: true, publishedAt: true } });
     const statusChanged = current?.status !== status;
 
-    const result = await this.prisma.event.update({ where: { id }, data: { status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined } });
+    // Publishing is its own decision, often taken by someone other than the
+    // person who entered the event, so it carries its own author. Any other
+    // status leaves the previous publisher as it was — unpublishing does not
+    // erase who had published it.
+    const result = await this.prisma.event.update({ where: { id }, data: { status,
+      publishedAt: status === EventStatus.PUBLISHED ? new Date() : undefined,
+      publishedByUserId: status === EventStatus.PUBLISHED ? userId : undefined } });
     if (hasPublicEventOutput(current) || hasPublicEventOutput(result)) await this.revalidate.revalidate("events");
 
     // Only notify on an actual transition — repeated approve/publish clicks on an
@@ -562,12 +572,13 @@ export class AdminService {
     return this.prisma.user.delete({ where: { id } });
   }
 
-  async deleteEvent(id: number) {
+  async deleteEvent(id: number, userId?: number) {
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
       await tx.eventDuplicateCandidate.deleteMany({
         where: { OR: [{ eventAId: id }, { eventBId: id }] },
       });
+      await recordEventDeletion(tx, id, userId);
       return tx.event.delete({ where: { id } });
     });
     if (hasPublicEventOutput(result)) await this.revalidate.revalidate("events");
@@ -1096,6 +1107,10 @@ export class AdminService {
         isAllDay: candidate.isAllDay ?? undefined,
         occurrences: candidate.occurrences,
         isFree: candidate.isFree ?? null,
+        // Editorial decision taken in the review card before the event
+        // exists; dropping it here used to answer 200 and import the event
+        // as not featured.
+        isFeatured: candidate.isFeatured ?? undefined,
         priceText: candidate.priceText || undefined,
         // Parsed candidates are untrusted (scraped/LLM output): unsafe links
         // are dropped rather than blocking the approval.
@@ -1377,26 +1392,215 @@ export class AdminService {
     await this.revalidate.revalidate("partners");
   }
 
-  async searchVenues(q: string) {
+  /** Entry statistics (STAT-01…STAT-07). Only ids and timestamps are read —
+   *  never an email address — and the grouping happens in Zagreb days rather
+   *  than in SQL, so the same helper that renders a date on the site decides
+   *  which day an entry belongs to.
+   *
+   *  The author of an event is recorded once, at creation (`createdByUserId`),
+   *  and editing never changes it. Events with no author (imported before the
+   *  field existed, or whose account was deleted) are reported as unknown
+   *  rather than attributed to anybody. */
+  async entryStats(params: { preset?: string; month?: string; from?: string; to?: string } = {}) {
+    const now = new Date();
+    const range = this.resolveStatsRange(params, now);
+    const previous = previousRange(range);
+    // Today / this week / this month stay on the cards whatever range is
+    // selected, so they are counted over their own window.
+    const currentFrom = [range.from, presetRange("this-month", now).from, presetRange("this-week", now).from, presetRange("yesterday", now).from]
+      .reduce((earliest, candidate) => (candidate < earliest ? candidate : earliest));
+    const select = { createdByUserId: true, createdAt: true } as const;
+    const inRange = { gte: new Date(range.from), lt: new Date(range.to) };
+    const [rows, currentRows, previousTotal, publishedTotal, deletedTotal, users] = await this.prisma.$transaction([
+      this.prisma.event.findMany({ where: { createdAt: inRange }, select }),
+      this.prisma.event.findMany({ where: { createdAt: { gte: new Date(currentFrom) } }, select }),
+      this.prisma.event.count({ where: { createdAt: { gte: new Date(previous.from), lt: new Date(previous.to) } } }),
+      this.prisma.event.count({ where: { publishedAt: inRange } }),
+      // Deletions are counted from their own record; events deleted before it
+      // existed leave no trace and are not guessed at.
+      this.prisma.eventDeletion.count({ where: { deletedAt: inRange } }),
+      this.prisma.user.findMany({ select: { id: true, name: true, role: true, organizer: { select: { name: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] }),
+    ]);
+    return buildEntryStats({
+      rows, currentRows, previousTotal, publishedTotal, deletedTotal, range, now,
+      users: users.map(user => ({ id: user.id, name: user.name, role: user.role, organizerName: user.organizer?.name ?? null })),
+    });
+  }
+
+  /** One editor's entries on one Zagreb day: the chronology behind a number
+   *  in the daily table, and the pace of entry around it. This is entry
+   *  rhythm, not working hours. */
+  async entryTimeline(params: { date: string; userId?: number; gapCapMinutes?: number | null }) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(params.date)) throw new BadRequestException("Datum mora biti u obliku YYYY-MM-DD.");
+    const from = startOfZagrebDay(params.date);
+    const to = new Date(rangeFromDays(params.date, params.date).to);
+    const entries = await this.prisma.event.findMany({
+      where: {
+        createdAt: { gte: from, lt: to },
+        ...(params.userId === undefined ? {} : { createdByUserId: params.userId }),
+      },
+      select: { id: true, title: true, slug: true, status: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    return buildTimeline({ date: params.date, userId: params.userId ?? null, gapCapMinutes: params.gapCapMinutes ?? null, entries });
+  }
+
+  /** Month-by-month entries, plus the weekday and hour shape of the window
+   *  the chart covers (STAT-08). A separate call from the main statistics:
+   *  it reads a year of timestamps and nobody needs it to open the page. */
+  async entryTrends(params: { months?: number } = {}) {
+    const now = new Date();
+    const months = Math.min(Math.max(Math.trunc(params.months ?? 12), 1), 36);
+    const from = new Date(presetRange("this-month", now).from);
+    from.setUTCMonth(from.getUTCMonth() - (months - 1));
+    const rows = await this.prisma.event.findMany({
+      where: { createdAt: { gte: from } },
+      select: { createdByUserId: true, createdAt: true },
+    });
+    return buildTrends({ rows, months, now });
+  }
+
+  /** What the portal gained in a period, rather than who entered it
+   *  (STAT-09): cities, counties, categories, publication state, how far
+   *  ahead events are entered, and what is still missing from them. */
+  async contentStats(params: { preset?: string; month?: string; from?: string; to?: string } = {}) {
+    const now = new Date();
+    const range = this.resolveStatsRange(params, now);
+    const inRange = { gte: new Date(range.from), lt: new Date(range.to) };
+    const [rows, cities, counties, categories, pendingDuplicates] = await this.prisma.$transaction([
+      this.prisma.event.findMany({
+        where: { createdAt: inRange },
+        select: { id: true, title: true, status: true, startsAt: true, createdAt: true, publishedAt: true,
+          cityId: true, cityName: true, countyId: true, categoryId: true, description: true, imageUrl: true, address: true, venueId: true },
+      }),
+      this.prisma.city.findMany({ select: { id: true, name: true } }),
+      this.prisma.county.findMany({ select: { id: true, name: true } }),
+      this.prisma.category.findMany({ select: { id: true, name: true } }),
+      // Candidates nobody has decided on yet: merged and dismissed ones are
+      // settled and would only inflate the number.
+      this.prisma.eventDuplicateCandidate.count({ where: { status: DuplicateStatus.OPEN } }),
+    ]);
+    return buildContentStats({
+      rows, range, pendingDuplicates, now,
+      names: {
+        cities: new Map(cities.map(city => [city.id, city.name])),
+        counties: new Map(counties.map(county => [county.id, county.name])),
+        categories: new Map(categories.map(category => [category.id, category.name])),
+      },
+    });
+  }
+
+  private resolveStatsRange(params: { preset?: string; month?: string; from?: string; to?: string }, now: Date) {
+    const day = /^\d{4}-\d{2}-\d{2}$/;
+    if (params.from && params.to) {
+      if (!day.test(params.from) || !day.test(params.to)) throw new BadRequestException("Razdoblje mora biti u obliku YYYY-MM-DD.");
+      if (params.to < params.from) throw new BadRequestException("Kraj razdoblja je prije početka.");
+      return rangeFromDays(params.from, params.to);
+    }
+    if (params.month) {
+      if (!/^\d{4}-\d{2}$/.test(params.month)) throw new BadRequestException("Mjesec mora biti u obliku YYYY-MM.");
+      return monthRange(params.month, now);
+    }
+    const preset = (params.preset ?? "this-month") as EntryPreset;
+    if (!ENTRY_PRESETS.includes(preset)) throw new BadRequestException(`Nepoznato razdoblje '${params.preset}'.`);
+    // Opening the page shows the current month without anyone picking a date.
+    return presetRange(preset, now);
+  }
+
+  /** Every stored venue with how many events point at it (VEN-06). */
+  async venues(params: { search?: string } = {}) {
+    const search = params.search?.trim();
+    const venues = await this.prisma.venue.findMany({
+      where: search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { address: { contains: search, mode: "insensitive" } }] } : undefined,
+      include: { city: { select: { id: true, name: true } }, _count: { select: { events: true } } },
+      orderBy: [{ name: "asc" }],
+      take: 500,
+    });
+    return venues.map(({ _count, city, ...venue }) => ({ ...venue, cityName: city.name, eventCount: _count.events }));
+  }
+
+  /** Venues in one city that look like the same place, for review (VEN-06). */
+  async venueDuplicates() {
+    return venueDuplicateGroups(await this.venues());
+  }
+
+  /**
+   * Moves every event from one venue onto another and removes the emptied
+   * one (VEN-06).
+   *
+   * Only within one city: two towns' venues of the same name are two places,
+   * and merging across would move events to an address in the wrong town.
+   * The surviving venue keeps its own address and point, and only fills in
+   * what it is missing from the one being merged away — a merge must not
+   * overwrite an address somebody confirmed.
+   */
+  async mergeVenues(sourceId: number, targetId: number) {
+    if (sourceId === targetId) throw new BadRequestException("Mjesto se ne može spojiti sa samim sobom.");
+    return this.prisma.$transaction(async (tx) => {
+      const [source, target] = await Promise.all([
+        tx.venue.findUnique({ where: { id: sourceId } }),
+        tx.venue.findUnique({ where: { id: targetId } }),
+      ]);
+      if (!source || !target) throw new NotFoundException("Mjesto nije pronađeno.");
+      if (source.cityId !== target.cityId) throw new BadRequestException("Mjesta su u različitim gradovima — spajanje nije dopušteno.");
+
+      const moved = await tx.event.updateMany({ where: { venueId: sourceId }, data: { venueId: targetId } });
+      const filled = {
+        address: target.address ?? source.address,
+        lat: target.lat ?? source.lat,
+        lng: target.lng ?? source.lng,
+      };
+      const kept = await tx.venue.update({ where: { id: targetId }, data: filled });
+      await tx.venue.delete({ where: { id: sourceId } });
+      return { movedEvents: moved.count, venue: kept, removedVenueId: sourceId };
+    });
+  }
+
+  /** Venue memory (VEN-01…VEN-05). Every venue an admin has confirmed once is
+   *  already stored, so the next event at the same club should not be typed
+   *  again. The name and the address come back as their own fields — the
+   *  joined `label` alone could not be split back into form fields — and
+   *  venues without coordinates are kept, because an address is reusable on
+   *  its own. Matching is case-insensitive: nobody types "Oxygene" twice the
+   *  same way.
+   *
+   *  `cityName` ranks, it does not filter. Two towns can each hold a
+   *  "Dvorana", so the event's own city comes first while the others stay
+   *  visible — an admin picking the wrong one knowingly is fine, the system
+   *  silently filling in another town's address is not. */
+  async searchVenues(q: string, opts: { cityName?: string } = {}) {
+    const query = q.trim();
+    if (query.length < 2) return [];
     const venues = await this.prisma.venue.findMany({
       where: {
         OR: [
-          { name: { contains: q } },
-          { address: { contains: q } },
+          { name: { contains: query, mode: "insensitive" } },
+          { address: { contains: query, mode: "insensitive" } },
         ],
-        lat: { not: null },
-        lng: { not: null },
       },
       include: { city: true },
-      take: 5,
+      take: 20,
       orderBy: { name: "asc" },
     });
-    return venues.map((v) => ({
-      label: [v.name, v.address, v.city.name].filter(Boolean).join(", "),
-      lat: v.lat!,
-      lng: v.lng!,
-      cityName: v.city.name,
-    }));
+    const needle = query.toLowerCase();
+    const city = opts.cityName?.trim().toLowerCase();
+    // Same city outranks everything; a name that starts with what was typed
+    // outranks one that merely contains it.
+    const rank = (venue: (typeof venues)[number]) =>
+      (city && venue.city.name.toLowerCase() === city ? 0 : 2) + (venue.name.toLowerCase().startsWith(needle) ? 0 : 1);
+    return venues
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "hr"))
+      .slice(0, 8)
+      .map((v) => ({
+        id: v.id,
+        name: v.name,
+        address: v.address,
+        cityName: v.city.name,
+        cityId: v.cityId,
+        lat: v.lat,
+        lng: v.lng,
+        label: [v.name, v.address, v.city.name].filter(Boolean).join(", "),
+      }));
   }
 
   private sourceMetaFromResult(result: ParsedSourceResult): { confidence: number; status: "PARSED" | "NEEDS_REVIEW" } {

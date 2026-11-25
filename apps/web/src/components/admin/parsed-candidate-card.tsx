@@ -29,8 +29,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { ConfidenceBadge } from "@/components/admin/confidence-badge"
+import { VenueNameInput, type VenueSuggestion } from "@/components/admin/venue-name-input"
 import { authedFetch } from "@/lib/admin/api"
 import { safeExternalUrl } from "@/lib/safe-url"
 import type { CandidateProposal, ParsedCandidate } from "@/lib/admin/types"
@@ -47,6 +49,7 @@ type CandidateForm = {
   venueName: string
   address: string
   isFree: boolean | null
+  isFeatured: boolean
   priceText: string
   ticketUrl: string
   organizerName: string
@@ -110,6 +113,9 @@ export function ParsedCandidateCard({
     venueName: candidate.venueName || "",
     address: candidate.address || "",
     isFree: candidate.isFree,
+    // Editorial, not parsed: an admin ticks this during review, so it starts
+    // off unless a previous review of the same candidate already set it.
+    isFeatured: candidate.isFeatured === true,
     priceText: candidate.priceText || "",
     ticketUrl: candidate.ticketUrl || "",
     organizerName: candidate.organizerName || "",
@@ -143,6 +149,42 @@ export function ParsedCandidateCard({
       .catch(() => undefined)
     return () => { alive = false }
   }, [candidate.category])
+
+  // VEN-04: posters often name only the club ("Oxygene"). If that venue was
+  // confirmed on an earlier event, its address is already known — so fill it
+  // in rather than making the editor look it up again. Only an unambiguous
+  // match is used: with the same name in two towns (VEN-05) nothing is
+  // filled, because a silently wrong address is worse than an empty field.
+  const [venueFilledFrom, setVenueFilledFrom] = useState<string | null>(null)
+  useEffect(() => {
+    if (!candidate.venueName || candidate.address) return
+    const controller = new AbortController()
+    const params = new URLSearchParams({ q: candidate.venueName })
+    if (candidate.city) params.set("city", candidate.city)
+    authedFetch(`/api/admin/venues/search?${params}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok || controller.signal.aborted) return
+        const venues = (await response.json()) as VenueSuggestion[]
+        const wanted = candidate.venueName!.trim().toLowerCase()
+        const byName = venues.filter((venue) => venue.name.trim().toLowerCase() === wanted)
+        const inCity = candidate.city
+          ? byName.filter((venue) => venue.cityName.trim().toLowerCase() === candidate.city!.trim().toLowerCase())
+          : []
+        const match = inCity.length === 1 ? inCity[0] : byName.length === 1 ? byName[0] : null
+        if (!match || controller.signal.aborted) return
+        // Not setDirty: nothing the editor typed was touched, and an
+        // untouched candidate should not start out looking edited.
+        setForm((current) => current.address || current.venueName !== (candidate.venueName ?? "")
+          ? current
+          : { ...current, address: match.address || current.address, city: match.cityName || current.city })
+        if (match.lat !== null && match.lng !== null) {
+          setLocation((current) => current ?? { address: match.address || match.name, lat: match.lat!, lng: match.lng!, cityName: match.cityName })
+        }
+        setVenueFilledFrom(match.name)
+      })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [candidate.venueName, candidate.address, candidate.city])
 
   const isCreated = candidate._status === "created"
   const isIgnored = candidate._status === "ignored"
@@ -203,6 +245,17 @@ export function ParsedCandidateCard({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  /** A venue the admin confirmed before brings its address, city and — when
+   *  it has them — its coordinates (VEN-02). Everything stays editable; this
+   *  fills the fields, it does not lock them. */
+  function pickVenue(venue: VenueSuggestion) {
+    setDirty(true)
+    setForm((current) => ({ ...current, venueName: venue.name, address: venue.address || current.address, city: venue.cityName || current.city }))
+    if (venue.lat !== null && venue.lng !== null) {
+      setLocation({ address: venue.address || venue.name, lat: venue.lat, lng: venue.lng, cityName: venue.cityName })
+    }
+  }
+
   function toggleCategory(id: number) {
     setDirty(true)
     setSelectedCategoryIds((prev) =>
@@ -253,6 +306,7 @@ export function ParsedCandidateCard({
               category: allCategories.find((c) => c.id === primaryCategoryId)?.slug || candidate.category,
               categoryIds: selectedCategoryIds,
               isFree: form.isFree,
+              isFeatured: form.isFeatured,
               priceText: form.priceText,
               ticketUrl: form.ticketUrl,
               organizerName: form.organizerName,
@@ -419,10 +473,22 @@ export function ParsedCandidateCard({
             <Input id={fid("city")} value={form.city} disabled={!isPending} onChange={(e) => setField("city", e.target.value)} placeholder="npr. Osijek" />
           </Field>
           <Field label="Lokacija / venue" htmlFor={fid("venue")}>
-            <Input id={fid("venue")} value={form.venueName} disabled={!isPending} onChange={(e) => setField("venueName", e.target.value)} />
+            <VenueNameInput
+              id={fid("venue")}
+              value={form.venueName}
+              cityName={location?.cityName || form.city}
+              disabled={!isPending}
+              onChange={(value) => setField("venueName", value)}
+              onPick={pickVenue}
+            />
           </Field>
           <div className="sm:col-span-2">
             <Field label="Adresa" htmlFor={`address-${candidate.id}`}>
+              {venueFilledFrom && (
+                <p className="mb-1 text-xs text-muted-foreground">
+                  Adresa je popunjena iz spremljenih mjesta ({venueFilledFrom}). Provjerite je prije kreiranja.
+                </p>
+              )}
               <Input
                 id={`address-${candidate.id}`}
                 value={form.address}
@@ -440,8 +506,12 @@ export function ParsedCandidateCard({
                 disabled={!isPending}
                 placeholder="Pretraži adresu ili naziv mjesta…"
                 localSuggest={async (q) => {
-                  const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}`)
-                  return res.ok ? res.json() : []
+                  const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}&city=${encodeURIComponent(form.city)}`)
+                  if (!res.ok) return []
+                  // The venue search also answers with venues that have an
+                  // address but no coordinates; this picker needs a point.
+                  const venues = (await res.json()) as { label: string; lat: number | null; lng: number | null; cityName: string }[]
+                  return venues.filter((venue): venue is { label: string; lat: number; lng: number; cityName: string } => venue.lat !== null && venue.lng !== null)
                 }}
               />
             </Field>
@@ -458,6 +528,19 @@ export function ParsedCandidateCard({
           <Field label="Način naplate">
             <PricingSelect value={form.isFree} disabled={!isPending} onChange={(v) => setField("isFree", v)} />
           </Field>
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <Label htmlFor={fid("featured")} className="mb-0 text-sm">
+                Izdvojeno (featured)
+              </Label>
+              <Switch
+                id={fid("featured")}
+                checked={form.isFeatured}
+                disabled={!isPending}
+                onCheckedChange={(v) => setField("isFeatured", v)}
+              />
+            </div>
+          </div>
           <div className="sm:col-span-2">
             <Field label="Opis">
               <RichTextEditor value={form.description} disabled={!isPending} onChange={(value) => setField("description", value)} rows={3} />

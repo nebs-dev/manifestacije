@@ -1,4 +1,7 @@
 import {
+  BarChart3,
+  Building2,
+  Images,
   LayoutDashboard,
   Bell,
   Mail,
@@ -28,10 +31,12 @@ export const navItems: NavItem[] = [
   { label: "Dostava emailova", href: "/admin/email-deliveries", icon: Mail },
   { label: "Obavijesti", href: "/admin/notifications", icon: Bell },
   { label: "Izvori", href: "/admin/sources", icon: Link2 },
+  { label: "Masovni unos plakata", href: "/admin/masovni-unos", icon: Images },
   { label: "Nadzirani izvori", href: "/admin/monitored-sources", icon: Radar },
   { label: "Događaji na čekanju", href: "/admin/events/pending", icon: Clock },
   { label: "Izmjene događaja", href: "/admin/event-revisions", icon: Clock },
   { label: "Događaji", href: "/admin/events", icon: CalendarDays, exact: true },
+  { label: "Statistika unosa", href: "/admin/statistika", icon: BarChart3 },
   { label: "Organizatori", href: "/admin/organizers", icon: Users },
   { label: "Zahtjevi za preuzimanje", href: "/admin/organizer-claims", icon: UserCheck },
   { label: "Korisnici", href: "/admin/users", icon: UserCog },
@@ -39,4 +44,5 @@ export const navItems: NavItem[] = [
   { label: "Kategorije", href: "/admin/categories", icon: Tags },
   { label: "Partneri", href: "/admin/partners", icon: Handshake },
   { label: "Regije i gradovi", href: "/admin/regions", icon: MapPin },
+  { label: "Mjesta održavanja", href: "/admin/mjesta", icon: Building2 },
 ]
