@@ -4,6 +4,7 @@ import { EventRevisionsService } from "../event-revisions/event-revisions.servic
 import { EventStatus, EventSourceStatus, EventSourceType, EmailContactSource } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EventsService } from "../events/events.service";
+import { recordEventDeletion } from "../events/event-deletion";
 import { AiEventParserService, MAX_PARSE_IMAGES, ParsedEventCandidate, ParsedSourceResult } from "../ai-parser/ai-event-parser.service";
 import { candidateNeedsReview } from "../ai-parser/date-evidence";
 import { dropPastCandidates, flagAlreadyImported } from "../ai-parser/candidate-filters";
@@ -131,14 +132,19 @@ export class OrganizerService {
     }
   }
 
-  async deleteEvent(organizerId: number, id: number) {
+  async deleteEvent(organizerId: number, id: number, userId?: number) {
     const event = await this.prisma.event.findFirst({ where: { id, organizerId } });
     if (!event) throw new BadRequestException("Event not found for organizer");
     if (event.status !== "PENDING_REVIEW" && event.status !== "DRAFT") {
       throw new ForbiddenException("Možete obrisati samo evente na pregledu ili nacrte.");
     }
     await this.prisma.eventSource.updateMany({ where: { eventId: id }, data: { eventId: null } });
-    return this.prisma.event.delete({ where: { id } });
+    // An organizer deleting their own submission is counted the same way an
+    // admin deletion is, and attributed to them.
+    return this.prisma.$transaction(async (tx) => {
+      await recordEventDeletion(tx, id, userId);
+      return tx.event.delete({ where: { id } });
+    });
   }
 
   async updateEvent(organizerId: number, id: number, dto: OrganizerEventDto, userId?: number) {

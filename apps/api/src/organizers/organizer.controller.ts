@@ -58,7 +58,7 @@ export class OrganizerController {
 
   @Delete("events/:id")
   deleteEvent(@CurrentUser() user: AuthUser, @Param("id") id: string) {
-    return this.organizer.deleteEvent(requireOrganizerId(user), Number(id));
+    return this.organizer.deleteEvent(requireOrganizerId(user), Number(id), user.id);
   }
 
   @Post("events/submit-url")
