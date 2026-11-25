@@ -6,8 +6,11 @@
 
 ## Agent skills
 
-The five skills below come from the `mattpocock-skills` plugin. The plugin is
-installed **per machine, not through this repo**:
+Five of the skills below come from the `mattpocock-skills` plugin; the sixth,
+`retro-after-incident`, is this repo's own and travels with it in
+`.claude/skills/`. The plugin is installed **per machine, not through this
+repo**, so a fresh clone has the routing rules but not the plugin until
+someone runs:
 
 ```bash
 claude plugin install mattpocock-skills@claude-plugins-official
@@ -29,11 +32,20 @@ mean.
 | `mattpocock-skills:diagnosing-bugs` | model-invocable | any non-trivial bug or regression |
 | `mattpocock-skills:tdd` | model-invocable | new business logic, or changing existing behaviour |
 | `mattpocock-skills:pr` | model-invocable | writing a PR body |
-| `mattpocock-skills:retro` | **you invoke it**: `/mattpocock-skills:retro` | after a serious bug, an incident, or a miss that got past the checks |
+| `retro-after-incident` | model-invocable, in this repo | a production incident, a serious regression, a defect both tests and review missed, or the same class of mistake twice |
+| `mattpocock-skills:retro` | **you invoke it**: `/mattpocock-skills:retro` | a retrospective on a whole working session |
 
-`retro` carries `disable-model-invocation: true`, so the Skill tool refuses
-it: "Ask the user to run /mattpocock-skills:retro themselves." Nothing can
-start a retro on your behalf, and the plain `/retro` form does not exist.
+Nobody has to name any of these. Every row except the last fires from its own
+description when the work matches; act on that rather than waiting to be
+asked. That is a model's judgement, not a guarantee — the only review that is
+guaranteed is the one GitHub runs, below.
+
+`mattpocock-skills:retro` carries `disable-model-invocation: true`, so the
+Skill tool refuses it: "Ask the user to run /mattpocock-skills:retro
+themselves." The plain `/retro` form does not exist. The plugin is not
+modified. `.claude/skills/retro-after-incident/` is this repo's own narrow
+wrapper, which applies that methodology to a single incident and can fire on
+its own — and is explicitly not for an ordinary bug caught before merge.
 
 A retro's output is a **deterministic** guard — a test, a lint rule, a
 typecheck, a CI step, better tooling — not another paragraph of instructions.
@@ -42,14 +54,24 @@ If the only fix on offer is prose, the finding is not yet understood.
 Issue tracker and domain-doc rules the skills read: `docs/agents/issue-tracker.md`,
 `docs/agents/domain.md`.
 
-### Review before a PR
+### Review happens twice, and only one of them is guaranteed
 
-Run `mattpocock-skills:code-review` against `origin/main` using the merge-base
-(`git diff origin/main...HEAD`) before declaring a non-trivial change ready.
-Resolve critical and important findings before handing the work over, and say
-what you did not check. Skip it only for a trivial documentation change — a
-typo, a link, a reworded sentence. A documentation change that states how the
-system behaves is not trivial: its claims can be wrong.
+**On GitHub, every pull request is reviewed automatically.**
+`.github/workflows/claude-code-review.yml` runs on open, on every push, on
+reopen and on ready-for-review, posts one comment grouped into Critical /
+Important / Informational, and posts even when it finds nothing. Nobody
+triggers it and nobody can skip it. It never edits code. Details, cost and
+the fork limitation: `docs/agents/automated-review.md`.
+
+**Locally, run `mattpocock-skills:code-review` yourself before
+`gh pr create`** — against `origin/main` using the merge-base
+(`git diff origin/main...HEAD`). This one is a judgement call, not a
+guarantee, so make it: it is cheaper to fix a finding before the PR exists
+than after. Resolve critical and important findings before handing the work
+over, and say what you did not check. Skip it only for a trivial
+documentation change — a typo, a link, a reworded sentence. A documentation
+change that states how the system behaves is not trivial: its claims can be
+wrong.
 
 It reviews on two axes in parallel sub-agents — **Standards** (does it follow
 this repo's documented rules?) and **Spec** (does it do what the issue asked?)
@@ -90,6 +112,19 @@ real damage before:
 - cache invalidation after a public event changes (`docs/agents/domain.md`
   points at the pieces; the webhook is `apps/web/app/api/revalidate/route.ts`)
 - AI call volume and cost
+
+### Working without being asked
+
+The user describes a goal, not a procedure. Pick the skill the work calls for:
+
+- a bug or regression that is not an obvious typo → `mattpocock-skills:diagnosing-bugs`,
+  which is the same discipline as **Fixing a defect** below
+- new or changed business behaviour → `mattpocock-skills:tdd`
+- the change is finished → local review, then `mattpocock-skills:pr` for the body
+- something reached production, or got past both tests and review →
+  `retro-after-incident`
+
+Do not run any of them on a typo, a version bump, or a one-line doc edit.
 
 ### TDD and debugging
 

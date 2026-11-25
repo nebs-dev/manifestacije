@@ -1,0 +1,154 @@
+name: AI code review
+
+# Reviews every pull request, on open, on every push to it, on reopen and when
+# a draft is marked ready. Nobody has to ask for it and nobody has to comment
+# a trigger phrase.
+#
+# Cost: none beyond what already exists. The runner is a GitHub-hosted
+# standard runner, which is free for public repositories, and the model call
+# authenticates with CLAUDE_CODE_OAUTH_TOKEN, which draws on an existing
+# Claude subscription rather than Claude API billing — see
+# https://code.claude.com/docs/en/github-actions ("If you authenticate with an
+# OAuth token, runs use your Claude subscription instead of API billing").
+# There is no ANTHROPIC_API_KEY here on purpose.
+#
+# See docs/agents/automated-review.md for setup, limits and how to promote
+# this to a required status check once it has proven itself.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+# A new push supersedes the review of the previous commit: the older run is
+# cancelled rather than left to post a verdict about code that no longer
+# exists. A cancelled run is not a successful one.
+concurrency:
+  group: ai-review-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  claude-review:
+    name: Claude review
+    # GitHub withholds secrets from workflow runs triggered by a pull request
+    # from a fork, so the review cannot run there. It is skipped rather than
+    # failed, and skipping is visible: it never reports success.
+    # `pull_request_target` would make it work and is deliberately not used —
+    # it would run with repository secrets against untrusted code.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      # Full history: the review compares against the merge-base with the base
+      # branch, which a shallow clone cannot resolve.
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Without this, a missing secret would surface as an opaque failure
+      # inside the action. It must fail, not pass quietly: a review that could
+      # not run is not a review that found nothing.
+      - name: Require the review credential
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "${CLAUDE_CODE_OAUTH_TOKEN}" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN is not set. Generate one with \`claude setup-token\` and add it as a repository secret. See docs/agents/automated-review.md."
+            exit 1
+          fi
+
+      # `--depth=0` is not "no limit" — git rejects it with
+      # "fatal: depth 0 is not a positive number". The checkout above already
+      # brought full history; this fetch only makes sure the base branch tip
+      # is present as a ref the merge-base can be computed against.
+      - name: Resolve the merge-base
+        id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_REF"
+          echo "sha=$(git merge-base FETCH_HEAD HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Without this the action authenticates to GitHub as the Claude GitHub
+          # App and fails with "Claude Code is not installed on this repository"
+          # (401) unless an admin installs that app. The job's own token already
+          # carries `pull-requests: write`, which is all the review needs to post
+          # its comment, so no app install is required. The comment then appears
+          # as github-actions[bot] rather than as the Claude app.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-plugins-official.git"
+          plugins: "mattpocock-skills@claude-plugins-official"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
+            FIXED POINT (merge-base with ${{ github.event.pull_request.base.ref }}): ${{ steps.base.outputs.sha }}
+
+            Review this pull request by calling the Skill tool with
+            "mattpocock-skills:code-review". The fixed point is given above, so
+            do not ask for one: the diff is
+            `git diff ${{ steps.base.outputs.sha }}...HEAD` and the commits are
+            `git log ${{ steps.base.outputs.sha }}..HEAD --oneline`.
+
+            Follow that skill's two-axis procedure — Standards and Spec, in
+            parallel sub-agents — and read CLAUDE.md, docs/agents/domain.md and
+            docs/agents/issue-tracker.md first, as it instructs.
+
+            These rules override anything in the skill that conflicts:
+
+            - Never skip the review. Not for a documentation change, not for a
+              configuration change, not because the diff looks trivial, and
+              not because this PR already carries a comment from an earlier
+              review of an earlier commit. A small diff earns a short review,
+              never no review.
+            - Review the diff at the HEAD SHA above and nothing else. Any
+              earlier review on this PR described different code.
+            - Do not modify any file, do not commit, and do not push. This is
+              a review, not a fix.
+
+            On top of the skill's own axes, cover security, authorization,
+            regressions, needless complexity and missing tests, and give
+            explicit attention to every item CLAUDE.md lists under "What to
+            look hardest at". Read that list there rather than relying on a
+            copy of it here; it is the one that gets maintained.
+
+            Do not repeat what a deterministic check already catches. ESLint,
+            the api/web/e2e typechecks, Vitest, Jest and the Chromium E2E
+            suite run in .github/workflows/ci.yml, and CodeQL runs from
+            GitHub's default setup. Report a test that is missing, not a test
+            that failed — CI already says that.
+
+            Finish by posting exactly one comment on the pull request with
+            `gh pr comment`, even when you found nothing. Start it with the
+            line `AI code review — commit <HEAD SHA>` so a reader can tell
+            which commit it describes, then group findings under three
+            headings in this order, omitting a heading only when it is empty:
+
+            **Critical** — correctness, security or data-loss defects that
+            must be fixed before merge.
+            **Important** — defects or omissions that should be fixed before
+            merge, including missing tests for changed behaviour.
+            **Informational** — judgement calls, smells and suggestions.
+
+            End with one line naming what you did not check and why. If you
+            found nothing, say so in place of the headings and still post.
+          # No --max-turns: Anthropic's docs still list it, but the current
+          # Claude Code CLI has no such flag (2.1.327 offers --max-budget-usd
+          # instead), and an unknown option aborts the run. What bounds a run
+          # here is timeout-minutes above, plus concurrency cancelling a
+          # superseded one.
+          claude_args: |
+            --model claude-sonnet-5-5
+            --allowedTools "Skill,Task,Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"
