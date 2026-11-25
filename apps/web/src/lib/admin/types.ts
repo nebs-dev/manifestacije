@@ -70,6 +70,8 @@ export interface ParsedCandidate {
   region: string | null
   category: string | null
   isFree: boolean | null
+  /** Editorial, set by an admin in the review card — never by the parser. */
+  isFeatured?: boolean
   priceText: string | null
   ticketUrl: string | null
   organizerName: string | null

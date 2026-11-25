@@ -63,6 +63,7 @@ import { EVENT_STATUS_OPTIONS, eventStatusLabel, toApiEventStatus } from "@/lib/
 import type { AdminEvent, AdminOrganizer } from "@/lib/admin/types"
 import { LocationAutocomplete, type LocationValue } from "@/components/ui/location-autocomplete"
 import { EventImagePicker, type EventImageValue } from "@/components/admin/event-image-picker"
+import { VenueNameInput, type VenueSuggestion } from "@/components/admin/venue-name-input"
 import { EventScheduleEditor, scheduleRowsFromEvent, scheduleRowsToApi, type ScheduleRow } from "@/components/event-schedule-editor"
 
 export function EventEditForm({
@@ -456,9 +457,19 @@ export function EventEditForm({
                 <Field>
                   <FieldLabel>Naziv mjesta / dvorane</FieldLabel>
                   <FieldDescription>Kratki naziv lokacije (npr. &ldquo;Galerija Waldinger&rdquo;, &ldquo;HNK Osijek&rdquo;).</FieldDescription>
-                  <Input
+                  <VenueNameInput
                     value={form.venueName}
-                    onChange={(e) => update("venueName", e.target.value)}
+                    cityName={location?.cityName ?? event.city ?? undefined}
+                    onChange={(value) => update("venueName", value)}
+                    onPick={(venue: VenueSuggestion) => {
+                      update("venueName", venue.name)
+                      // A venue confirmed earlier carries its own point; without
+                      // one only the name is reused and the map stays as it was.
+                      if (venue.lat !== null && venue.lng !== null) {
+                        setLocation({ address: venue.address || venue.name, lat: venue.lat, lng: venue.lng, cityName: venue.cityName })
+                        setLocationChanged(true)
+                      }
+                    }}
                     placeholder="npr. Galerija Waldinger"
                   />
                 </Field>
@@ -472,8 +483,13 @@ export function EventEditForm({
                       setLocationChanged(true)
                     }}
                     localSuggest={async (q) => {
-                      const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}`)
-                      return res.ok ? res.json() : []
+                      const city = location?.cityName ?? event.city ?? ""
+                      const res = await authedFetch(`/api/admin/venues/search?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}`)
+                      if (!res.ok) return []
+                      // Venues stored without coordinates are offered by name
+                      // elsewhere; this picker can only place ones with a point.
+                      const venues = (await res.json()) as { label: string; lat: number | null; lng: number | null; cityName: string }[]
+                      return venues.filter((venue): venue is { label: string; lat: number; lng: number; cityName: string } => venue.lat !== null && venue.lng !== null)
                     }}
                   />
                 </Field>

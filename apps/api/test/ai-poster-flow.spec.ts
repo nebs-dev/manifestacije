@@ -98,6 +98,28 @@ describe("poster ingestion HTTP flow (mocked external services)", () => {
       });
     });
 
+    // The reported poster: "BOOK AND MUSIC 1 – Afterwork Party", Club O2
+    // Osijek. The model read it correctly and the evidence gate blanked the
+    // term, because it knew neither "12/NOV/2026" nor "start 5 pm".
+    it(`${path}: confirms an English poster's date and 12-hour start time`, async () => {
+      create.mockResolvedValue({ content: [{ type: "text", text: JSON.stringify({
+        title: "BOOK AND MUSIC 1 – Afterwork Party", city: "Osijek", venueName: "Club O2", category: "glazba",
+        // Same wording as the reported poster, dated far enough ahead that
+        // past-event filtering is not what this test ends up proving.
+        startsAt: "2099-11-12T17:00:00", dateText: "THURSDAY | 12/NOV/2099", timeText: "start 5 pm", confidence: 0.9,
+      }) }] });
+      const response = await fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        screenshotBase64: png.toString("base64"), screenshotMediaType: "image/png", useLlm: false,
+      }) });
+      expect(response.status).toBe(201);
+      const source = await response.json();
+      const candidate = source.parsedJson.candidates[0];
+      expect(candidate.startsAt).toBe("2099-11-12T17:00:00+01:00");
+      expect(candidate.missingFields).not.toContain("startsAt");
+      expect(candidate.warnings.join(" ")).not.toContain("nije potvrđeno izvorom");
+      expect(source.status).toBe("PARSED");
+    });
+
     it(`${path}: sanitizes provider auth errors${path.includes("organizer") ? " and keeps the organizer submission for review" : " and creates no source"}`, async () => {
       create.mockRejectedValue({ status: 401, message: "synthetic-key" });
       const response = await fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({

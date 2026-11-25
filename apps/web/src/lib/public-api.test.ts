@@ -44,6 +44,20 @@ describe("public API adapter", () => {
     vi.restoreAllMocks()
   })
 
+  // "Izdvojeno" is an editorial decision an admin takes in the review card.
+  // Parser confidence used to promote an event on its own, so events nobody
+  // had picked turned up in the featured row.
+  it.each([
+    [{ isFeatured: true, extractionConfidence: 0.1 }, true],
+    [{ isFeatured: false, extractionConfidence: 0.99 }, false],
+    [{ extractionConfidence: 0.9 }, false],
+    [{ isFeatured: null, extractionConfidence: null }, false],
+  ])("marks %o as featured=%s — the admin flag alone decides", async (patch, expected) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [{ ...apiEvent, ...patch }] }))
+    const [event] = await fetchEvents()
+    expect(event.featured).toBe(expected)
+  })
+
   it("maps API event image metadata into CroEvent", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,

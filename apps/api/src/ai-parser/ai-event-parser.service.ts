@@ -38,6 +38,9 @@ export type ParsedEventCandidate = {
   regionSlug?: string;
   category: string;
   isFree: boolean | null;
+  /** Editorial, never parsed: set only by an admin ticking "Izdvojeno" in the
+   *  review card, and kept on the candidate so a re-import keeps the choice. */
+  isFeatured?: boolean;
   priceText: string;
   ticketUrl: string;
   sourceUrl: string;

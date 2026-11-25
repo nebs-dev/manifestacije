@@ -5,7 +5,8 @@ import { OrganizerService } from "../src/organizers/organizer.service";
 
 function fixture(status: EventStatus = EventStatus.PUBLISHED) {
   const current = { id: 1, title: "Event", slug: "event", status, publishedAt: status === EventStatus.PUBLISHED ? new Date() : null,
-    cityId: 1, regionId: 1, startsAt: new Date("2099-09-05T12:00:00Z"), endsAt: null, occurrences: [] };
+    cityId: 1, cityName: "Osijek", regionId: 1, startsAt: new Date("2099-09-05T12:00:00Z"), endsAt: null, occurrences: [],
+    createdAt: new Date("2026-11-01T00:00:00Z"), createdByUserId: 7 };
   const prisma: any = {
     event: {
       findUnique: jest.fn().mockImplementation(async ({ where }) => where.id ? current : null),
@@ -23,6 +24,7 @@ function fixture(status: EventStatus = EventStatus.PUBLISHED) {
     eventOccurrence: { create: jest.fn(), update: jest.fn(), deleteMany: jest.fn() },
     eventSource: { updateMany: jest.fn() },
     eventDuplicateCandidate: { deleteMany: jest.fn() },
+    eventDeletion: { create: jest.fn().mockResolvedValue({ id: 1 }) },
     organizer: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 1, name: "Organizer", status: "TRUSTED" }) },
   };
   prisma.$transaction = jest.fn(async (fn: any) => typeof fn === "function" ? fn(prisma) : Promise.all(fn));

@@ -129,6 +129,8 @@ model User {
   organizerId        Int?
   organizer          Organizer? @relation(fields: [organizerId], references: [id])
   createdEvents      Event[]   @relation("EventCreatedBy")
+  publishedEvents    Event[]   @relation("EventPublishedBy")
+  eventDeletions     EventDeletion[] @relation("EventDeletedBy")
   submittedEventRevisions EventRevision[] @relation("RevisionSubmittedBy")
   reviewedEventRevisions EventRevision[] @relation("RevisionReviewedBy")
   /// Incremented on password reset to invalidate all previously issued JWTs
@@ -346,12 +348,49 @@ model Event {
   extractionConfidence Float?
   isFeatured           Boolean   @default(false)
   publishedAt          DateTime?
+  /// Who put this event in front of the public, kept separately from the
+  /// author: entering an event and publishing it are different decisions,
+  /// often taken by different people.
+  publishedByUserId    Int?
+  publishedBy          User?     @relation("EventPublishedBy", fields: [publishedByUserId], references: [id], onDelete: SetNull)
   sources              EventSource[]
   discoveredEvents     DiscoveredEvent[]
   duplicatesA          EventDuplicateCandidate[] @relation("DuplicateA")
   duplicatesB          EventDuplicateCandidate[] @relation("DuplicateB")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+
+  @@index([publishedByUserId])
+}
+
+/// A record that an event was deleted, written as the event goes.
+///
+/// Deletion stays a real delete: a soft-deleted row would have to be filtered
+/// out of every query and every relation include on the public site, and one
+/// missed path would put a deleted event back in front of visitors. This
+/// keeps what the statistics need — how many were deleted, when, by whom, and
+/// which event it was — without that risk. It is a record, not a recycle bin:
+/// restoring a deleted event is not possible from it.
+model EventDeletion {
+  id               Int      @id @default(autoincrement())
+  /// The id the event had. Not a relation: the event is gone.
+  eventId          Int
+  title            String
+  slug             String
+  startsAt         DateTime
+  cityName         String?
+  status           EventStatus
+  /// When the event was entered, and by whom, copied from the event so a
+  /// deletion can still be attributed to the right period and author.
+  eventCreatedAt   DateTime
+  createdByUserId  Int?
+  deletedAt        DateTime @default(now())
+  deletedByUserId  Int?
+  deletedBy        User?    @relation("EventDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([deletedAt])
+  @@index([deletedByUserId])
+  @@index([eventId])
 }
 
 model EventOccurrence {

@@ -5,7 +5,7 @@ import { CurrentUser, Roles } from "../auth/auth.decorators";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser } from "../auth/auth.types";
 import { AdminService, AdminEventListParams } from "./admin.service";
-import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, IgnoreCandidatesDto, ManualEmailDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto , SupplementDto } from "./admin.dto";
+import { AdminEventDto, BulkShiftDatesDto, BulkStatusDto, CategoryDto, CityDto, CountyDto, CreateEventFromCandidateDto, IgnoreCandidateDto, IgnoreCandidatesDto, ManualEmailDto, MergeVenuesDto, OrganizerAdminDto, PartnerDto, ParseUrlDto, RegionDto, ResetPasswordDto, SplitWeeklySeriesDto, UpdateEventSourceDto , SupplementDto } from "./admin.dto";
 import { UploadsService } from "./uploads.service";
 import { OrganizerClaimService } from "../organizer-claims/organizer-claim.service";
 import { EventPreviewService } from "../events/event-preview.service";
@@ -24,7 +24,7 @@ export class AdminController {
 
   @Get("pending-counts") @Header("Cache-Control", "private, no-store") pendingCounts(@CurrentUser() user: AuthUser) { return this.admin.pendingCounts(user.id); }
   @Post("events/bulk-categories") bulkCategories(@Body() body: { eventIds: number[]; categoryId: number; action: "add" | "remove" }) { return this.admin.bulkAssignCategory(body.eventIds, body.categoryId, body.action); }
-  @Post("events/bulk-status") bulkStatus(@Body() dto: BulkStatusDto) { return this.admin.bulkSetStatus(dto.eventIds, dto.status); }
+  @Post("events/bulk-status") bulkStatus(@CurrentUser() user: AuthUser, @Body() dto: BulkStatusDto) { return this.admin.bulkSetStatus(dto.eventIds, dto.status, user.id); }
   @Post("events/bulk-shift-dates") bulkShiftDates(@Body() dto: BulkShiftDatesDto) { return this.admin.bulkShiftDates(dto.eventIds, dto.days); }
   @Get("events/pending") pendingEvents(
     @Query("sortBy") sortBy?: string,
@@ -69,13 +69,13 @@ export class AdminController {
     return { slug: event.slug, token: this.preview.sign(event), expiresInMinutes: this.preview.expiresInMinutes };
   }
   @Put("events/:id") updateEvent(@Param("id") id: string, @Body() dto: AdminEventDto) { return this.admin.updateEvent(Number(id), dto); }
-  @Post("events/:id/approve") approve(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
-  @Post("events/:id/reject") reject(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.REJECTED); }
-  @Post("events/:id/publish") publish(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED); }
-  @Post("events/:id/archive") archive(@Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.ARCHIVED); }
+  @Post("events/:id/approve") approve(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED, user.id); }
+  @Post("events/:id/reject") reject(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.REJECTED, user.id); }
+  @Post("events/:id/publish") publish(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.PUBLISHED, user.id); }
+  @Post("events/:id/archive") archive(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.setEventStatus(Number(id), EventStatus.ARCHIVED, user.id); }
   @Post("events/:id/duplicate") duplicateEvent(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.duplicateEvent(Number(id), user.id); }
   @Post("events/:id/split-weekly") splitWeekly(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: SplitWeeklySeriesDto) { return this.admin.splitIntoWeeklySeries(Number(id), dto, user.id); }
-  @Delete("events/:id") deleteEvent(@Param("id") id: string) { return this.admin.deleteEvent(Number(id)); }
+  @Delete("events/:id") deleteEvent(@CurrentUser() user: AuthUser, @Param("id") id: string) { return this.admin.deleteEvent(Number(id), user.id); }
 
   @Get("organizers") @Header("Cache-Control", "private, no-store") organizers(@CurrentUser() user: AuthUser) { return this.admin.organizers(user.id); }
   @Get("organizers/:id") @Header("Cache-Control", "private, no-store") async organizer(@CurrentUser() user: AuthUser, @Param("id") id: string) {
@@ -168,7 +168,43 @@ export class AdminController {
   @Put("cities/:id") updateCity(@Param("id") id: string, @Body() dto: CityDto) { return this.admin.updateCity(Number(id), dto); }
   @Delete("cities/:id") deleteCity(@Param("id") id: string) { return this.admin.deleteCity(Number(id)); }
 
-  @Get("venues/search") searchVenues(@Query("q") q: string) { return this.admin.searchVenues(q ?? ""); }
+  @Get("stats/entries") @Header("Cache-Control", "private, no-store") entryStats(
+    @Query("preset") preset?: string,
+    @Query("month") month?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) { return this.admin.entryStats({ preset, month, from, to }); }
+
+  @Get("stats/trends") @Header("Cache-Control", "private, no-store") entryTrends(@Query("months") months?: string) {
+    return this.admin.entryTrends({ months: months ? Number(months) : undefined });
+  }
+
+  @Get("stats/content") @Header("Cache-Control", "private, no-store") contentStats(
+    @Query("preset") preset?: string,
+    @Query("month") month?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) { return this.admin.contentStats({ preset, month, from, to }); }
+
+  @Get("stats/entries/day") @Header("Cache-Control", "private, no-store") entryTimeline(
+    @Query("date") date: string,
+    @Query("userId") userId?: string,
+    @Query("gapCapMinutes") gapCapMinutes?: string,
+  ) {
+    return this.admin.entryTimeline({
+      date: date ?? "",
+      userId: userId ? Number(userId) : undefined,
+      gapCapMinutes: gapCapMinutes ? Number(gapCapMinutes) : null,
+    });
+  }
+
+  @Get("venues") @Header("Cache-Control", "private, no-store") venues(@Query("search") search?: string) { return this.admin.venues({ search }); }
+  @Get("venues/duplicates") @Header("Cache-Control", "private, no-store") venueDuplicates() { return this.admin.venueDuplicates(); }
+  @Post("venues/:id/merge") mergeVenues(@Param("id", ParseIntPipe) id: number, @Body() dto: MergeVenuesDto) {
+    return this.admin.mergeVenues(id, dto.intoId);
+  }
+
+  @Get("venues/search") searchVenues(@Query("q") q: string, @Query("city") city?: string) { return this.admin.searchVenues(q ?? "", { cityName: city }); }
 
   @Get("categories") categories() { return this.admin.categories(); }
   @Post("categories") createCategory(@Body() dto: CategoryDto) { return this.admin.createCategory(dto); }

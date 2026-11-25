@@ -205,3 +205,8 @@ export class PartnerDto {
   @IsOptional() @IsInt() @Min(0) sortOrder?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+/** Which venue the events move onto (VEN-06). */
+export class MergeVenuesDto {
+  @Type(() => Number) @IsInt() @Min(1) intoId!: number;
+}
