@@ -17,6 +17,7 @@ import { ResendContactsService } from "../src/contacts/resend-contacts.service";
 import { hashResetToken } from "../src/common/reset-token";
 import { AdminService } from "../src/admin/admin.service";
 import { AdminController } from "../src/admin/admin.controller";
+import { EventPreviewService } from "../src/events/event-preview.service";
 import { UploadsService } from "../src/admin/uploads.service";
 import { OrganizerClaimService } from "../src/organizer-claims/organizer-claim.service";
 
@@ -67,7 +68,10 @@ integration("Authentication email PostgreSQL and HTTP workflow (synthetic provid
       providers: [AuthService, EmailService, EmailTrackingService,
         { provide: PrismaService, useValue: prisma }, { provide: ResendContactsService, useValue: contacts },
         { provide: AdminService, useFactory: () => new AdminService(prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never) },
-        { provide: UploadsService, useValue: {} }, { provide: OrganizerClaimService, useValue: {} }],
+        { provide: UploadsService, useValue: {} },
+        // AdminController gained a preview service after these opt-in suites
+        // were last run; without it Nest refuses to build the module.
+        { provide: EventPreviewService, useValue: { previewLink: jest.fn() } }, { provide: OrganizerClaimService, useValue: { inviteUnclaimedByEmail: jest.fn().mockResolvedValue(false) } }],
     }).compile();
     app = module.createNestApplication({ rawBody: true });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

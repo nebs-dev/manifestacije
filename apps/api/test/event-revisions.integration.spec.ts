@@ -19,6 +19,7 @@ import { UploadsService } from "../src/admin/uploads.service";
 import { OrganizerController } from "../src/organizers/organizer.controller";
 import { AdminEventRevisionsController, OrganizerEventRevisionsController } from "../src/event-revisions/event-revisions.controller";
 import { PublicFeedController } from "../src/public-feed/public-feed.controller";
+import { EventPreviewService } from "../src/events/event-preview.service";
 import { currentWeekendRange } from "../src/common/weekend";
 
 // Opt-in PostgreSQL tests. Never fall back to the application's DATABASE_URL.
@@ -85,6 +86,10 @@ integration("EventRevision PostgreSQL workflow", () => {
         { provide: DuplicatesService, useValue: new DuplicatesService(prisma as never) }, { provide: AdminService, useValue: admin }, { provide: OrganizerClaimService, useValue: {} },
         { provide: PrismaService, useValue: prisma }, { provide: OrganizerService, useValue: organizer },
         { provide: EventRevisionsService, useValue: revisions }, { provide: PublicFeedService, useValue: feed }, { provide: UploadsService, useValue: {} },
+        // AdminController gained a preview service after this opt-in suite was
+        // last run; without it Nest refuses to build the module and every test
+        // here fails before touching the database.
+        { provide: EventPreviewService, useValue: { previewLink: jest.fn() } },
       ],
     }).compile();
     app = module.createNestApplication();
