@@ -9,14 +9,18 @@ knowing what happened.
 
 **The review that gates work is the local, pre-PR
 `mattpocock-skills:code-review`, described in CLAUDE.md.** On GitHub, CI runs
-only the deterministic checks: `.github/workflows/ci.yml` (ESLint, the api /
-web / e2e typechecks, Vitest, Jest, the Chromium E2E suite, the production
+only the deterministic checks: `.github/workflows/ci.yml` (ESLint for web —
+`apps/api` has no ESLint configuration, its `lint` script is `tsc` — the api /
+web / e2e typechecks, Vitest, Jest, the Chromium E2E suite and the production
 build) and CodeQL from GitHub's own default setup.
 
 ## Why it was removed
 
-**It never once succeeded.** Not a single run posted a review, from the first
-on 2026-11-18 to the last on 2026-11-26. Every run died on turn one, about two
+**It never once posted a review.** Not one, from the first run on 2026-11-18
+to the last on 2026-11-26. Two of those runs do report `success` on GitHub —
+2026-11-26T12:04:09Z and 12:06:06Z — and that is the point of the table below,
+not a counterexample: `continue-on-error` on the step swallowed the failure, so
+the check went green while no review happened. Every run died on turn one, about two
 seconds after the model initialized:
 
 ```
@@ -47,11 +51,12 @@ Three states were possible, and all three were tried or considered:
 | --- | --- | --- | --- |
 | OAuth token | no | a red check | none |
 | OAuth + `continue-on-error` on the step | no | **a green check, which is a lie** | none |
-| `anthropic_api_key` | yes | the truth | metered, roughly $0.35–$1.00 per review on `claude-sonnet-5-5` at $2/$10 per MTok |
+| `anthropic_api_key` | yes | the truth | metered — **estimated** $0.35–$1.00 per review (not measured: `claude-sonnet-5-5` list price $2 / $10 per MTok, against a guessed 150–400k input and 10–20k output for a two-axis review with sub-agents) |
 
-The middle state is the worst of the three — it is what the repository briefly
-shipped, in commits `df5863f5` and `aa591939`, and removing the workflow is
-what replaced it. Paying for the third was considered and declined: for a
+The middle state is the worst of the three, and `aa591939` is the commit that
+shipped it; `df5863f5` before it put the flag at job level, which is why the
+08:27 and 08:29 runs that day still reported `failure`. Neither ever reached
+`main` — both existed only on the branch that then removed the workflow. Paying for the third was considered and declined: for a
 repository with a single committer, where the local two-axis review is already
 run and acted on, an automated PR review was not worth metered spend for
 something that had never yet delivered a review.
