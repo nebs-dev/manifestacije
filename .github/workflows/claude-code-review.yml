@@ -77,6 +77,29 @@ jobs:
           git fetch --no-tags origin "$BASE_REF"
           echo "sha=$(git merge-base FETCH_HEAD HEAD)" >> "$GITHUB_OUTPUT"
 
+      # TEMPORARY, reverted with show_full_output below. The run fails with
+      # "401 OAuth access token is invalid", so the question is no longer why
+      # it fails but what is actually in the secret. This prints the shape of
+      # the value — its length and whether it carries the prefix a token from
+      # `claude setup-token` has — and never the value itself, which GitHub
+      # masks in the log regardless.
+      - name: Describe the credential's shape
+        env:
+          TOK: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          printf 'length: %s\n' "${#TOK}"
+          case "$TOK" in
+            sk-ant-oat01-*) echo "prefix: sk-ant-oat01- (as setup-token issues)" ;;
+            sk-ant-*)       echo "prefix: sk-ant- but NOT sk-ant-oat01- (an API key, not an OAuth token?)" ;;
+            *)              echo "prefix: unrecognised" ;;
+          esac
+          TRIMMED=$(printf '%s' "$TOK" | tr -d '[:space:]')
+          if [ "${#TRIMMED}" -eq "${#TOK}" ]; then
+            echo "whitespace inside or around the value: no"
+          else
+            echo "whitespace inside or around the value: yes (${#TOK} -> ${#TRIMMED})"
+          fi
+
       - name: Review
         uses: anthropics/claude-code-action@v1
         with:
