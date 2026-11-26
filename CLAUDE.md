@@ -37,8 +37,9 @@ mean.
 
 Nobody has to name any of these. Every row except the last fires from its own
 description when the work matches; act on that rather than waiting to be
-asked. That is a model's judgement, not a guarantee — the only review that is
-guaranteed is the one GitHub runs, below.
+asked. That is a model's judgement, not a guarantee: no review of this code is
+guaranteed, because nothing on GitHub reviews a pull request. Only the
+deterministic checks are guaranteed, and those are listed below.
 
 `mattpocock-skills:retro` carries `disable-model-invocation: true`, so the
 Skill tool refuses it: "Ask the user to run /mattpocock-skills:retro
