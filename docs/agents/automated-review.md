@@ -1,99 +1,102 @@
-# Automated code review
+# Automated code review on GitHub: removed
 
-Two layers, and they are not the same thing.
+There is no workflow that reviews a pull request here. There was one —
+`.github/workflows/claude-code-review.yml`, which ran
+`anthropics/claude-code-action` on every PR and posted a single comment
+grouped into Critical / Important / Informational. It was removed on
+2026-11-26. This file exists so nobody builds it again from scratch without
+knowing what happened.
 
-| | Where | What starts it | Guarantee |
-| --- | --- | --- | --- |
-| **GitHub review** | `.github/workflows/claude-code-review.yml` | the `pull_request` event | **deterministic** — GitHub runs the workflow |
-| **Local review** | `mattpocock-skills:code-review` before `gh pr create` | the agent decides, steered by `CLAUDE.md` | **not guaranteed** — a model's judgement |
+**The review that gates work is the local, pre-PR
+`mattpocock-skills:code-review`, described in CLAUDE.md.** On GitHub, CI runs
+only the deterministic checks: `.github/workflows/ci.yml` (ESLint for web —
+`apps/api` has no ESLint configuration, its `lint` script is `tsc` — the api /
+web / e2e typechecks, Vitest, Jest, the Chromium E2E suite and the production
+build) and CodeQL from GitHub's own default setup.
 
-The local one catches things before a PR exists and costs a round trip less.
-The GitHub one is the one that always happens.
+## Why it was removed
 
-## What the GitHub review does
+**It never once posted a review.** Not one, from the first run on 2026-11-18
+to the last on 2026-11-26. Two of those runs do report `success` on GitHub —
+2026-11-26T12:04:09Z and 12:06:06Z — and that is the point of the table below,
+not a counterexample: `continue-on-error` on the step swallowed the failure, so
+the check went green while no review happened. Every run died on turn one, about two
+seconds after the model initialized:
 
-Runs on `opened`, `synchronize`, `ready_for_review` and `reopened`, so a new
-push to an open PR gets a new review of the new commit. `concurrency` with
-`cancel-in-progress` cancels the in-flight review when another push lands, so
-no verdict is posted about code that has already been replaced. Each comment
-opens with `AI code review — commit <sha>` so it is obvious which commit it
-describes.
-
-It posts one comment grouping findings as **Critical**, **Important** and
-**Informational**, and posts even when it finds nothing. It never edits code.
-The prompt tells it not to repeat what ESLint, the typechecks, Vitest, Jest,
-Playwright or CodeQL already report.
-
-It runs the `mattpocock-skills:code-review` skill itself — installed on the
-runner through `plugin_marketplaces` and `plugins` — not a re-implementation
-of it. The prompt overrides one part of that skill: its own instructions let
-it skip a PR it judges trivial, or one that already carries a comment from a
-previous review. Both are wrong here, so both are overridden.
-
-## Cost
-
-Nothing beyond what already exists, which is why it is built this way:
-
-- **Runner**: GitHub-hosted standard runner. Free for public repositories, and
-  this repository is public.
-- **Model**: authenticated with `CLAUDE_CODE_OAUTH_TOKEN`. Anthropic's own
-  documentation is explicit — "If you authenticate with an OAuth token, runs
-  use your Claude subscription instead of API billing"
-  ([github-actions](https://code.claude.com/docs/en/github-actions)). It draws
-  on the existing subscription's quota.
-- There is deliberately **no** `ANTHROPIC_API_KEY` in the workflow. Adding one
-  would move the cost to Claude API billing.
-- `--model claude-sonnet-5-5` and `timeout-minutes: 20` cap what a single run
-  can consume, with `concurrency` cancelling a run the next push supersedes.
-  There is deliberately no `--max-turns`: Anthropic's documentation still
-  lists that flag, but the current Claude Code CLI does not have it
-  (2.1.327 offers `--max-budget-usd` instead) and an unknown option aborts
-  the run. One review per commit, never a loop: the workflow does not trigger
-  on comments, and it never pushes.
-
-Heavy quota use still shows up as subscription rate limiting, not as a bill.
-If reviews start hitting limits, lower `timeout-minutes` or narrow the
-triggers.
-
-## One-time setup
-
-Needed once, by a repository admin, and never again:
-
-```bash
-claude setup-token                      # prints a long-lived OAuth token
-gh secret set CLAUDE_CODE_OAUTH_TOKEN   # paste it when prompted
+```
+"subtype": "success", "is_error": true, "num_turns": 1,
+"api_error_status": 401, "api_error_type": "authentication_error",
+"result": "Failed to authenticate. API Error: 401 OAuth access token is invalid."
 ```
 
-The token is tied to the subscription of whoever runs `claude setup-token`.
-Nothing reads it except the workflow; it is never echoed, and the workflow
-fails loudly rather than quietly passing when it is absent.
+Two causes were found, and only the first was ours:
 
-No GitHub App install is needed. By default the action authenticates to GitHub
-as the Claude GitHub App, and without it installed every run fails with
-`401 Unauthorized - Claude Code is not installed on this repository`. The
-workflow passes `github_token: ${{ secrets.GITHUB_TOKEN }}` instead: the job's
-own token already has `pull-requests: write`, which is all a review comment
-needs. The comment is posted by `github-actions[bot]`.
+1. **The secret held a truncated token.** `claude setup-token` prints the
+   token wrapped across two terminal lines, so copying it by hand took the
+   first line only (anthropics/claude-code#54738). The stored value was 55
+   characters where the token is 130 — right `sk-ant-oat01-` prefix, no stray
+   whitespace, so it looked correct. Piping the token instead of copying it
+   fixed the value.
+2. **The full token is rejected too.** A run with the complete
+   130-character token returns the same 401. That is
+   anthropics/claude-code-action#1614 (and #1613), open, where upstream has
+   ruled out the action version — a known-good pinned SHA fails identically —
+   the token, across repeated fresh mints, and the subscription plan, with the
+   same signature reported on Pro, Max and Team. The same account and token
+   authenticate fine in the local CLI. Nothing in this repository fixes it.
 
-## Limits
+Three states were possible, and all three were tried or considered:
 
-- **Fork pull requests are not reviewed.** GitHub withholds secrets from runs
-  triggered by a fork PR, so the job is skipped by an `if` on the head repo.
-  It is skipped, not passed: a skipped job never reports success. The fix for
-  this is `pull_request_target`, which would run with repository secrets in
-  the context of untrusted code, and it is deliberately not used.
-- **Draft PRs** are reviewed from the moment they are marked ready, and on any
-  push while in draft.
-- A review that cannot run **fails the job**. There is no path where the check
-  is green without a review of the current commit having completed.
+| | review happens | what the PR shows | cost |
+| --- | --- | --- | --- |
+| OAuth token | no | a red check | none |
+| OAuth + `continue-on-error` on the step | no | **a green check, which is a lie** | none |
+| `anthropic_api_key` | yes | the truth | metered — **estimated** $0.35–$1.00 per review (not measured: `claude-sonnet-5-5` list price $2 / $10 per MTok, against a guessed 150–400k input and 10–20k output for a two-axis review with sub-agents) |
 
-## Making it a required check
+The middle state is the worst of the three, and `aa591939` is the commit that
+shipped it; `df5863f5` before it put the flag at job level, which is why the
+08:27 and 08:29 runs that day still reported `failure`. Neither ever reached
+`main` — both existed only on the branch that then removed the workflow. Paying for the third was considered and declined: for a
+repository with a single committer, where the local two-axis review is already
+run and acted on, an automated PR review was not worth metered spend for
+something that had never yet delivered a review.
 
-Not required yet, on purpose: a required check is added after the workflow has
-proven itself on real pull requests, not before. Once a few PRs have been
-reviewed cleanly, add **AI code review / Claude review** to the ruleset on
-`main` alongside the three existing required checks.
+## What it would take to bring it back
 
-Think about forks before doing it: with the job skipped on fork PRs, a
-required check would block every external contribution. For a repository with
-no external contributors that is not a problem; the day there is one, it is.
+1. **anthropics/claude-code-action#1614 has to close**, or the job needs
+   `anthropic_api_key` instead — which moves the review off the Claude
+   subscription and onto Claude API billing. That is a spending decision, not
+   a configuration detail.
+2. **Mint the credential without copying it by hand**, or it will be
+   truncated again:
+
+   ```bash
+   claude setup-token > "${TMPDIR:-/tmp}/ccot.txt"
+   tr -d '[:space:]' < "${TMPDIR:-/tmp}/ccot.txt" \
+     | grep -oE 'sk-ant-oat01-[A-Za-z0-9_-]+' \
+     | gh secret set CLAUDE_CODE_OAUTH_TOKEN
+   rm -f "${TMPDIR:-/tmp}/ccot.txt"
+   ```
+
+3. **Set `show_full_output: true` on the action.** Without it the action trims
+   `result` and `api_error_status` out of the log, and a run that dies on turn
+   one reports nothing but `is_error:true`. Debug mode does not help — the
+   output is withheld by that input, not by the log level.
+4. **Do not reach for `continue-on-error`.** On the job it spares only the
+   workflow run while the check on the pull request still reports failure; on
+   the step it makes the check report success whether or not a review
+   happened. Either way it cannot be a required status check, and a review
+   that cannot run should be visible, not hidden.
+5. **Forks still cannot be reviewed.** GitHub withholds secrets from runs
+   triggered by a fork PR. The workaround is `pull_request_target`, which runs
+   with repository secrets in the context of untrusted code, and it was
+   deliberately not used. A required check would therefore block every
+   external contribution.
+6. **No GitHub App install is needed.** Pass
+   `github_token: ${{ secrets.GITHUB_TOKEN }}`; the job's own token already
+   carries `pull-requests: write`, which is all a review comment needs.
+   Without it the action authenticates as the Claude GitHub App and fails with
+   `401 Unauthorized - Claude Code is not installed on this repository`.
+
+The workflow as it last stood, prompt and all, is in git history: `git show
+aa591939:.github/workflows/claude-code-review.yml`.

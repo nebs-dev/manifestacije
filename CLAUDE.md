@@ -37,8 +37,9 @@ mean.
 
 Nobody has to name any of these. Every row except the last fires from its own
 description when the work matches; act on that rather than waiting to be
-asked. That is a model's judgement, not a guarantee — the only review that is
-guaranteed is the one GitHub runs, below.
+asked. That is a model's judgement, not a guarantee: no review of this code is
+guaranteed, because nothing on GitHub reviews a pull request. Only the
+deterministic checks are guaranteed, and those are listed below.
 
 `mattpocock-skills:retro` carries `disable-model-invocation: true`, so the
 Skill tool refuses it: "Ask the user to run /mattpocock-skills:retro
@@ -54,24 +55,26 @@ If the only fix on offer is prose, the finding is not yet understood.
 Issue tracker and domain-doc rules the skills read: `docs/agents/issue-tracker.md`,
 `docs/agents/domain.md`.
 
-### Review happens twice, and only one of them is guaranteed
+### Review happens once, and you are the one who runs it
 
-**On GitHub, every pull request is reviewed automatically.**
-`.github/workflows/claude-code-review.yml` runs on open, on every push, on
-reopen and on ready-for-review, posts one comment grouped into Critical /
-Important / Informational, and posts even when it finds nothing. Nobody
-triggers it and nobody can skip it. It never edits code. Details, cost and
-the fork limitation: `docs/agents/automated-review.md`.
+**Nothing reviews a pull request on GitHub.** CI runs only the deterministic
+checks. There was a workflow that posted a review comment; it never once
+succeeded and was removed on 2026-11-26 — why, and what it would take to
+bring it back, is in `docs/agents/automated-review.md`. Do not add another
+one without reading that first.
 
-**Locally, run `mattpocock-skills:code-review` yourself before
-`gh pr create`** — against `origin/main` using the merge-base
-(`git diff origin/main...HEAD`). This one is a judgement call, not a
-guarantee, so make it: it is cheaper to fix a finding before the PR exists
-than after. Resolve critical and important findings before handing the work
-over, and say what you did not check. Skip it only for a trivial
-documentation change — a typo, a link, a reworded sentence. A documentation
-change that states how the system behaves is not trivial: its claims can be
-wrong.
+So the review below is not a second opinion on top of a safety net. It is the
+only review this project gets.
+
+**Before `gh pr create`, run `mattpocock-skills:code-review` yourself** —
+against `origin/main` using the merge-base (`git diff origin/main...HEAD`).
+Nothing enforces this, which is exactly why it has to be a habit rather than
+a reminder: it is cheaper to fix a finding before the PR exists than after,
+and nothing downstream will find it for you. Resolve critical and important
+findings before handing the work over, and say what you did not check. Skip
+it only for a trivial documentation change — a typo, a link, a reworded
+sentence. A documentation change that states how the system behaves is not
+trivial: its claims can be wrong.
 
 It reviews on two axes in parallel sub-agents — **Standards** (does it follow
 this repo's documented rules?) and **Spec** (does it do what the issue asked?)
@@ -84,8 +87,8 @@ and claim to have reviewed what it did not read. ESLint, the three typechecks
 `.github/workflows/ci.yml`; CodeQL runs separately, from GitHub's own default
 setup, not from a workflow file in this repo.
 
-**This is a local, pre-PR review that a human triggers. Nothing reviews a PR
-on GitHub automatically.** CI runs only the deterministic checks.
+**This review is local, it runs before the PR exists, and a human triggers
+it.** Nothing else reviews the code.
 
 ### Writing the PR
 
