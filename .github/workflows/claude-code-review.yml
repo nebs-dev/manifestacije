@@ -81,6 +81,14 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # TEMPORARY, to be reverted in this same pull request. The action
+          # trims its own result object in the log — it drops `result` and
+          # `api_error_status`, the only two fields that carry the text of a
+          # failure — so a run that dies on turn one says nothing but
+          # `is_error:true`. Debug mode does not help: the output is withheld
+          # by this input, not by the log level. This review has never once
+          # succeeded, and the message is the thing we are missing.
+          show_full_output: true
           # Without this the action authenticates to GitHub as the Claude GitHub
           # App and fails with "Claude Code is not installed on this repository"
           # (401) unless an admin installs that app. The job's own token already
