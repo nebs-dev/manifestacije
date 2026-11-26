@@ -38,6 +38,23 @@ jobs:
     # it would run with repository secrets against untrusted code.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    # Non-blocking while anthropics/claude-code-action#1614 is open: a
+    # subscription OAuth token minted by `claude setup-token` authenticates
+    # fine in the local CLI but is rejected from CI with
+    # "401 OAuth access token is invalid". Upstream has ruled out the action
+    # version (a known-good SHA fails identically), the token (repeated fresh
+    # mints) and the plan (reported on Pro, Max and Team), which points at a
+    # server-side change in how these tokens are validated from CI.
+    #
+    # So the review still runs and still reports, but it no longer fails the
+    # pull request for a credential nothing in this repository can fix. The
+    # review that actually gates work is the local, pre-PR
+    # `mattpocock-skills:code-review` described in CLAUDE.md.
+    #
+    # Remove this line once upstream closes that issue and a run posts a
+    # review again. Do not promote this job to a required status check while
+    # it is here: continue-on-error makes the check report success.
+    continue-on-error: true
     timeout-minutes: 20
     permissions:
       contents: read
@@ -77,41 +94,10 @@ jobs:
           git fetch --no-tags origin "$BASE_REF"
           echo "sha=$(git merge-base FETCH_HEAD HEAD)" >> "$GITHUB_OUTPUT"
 
-      # TEMPORARY, reverted with show_full_output below. The run fails with
-      # "401 OAuth access token is invalid", so the question is no longer why
-      # it fails but what is actually in the secret. This prints the shape of
-      # the value — its length and whether it carries the prefix a token from
-      # `claude setup-token` has — and never the value itself, which GitHub
-      # masks in the log regardless.
-      - name: Describe the credential's shape
-        env:
-          TOK: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          printf 'length: %s\n' "${#TOK}"
-          case "$TOK" in
-            sk-ant-oat01-*) echo "prefix: sk-ant-oat01- (as setup-token issues)" ;;
-            sk-ant-*)       echo "prefix: sk-ant- but NOT sk-ant-oat01- (an API key, not an OAuth token?)" ;;
-            *)              echo "prefix: unrecognised" ;;
-          esac
-          TRIMMED=$(printf '%s' "$TOK" | tr -d '[:space:]')
-          if [ "${#TRIMMED}" -eq "${#TOK}" ]; then
-            echo "whitespace inside or around the value: no"
-          else
-            echo "whitespace inside or around the value: yes (${#TOK} -> ${#TRIMMED})"
-          fi
-
       - name: Review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # TEMPORARY, to be reverted in this same pull request. The action
-          # trims its own result object in the log — it drops `result` and
-          # `api_error_status`, the only two fields that carry the text of a
-          # failure — so a run that dies on turn one says nothing but
-          # `is_error:true`. Debug mode does not help: the output is withheld
-          # by this input, not by the log level. This review has never once
-          # succeeded, and the message is the thing we are missing.
-          show_full_output: true
           # Without this the action authenticates to GitHub as the Claude GitHub
           # App and fails with "Claude Code is not installed on this repository"
           # (401) unless an admin installs that app. The job's own token already

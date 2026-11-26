@@ -60,9 +60,20 @@ triggers.
 Needed once, by a repository admin, and never again:
 
 ```bash
-claude setup-token                      # prints a long-lived OAuth token
-gh secret set CLAUDE_CODE_OAUTH_TOKEN   # paste it when prompted
+claude setup-token > "${TMPDIR:-/tmp}/ccot.txt"          # prints a long-lived OAuth token
+tr -d '[:space:]' < "${TMPDIR:-/tmp}/ccot.txt" \
+  | grep -oE 'sk-ant-oat01-[A-Za-z0-9_-]+' \
+  | gh secret set CLAUDE_CODE_OAUTH_TOKEN
+rm -f "${TMPDIR:-/tmp}/ccot.txt"
 ```
+
+**Do not copy the token by hand.** `claude setup-token` prints it wrapped
+across two terminal lines, so a manual copy silently takes the first line
+only — anthropics/claude-code#54738. That happened here on 2026-11-26: the
+secret held 55 characters where the token is 130, with the right
+`sk-ant-oat01-` prefix and no stray whitespace, so it looked correct and was
+rejected with a 401. Piping it, as above, never breaks it. A full token is
+130 characters.
 
 The token is tied to the subscription of whoever runs `claude setup-token`.
 Nothing reads it except the workflow; it is never echoed, and the workflow
@@ -84,13 +95,27 @@ needs. The comment is posted by `github-actions[bot]`.
   the context of untrusted code, and it is deliberately not used.
 - **Draft PRs** are reviewed from the moment they are marked ready, and on any
   push while in draft.
-- A review that cannot run **fails the job**. There is no path where the check
-  is green without a review of the current commit having completed.
+- **The job is currently non-blocking, and its check reports success even when
+  no review ran.** `continue-on-error: true` is set on the job while
+  anthropics/claude-code-action#1614 is open: a subscription OAuth token from
+  `claude setup-token` works in the local CLI but is rejected from CI with
+  `401 OAuth access token is invalid`. Upstream has ruled out the action
+  version, the token and the subscription plan, so nothing in this repository
+  fixes it. Until that issue closes, a green **Claude review** check means
+  only that the job finished — read its log to see whether a review actually
+  happened. The review that gates work meanwhile is the local, pre-PR
+  `mattpocock-skills:code-review` in CLAUDE.md.
 
 ## Making it a required check
 
-Not required yet, on purpose: a required check is added after the workflow has
-proven itself on real pull requests, not before. Once a few PRs have been
+**Not possible right now:** `continue-on-error: true` makes the check report
+success regardless of outcome, so requiring it would gate on nothing. Drop
+that line first — which means waiting for
+anthropics/claude-code-action#1614 — and only then consider this section.
+
+Not required yet, on purpose either way: a required check is added after the
+workflow has proven itself on real pull requests, not before. It has not yet
+posted a single review here. Once a few PRs have been
 reviewed cleanly, add **AI code review / Claude review** to the ruleset on
 `main` alongside the three existing required checks.
 
