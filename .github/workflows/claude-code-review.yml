@@ -51,10 +51,10 @@ jobs:
     # review that actually gates work is the local, pre-PR
     # `mattpocock-skills:code-review` described in CLAUDE.md.
     #
-    # Remove this line once upstream closes that issue and a run posts a
-    # review again. Do not promote this job to a required status check while
-    # it is here: continue-on-error makes the check report success.
-    continue-on-error: true
+    # The flag sits on the Review step below, not here: at job level
+    # continue-on-error only spares the workflow run, while the check run that
+    # shows on the pull request still reports failure. Verified on run
+    # 45816212167 — run success, job Claude review failure.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -94,7 +94,14 @@ jobs:
           git fetch --no-tags origin "$BASE_REF"
           echo "sha=$(git merge-base FETCH_HEAD HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Non-blocking: see the note on the job above. Only this step carries it.
+      # The credential check and the merge-base resolution above must still
+      # fail loudly, since those are our bugs to fix, not upstream's. Remove
+      # this line once anthropics/claude-code-action#1614 closes, and do not
+      # make this job a required status check while it is here: it makes the
+      # check report success whether or not a review happened.
       - name: Review
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
